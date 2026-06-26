@@ -5,6 +5,7 @@
   let fileName = "—";
   let pageName = "—";
   let selectionCount = 0;
+  let selectedNodes: { id: string, name: string }[] = [];
   let activeRequests = new Set<string>();
   $: isWorking = activeRequests.size > 0;
 
@@ -90,6 +91,7 @@
       fileName = msg.payload.fileName;
       pageName = msg.payload.pageName ?? "—";
       selectionCount = msg.payload.selectionCount;
+      selectedNodes = msg.payload.selectedNodes ?? [];
       return;
     }
 
@@ -134,6 +136,26 @@
     if (event.key === "Escape") showSettings = false;
   }
 
+  function copyToClipboard(text: string) {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      document.execCommand("copy");
+    } catch (err) {
+      console.error("Failed to copy", err);
+    } finally {
+      document.body.removeChild(textarea);
+    }
+  }
+
+  function copyAllNodes() {
+    const ids = selectedNodes.map(n => n.id).join("\n");
+    copyToClipboard(ids);
+  }
+
   onMount(() => {
     window.addEventListener("message", handleMessage);
 
@@ -173,6 +195,24 @@
       <span class="info-label">Selection</span>
       <span class="info-value">{selectionCount} node(s)</span>
     </div>
+    {#if selectedNodes.length > 0}
+      <div class="node-list">
+        {#if selectedNodes.length > 1}
+          <div class="node-list-header">
+            <span>Details</span>
+            <button class="copy-btn" on:click={copyAllNodes} title="Copy all IDs">Copy All</button>
+          </div>
+        {/if}
+        <div class="node-items">
+          {#each selectedNodes as node}
+            <div class="node-item">
+              <span class="node-name" title="{node.name}">{node.name} <span class="node-id">({node.id})</span></span>
+              <button class="copy-btn" on:click={() => copyToClipboard(node.id)} title="Copy ID">Copy</button>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
   </div>
   {#if isWorking}
     <div class="working-banner">
@@ -217,19 +257,19 @@
     <div class="footer-row">
       <a
         class="author"
-        href="https://github.com/vkhanhqui/figma-mcp-go"
+        href="https://github.com/tunglt1810/figma-mcp-go"
         target="_blank"
       >
         <img
-          src="https://avatars.githubusercontent.com/u/64468109?v=4"
+          src="https://avatars.githubusercontent.com/u/19906349?v=4"
           alt="avatar"
         />
-        vkhanhqui
+        tunglt1810
       </a>
       <div class="links">
         <a
           class="footer-link"
-          href="https://github.com/vkhanhqui/figma-mcp-go/issues/new?labels=bug"
+          href="https://github.com/tunglt1810/figma-mcp-go/issues/new?labels=bug"
           target="_blank"
           title="Report a bug"
         >
@@ -240,7 +280,7 @@
         </a>
         <a
           class="footer-link"
-          href="https://github.com/vkhanhqui/figma-mcp-go/issues/new?labels=enhancement&title=Feature+request%3A+"
+          href="https://github.com/tunglt1810/figma-mcp-go/issues/new?labels=enhancement&title=Feature+request%3A+"
           target="_blank"
           title="Suggest a feature"
         >
@@ -301,6 +341,89 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .node-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+    background: #2a2a2a;
+    border-radius: 6px;
+    padding: 6px 8px;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  .node-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: #888;
+    margin-bottom: 2px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #444;
+  }
+
+  .node-items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .node-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .node-name {
+    color: #ccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    flex: 1;
+  }
+
+  .node-id {
+    color: #888;
+    font-family: monospace;
+    font-size: 10px;
+  }
+
+  .copy-btn {
+    background: #333;
+    border: 1px solid #444;
+    color: #e0e0e0;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .copy-btn:hover {
+    background: #444;
+  }
+  
+  .copy-btn:active {
+    background: #555;
+  }
+  
+  .node-list::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .node-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .node-list::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 3px;
   }
 
   .working-banner {

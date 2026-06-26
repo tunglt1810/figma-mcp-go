@@ -1,16 +1,16 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.vkhanhqui/figma-mcp-go",
+  "name": "io.github.tunglt1810/figma-mcp-go",
   "description": "Figma MCP server with full read/write access via plugin — no API token, no rate limits. 73 tools.",
   "repository": {
-    "url": "https://github.com/vkhanhqui/figma-mcp-go",
+    "url": "https://github.com/tunglt1810/figma-mcp-go",
     "source": "github"
   },
   "version": "0.1.0",
   "packages": [
     {
       "registryType": "npm",
-      "identifier": "@vkhanhqui/figma-mcp-go",
+      "identifier": "@tunglt1810/figma-mcp-go",
       "version": "0.1.0",
       "transport": {
         "type": "stdio"
