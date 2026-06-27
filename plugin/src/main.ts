@@ -66,6 +66,18 @@ figma.ui.onmessage = async (message) => {
     });
     return;
   }
+  if (message.type === "get_auto_copy") {
+    const enabled = await figma.clientStorage.getAsync("auto_copy_enabled");
+    figma.ui.postMessage({
+      type: "auto_copy",
+      enabled: enabled === true,
+    });
+    return;
+  }
+  if (message.type === "save_auto_copy") {
+    await figma.clientStorage.setAsync("auto_copy_enabled", message.enabled);
+    return;
+  }
   if (message.type === "server-request") {
     const response = await handleRequest(message.payload);
     try {

@@ -8,6 +8,8 @@
   let selectedNodes: { id: string, name: string }[] = [];
   let activeRequests = new Set<string>();
   $: isWorking = activeRequests.size > 0;
+  
+  let autoCopyEnabled = false;
 
   // Configurable server address.
   // Persisted via figma.clientStorage (through plugin core) because localStorage
@@ -87,11 +89,20 @@
       return;
     }
 
+    if (msg.type === "auto_copy") {
+      autoCopyEnabled = msg.enabled;
+      return;
+    }
+
     if (msg.type === "plugin-status") {
       fileName = msg.payload.fileName;
       pageName = msg.payload.pageName ?? "—";
       selectionCount = msg.payload.selectionCount;
       selectedNodes = msg.payload.selectedNodes ?? [];
+      
+      if (autoCopyEnabled && selectedNodes.length > 0) {
+        copyAllNodes();
+      }
       return;
     }
 
@@ -136,6 +147,10 @@
     if (event.key === "Escape") showSettings = false;
   }
 
+  function handleAutoCopyChange() {
+    parent.postMessage({ pluginMessage: { type: "save_auto_copy", enabled: autoCopyEnabled } }, "*");
+  }
+
   function copyToClipboard(text: string) {
     const textarea = document.createElement("textarea");
     textarea.value = text;
@@ -159,9 +174,9 @@
   onMount(() => {
     window.addEventListener("message", handleMessage);
 
-    // Request stored config from plugin core (responds with ws_config message).
-    // connect() is called once we receive the response.
+    // Request stored configs from plugin core
     parent.postMessage({ pluginMessage: { type: "get_ws_config" } }, "*");
+    parent.postMessage({ pluginMessage: { type: "get_auto_copy" } }, "*");
 
     // Fallback: if the plugin core doesn't respond within 500 ms (e.g. during
     // dev / hot-reload without a running core), connect with defaults.
@@ -197,12 +212,15 @@
     </div>
     {#if selectedNodes.length > 0}
       <div class="node-list">
-        {#if selectedNodes.length > 1}
-          <div class="node-list-header">
-            <span>Details</span>
+        <div class="node-list-header">
+          <label class="auto-copy-label">
+            <input type="checkbox" bind:checked={autoCopyEnabled} on:change={handleAutoCopyChange} />
+            Auto-copy ID
+          </label>
+          {#if selectedNodes.length > 1}
             <button class="copy-btn" on:click={copyAllNodes} title="Copy all IDs">Copy All</button>
-          </div>
-        {/if}
+          {/if}
+        </div>
         <div class="node-items">
           {#each selectedNodes as node}
             <div class="node-item">
@@ -364,6 +382,18 @@
     margin-bottom: 2px;
     padding-bottom: 4px;
     border-bottom: 1px solid #444;
+  }
+
+  .auto-copy-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  
+  .auto-copy-label input {
+    cursor: pointer;
+    margin: 0;
   }
 
   .node-items {
