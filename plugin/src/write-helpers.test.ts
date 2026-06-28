@@ -5,6 +5,7 @@ import {
   applyAutoLayout,
   base64ToBytes,
   getParentNode,
+  makeGradientPaint,
 } from "./write-helpers";
 
 // ── Figma global mock ─────────────────────────────────────────────────────────

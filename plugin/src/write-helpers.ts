@@ -1,3 +1,5 @@
+import { invertTransform } from "./serializers";
+
 // Write helpers — utilities used exclusively by write handlers.
 
 export const hexToRgb = (hex: string) => {
@@ -68,4 +70,75 @@ export const base64ToBytes = (b64: string) => {
     if (j < outLen) bytes[j++] = ((c & 3) << 6) | d;
   }
   return bytes;
+};
+
+export const makeGradientPaint = (type: string, stops: any[], geometry: any): GradientPaint => {
+  const gradientStops: ReadonlyArray<ColorStop> = stops.map((stop: any) => {
+    const { r, g, b, a } = typeof stop.color === "string" ? hexToRgb(stop.color) : stop.color;
+    return {
+      position: stop.position,
+      color: { r, g, b, a: a != null ? a : 1 }
+    };
+  });
+
+  let T_inv: number[][] = [[1, 0, 0], [0, 1, 0]];
+
+  if (type === "GRADIENT_RADIAL") {
+    const cx = (geometry.center?.percentX || 50) / 100;
+    const cy = (geometry.center?.percentY || 50) / 100;
+    const rx = (geometry.radius?.percentX || 50) / 100;
+    const ry = (geometry.radius?.percentY || 50) / 100;
+    const theta = ((geometry.rotation || 0) * Math.PI) / 180;
+
+    const centerNorm = { x: cx, y: cy };
+    const rxHandleNorm = {
+      x: cx + rx * Math.cos(theta),
+      y: cy + rx * Math.sin(theta)
+    };
+    const ryHandleNorm = {
+      x: cx - ry * Math.sin(theta),
+      y: cy + ry * Math.cos(theta)
+    };
+
+    const A = 2 * (rxHandleNorm.x - centerNorm.x);
+    const B = 2 * (ryHandleNorm.x - centerNorm.x);
+    const C = 3 * centerNorm.x - rxHandleNorm.x - ryHandleNorm.x;
+
+    const D = 2 * (rxHandleNorm.y - centerNorm.y);
+    const E = 2 * (ryHandleNorm.y - centerNorm.y);
+    const F = 3 * centerNorm.y - rxHandleNorm.y - ryHandleNorm.y;
+
+    T_inv = [[A, B, C], [D, E, F]];
+  } else if (type === "GRADIENT_LINEAR") {
+    const sx = (geometry.start?.percentX || 0) / 100;
+    const sy = (geometry.start?.percentY || 0) / 100;
+    const ex = (geometry.end?.percentX || 100) / 100;
+    const ey = (geometry.end?.percentY || 100) / 100;
+
+    const startNorm = { x: sx, y: sy };
+    const endNorm = { x: ex, y: ey };
+    
+    // Perpendicular vector for the Y handle mapping
+    const dx = endNorm.x - startNorm.x;
+    const dy = endNorm.y - startNorm.y;
+    const perpNorm = { x: startNorm.x - dy, y: startNorm.y + dx };
+
+    const A = endNorm.x - startNorm.x;
+    const B = 2 * (perpNorm.x - startNorm.x);
+    const C = 2 * startNorm.x - perpNorm.x;
+
+    const D = endNorm.y - startNorm.y;
+    const E = 2 * (perpNorm.y - startNorm.y);
+    const F = 2 * startNorm.y - perpNorm.y;
+
+    T_inv = [[A, B, C], [D, E, F]];
+  }
+
+  const gradientTransform = invertTransform(T_inv) as Transform;
+
+  return {
+    type: type as any,
+    gradientStops,
+    gradientTransform
+  };
 };

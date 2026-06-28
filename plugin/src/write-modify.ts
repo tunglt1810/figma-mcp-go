@@ -1,5 +1,5 @@
 import { getBounds } from "./serializers";
-import { makeSolidPaint, getParentNode, applyAutoLayout } from "./write-helpers";
+import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint } from "./write-helpers";
 
 export const handleWriteModifyRequest = async (request: any) => {
   switch (request.type) {
@@ -20,6 +20,23 @@ export const handleWriteModifyRequest = async (request: any) => {
         type: request.type,
         requestId: request.requestId,
         data: { id: node.id, name: node.name, characters: node.characters },
+      };
+    }
+
+    case "set_gradient_fills": {
+      const p = request.params || {};
+      const nodeId = request.nodeIds && request.nodeIds[0];
+      if (!nodeId) throw new Error("nodeId is required");
+      const node = await figma.getNodeByIdAsync(nodeId);
+      if (!node) throw new Error(`Node not found: ${nodeId}`);
+      if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
+      const newFill = makeGradientPaint(p.type, p.stops, p.geometry);
+      (node as any).fills = [newFill];
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { id: node.id, name: node.name },
       };
     }
 

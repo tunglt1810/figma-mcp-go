@@ -17,9 +17,14 @@ plugin/dist/
 
 # OS
 .DS_Store
+**/.DS_Store
 
 output/
 example/
 .vscode/
 release
 localonly
+
+.agents
+graphify-out
+.graphifyignore 

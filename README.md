@@ -122,6 +122,7 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 | -------------------- | -------------------------------------------------------------------------------- |
 | `set_text`           | Update text content of an existing TEXT node                                     |
 | `set_fills`          | Set solid fill color (hex) on a node                                             |
+| `set_gradient_fills` | Set linear or radial gradient fills on a node using geometry properties          |
 | `set_strokes`        | Set solid stroke color and weight on a node                                      |
 | `set_opacity`        | Set opacity of one or more nodes (0 = transparent, 1 = opaque)                   |
 | `set_corner_radius`  | Set corner radius — uniform or per-corner                                        |

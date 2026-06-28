@@ -52,6 +52,35 @@ func registerWriteModifyTools(s *server.MCPServer, node *Node) {
 		return renderResponse(resp, err)
 	})
 
+	s.AddTool(mcp.NewTool("set_gradient_fills",
+		mcp.WithDescription("Set a linear or radial gradient fill on a single node."),
+		mcp.WithString("nodeId",
+			mcp.Required(),
+			mcp.Description("Node ID in colon format e.g. '4029:12345'"),
+		),
+		mcp.WithString("type",
+			mcp.Required(),
+			mcp.Description("Gradient type: GRADIENT_LINEAR or GRADIENT_RADIAL"),
+		),
+		mcp.WithAny("stops",
+			mcp.Required(),
+			mcp.Description("Array of color stops, e.g. [{position: 0, color: '#ff0000'}, {position: 1, color: '#00ff00'}]"),
+		),
+		mcp.WithAny("geometry",
+			mcp.Required(),
+			mcp.Description("Geometry object representing gradient coordinates (start, end, angle OR center, radius, rotation) in percentX/Y. See specs."),
+		),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		nodeID, _ := req.GetArguments()["nodeId"].(string)
+		params := map[string]interface{}{
+			"type":     req.GetArguments()["type"],
+			"stops":    req.GetArguments()["stops"],
+			"geometry": req.GetArguments()["geometry"],
+		}
+		resp, err := node.Send(ctx, "set_gradient_fills", []string{nodeID}, params)
+		return renderResponse(resp, err)
+	})
+
 	s.AddTool(mcp.NewTool("set_strokes",
 		mcp.WithDescription("Set the stroke color and weight on a single node (takes one nodeId, not an array). Use mode='append' to stack a new stroke on top of existing strokes instead of replacing them."),
 		mcp.WithString("nodeId",

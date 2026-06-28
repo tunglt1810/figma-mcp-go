@@ -54,7 +54,7 @@ jobs:
         run: zip -r plugin.zip plugin/manifest.json plugin/dist/
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: plugin.zip
           generate_release_notes: true

@@ -298,6 +298,24 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			return "mode must be 'replace' or 'append'"
 		}
 
+	case "set_gradient_fills":
+		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
+			return "nodeId is required"
+		}
+		if !ValidNodeID(nodeIDs[0]) {
+			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
+		}
+		typ, _ := params["type"].(string)
+		if typ != "GRADIENT_LINEAR" && typ != "GRADIENT_RADIAL" {
+			return "type must be GRADIENT_LINEAR or GRADIENT_RADIAL"
+		}
+		if _, ok := params["stops"]; !ok {
+			return "stops array is required"
+		}
+		if _, ok := params["geometry"]; !ok {
+			return "geometry object is required"
+		}
+
 	case "set_strokes":
 		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
 			return "nodeId is required"

@@ -75,9 +75,46 @@ describe("serializePaints", () => {
   it("returns undefined for empty array", () => {
     expect(serializePaints([])).toBeUndefined();
   });
-  it("filters out non-SOLID paints", () => {
-    const paints = [{ type: "IMAGE" }, { type: "GRADIENT_LINEAR" }];
+  it("filters out unsupported paints like IMAGE", () => {
+    const paints = [{ type: "IMAGE" }];
     expect(serializePaints(paints)).toBeUndefined();
+  });
+  it("serializes GRADIENT_RADIAL to geometry", () => {
+    const node = { width: 100, height: 100 };
+    // M = identity transform for simplicity
+    const paints = [{
+      type: "GRADIENT_RADIAL",
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [
+        { position: 0, color: { r: 1, g: 0.5, b: 0, a: 1 } },
+        { position: 1, color: { r: 0, g: 0, b: 0, a: 1 } }
+      ]
+    }];
+    const result = serializePaints(paints, node) as any[];
+    expect(result[0].type).toBe("GRADIENT_RADIAL");
+    expect(result[0].geometry.center.percentX).toBe(50);
+    expect(result[0].geometry.center.percentY).toBe(50);
+    expect(result[0].geometry.radius.percentX).toBe(50);
+    expect(result[0].geometry.radius.percentY).toBe(50);
+    expect(result[0].stops[0].color).toBe("#ff8000");
+    expect(result[0].cssString).toBe("radial-gradient(circle 50% at 50% 50%, #ff8000 0%, #000000 100%)");
+  });
+  it("serializes GRADIENT_LINEAR to geometry", () => {
+    const node = { width: 200, height: 100 };
+    // M = [[1, 0, 0], [0, 1, 0]]
+    const paints = [{
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [
+        { position: 0, color: { r: 1, g: 1, b: 1, a: 1 } }
+      ]
+    }];
+    const result = serializePaints(paints, node) as any[];
+    expect(result[0].type).toBe("GRADIENT_LINEAR");
+    expect(result[0].geometry.start.percentX).toBe(0);
+    expect(result[0].geometry.end.percentX).toBe(100);
+    expect(result[0].geometry.angle).toBe(0);
+    expect(result[0].cssString).toBe("linear-gradient(90deg, #ffffff 0%)");
   });
   it("serializes a solid paint with opacity 1 as plain hex", () => {
     const paints = [{ type: "SOLID", color: { r: 1, g: 0, b: 0 }, opacity: 1 }];

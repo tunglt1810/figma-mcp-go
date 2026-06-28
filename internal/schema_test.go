@@ -421,6 +421,32 @@ func TestValidateRPC_SetStrokes(t *testing.T) {
 	}
 }
 
+func TestValidateRPC_SetGradientFills(t *testing.T) {
+	if msg := ValidateRPC("set_gradient_fills", nil, nil); msg == "" {
+		t.Error("expected error for missing params")
+	}
+	if msg := ValidateRPC("set_gradient_fills", nil, map[string]interface{}{"nodeId": "1:1", "type": "GRADIENT_RADIAL"}); msg == "" {
+		t.Error("expected error for missing stops and geometry")
+	}
+
+	validArgs := map[string]interface{}{
+		"nodeId": "1:1",
+		"type":   "GRADIENT_RADIAL",
+		"stops": []interface{}{
+			map[string]interface{}{"position": 0, "color": "#ff0000"},
+			map[string]interface{}{"position": 1, "color": "#00ff00"},
+		},
+		"geometry": map[string]interface{}{
+			"center":   map[string]interface{}{"percentX": 50, "percentY": 50},
+			"radius":   map[string]interface{}{"percentX": 50, "percentY": 50},
+			"rotation": 0,
+		},
+	}
+	if msg := ValidateRPC("set_gradient_fills", nil, validArgs); msg != "" {
+		t.Errorf("unexpected error for valid arguments: %s", msg)
+	}
+}
+
 func TestValidateRPC_ResizeNodes(t *testing.T) {
 	if msg := ValidateRPC("resize_nodes", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeIds")

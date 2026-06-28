@@ -12,23 +12,115 @@ export const toHex = (color: any) => {
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 };
 
-export const serializePaints = (paints: any) => {
+export function invertTransform(t: number[][]): number[][] {
+  const [[a, b, c], [d, e, f]] = t;
+  const det = a * e - b * d;
+  if (det === 0) return [[1, 0, 0], [0, 1, 0]];
+  return [
+    [e / det, -b / det, (b * f - c * e) / det],
+    [-d / det, a / det, (c * d - a * f) / det],
+  ];
+}
+
+export const serializePaints = (paints: any, node?: any) => {
   if (isMixed(paints)) return "mixed";
 
   if (!paints || !Array.isArray(paints)) return undefined;
 
   const result = paints
-    .filter((paint: any) => paint.type === "SOLID" && "color" in paint)
+    .filter((paint: any) => {
+      return (paint.type === "SOLID" && "color" in paint) || 
+             paint.type === "GRADIENT_LINEAR" || 
+             paint.type === "GRADIENT_RADIAL";
+    })
     .map((paint: any) => {
-      const hex = toHex(paint.color);
-      const opacity = paint.opacity != null ? paint.opacity : 1;
-      if (opacity === 1) return hex;
-      return (
-        hex +
-        Math.round(opacity * 255)
-          .toString(16)
-          .padStart(2, "0")
-      );
+      if (paint.type === "SOLID") {
+        const hex = toHex(paint.color);
+        const opacity = paint.opacity != null ? paint.opacity : 1;
+        if (opacity === 1) return hex;
+        return (
+          hex +
+          Math.round(opacity * 255)
+            .toString(16)
+            .padStart(2, "0")
+        );
+      }
+
+      // GRADIENT
+      const inv = invertTransform(paint.gradientTransform);
+      const stops = paint.gradientStops.map((stop: any) => {
+        const colorHex = toHex(stop.color);
+        const a = stop.color.a != null ? stop.color.a : 1;
+        const colorStr = a === 1 ? colorHex : colorHex + Math.round(a * 255).toString(16).padStart(2, "0");
+        return { position: stop.position, color: colorStr };
+      });
+
+      if (paint.type === "GRADIENT_RADIAL") {
+        // Center: 0.5, 0.5
+        const cx = inv[0][0] * 0.5 + inv[0][1] * 0.5 + inv[0][2];
+        const cy = inv[1][0] * 0.5 + inv[1][1] * 0.5 + inv[1][2];
+        
+        // Radius X axis endpoint: 1, 0.5
+        const radiusXx = inv[0][0] * 1.0 + inv[0][1] * 0.5 + inv[0][2];
+        const radiusXy = inv[1][0] * 1.0 + inv[1][1] * 0.5 + inv[1][2];
+
+        // Radius Y axis endpoint: 0.5, 1
+        const radiusYx = inv[0][0] * 0.5 + inv[0][1] * 1.0 + inv[0][2];
+        const radiusYy = inv[1][0] * 0.5 + inv[1][1] * 1.0 + inv[1][2];
+        
+        const rx = Math.sqrt(Math.pow(radiusXx - cx, 2) + Math.pow(radiusXy - cy, 2));
+        const ry = Math.sqrt(Math.pow(radiusYx - cx, 2) + Math.pow(radiusYy - cy, 2));
+
+        const rotation = Math.atan2(radiusXy - cy, radiusXx - cx) * 180 / Math.PI;
+
+        const stopStrings = stops.map((s: any) => `${s.color} ${Math.round(s.position * 100)}%`).join(', ');
+        const rxPercent = Math.round(rx * 100);
+        const ryPercent = Math.round(ry * 100);
+        const cxPercent = Math.round(cx * 100);
+        const cyPercent = Math.round(cy * 100);
+        
+        const cssString = Math.abs(rx - ry) < 0.01 
+          ? `radial-gradient(circle ${rxPercent}% at ${cxPercent}% ${cyPercent}%, ${stopStrings})`
+          : `radial-gradient(ellipse ${rxPercent}% ${ryPercent}% at ${cxPercent}% ${cyPercent}%, ${stopStrings})`;
+
+        return {
+          type: "GRADIENT_RADIAL",
+          stops,
+          geometry: {
+            center: { percentX: cxPercent, percentY: cyPercent },
+            radius: { percentX: rxPercent, percentY: ryPercent },
+            rotation: Math.round(rotation)
+          },
+          cssString
+        };
+      }
+
+      if (paint.type === "GRADIENT_LINEAR") {
+        // Start: 0, 0.5. End: 1, 0.5
+        const sx = inv[0][0] * 0.0 + inv[0][1] * 0.5 + inv[0][2];
+        const sy = inv[1][0] * 0.0 + inv[1][1] * 0.5 + inv[1][2];
+        const ex = inv[0][0] * 1.0 + inv[0][1] * 0.5 + inv[0][2];
+        const ey = inv[1][0] * 1.0 + inv[1][1] * 0.5 + inv[1][2];
+
+        const angle = Math.atan2(ey - sy, ex - sx) * 180 / Math.PI;
+
+        const stopStrings = stops.map((s: any) => `${s.color} ${Math.round(s.position * 100)}%`).join(', ');
+        let cssAngle = Math.round(angle + 90);
+        if (cssAngle < 0) cssAngle += 360;
+        cssAngle = cssAngle % 360;
+        const cssString = `linear-gradient(${cssAngle}deg, ${stopStrings})`;
+
+        return {
+          type: "GRADIENT_LINEAR",
+          stops,
+          geometry: {
+            start: { percentX: Math.round(sx * 100), percentY: Math.round(sy * 100) },
+            end: { percentX: Math.round(ex * 100), percentY: Math.round(ey * 100) },
+            angle: Math.round(angle)
+          },
+          cssString
+        };
+      }
     });
 
   return result.length > 0 ? result : undefined;
