@@ -90,6 +90,10 @@ export const makeGradientPaint = (type: string, stops: any[], geometry: any): Gr
     const ry = (geometry.radius?.percentY || 50) / 100;
     const theta = ((geometry.rotation || 0) * Math.PI) / 180;
 
+    // Place 3 control points in normalized node space:
+    //   center      = gradient center
+    //   rxHandle    = tip of the X-radius axis (rotated by theta)
+    //   ryHandle    = tip of the Y-radius axis (perpendicular to X-axis)
     const centerNorm = { x: cx, y: cy };
     const rxHandleNorm = {
       x: cx + rx * Math.cos(theta),
@@ -100,6 +104,14 @@ export const makeGradientPaint = (type: string, stops: any[], geometry: any): Gr
       y: cy + ry * Math.cos(theta)
     };
 
+    // Solve affine transform T_inv that maps 3 gradient-space control points
+    // to their positions in normalized node space:
+    //   (0.5, 0.5) → center    (gradient center)
+    //   (1.0, 0.5) → rxHandle  (end of X-radius axis)
+    //   (0.5, 1.0) → ryHandle  (end of Y-radius axis)
+    //
+    // T_inv = [[A, B, C], [D, E, F]] where A·gx + B·gy + C = nx
+    // Coefficients derived by substituting the 3 point pairs and solving.
     const A = 2 * (rxHandleNorm.x - centerNorm.x);
     const B = 2 * (ryHandleNorm.x - centerNorm.x);
     const C = 3 * centerNorm.x - rxHandleNorm.x - ryHandleNorm.x;

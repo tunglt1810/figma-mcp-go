@@ -11,7 +11,9 @@ import {
   serializeStyles,
   serializeText,
   serializeNode,
+  invertTransform,
 } from "./serializers";
+import { makeGradientPaint } from "./write-helpers";
 
 // ── Figma global mock ─────────────────────────────────────────────────────────
 
@@ -97,7 +99,97 @@ describe("serializePaints", () => {
     expect(result[0].geometry.radius.percentX).toBe(50);
     expect(result[0].geometry.radius.percentY).toBe(50);
     expect(result[0].stops[0].color).toBe("#ff8000");
-    expect(result[0].cssString).toBe("radial-gradient(circle 50% at 50% 50%, #ff8000 0%, #000000 100%)");
+    expect(result[0].cssString).toBe("radial-gradient(50% 50% at 50% 50%, #ff8000 0%, #000000 100%)");
+  });
+  it("serializes GRADIENT_RADIAL ellipse (rx != ry)", () => {
+    // T_inv maps gradient space → node-normalized space.
+    // Scale X by 0.6, Y by 0.3 → ellipse with rx=30%, ry=15%
+    const paints = [{
+      type: "GRADIENT_RADIAL",
+      gradientTransform: invertTransform([[0.6, 0, 0.2], [0, 0.3, 0.35]]),
+      gradientStops: [
+        { position: 0, color: { r: 1, g: 0, b: 0, a: 1 } },
+        { position: 1, color: { r: 0, g: 0, b: 1, a: 1 } }
+      ]
+    }];
+    const result = serializePaints(paints) as any[];
+    expect(result[0].geometry.radius.percentX).toBe(30);
+    expect(result[0].geometry.radius.percentY).toBe(15);
+    expect(result[0].geometry.rotation).toBe(0);
+  });
+  it("serializes GRADIENT_RADIAL with rotation", () => {
+    const theta = 45 * Math.PI / 180;
+    const rx = 0.4, ry = 0.2;
+    // M = R(theta) · diag(2*rx, 2*ry)
+    const T_inv = [
+      [2*rx*Math.cos(theta), -2*ry*Math.sin(theta), 0.5 - rx*Math.cos(theta) + ry*Math.sin(theta)],
+      [2*rx*Math.sin(theta),  2*ry*Math.cos(theta), 0.5 - rx*Math.sin(theta) - ry*Math.cos(theta)]
+    ];
+    const paints = [{
+      type: "GRADIENT_RADIAL",
+      gradientTransform: invertTransform(T_inv),
+      gradientStops: [
+        { position: 0, color: { r: 1, g: 1, b: 0, a: 1 } }
+      ]
+    }];
+    const result = serializePaints(paints) as any[];
+    expect(result[0].geometry.center.percentX).toBe(50);
+    expect(result[0].geometry.center.percentY).toBe(50);
+    expect(result[0].geometry.radius.percentX).toBe(Math.round(rx * 100));
+    expect(result[0].geometry.radius.percentY).toBe(Math.round(ry * 100));
+    expect(result[0].geometry.rotation).toBe(45);
+  });
+  it("serializes GRADIENT_RADIAL with off-center position", () => {
+    // Center at (-0.28, -0.13) in normalized space
+    const T_inv = [[1.5, 0, -0.28 - 1.5*0.5], [0, 1.5, -0.13 - 1.5*0.5]];
+    const paints = [{
+      type: "GRADIENT_RADIAL",
+      gradientTransform: invertTransform(T_inv),
+      gradientStops: [
+        { position: 0, color: { r: 1, g: 1, b: 1, a: 1 } }
+      ]
+    }];
+    const result = serializePaints(paints) as any[];
+    expect(result[0].geometry.center.percentX).toBe(-28);
+    expect(result[0].geometry.center.percentY).toBe(-13);
+    expect(result[0].geometry.radius.percentX).toBe(75);
+    expect(result[0].geometry.radius.percentY).toBe(75);
+  });
+  it("roundtrips radial gradient through serialize → makeGradientPaint → serialize", () => {
+    const theta = 30 * Math.PI / 180;
+    const rx = 0.35, ry = 0.2;
+    const T_inv = [
+      [2*rx*Math.cos(theta), -2*ry*Math.sin(theta), 0.5 - rx*Math.cos(theta) + ry*Math.sin(theta)],
+      [2*rx*Math.sin(theta),  2*ry*Math.cos(theta), 0.5 - rx*Math.sin(theta) - ry*Math.cos(theta)]
+    ];
+    const paints = [{
+      type: "GRADIENT_RADIAL",
+      gradientTransform: invertTransform(T_inv),
+      gradientStops: [
+        { position: 0, color: { r: 1, g: 0, b: 0, a: 1 } },
+        { position: 1, color: { r: 0, g: 0, b: 1, a: 1 } }
+      ]
+    }];
+    // First serialize
+    const result1 = serializePaints(paints) as any[];
+    const g1 = result1[0].geometry;
+
+    // Reconstruct paint via write path
+    const reconstructed = makeGradientPaint("GRADIENT_RADIAL", result1[0].stops, g1);
+
+    // Second serialize
+    const result2 = serializePaints([{
+      type: "GRADIENT_RADIAL",
+      gradientTransform: reconstructed.gradientTransform,
+      gradientStops: reconstructed.gradientStops
+    }]) as any[];
+    const g2 = result2[0].geometry;
+
+    expect(g2.center.percentX).toBe(g1.center.percentX);
+    expect(g2.center.percentY).toBe(g1.center.percentY);
+    expect(g2.radius.percentX).toBe(g1.radius.percentX);
+    expect(g2.radius.percentY).toBe(g1.radius.percentY);
+    expect(g2.rotation).toBe(g1.rotation);
   });
   it("serializes GRADIENT_LINEAR to geometry", () => {
     const node = { width: 200, height: 100 };

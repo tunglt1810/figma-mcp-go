@@ -70,12 +70,16 @@ func registerWriteModifyTools(s *server.MCPServer, node *Node) {
 			mcp.Required(),
 			mcp.Description("Geometry object representing gradient coordinates (start, end, angle OR center, radius, rotation) in percentX/Y. See specs."),
 		),
+		mcp.WithString("mode", mcp.Description("'replace' (default) overwrites all existing fills; 'append' stacks this fill on top of existing ones")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		nodeID, _ := req.GetArguments()["nodeId"].(string)
 		params := map[string]interface{}{
 			"type":     req.GetArguments()["type"],
 			"stops":    req.GetArguments()["stops"],
 			"geometry": req.GetArguments()["geometry"],
+		}
+		if m, ok := req.GetArguments()["mode"].(string); ok {
+			params["mode"] = m
 		}
 		resp, err := node.Send(ctx, "set_gradient_fills", []string{nodeID}, params)
 		return renderResponse(resp, err)

@@ -48,6 +48,7 @@ export const serializePaints = (paints: any, node?: any) => {
 
       // GRADIENT
       const inv = invertTransform(paint.gradientTransform);
+      // Keep raw position (0–1 float) for precision; cssString rounds to integer %
       const stops = paint.gradientStops.map((stop: any) => {
         const colorHex = toHex(stop.color);
         const a = stop.color.a != null ? stop.color.a : 1;
@@ -91,9 +92,9 @@ export const serializePaints = (paints: any, node?: any) => {
         const cxPercent = Math.round(cx * 100);
         const cyPercent = Math.round(cy * 100);
         
-        const cssString = Math.abs(rx - ry) < 0.01 
-          ? `radial-gradient(circle ${rxPercent}% at ${cxPercent}% ${cyPercent}%, ${stopStrings})`
-          : `radial-gradient(ellipse ${rxPercent}% ${ryPercent}% at ${cxPercent}% ${cyPercent}%, ${stopStrings})`;
+        // CSS radial-gradient: rx% is relative to element width, ry% to element height.
+        // Omit shape keyword — browser defaults to ellipse which accepts % values.
+        const cssString = `radial-gradient(${rxPercent}% ${ryPercent}% at ${cxPercent}% ${cyPercent}%, ${stopStrings})`;
 
         return {
           type: "GRADIENT_RADIAL",

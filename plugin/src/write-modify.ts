@@ -31,7 +31,12 @@ export const handleWriteModifyRequest = async (request: any) => {
       if (!node) throw new Error(`Node not found: ${nodeId}`);
       if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
       const newFill = makeGradientPaint(p.type, p.stops, p.geometry);
-      (node as any).fills = [newFill];
+      if (p.mode === "append") {
+        const existing = Array.isArray((node as any).fills) ? [...(node as any).fills] : [];
+        (node as any).fills = [...existing, newFill];
+      } else {
+        (node as any).fills = [newFill];
+      }
       figma.commitUndo();
       return {
         type: request.type,

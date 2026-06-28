@@ -1,6 +1,6 @@
 {
   "name": "@tunglt1810/figma-mcp-go",
-  "version": "0.0.3-alpha",
+  "version": "0.0.4-alpha",
   "description": "A zero-cost, unlimited Figma MCP server — no API key, no rate limits",
   "mcpName": "io.github.tunglt1810/figma-mcp-go",
   "bin": {

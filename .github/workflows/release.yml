@@ -67,6 +67,7 @@ jobs:
       - name: Publish to npm
         working-directory: npm
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ steps.version.outputs.value }}
         run: |
           cp ../README.md .
