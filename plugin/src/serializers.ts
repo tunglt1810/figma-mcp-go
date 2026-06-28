@@ -56,22 +56,34 @@ export const serializePaints = (paints: any, node?: any) => {
       });
 
       if (paint.type === "GRADIENT_RADIAL") {
-        // Center: 0.5, 0.5
+        // Center: mapped from (0.5, 0.5)
         const cx = inv[0][0] * 0.5 + inv[0][1] * 0.5 + inv[0][2];
         const cy = inv[1][0] * 0.5 + inv[1][1] * 0.5 + inv[1][2];
         
-        // Radius X axis endpoint: 1, 0.5
-        const radiusXx = inv[0][0] * 1.0 + inv[0][1] * 0.5 + inv[0][2];
-        const radiusXy = inv[1][0] * 1.0 + inv[1][1] * 0.5 + inv[1][2];
+        // 2x2 transformation matrix M
+        const ma = inv[0][0];
+        const mb = inv[0][1];
+        const mc = inv[1][0];
+        const md = inv[1][1];
 
-        // Radius Y axis endpoint: 0.5, 1
-        const radiusYx = inv[0][0] * 0.5 + inv[0][1] * 1.0 + inv[0][2];
-        const radiusYy = inv[1][0] * 0.5 + inv[1][1] * 1.0 + inv[1][2];
+        // M M^T for SVD to find principal axes
+        const A = ma*ma + mb*mb;
+        const B = ma*mc + mb*md;
+        const C = mc*mc + md*md;
+
+        // Angle of the principal axis
+        let theta = 0.5 * Math.atan2(2 * B, A - C);
+
+        // Eigenvalues of M M^T
+        const E = (A + C) / 2;
+        const F = Math.sqrt( Math.pow(A - C, 2) / 4 + B*B );
         
-        const rx = Math.sqrt(Math.pow(radiusXx - cx, 2) + Math.pow(radiusXy - cy, 2));
-        const ry = Math.sqrt(Math.pow(radiusYx - cx, 2) + Math.pow(radiusYy - cy, 2));
+        // Singular values (true radii of the ellipse when mapping a radius 0.5 circle)
+        // Since gradient circle has radius 0.5 in gradient space, we multiply by 0.5
+        const rx = 0.5 * Math.sqrt(E + F);
+        const ry = 0.5 * Math.sqrt(E - F);
 
-        const rotation = Math.atan2(radiusXy - cy, radiusXx - cx) * 180 / Math.PI;
+        const rotation = theta * 180 / Math.PI;
 
         const stopStrings = stops.map((s: any) => `${s.color} ${Math.round(s.position * 100)}%`).join(', ');
         const rxPercent = Math.round(rx * 100);
