@@ -10,6 +10,7 @@
   $: isWorking = activeRequests.size > 0;
   
   let autoCopyEnabled = false;
+  let copyError = false;
 
   // Configurable server address.
   // Persisted via figma.clientStorage (through plugin core) because localStorage
@@ -89,11 +90,6 @@
       return;
     }
 
-    if (msg.type === "auto_copy") {
-      autoCopyEnabled = msg.enabled;
-      return;
-    }
-
     if (msg.type === "plugin-status") {
       fileName = msg.payload.fileName;
       pageName = msg.payload.pageName ?? "—";
@@ -147,23 +143,45 @@
     if (event.key === "Escape") showSettings = false;
   }
 
-  function handleAutoCopyChange() {
-    parent.postMessage({ pluginMessage: { type: "save_auto_copy", enabled: autoCopyEnabled } }, "*");
-  }
+  async function copyToClipboard(text: string) {
+    let success = false;
 
-  function copyToClipboard(text: string) {
+    // 1. Try synchronous execCommand first to preserve user gesture
     const textarea = document.createElement("textarea");
     textarea.value = text;
     textarea.style.position = "fixed";
+    textarea.style.top = "0";
+    textarea.style.left = "0";
+    textarea.style.opacity = "0";
     document.body.appendChild(textarea);
+    textarea.focus();
     textarea.select();
     try {
-      document.execCommand("copy");
+      success = document.execCommand("copy");
     } catch (err) {
-      console.error("Failed to copy", err);
+      console.warn("execCommand failed", err);
     } finally {
       document.body.removeChild(textarea);
     }
+
+    if (success) {
+      copyError = false;
+      return;
+    }
+
+    // 2. Fallback to async modern API if execCommand fails (e.g. due to sandbox)
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        copyError = false;
+        return;
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.writeText failed", err);
+    }
+
+    // Both failed
+    copyError = true;
   }
 
   function copyAllNodes() {
@@ -171,12 +189,18 @@
     copyToClipboard(ids);
   }
 
+  function retryCopy() {
+    copyError = false;
+    if (selectedNodes.length > 0) {
+      copyAllNodes();
+    }
+  }
+
   onMount(() => {
     window.addEventListener("message", handleMessage);
 
     // Request stored configs from plugin core
     parent.postMessage({ pluginMessage: { type: "get_ws_config" } }, "*");
-    parent.postMessage({ pluginMessage: { type: "get_auto_copy" } }, "*");
 
     // Fallback: if the plugin core doesn't respond within 500 ms (e.g. during
     // dev / hot-reload without a running core), connect with defaults.
@@ -214,7 +238,7 @@
       <div class="node-list">
         <div class="node-list-header">
           <label class="auto-copy-label">
-            <input type="checkbox" bind:checked={autoCopyEnabled} on:change={handleAutoCopyChange} />
+            <input type="checkbox" bind:checked={autoCopyEnabled} />
             Auto-copy ID
           </label>
           {#if selectedNodes.length > 1}
@@ -229,6 +253,13 @@
             </div>
           {/each}
         </div>
+      </div>
+    {/if}
+    {#if copyError}
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div class="error-banner" on:click={retryCopy} title="Browsers require you to click here once after a reload to allow clipboard access">
+        ⚠️ Auto-copy paused. Click here to activate.
       </div>
     {/if}
   </div>
@@ -467,6 +498,26 @@
     color: #60a5fa;
     font-size: 11px;
     font-weight: 500;
+  }
+
+  .error-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #3a1a1a;
+    border: 1px solid #f8717144;
+    border-radius: 8px;
+    color: #f87171;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .error-banner:hover {
+    background: #4a1a1a;
   }
 
   .spinner {

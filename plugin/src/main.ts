@@ -34,7 +34,11 @@ const handleRequest = async (request: any) => {
   }
 };
 
-figma.showUI(__html__, { width: 320, height: 230 });
+figma.showUI(__html__, { 
+  width: 320, 
+  height: 230,
+  title: `Figma MCP Go [v${__APP_VERSION__}]` 
+});
 sendStatus();
 
 figma.on("selectionchange", () => {
@@ -66,16 +70,8 @@ figma.ui.onmessage = async (message) => {
     });
     return;
   }
-  if (message.type === "get_auto_copy") {
-    const enabled = await figma.clientStorage.getAsync("auto_copy_enabled");
-    figma.ui.postMessage({
-      type: "auto_copy",
-      enabled: enabled === true,
-    });
-    return;
-  }
-  if (message.type === "save_auto_copy") {
-    await figma.clientStorage.setAsync("auto_copy_enabled", message.enabled);
+  if (message.type === "notify") {
+    figma.notify(message.message, { error: true });
     return;
   }
   if (message.type === "server-request") {

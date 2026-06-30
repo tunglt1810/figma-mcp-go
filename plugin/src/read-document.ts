@@ -32,6 +32,36 @@ export const handleReadDocumentRequest = async (request: any) => {
       };
     }
 
+    case "get_instance_overrides": {
+      const nodeId = request.nodeIds && request.nodeIds[0];
+      if (!nodeId) throw new Error("nodeIds is required for get_instance_overrides");
+      const node = await figma.getNodeByIdAsync(nodeId);
+      if (!node) throw new Error(`Node not found: ${nodeId}`);
+      if (node.type !== "INSTANCE") throw new Error(`Node ${nodeId} is not an INSTANCE`);
+      
+      const componentProperties: Record<string, any> = {};
+      if (node.componentProperties) {
+        for (const [key, prop] of Object.entries(node.componentProperties)) {
+          componentProperties[key] = {
+            type: prop.type,
+            value: prop.value,
+          };
+          if (prop.preferredValues) {
+            componentProperties[key].preferredValues = prop.preferredValues;
+          }
+        }
+      }
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: {
+          id: node.id,
+          name: node.name,
+          componentProperties,
+        },
+      };
+    }
+
     case "get_nodes_info": {
       if (!request.nodeIds || request.nodeIds.length === 0)
         throw new Error("nodeIds is required for get_nodes_info");

@@ -220,6 +220,42 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
 		}
 
+	case "create_component_instance":
+		componentID, _ := params["componentId"].(string)
+		componentKey, _ := params["componentKey"].(string)
+		if componentID == "" && componentKey == "" {
+			return "componentId or componentKey is required"
+		}
+		if componentID != "" && !ValidNodeID(componentID) {
+			return fmt.Sprintf("componentId must use colon format e.g. 4029:12345, got: %s", componentID)
+		}
+		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
+			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
+		}
+
+	case "get_instance_overrides":
+		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
+			return "nodeId is required"
+		}
+		if !ValidNodeID(nodeIDs[0]) {
+			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
+		}
+
+	case "set_instance_overrides":
+		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
+			return "nodeId is required"
+		}
+		if !ValidNodeID(nodeIDs[0]) {
+			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
+		}
+		props, ok := params["properties"]
+		if !ok {
+			return "properties is required"
+		}
+		if _, ok := props.(map[string]interface{}); !ok {
+			return "properties must be an object/map"
+		}
+
 	case "export_tokens":
 		if format, ok := params["format"].(string); ok && format != "" {
 			switch format {
@@ -854,6 +890,53 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 		if h, ok := params["height"].(float64); ok && h <= 0 {
 			return "height must be positive"
+		}
+
+	case "create_connector":
+		startNodeId, _ := params["startNodeId"].(string)
+		endNodeId, _ := params["endNodeId"].(string)
+		if startNodeId == "" && endNodeId == "" {
+			_, hasStartPos := params["startPosition"]
+			_, hasEndPos := params["endPosition"]
+			if !hasStartPos && !hasEndPos {
+				return "at least one of startNodeId, endNodeId, startPosition, or endPosition is required"
+			}
+		}
+		if startNodeId != "" && !ValidNodeID(startNodeId) {
+			return fmt.Sprintf("startNodeId must use colon format e.g. 4029:12345, got: %s", startNodeId)
+		}
+		if endNodeId != "" && !ValidNodeID(endNodeId) {
+			return fmt.Sprintf("endNodeId must use colon format e.g. 4029:12345, got: %s", endNodeId)
+		}
+		if lineType, ok := params["lineType"].(string); ok && lineType != "" {
+			if lineType != "STRAIGHT" && lineType != "ELBOW" {
+				return fmt.Sprintf("lineType must be STRAIGHT or ELBOW, got: %s", lineType)
+			}
+		}
+
+	case "set_annotations":
+		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
+			return "nodeId is required"
+		}
+		if !ValidNodeID(nodeIDs[0]) {
+			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
+		}
+		if anns, ok := params["annotations"]; ok {
+			if _, isSlice := anns.([]interface{}); !isSlice {
+				return "annotations must be an array"
+			}
+		} else {
+			return "annotations array is required"
+		}
+
+	case "clear_annotations":
+		if len(nodeIDs) == 0 {
+			return "nodeIds is required"
+		}
+		for _, id := range nodeIDs {
+			if !ValidNodeID(id) {
+				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
+			}
 		}
 	}
 

@@ -1351,3 +1351,99 @@ func TestValidateRPC_CreateSection(t *testing.T) {
 		t.Error("expected error for zero height")
 	}
 }
+
+func TestValidateRPC_CreateComponentInstance(t *testing.T) {
+	if msg := ValidateRPC("create_component_instance", nil, nil); msg == "" {
+		t.Error("expected error for missing componentId/Key")
+	}
+	if msg := ValidateRPC("create_component_instance", nil, map[string]interface{}{"componentId": "1:1", "parentId": "bad"}); msg == "" {
+		t.Error("expected error for invalid parentId")
+	}
+	if msg := ValidateRPC("create_component_instance", nil, map[string]interface{}{"componentId": "1:1"}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
+	}
+	if msg := ValidateRPC("create_component_instance", nil, map[string]interface{}{"componentKey": "abc"}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
+	}
+}
+
+func TestValidateRPC_GetInstanceOverrides(t *testing.T) {
+	if msg := ValidateRPC("get_instance_overrides", nil, nil); msg == "" {
+		t.Error("expected error for missing nodeId")
+	}
+	if msg := ValidateRPC("get_instance_overrides", []string{"bad"}, nil); msg == "" {
+		t.Error("expected error for invalid nodeId")
+	}
+	if msg := ValidateRPC("get_instance_overrides", []string{"1:1"}, nil); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
+	}
+}
+
+func TestValidateRPC_SetInstanceOverrides(t *testing.T) {
+	if msg := ValidateRPC("set_instance_overrides", nil, nil); msg == "" {
+		t.Error("expected error for missing nodeId")
+	}
+	if msg := ValidateRPC("set_instance_overrides", []string{"bad"}, nil); msg == "" {
+		t.Error("expected error for invalid nodeId")
+	}
+	if msg := ValidateRPC("set_instance_overrides", []string{"1:1"}, nil); msg == "" {
+		t.Error("expected error for missing properties")
+	}
+	if msg := ValidateRPC("set_instance_overrides", []string{"1:1"}, map[string]interface{}{"properties": "not-map"}); msg == "" {
+		t.Error("expected error for non-map properties")
+	}
+	if msg := ValidateRPC("set_instance_overrides", []string{"1:1"}, map[string]interface{}{"properties": map[string]interface{}{"Size": "Small"}}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
+	}
+}
+
+func TestValidateRPC_CreateConnector(t *testing.T) {
+	if msg := ValidateRPC("create_connector", nil, nil); msg == "" {
+		t.Error("expected error for missing endpoints")
+	}
+	if msg := ValidateRPC("create_connector", nil, map[string]interface{}{"startNodeId": "bad"}); msg == "" {
+		t.Error("expected error for invalid startNodeId")
+	}
+	if msg := ValidateRPC("create_connector", nil, map[string]interface{}{"endNodeId": "bad"}); msg == "" {
+		t.Error("expected error for invalid endNodeId")
+	}
+	if msg := ValidateRPC("create_connector", nil, map[string]interface{}{"lineType": "CURVED"}); msg == "" {
+		t.Error("expected error for invalid lineType")
+	}
+	if msg := ValidateRPC("create_connector", nil, map[string]interface{}{
+		"startNodeId": "1:1",
+		"endNodeId": "2:2",
+		"lineType": "ELBOW",
+	}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
+	}
+}
+
+func TestValidateRPC_SetAnnotations(t *testing.T) {
+	if msg := ValidateRPC("set_annotations", nil, nil); msg == "" {
+		t.Error("expected error for missing nodeId")
+	}
+	if msg := ValidateRPC("set_annotations", []string{"1:1"}, nil); msg == "" {
+		t.Error("expected error for missing annotations array")
+	}
+	if msg := ValidateRPC("set_annotations", []string{"1:1"}, map[string]interface{}{"annotations": "not-array"}); msg == "" {
+		t.Error("expected error for non-array annotations")
+	}
+	if msg := ValidateRPC("set_annotations", []string{"1:1"}, map[string]interface{}{
+		"annotations": []interface{}{map[string]interface{}{"label": "Btn"}},
+	}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
+	}
+}
+
+func TestValidateRPC_ClearAnnotations(t *testing.T) {
+	if msg := ValidateRPC("clear_annotations", nil, nil); msg == "" {
+		t.Error("expected error for missing nodeIds")
+	}
+	if msg := ValidateRPC("clear_annotations", []string{"bad"}, nil); msg == "" {
+		t.Error("expected error for invalid nodeIds")
+	}
+	if msg := ValidateRPC("clear_annotations", []string{"1:1"}, nil); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
+	}
+}

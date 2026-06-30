@@ -161,4 +161,16 @@ func registerReadDocumentTools(s *server.MCPServer, node *Node) {
 	s.AddTool(mcp.NewTool("get_fonts",
 		mcp.WithDescription("List all fonts used in the current page, sorted by usage frequency. Useful for understanding typography without scanning all text nodes."),
 	), makeHandler(node, "get_fonts", nil, nil))
+	s.AddTool(mcp.NewTool("get_instance_overrides",
+		mcp.WithDescription("Get the component properties (variants, booleans, text) of a component instance. Includes their current values and type information. Use this before set_instance_overrides to know what properties exist."),
+		mcp.WithString("nodeId",
+			mcp.Required(),
+			mcp.Description("INSTANCE node ID in colon format e.g. 4029:12345"),
+		),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		nodeID, _ := req.GetArguments()["nodeId"].(string)
+		nodeID = NormalizeNodeID(nodeID)
+		resp, err := node.Send(ctx, "get_instance_overrides", []string{nodeID}, nil)
+		return renderResponse(resp, err)
+	})
 }

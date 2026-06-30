@@ -15,7 +15,7 @@ Open-source Figma MCP server with full read/write access via plugin — no REST 
 **Highlights**
 - No Figma API token required
 - No rate limits — free plan friendly
-- **Read and Write** live Figma data via plugin bridge — 73 tools total
+- **Read and Write** live Figma data via plugin bridge — 79 tools total
 - Full design automation — styles, variables, components, prototypes, and content
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
 
@@ -112,9 +112,11 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 | `create_rectangle` | Create a rectangle with optional fill and corner radius    |
 | `create_ellipse`   | Create an ellipse or circle                                |
 | `create_text`      | Create a text node (font loaded automatically)             |
-| `import_image`     | Decode base64 image and place it as a rectangle fill       |
-| `create_component` | Convert an existing FRAME node into a reusable component   |
-| `create_section`   | Create a Figma Section node to organise frames on a page   |
+| `import_image`              | Decode base64 image and place it as a rectangle fill       |
+| `create_component`          | Convert an existing FRAME node into a reusable component   |
+| `create_component_instance` | Create an instance of a component (local or library)       |
+| `create_section`            | Create a Figma Section node to organise frames on a page   |
+| `create_connector`          | Create a Connector line between nodes (FigJam only)        |
 
 ### Write — Modify
 
@@ -132,9 +134,11 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 | `unlock_nodes`       | Unlock one or more nodes                                                         |
 | `rotate_nodes`       | Set absolute rotation in degrees on one or more nodes                            |
 | `reorder_nodes`      | Change z-order: `bringToFront`, `sendToBack`, `bringForward`, `sendBackward`     |
-| `set_blend_mode`     | Set blend mode (MULTIPLY, SCREEN, OVERLAY, …) on one or more nodes               |
-| `set_constraints`    | Set responsive constraints `{ horizontal, vertical }` on one or more nodes       |
-| `move_nodes`         | Move nodes to an absolute x/y position                                           |
+| `set_blend_mode`         | Set blend mode (MULTIPLY, SCREEN, OVERLAY, …) on one or more nodes               |
+| `set_constraints`        | Set responsive constraints `{ horizontal, vertical }` on one or more nodes       |
+| `set_instance_overrides` | Update Component Properties (variants, booleans, text) on a component instance   |
+| `set_annotations`        | Set Dev Mode Annotations on a node (requires paid Dev Mode seat)                 |
+| `move_nodes`             | Move nodes to an absolute x/y position                                           |
 | `resize_nodes`       | Resize nodes by width and/or height                                              |
 | `rename_node`        | Rename a node                                                                    |
 | `clone_node`         | Clone a node, optionally repositioning or reparenting                            |
@@ -146,7 +150,8 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 
 | Tool           | Description                          |
 | -------------- | ------------------------------------ |
-| `delete_nodes` | Delete one or more nodes permanently |
+| `delete_nodes`      | Delete one or more nodes permanently                          |
+| `clear_annotations` | Clear all Dev Mode Annotations from one or more nodes         |
 
 ### Write — Prototype
 
@@ -218,9 +223,10 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 | Tool                   | Description                                             |
 | ---------------------- | ------------------------------------------------------- |
 | `get_styles`           | Paint, text, effect, and grid styles                    |
-| `get_variable_defs`    | Variable collections and values                         |
-| `get_local_components` | All components + component sets with variant properties |
-| `get_annotations`      | Dev-mode annotations                                    |
+| `get_variable_defs`      | Variable collections and values                         |
+| `get_local_components`   | All components + component sets with variant properties |
+| `get_instance_overrides` | Get component properties and current values of an instance|
+| `get_annotations`        | Dev-mode annotations                                    |
 | `get_fonts`            | All fonts used on the current page, sorted by frequency |
 | `get_reactions`        | Prototype/interaction reactions on a node               |
 

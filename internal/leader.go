@@ -74,7 +74,9 @@ func (l *Leader) Start() error {
 // Stop shuts down the HTTP server and closes the bridge.
 func (l *Leader) Stop() {
 	if l.server != nil {
-		l.server.Shutdown(context.Background())
+		if err := l.server.Shutdown(context.Background()); err != nil {
+			leaderLogger.Printf("server shutdown error: %v", err)
+		}
 		l.server = nil
 	}
 	l.bridge.Close()
