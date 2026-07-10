@@ -11,6 +11,7 @@
   
   let autoCopyEnabled = false;
   let copyError = false;
+  let autoCopyBroken = false; // sticky: true once an unattended auto-copy attempt has failed
 
   // Configurable server address.
   // Persisted via figma.clientStorage (through plugin core) because localStorage
@@ -96,8 +97,8 @@
       selectionCount = msg.payload.selectionCount;
       selectedNodes = msg.payload.selectedNodes ?? [];
       
-      if (autoCopyEnabled && selectedNodes.length > 0) {
-        copyAllNodes();
+      if (autoCopyEnabled && !autoCopyBroken && selectedNodes.length > 0) {
+        copyAllNodes(true);
       }
       return;
     }
@@ -143,7 +144,7 @@
     if (event.key === "Escape") showSettings = false;
   }
 
-  async function copyToClipboard(text: string) {
+  async function copyToClipboard(text: string, unattended = false) {
     let success = false;
 
     // 1. Try synchronous execCommand first to preserve user gesture
@@ -182,11 +183,17 @@
 
     // Both failed
     copyError = true;
+    if (unattended) {
+      // Gesture-less writes are being rejected by the browser's clipboard
+      // activation policy — stop retrying silently on every selection change.
+      autoCopyEnabled = false;
+      autoCopyBroken = true;
+    }
   }
 
-  function copyAllNodes() {
+  function copyAllNodes(unattended = false) {
     const ids = selectedNodes.map(n => n.id).join("\n");
-    copyToClipboard(ids);
+    copyToClipboard(ids, unattended);
   }
 
   function retryCopy() {
@@ -194,6 +201,12 @@
     if (selectedNodes.length > 0) {
       copyAllNodes();
     }
+  }
+
+  function reArmAutoCopy() {
+    autoCopyBroken = false;
+    copyError = false;
+    autoCopyEnabled = true;
   }
 
   onMount(() => {
@@ -238,11 +251,15 @@
       <div class="node-list">
         <div class="node-list-header">
           <label class="auto-copy-label">
-            <input type="checkbox" bind:checked={autoCopyEnabled} />
+            <input
+              type="checkbox"
+              bind:checked={autoCopyEnabled}
+              on:change={() => { if (autoCopyEnabled) autoCopyBroken = false; }}
+            />
             Auto-copy ID
           </label>
           {#if selectedNodes.length > 1}
-            <button class="copy-btn" on:click={copyAllNodes} title="Copy all IDs">Copy All</button>
+            <button class="copy-btn" on:click={() => copyAllNodes()} title="Copy all IDs">Copy All</button>
           {/if}
         </div>
         <div class="node-items">
@@ -255,11 +272,17 @@
         </div>
       </div>
     {/if}
-    {#if copyError}
+    {#if autoCopyBroken}
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div class="error-banner" on:click={reArmAutoCopy} title="Your browser's clipboard security policy blocks automatic copies; use the Copy buttons instead, or click to try re-enabling auto-copy">
+        ⚠️ Auto-copy disabled (browser blocked it). Use Copy buttons, or click to retry.
+      </div>
+    {:else if copyError}
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div class="error-banner" on:click={retryCopy} title="Browsers require you to click here once after a reload to allow clipboard access">
-        ⚠️ Auto-copy paused. Click here to activate.
+        ⚠️ Copy failed. Click here to retry.
       </div>
     {/if}
   </div>
