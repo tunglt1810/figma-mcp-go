@@ -1,6 +1,6 @@
 # figma-mcp-go
 
-Figma MCP — Free, No Rate Limits [![tunglt1810/figma-mcp-go server](https://glama.ai/mcp/servers/tunglt1810/figma-mcp-go/badges/score.svg)](https://glama.ai/mcp/servers/tunglt1810/figma-mcp-go)
+Figma MCP — Local Plugin Integration [![tunglt1810/figma-mcp-go server](https://glama.ai/mcp/servers/tunglt1810/figma-mcp-go/badges/score.svg)](https://glama.ai/mcp/servers/tunglt1810/figma-mcp-go)
 <p>
   <a href="https://www.npmjs.com/package/@tunglt1810/figma-mcp-go"><img src="https://img.shields.io/npm/v/@tunglt1810/figma-mcp-go?color=blue" alt="npm version" /></a>
   <a href="https://registry.modelcontextprotocol.io/?q=figma-mcp-go"><img src="https://img.shields.io/badge/MCP-Registry-purple" alt="MCP Registry" /></a>
@@ -10,11 +10,11 @@ Figma MCP — Free, No Rate Limits [![tunglt1810/figma-mcp-go server](https://gl
 
 A forked from [https://github.com/vkhanhqui/figma-mcp-go](https://github.com/vkhanhqui/figma-mcp-go)
 
-Open-source Figma MCP server with full read/write access via plugin — no REST API, no rate limits. Turn text into designs and designs into real code. Works with Cursor, Claude, GitHub Copilot, and any MCP-compatible AI tool.
+Open-source Figma MCP server with full read/write access via plugin. Turn text into designs and designs into real code. Works with Cursor, Claude, GitHub Copilot, and any MCP-compatible AI tool.
 
 **Highlights**
-- No Figma API token required
-- No rate limits — free plan friendly
+- Operates locally via the Figma Plugin API (no REST API token required)
+- Real-time execution directly on your local machine
 - **Read and Write** live Figma data via plugin bridge — 79 tools total
 - Full design automation — styles, variables, components, prototypes, and content
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
@@ -31,20 +31,11 @@ https://github.com/user-attachments/assets/17bda971-0e83-4f18-8758-8ac2b8dcba62
 
 ## Why this exists
 
-Most Figma MCP servers rely on the **Figma REST API**.
+Most Figma MCP servers rely on the cloud-based **Figma REST API**.
 
-That sounds fine… until you hit this:
+While the REST API is excellent for server-to-server integrations, experimenting with AI tools often involves making hundreds of rapid tool calls per session. A cloud-based approach can introduce network latency and overhead.
 
-| Plan                    | Limit                  |
-| ----------------------- | ---------------------- |
-| Starter / View / Collab | **6 tool calls/month** |
-| Pro / Org (Dev seat)    | 200 tool calls/day     |
-| Enterprise              | 600 tool calls/day     |
-
-If you're experimenting with AI tools, you'll burn through that in minutes.
-
-I didn't have enough money to pay for higher limits.
-So I built something that **doesn't use the API at all**.
+This project takes a different approach by running as a local **Figma Plugin**. By bridging directly to the Figma Plugin API on your desktop, it provides instant, real-time read/write access to your active documents without relying on external cloud APIs or requiring an API token.
 
 ---
 
