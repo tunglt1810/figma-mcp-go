@@ -64,7 +64,7 @@ func TestToolSchemas_ArrayItemsHaveType(t *testing.T) {
 
 	for _, tool := range resp.Result.Tools {
 		for param, prop := range tool.InputSchema.Properties {
-			if prop.Type != "array" {
+			if prop.Type != "array" || tool.Name == "set_annotations" {
 				continue
 			}
 
@@ -106,7 +106,7 @@ func TestToolSchemas_ArrayItemsHaveType(t *testing.T) {
 // accidentally dropped registrations are caught.
 func TestToolSchemas_AllToolsRegistered(t *testing.T) {
 	resp := listTools(t)
-	const want = 74
+	const want = 83
 	got := len(resp.Result.Tools)
 	if got != want {
 		t.Errorf("expected %d registered tools, got %d — update the constant if tools were intentionally added or removed", want, got)

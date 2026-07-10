@@ -190,8 +190,17 @@ func TestHandlers_WriteCreateTools(t *testing.T) {
 	callTool(t, s, "create_rectangle", map[string]any{"fillColor": "#FF5733", "cornerRadius": float64(8)})
 	callTool(t, s, "create_rectangle", map[string]any{})
 
-	callTool(t, s, "create_ellipse", map[string]any{"width": float64(50), "height": float64(50)})
+	callTool(t, s, "create_ellipse", map[string]any{"width": float64(50), "height": float64(50), "startAngle": float64(0), "endAngle": float64(180), "innerRadiusRatio": float64(0.5)})
 	callTool(t, s, "create_ellipse", map[string]any{})
+
+	callTool(t, s, "create_star", map[string]any{"pointCount": float64(5), "outerRadius": float64(50), "innerRadius": float64(20), "fillColor": "#FFD700"})
+	callTool(t, s, "create_star", map[string]any{})
+
+	callTool(t, s, "create_polygon", map[string]any{"pointCount": float64(6), "radius": float64(40), "fillColor": "#FF00FF"})
+	callTool(t, s, "create_polygon", map[string]any{})
+
+	callTool(t, s, "create_line", map[string]any{"length": float64(100), "rotation": float64(45), "strokeColor": "#000000", "strokeWeight": float64(2)})
+	callTool(t, s, "create_line", map[string]any{})
 
 	callTool(t, s, "create_text", map[string]any{
 		"text": "Hello", "fontSize": float64(16), "fontFamily": "Inter", "fontStyle": "Bold",

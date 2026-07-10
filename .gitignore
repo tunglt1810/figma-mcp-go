@@ -27,4 +27,5 @@ localonly
 
 .agents
 graphify-out
-.graphifyignore 
+.graphifyignore
+/.tmp 
