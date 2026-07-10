@@ -8,8 +8,6 @@ Figma MCP — Local Plugin Integration [![tunglt1810/figma-mcp-go server](https:
   <a href="https://github.com/tunglt1810/figma-mcp-go/stargazers"><img src="https://img.shields.io/github/stars/tunglt1810/figma-mcp-go?style=social" alt="GitHub stars" /></a>
 </p>
 
-A forked from [https://github.com/vkhanhqui/figma-mcp-go](https://github.com/vkhanhqui/figma-mcp-go)
-
 Open-source Figma MCP server with full read/write access via plugin. Turn text into designs and designs into real code. Works with Cursor, Claude, GitHub Copilot, and any MCP-compatible AI tool.
 
 **Highlights**
@@ -97,12 +95,12 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 
 ### Write — Create
 
-| Tool               | Description                                                |
-| ------------------ | ---------------------------------------------------------- |
-| `create_frame`     | Create a frame with optional auto-layout, fill, and parent |
-| `create_rectangle` | Create a rectangle with optional fill and corner radius    |
-| `create_ellipse`   | Create an ellipse or circle                                |
-| `create_text`      | Create a text node (font loaded automatically)             |
+| Tool                        | Description                                                |
+| --------------------------- | ---------------------------------------------------------- |
+| `create_frame`              | Create a frame with optional auto-layout, fill, and parent |
+| `create_rectangle`          | Create a rectangle with optional fill and corner radius    |
+| `create_ellipse`            | Create an ellipse or circle                                |
+| `create_text`               | Create a text node (font loaded automatically)             |
 | `import_image`              | Decode base64 image and place it as a rectangle fill       |
 | `create_component`          | Convert an existing FRAME node into a reusable component   |
 | `create_component_instance` | Create an instance of a component (local or library)       |
@@ -111,38 +109,38 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 
 ### Write — Modify
 
-| Tool                 | Description                                                                      |
-| -------------------- | -------------------------------------------------------------------------------- |
-| `set_text`           | Update text content of an existing TEXT node                                     |
-| `set_fills`          | Set solid fill color (hex) on a node                                             |
-| `set_gradient_fills` | Set linear or radial gradient fills on a node using geometry properties          |
-| `set_strokes`        | Set solid stroke color and weight on a node                                      |
-| `set_opacity`        | Set opacity of one or more nodes (0 = transparent, 1 = opaque)                   |
-| `set_corner_radius`  | Set corner radius — uniform or per-corner                                        |
-| `set_auto_layout`    | Set or update auto-layout (flex) properties on a frame                           |
-| `set_visible`        | Show or hide one or more nodes                                                   |
-| `lock_nodes`         | Lock one or more nodes to prevent accidental edits                               |
-| `unlock_nodes`       | Unlock one or more nodes                                                         |
-| `rotate_nodes`       | Set absolute rotation in degrees on one or more nodes                            |
-| `reorder_nodes`      | Change z-order: `bringToFront`, `sendToBack`, `bringForward`, `sendBackward`     |
+| Tool                     | Description                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `set_text`               | Update text content of an existing TEXT node                                     |
+| `set_fills`              | Set solid fill color (hex) on a node                                             |
+| `set_gradient_fills`     | Set linear or radial gradient fills on a node using geometry properties          |
+| `set_strokes`            | Set solid stroke color and weight on a node                                      |
+| `set_opacity`            | Set opacity of one or more nodes (0 = transparent, 1 = opaque)                   |
+| `set_corner_radius`      | Set corner radius — uniform or per-corner                                        |
+| `set_auto_layout`        | Set or update auto-layout (flex) properties on a frame                           |
+| `set_visible`            | Show or hide one or more nodes                                                   |
+| `lock_nodes`             | Lock one or more nodes to prevent accidental edits                               |
+| `unlock_nodes`           | Unlock one or more nodes                                                         |
+| `rotate_nodes`           | Set absolute rotation in degrees on one or more nodes                            |
+| `reorder_nodes`          | Change z-order: `bringToFront`, `sendToBack`, `bringForward`, `sendBackward`     |
 | `set_blend_mode`         | Set blend mode (MULTIPLY, SCREEN, OVERLAY, …) on one or more nodes               |
 | `set_constraints`        | Set responsive constraints `{ horizontal, vertical }` on one or more nodes       |
 | `set_instance_overrides` | Update Component Properties (variants, booleans, text) on a component instance   |
 | `set_annotations`        | Set Dev Mode Annotations on a node (requires paid Dev Mode seat)                 |
 | `move_nodes`             | Move nodes to an absolute x/y position                                           |
-| `resize_nodes`       | Resize nodes by width and/or height                                              |
-| `rename_node`        | Rename a node                                                                    |
-| `clone_node`         | Clone a node, optionally repositioning or reparenting                            |
-| `reparent_nodes`     | Move nodes to a different parent frame, group, or section                        |
-| `batch_rename_nodes` | Bulk rename nodes via find/replace, regex, or prefix/suffix                      |
-| `find_replace_text`  | Find and replace text across all TEXT nodes in a subtree or page; supports regex |
+| `resize_nodes`           | Resize nodes by width and/or height                                              |
+| `rename_node`            | Rename a node                                                                    |
+| `clone_node`             | Clone a node, optionally repositioning or reparenting                            |
+| `reparent_nodes`         | Move nodes to a different parent frame, group, or section                        |
+| `batch_rename_nodes`     | Bulk rename nodes via find/replace, regex, or prefix/suffix                      |
+| `find_replace_text`      | Find and replace text across all TEXT nodes in a subtree or page; supports regex |
 
 ### Write — Delete
 
-| Tool           | Description                          |
-| -------------- | ------------------------------------ |
-| `delete_nodes`      | Delete one or more nodes permanently                          |
-| `clear_annotations` | Clear all Dev Mode Annotations from one or more nodes         |
+| Tool                | Description                                           |
+| ------------------- | ----------------------------------------------------- |
+| `delete_nodes`      | Delete one or more nodes permanently                  |
+| `clear_annotations` | Clear all Dev Mode Annotations from one or more nodes |
 
 ### Write — Prototype
 
@@ -211,15 +209,15 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 
 ### Read — Styles & Variables
 
-| Tool                   | Description                                             |
-| ---------------------- | ------------------------------------------------------- |
-| `get_styles`           | Paint, text, effect, and grid styles                    |
-| `get_variable_defs`      | Variable collections and values                         |
-| `get_local_components`   | All components + component sets with variant properties |
-| `get_instance_overrides` | Get component properties and current values of an instance|
-| `get_annotations`        | Dev-mode annotations                                    |
-| `get_fonts`            | All fonts used on the current page, sorted by frequency |
-| `get_reactions`        | Prototype/interaction reactions on a node               |
+| Tool                     | Description                                                |
+| ------------------------ | ---------------------------------------------------------- |
+| `get_styles`             | Paint, text, effect, and grid styles                       |
+| `get_variable_defs`      | Variable collections and values                            |
+| `get_local_components`   | All components + component sets with variant properties    |
+| `get_instance_overrides` | Get component properties and current values of an instance |
+| `get_annotations`        | Dev-mode annotations                                       |
+| `get_fonts`              | All fonts used on the current page, sorted by frequency    |
+| `get_reactions`          | Prototype/interaction reactions on a node                  |
 
 ### Export
 
