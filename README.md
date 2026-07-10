@@ -243,14 +243,6 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 
 ---
 
-## Related Projects
-
-- [magic-spells/figma-mcp-bridge](https://github.com/magic-spells/figma-mcp-bridge)
-- [grab/cursor-talk-to-figma-mcp](https://github.com/grab/cursor-talk-to-figma-mcp)
-- [gethopp/figma-mcp-bridge](https://github.com/gethopp/figma-mcp-bridge)
-
----
-
 ## Contributing
 
 Issues and PRs are welcome.
