@@ -392,6 +392,32 @@ func TestValidateRPC_CreateRectangleEllipse(t *testing.T) {
 	}
 }
 
+func TestValidateRPC_CreateStarPolygonLine(t *testing.T) {
+	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"outerRadius": float64(-1)}); msg == "" {
+		t.Error("create_star: expected error for negative outerRadius")
+	}
+	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"innerRadius": float64(0)}); msg == "" {
+		t.Error("create_star: expected error for zero innerRadius")
+	}
+	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"pointCount": float64(2)}); msg == "" {
+		t.Error("create_star: expected error for pointCount < 3")
+	}
+	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"parentId": "bad-id"}); msg == "" {
+		t.Error("create_star: expected error for invalid parentId")
+	}
+
+	if msg := ValidateRPC("create_polygon", nil, map[string]interface{}{"radius": float64(-1)}); msg == "" {
+		t.Error("create_polygon: expected error for negative radius")
+	}
+	if msg := ValidateRPC("create_polygon", nil, map[string]interface{}{"pointCount": float64(2)}); msg == "" {
+		t.Error("create_polygon: expected error for pointCount < 3")
+	}
+
+	if msg := ValidateRPC("create_line", nil, map[string]interface{}{"length": float64(-1)}); msg == "" {
+		t.Error("create_line: expected error for negative length")
+	}
+}
+
 func TestValidateRPC_CreateText(t *testing.T) {
 	if msg := ValidateRPC("create_text", nil, nil); msg == "" {
 		t.Error("expected error for missing text")

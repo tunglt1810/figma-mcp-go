@@ -59,10 +59,59 @@ func registerWriteCreateTools(s *server.MCPServer, node *Node) {
 		mcp.WithNumber("height", mcp.Description("Height in pixels (default 100)")),
 		mcp.WithString("name", mcp.Description("Ellipse name")),
 		mcp.WithString("fillColor", mcp.Description("Fill color as hex e.g. #3B82F6")),
+		mcp.WithNumber("startAngle", mcp.Description("Start angle for arcs in radians (default 0)")),
+		mcp.WithNumber("endAngle", mcp.Description("End angle for arcs in radians (default 0)")),
+		mcp.WithNumber("innerRadiusRatio", mcp.Description("Inner radius ratio for rings/donuts (default 0)")),
 		mcp.WithString("parentId", mcp.Description("Parent node ID in colon format. Defaults to current page.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		params := req.GetArguments()
 		resp, err := node.Send(ctx, "create_ellipse", nil, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("create_star",
+		mcp.WithDescription("Create a new star shape."),
+		mcp.WithNumber("x", mcp.Description("X position (default 0)")),
+		mcp.WithNumber("y", mcp.Description("Y position (default 0)")),
+		mcp.WithNumber("pointCount", mcp.Description("Number of points (default 5)")),
+		mcp.WithNumber("outerRadius", mcp.Description("Outer radius in pixels (default 50)")),
+		mcp.WithNumber("innerRadius", mcp.Description("Inner radius in pixels (default calculated based on 0.3819 ratio)")),
+		mcp.WithString("fillColor", mcp.Description("Fill color as hex e.g. #FF5733")),
+		mcp.WithNumber("cornerRadius", mcp.Description("Corner radius in pixels")),
+		mcp.WithString("parentId", mcp.Description("Parent node ID in colon format.")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		params := req.GetArguments()
+		resp, err := node.Send(ctx, "create_star", nil, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("create_polygon",
+		mcp.WithDescription("Create a new polygon shape."),
+		mcp.WithNumber("x", mcp.Description("X position (default 0)")),
+		mcp.WithNumber("y", mcp.Description("Y position (default 0)")),
+		mcp.WithNumber("pointCount", mcp.Description("Number of sides (default 3)")),
+		mcp.WithNumber("radius", mcp.Description("Radius in pixels (default 50)")),
+		mcp.WithString("fillColor", mcp.Description("Fill color as hex e.g. #FF5733")),
+		mcp.WithNumber("cornerRadius", mcp.Description("Corner radius in pixels")),
+		mcp.WithString("parentId", mcp.Description("Parent node ID in colon format.")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		params := req.GetArguments()
+		resp, err := node.Send(ctx, "create_polygon", nil, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("create_line",
+		mcp.WithDescription("Create a new line."),
+		mcp.WithNumber("x", mcp.Description("X position (default 0)")),
+		mcp.WithNumber("y", mcp.Description("Y position (default 0)")),
+		mcp.WithNumber("length", mcp.Description("Length in pixels (default 100)")),
+		mcp.WithNumber("rotation", mcp.Description("Rotation in degrees (default 0)")),
+		mcp.WithString("strokeColor", mcp.Description("Stroke color as hex e.g. #000000")),
+		mcp.WithNumber("strokeWeight", mcp.Description("Stroke weight in pixels (default 1)")),
+		mcp.WithString("parentId", mcp.Description("Parent node ID in colon format.")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		params := req.GetArguments()
+		resp, err := node.Send(ctx, "create_line", nil, params)
 		return renderResponse(resp, err)
 	})
 

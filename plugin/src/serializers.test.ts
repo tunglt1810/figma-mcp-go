@@ -646,4 +646,68 @@ describe("serializeNode", () => {
     expect(result.children).toHaveLength(1);
     expect(result.children[0].id).toBe("1:4");
   });
+
+  describe("geometry", () => {
+    it("extracts rotation", async () => {
+      const node = { id: "1", type: "RECTANGLE", rotation: 45 };
+      const result = await serializeNode(node);
+      expect(result.geometry.rotation).toBe(45);
+    });
+
+    it("extracts cornerRadius", async () => {
+      const node = { id: "2", type: "RECTANGLE", cornerRadius: 8 };
+      const result = await serializeNode(node);
+      expect(result.geometry.cornerRadius).toBe(8);
+    });
+
+    it("extracts mixed cornerRadius", async () => {
+      const originalFigma = (globalThis as any).figma;
+      const mixed = Symbol();
+      (globalThis as any).figma = { mixed, getStyleByIdAsync: mockGetStyleByIdAsync };
+      try {
+        const node = { id: "3", type: "RECTANGLE", cornerRadius: mixed };
+        const result = await serializeNode(node);
+        expect(result.geometry.cornerRadius).toBe("mixed");
+      } finally {
+        (globalThis as any).figma = originalFigma;
+      }
+    });
+
+    it("extracts STAR geometry", async () => {
+      const node = { id: "4", type: "STAR", width: 100, pointCount: 5, innerRadius: 0.5 };
+      const result = await serializeNode(node);
+      expect(result.geometry.pointCount).toBe(5);
+      expect(result.geometry.innerRadiusRatio).toBe(0.5);
+      expect(result.geometry.outerRadiusPixel).toBe(50);
+      expect(result.geometry.innerRadiusPixel).toBe(25);
+    });
+
+    it("extracts POLYGON geometry", async () => {
+      const node = { id: "5", type: "POLYGON", pointCount: 6 };
+      const result = await serializeNode(node);
+      expect(result.geometry.pointCount).toBe(6);
+    });
+
+    it("extracts ELLIPSE geometry", async () => {
+      const arcData = { startingAngle: 0, endingAngle: Math.PI, innerRadius: 0 };
+      const node = { id: "6", type: "ELLIPSE", arcData };
+      const result = await serializeNode(node);
+      expect(result.geometry.arcData).toEqual(arcData);
+    });
+
+    it("extracts corner radii for RECTANGLE", async () => {
+      const node = { id: "7", type: "RECTANGLE", topLeftRadius: 1, topRightRadius: 2, bottomLeftRadius: 3, bottomRightRadius: 4 };
+      const result = await serializeNode(node);
+      expect(result.geometry.topLeftRadius).toBe(1);
+      expect(result.geometry.topRightRadius).toBe(2);
+      expect(result.geometry.bottomLeftRadius).toBe(3);
+      expect(result.geometry.bottomRightRadius).toBe(4);
+    });
+
+    it("returns undefined geometry if no properties match", async () => {
+      const node = { id: "8", type: "FRAME" };
+      const result = await serializeNode(node);
+      expect(result.geometry).toBeUndefined();
+    });
+  });
 });

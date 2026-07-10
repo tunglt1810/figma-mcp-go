@@ -301,6 +301,39 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
 		}
 
+	case "create_star":
+		if or, ok := params["outerRadius"].(float64); ok && or <= 0 {
+			return "outerRadius must be positive"
+		}
+		if ir, ok := params["innerRadius"].(float64); ok && ir <= 0 {
+			return "innerRadius must be positive"
+		}
+		if pc, ok := params["pointCount"].(float64); ok && pc < 3 {
+			return "pointCount must be at least 3"
+		}
+		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
+			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
+		}
+
+	case "create_polygon":
+		if r, ok := params["radius"].(float64); ok && r <= 0 {
+			return "radius must be positive"
+		}
+		if pc, ok := params["pointCount"].(float64); ok && pc < 3 {
+			return "pointCount must be at least 3"
+		}
+		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
+			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
+		}
+
+	case "create_line":
+		if l, ok := params["length"].(float64); ok && l <= 0 {
+			return "length must be positive"
+		}
+		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
+			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
+		}
+
 	case "create_text":
 		if text, _ := params["text"].(string); text == "" {
 			return "text is required"
