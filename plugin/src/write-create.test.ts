@@ -14,12 +14,15 @@ const makeRequest = (type: string, nodeIds?: string[], params?: any) => ({
   params: params ?? {},
 });
 
+let mockCurrentPage: any;
+
 beforeEach(() => {
   commitUndoCalled = false;
   createdComponents = [];
   mockNodes = {};
+  mockCurrentPage = { id: "0:1", name: "Page 1", appendChild: () => {} };
   (globalThis as any).figma = {
-    get currentPage() { return { id: "0:1", name: "Page 1", appendChild: () => {} }; },
+    get currentPage() { return mockCurrentPage; },
     getNodeByIdAsync: async (id: string) => mockNodes[id] ?? null,
     createComponent: () => {
       const comp: any = {
@@ -35,6 +38,10 @@ beforeEach(() => {
       createdComponents.push(comp);
       return comp;
     },
+    createStar: () => ({ id: "star:new", type: "STAR", name: "Star", resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createPolygon: () => ({ id: "poly:new", type: "POLYGON", name: "Polygon", resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createLine: () => ({ id: "line:new", type: "LINE", name: "Line", resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createEllipse: () => ({ id: "ellipse:new", type: "ELLIPSE", name: "Ellipse", resize(w: number, h: number) { this.width = w; this.height = h; } }),
     commitUndo: () => { commitUndoCalled = true; },
     mixed: Symbol("mixed"),
   };
@@ -196,5 +203,139 @@ describe("create_section", () => {
   it("creates a section with default values when no params given", async () => {
     const res = await handleWriteCreateRequest(makeRequest("create_section", [], {}));
     expect(res?.data.id).toBe("section:new");
+  });
+});
+
+// ── create_star ───────────────────────────────────────────────────────────────
+
+describe("create_star", () => {
+  it("creates a star with default values", async () => {
+    let appendedChild: any = null;
+    (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
+
+    const res = await handleWriteCreateRequest(makeRequest("create_star"));
+    expect(res?.data.type).toBe("STAR");
+    expect(appendedChild.type).toBe("STAR");
+    expect(appendedChild.pointCount).toBe(5);
+    expect(appendedChild.width).toBe(100);
+    expect(appendedChild.height).toBe(100);
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  it("creates a star with specified params", async () => {
+    let appendedChild: any = null;
+    (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
+
+    await handleWriteCreateRequest(makeRequest("create_star", [], {
+      pointCount: 6,
+      outerRadius: 60,
+      innerRadius: 30,
+      x: 10,
+      y: 20,
+      name: "MyStar",
+      fillColor: "ff0000",
+      cornerRadius: 5
+    }));
+    expect(appendedChild.pointCount).toBe(6);
+    expect(appendedChild.width).toBe(120); // 60 * 2
+    expect(appendedChild.innerRadius).toBe(0.5); // 30 / 60
+    expect(appendedChild.x).toBe(10);
+    expect(appendedChild.y).toBe(20);
+    expect(appendedChild.name).toBe("MyStar");
+    expect(appendedChild.fills[0].color.r).toBe(1);
+    expect(appendedChild.cornerRadius).toBe(5);
+  });
+});
+
+// ── create_polygon ────────────────────────────────────────────────────────────
+
+describe("create_polygon", () => {
+  it("creates a polygon with default values", async () => {
+    let appendedChild: any = null;
+    (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
+
+    const res = await handleWriteCreateRequest(makeRequest("create_polygon"));
+    expect(res?.data.type).toBe("POLYGON");
+    expect(appendedChild.type).toBe("POLYGON");
+    expect(appendedChild.pointCount).toBe(3);
+    expect(appendedChild.width).toBe(100);
+    expect(appendedChild.height).toBe(100);
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  it("creates a polygon with specified params", async () => {
+    let appendedChild: any = null;
+    (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
+
+    await handleWriteCreateRequest(makeRequest("create_polygon", [], {
+      pointCount: 8,
+      radius: 40,
+      x: 5,
+      y: 15,
+      name: "Octagon",
+      fillColor: "00ff00",
+      cornerRadius: 2
+    }));
+    expect(appendedChild.pointCount).toBe(8);
+    expect(appendedChild.width).toBe(80); // 40 * 2
+    expect(appendedChild.x).toBe(5);
+    expect(appendedChild.y).toBe(15);
+    expect(appendedChild.name).toBe("Octagon");
+    expect(appendedChild.fills[0].color.g).toBe(1);
+    expect(appendedChild.cornerRadius).toBe(2);
+  });
+});
+
+// ── create_line ───────────────────────────────────────────────────────────────
+
+describe("create_line", () => {
+  it("creates a line with default values", async () => {
+    let appendedChild: any = null;
+    (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
+
+    const res = await handleWriteCreateRequest(makeRequest("create_line"));
+    expect(res?.data.type).toBe("LINE");
+    expect(appendedChild.type).toBe("LINE");
+    expect(appendedChild.width).toBe(100);
+    expect(appendedChild.height).toBe(0);
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  it("creates a line with specified params", async () => {
+    let appendedChild: any = null;
+    (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
+
+    await handleWriteCreateRequest(makeRequest("create_line", [], {
+      length: 200,
+      rotation: 45,
+      x: 10,
+      y: 10,
+      name: "Divider",
+      strokeColor: "0000ff",
+      strokeWeight: 4
+    }));
+    expect(appendedChild.width).toBe(200);
+    expect(appendedChild.rotation).toBe(45);
+    expect(appendedChild.x).toBe(10);
+    expect(appendedChild.y).toBe(10);
+    expect(appendedChild.name).toBe("Divider");
+    expect(appendedChild.strokes[0].color.b).toBe(1);
+    expect(appendedChild.strokeWeight).toBe(4);
+  });
+});
+
+// ── create_ellipse ────────────────────────────────────────────────────────────
+
+describe("create_ellipse", () => {
+  it("sets arcData when provided", async () => {
+    let appendedChild: any = null;
+    (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
+
+    const arcData = { startingAngle: 0, endingAngle: Math.PI, innerRadius: 0.5 };
+    await handleWriteCreateRequest(makeRequest("create_ellipse", [], {
+      arcData
+    }));
+    expect(appendedChild.type).toBe("ELLIPSE");
+    expect(appendedChild.arcData).toEqual(arcData);
   });
 });

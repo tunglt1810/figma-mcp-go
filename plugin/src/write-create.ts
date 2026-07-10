@@ -50,12 +50,91 @@ export const handleWriteCreateRequest = async (request: any) => {
       ellipse.y = p.y != null ? p.y : 0;
       if (p.name) ellipse.name = p.name;
       if (p.fillColor) ellipse.fills = [makeSolidPaint(p.fillColor)];
+      if (p.arcData) ellipse.arcData = p.arcData;
       (parent as any).appendChild(ellipse);
       figma.commitUndo();
       return {
         type: request.type,
         requestId: request.requestId,
         data: { id: ellipse.id, name: ellipse.name, type: ellipse.type, bounds: getBounds(ellipse) },
+      };
+    }
+
+    case "create_star": {
+      const p = request.params || {};
+      const parent = await getParentNode(p.parentId);
+      const star = figma.createStar();
+      const pointCount = p.pointCount != null ? Number(p.pointCount) : 5;
+      const outerRadius = p.outerRadius != null ? Number(p.outerRadius) : 50;
+      star.pointCount = pointCount;
+      
+      const width = outerRadius * 2;
+      star.resize(width, width);
+      
+      if (p.innerRadius != null) {
+        star.innerRadius = Number(p.innerRadius) / outerRadius;
+      }
+      
+      star.x = p.x != null ? p.x : 0;
+      star.y = p.y != null ? p.y : 0;
+      if (p.name) star.name = p.name;
+      if (p.fillColor) star.fills = [makeSolidPaint(p.fillColor)];
+      if (p.cornerRadius != null) star.cornerRadius = p.cornerRadius;
+      (parent as any).appendChild(star);
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { id: star.id, name: star.name, type: star.type, bounds: getBounds(star) },
+      };
+    }
+
+    case "create_polygon": {
+      const p = request.params || {};
+      const parent = await getParentNode(p.parentId);
+      const polygon = figma.createPolygon();
+      const pointCount = p.pointCount != null ? Number(p.pointCount) : 3;
+      const radius = p.radius != null ? Number(p.radius) : 50;
+      polygon.pointCount = pointCount;
+      
+      const width = radius * 2;
+      polygon.resize(width, width);
+      
+      polygon.x = p.x != null ? p.x : 0;
+      polygon.y = p.y != null ? p.y : 0;
+      if (p.name) polygon.name = p.name;
+      if (p.fillColor) polygon.fills = [makeSolidPaint(p.fillColor)];
+      if (p.cornerRadius != null) polygon.cornerRadius = p.cornerRadius;
+      (parent as any).appendChild(polygon);
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { id: polygon.id, name: polygon.name, type: polygon.type, bounds: getBounds(polygon) },
+      };
+    }
+
+    case "create_line": {
+      const p = request.params || {};
+      const parent = await getParentNode(p.parentId);
+      const line = figma.createLine();
+      const length = p.length != null ? Number(p.length) : 100;
+      
+      line.resize(length, 0);
+      
+      if (p.rotation != null) line.rotation = Number(p.rotation);
+      
+      line.x = p.x != null ? p.x : 0;
+      line.y = p.y != null ? p.y : 0;
+      if (p.name) line.name = p.name;
+      if (p.strokeColor) line.strokes = [makeSolidPaint(p.strokeColor)];
+      if (p.strokeWeight != null) line.strokeWeight = p.strokeWeight;
+      (parent as any).appendChild(line);
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { id: line.id, name: line.name, type: line.type, bounds: getBounds(line) },
       };
     }
 
