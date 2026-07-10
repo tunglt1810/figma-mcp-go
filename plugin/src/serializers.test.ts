@@ -643,6 +643,7 @@ describe("serializeNode", () => {
       ],
     };
     const result = await serializeNode(node);
+    expect(result.children).toHaveLength(1);
     expect(result.children[0].id).toBe("1:4");
   });
 
@@ -660,11 +661,16 @@ describe("serializeNode", () => {
     });
 
     it("extracts mixed cornerRadius", async () => {
+      const originalFigma = (globalThis as any).figma;
       const mixed = Symbol();
       (globalThis as any).figma = { mixed, getStyleByIdAsync: mockGetStyleByIdAsync };
-      const node = { id: "3", type: "RECTANGLE", cornerRadius: mixed };
-      const result = await serializeNode(node);
-      expect(result.geometry.cornerRadius).toBe("mixed");
+      try {
+        const node = { id: "3", type: "RECTANGLE", cornerRadius: mixed };
+        const result = await serializeNode(node);
+        expect(result.geometry.cornerRadius).toBe("mixed");
+      } finally {
+        (globalThis as any).figma = originalFigma;
+      }
     });
 
     it("extracts STAR geometry", async () => {

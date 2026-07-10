@@ -256,8 +256,6 @@ const getGeometry = (node: any) => {
     geom.rotation = node.rotation;
   }
   if ("cornerRadius" in node) {
-    // using isMixed check from serializers.ts instead of figma.mixed directly if figma global is not defined, 
-    // but the task brief says node.cornerRadius === figma.mixed. Wait, serializers.ts already has isMixed().
     geom.cornerRadius = isMixed(node.cornerRadius) ? "mixed" : node.cornerRadius;
   }
 
