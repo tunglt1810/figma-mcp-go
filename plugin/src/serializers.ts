@@ -249,6 +249,46 @@ export const serializeText = async (node: any, base: any) => {
   });
 };
 
+const getGeometry = (node: any) => {
+  const geom: any = {};
+  
+  if ("rotation" in node) {
+    geom.rotation = node.rotation;
+  }
+  if ("cornerRadius" in node) {
+    // using isMixed check from serializers.ts instead of figma.mixed directly if figma global is not defined, 
+    // but the task brief says node.cornerRadius === figma.mixed. Wait, serializers.ts already has isMixed().
+    geom.cornerRadius = isMixed(node.cornerRadius) ? "mixed" : node.cornerRadius;
+  }
+
+  switch (node.type) {
+    case "STAR":
+      if ("pointCount" in node) geom.pointCount = node.pointCount;
+      if ("innerRadius" in node) {
+        geom.innerRadiusRatio = node.innerRadius;
+        geom.outerRadiusPixel = node.width / 2;
+        geom.innerRadiusPixel = (node.width / 2) * node.innerRadius;
+      }
+      break;
+    case "POLYGON":
+      if ("pointCount" in node) geom.pointCount = node.pointCount;
+      break;
+    case "ELLIPSE":
+      if ("arcData" in node) geom.arcData = node.arcData;
+      break;
+    case "RECTANGLE":
+    case "FRAME":
+    case "COMPONENT":
+      if ("topLeftRadius" in node) geom.topLeftRadius = node.topLeftRadius;
+      if ("topRightRadius" in node) geom.topRightRadius = node.topRightRadius;
+      if ("bottomLeftRadius" in node) geom.bottomLeftRadius = node.bottomLeftRadius;
+      if ("bottomRightRadius" in node) geom.bottomRightRadius = node.bottomRightRadius;
+      break;
+  }
+  
+  return Object.keys(geom).length > 0 ? geom : undefined;
+};
+
 export const serializeNode = async (node: any): Promise<any> => {
   const styles = await serializeStyles(node);
   const base = {
@@ -257,6 +297,7 @@ export const serializeNode = async (node: any): Promise<any> => {
     type: node.type,
     bounds: getBounds(node),
     styles,
+    geometry: getGeometry(node),
   };
   if (node.type === "TEXT") return serializeText(node, base);
   if ("children" in node) {
