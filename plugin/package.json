@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "concurrently \"vite build --watch\" \"vite build --watch -c vite.config.main.ts\"",
     "build": "vite build && vite build -c vite.config.main.ts",
-    "test": "bun test",
-    "test:coverage": "bun test --coverage"
+    "test": "vitest run --dir src",
+    "test:coverage": "vitest run --dir src --coverage"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1",
@@ -15,6 +15,7 @@
     "svelte": "^5",
     "typescript": "^5",
     "vite": "^6",
-    "vite-plugin-singlefile": "^2"
+    "vite-plugin-singlefile": "^2",
+    "vitest": "^4"
   }
 }

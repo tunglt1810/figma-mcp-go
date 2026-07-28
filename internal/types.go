@@ -12,6 +12,7 @@ type BridgeRequest struct {
 type BridgeResponse struct {
 	Type      string      `json:"type"`
 	RequestID string      `json:"requestId"`
+	Text      string      `json:"text,omitempty"`
 	Data      interface{} `json:"data,omitempty"`
 	Error     string      `json:"error,omitempty"`
 	// Progress fields — sent mid-operation for long-running commands

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { copyTextToClipboard } from "./copy-helper";
 
   let connected = false;
   let fileName = "—";
@@ -145,47 +146,19 @@
   }
 
   async function copyToClipboard(text: string, unattended = false) {
-    let success = false;
+    const result = await copyTextToClipboard(text, {
+      socket,
+      execCommand: (cmd) => document.execCommand(cmd),
+      writeText: (txt) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject("no clipboard API")),
+    });
 
-    // 1. Try synchronous execCommand first to preserve user gesture
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.top = "0";
-    textarea.style.left = "0";
-    textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    try {
-      success = document.execCommand("copy");
-    } catch (err) {
-      console.warn("execCommand failed", err);
-    } finally {
-      document.body.removeChild(textarea);
-    }
-
-    if (success) {
+    if (result.success) {
       copyError = false;
       return;
     }
 
-    // 2. Fallback to async modern API if execCommand fails (e.g. due to sandbox)
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-        copyError = false;
-        return;
-      }
-    } catch (err) {
-      console.warn("navigator.clipboard.writeText failed", err);
-    }
-
-    // Both failed
     copyError = true;
     if (unattended) {
-      // Gesture-less writes are being rejected by the browser's clipboard
-      // activation policy — stop retrying silently on every selection change.
       autoCopyEnabled = false;
       autoCopyBroken = true;
     }
@@ -275,8 +248,8 @@
     {#if autoCopyBroken}
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
-      <div class="error-banner" on:click={reArmAutoCopy} title="Your browser's clipboard security policy blocks automatic copies; use the Copy buttons instead, or click to try re-enabling auto-copy">
-        ⚠️ Auto-copy disabled (browser blocked it). Use Copy buttons, or click to retry.
+      <div class="error-banner" on:click={reArmAutoCopy} title="Your browser's clipboard security policy blocks automatic copies without user clicks; connect Go MCP Server for native auto-copy, or click to retry">
+        ⚠️ Auto-copy disabled (browser policy). Connect Go MCP Server for native auto-copy, or click to retry.
       </div>
     {:else if copyError}
       <!-- svelte-ignore a11y-click-events-have-key-events -->

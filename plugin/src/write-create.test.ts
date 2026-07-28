@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach } from "vitest";
 import { handleWriteCreateRequest } from "./write-create";
 
 // ── Figma global mock ─────────────────────────────────────────────────────────

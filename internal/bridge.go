@@ -113,6 +113,17 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 			continue
 		}
 
+		if resp.Type == "copy_to_clipboard" {
+			if resp.Text != "" {
+				if err := WriteOSClipboard(resp.Text); err != nil {
+					bridgeLogger.Printf("failed to write OS clipboard: %v", err)
+				} else {
+					bridgeLogger.Printf("successfully copied to OS clipboard (%d bytes)", len(resp.Text))
+				}
+			}
+			continue
+		}
+
 		if resp.RequestID == "" {
 			bridgeLogger.Printf("received message with empty requestID — ignored")
 			continue
