@@ -19,6 +19,7 @@
   // is unavailable inside Figma's data: URL sandbox.
   let serverHost = "127.0.0.1";
   let serverPort = "1994";
+  let serverVersion = "";
 
   let showSettings = false;
   let editHost = serverHost;
@@ -43,12 +44,14 @@
 
     ws.onopen = () => {
       connected = true;
+      ws.send(JSON.stringify({ type: "get_server_info" }));
       parent.postMessage({ pluginMessage: { type: "ui-ready" } }, "*");
     };
 
     ws.onclose = () => {
       if (socket !== ws) return; // stale handler — a newer connect() already took over
       connected = false;
+      serverVersion = "";
       socket = null;
       activeRequests.clear();
       activeRequests = activeRequests;
@@ -67,6 +70,10 @@
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
+        if (payload.type === "server-info") {
+          serverVersion = payload.version ?? "";
+          return;
+        }
         if (payload.requestId) {
           activeRequests.add(payload.requestId);
           activeRequests = activeRequests;
@@ -295,7 +302,7 @@
       {/if}
       <div class="badge" class:connected class:disconnected={!connected}>
         <span class="dot" class:connected></span>
-        <span>{connected ? "Connected" : "Disconnected"}</span>
+        <span>{connected ? (serverVersion ? `Connected (v${serverVersion})` : "Connected") : "Disconnected"}</span>
       </div>
     </div>
     <!-- Row 2: author (left) + bug report + feature suggestion (right) -->

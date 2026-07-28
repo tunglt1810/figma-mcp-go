@@ -11,16 +11,14 @@ import (
 
 	"github.com/mark3labs/mcp-go/server"
 
+	figmamcpgo "github.com/tunglt1810/figma-mcp-go"
 	"github.com/tunglt1810/figma-mcp-go/internal"
 )
-
-// version is injected at build time:
-// go build -ldflags "-X main.version=1.0.0" ./cmd/figma-mcp-go
-var version = "dev"
 
 var logger = log.New(os.Stderr, "", 0)
 
 func main() {
+	version := figmamcpgo.GetVersion()
 	ip := flag.String("ip", "127.0.0.1", "IP address to listen on (use 0.0.0.0 to accept remote connections)")
 	port := flag.Int("port", 1994, "port to listen on")
 	flag.Parse()

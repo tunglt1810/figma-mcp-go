@@ -33,12 +33,14 @@ type Bridge struct {
 	conn    *websocket.Conn
 	pending map[string]*pendingEntry
 	counter atomic.Int64
+	version string
 }
 
 // NewBridge creates a ready-to-use Bridge.
-func NewBridge() *Bridge {
+func NewBridge(version string) *Bridge {
 	return &Bridge{
 		pending: make(map[string]*pendingEntry),
+		version: version,
 	}
 }
 
@@ -110,6 +112,19 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 			} else {
 				bridgeLogger.Printf("progress %s: %d%% %s (no pending entry — already resolved or timed out)", resp.RequestID, resp.Progress, resp.Message)
 			}
+			continue
+		}
+
+		if resp.Type == "get_server_info" {
+			infoMsg := map[string]string{
+				"type":    "server-info",
+				"version": b.version,
+			}
+			b.wmu.Lock()
+			if err := wsjson.Write(ctx, conn, infoMsg); err != nil {
+				bridgeLogger.Printf("failed to write server-info: %v", err)
+			}
+			b.wmu.Unlock()
 			continue
 		}
 

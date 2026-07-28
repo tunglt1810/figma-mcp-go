@@ -35,7 +35,7 @@ func NewLeader(ip string, port int, version string) *Leader {
 	return &Leader{
 		ip:      ip,
 		port:    port,
-		bridge:  NewBridge(),
+		bridge:  NewBridge(version),
 		version: version,
 	}
 }
