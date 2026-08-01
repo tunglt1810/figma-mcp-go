@@ -4,7 +4,7 @@
     "tunglt1810"
   ],
   "name": "figma-mcp-go",
-  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 83 tools for design automation: styles, variables, components, prototypes, and content.",
+  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 84 tools for design automation: styles, variables, components, prototypes, and content.",
   "license": "MIT",
   "tools": [
     {
@@ -18,6 +18,10 @@
     {
       "name": "apply_style_to_node",
       "description": "Apply an existing local style (paint, text, effect, or grid) to a node, linking the node to that style."
+    },
+    {
+      "name": "batch_execute_pipeline",
+      "description": "Execute a transactional batch pipeline of mutation steps in Figma with stateful variable binding and rollback support."
     },
     {
       "name": "batch_rename_nodes",

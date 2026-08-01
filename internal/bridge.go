@@ -193,6 +193,8 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 	timeout := 30 * time.Second
 	if requestType == "get_document" {
 		timeout = 60 * time.Second
+	} else if requestType == "batch_execute_pipeline" {
+		timeout = 120 * time.Second
 	}
 	entry.timer = time.AfterFunc(timeout, func() {
 		bridgeLogger.Printf("→ %s %s timed out after %s", requestID, requestType, timeout)

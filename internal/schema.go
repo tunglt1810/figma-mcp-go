@@ -1087,3 +1087,25 @@ func validExportFormat(f string) bool {
 	}
 	return false
 }
+
+type BatchPipelineStep struct {
+	ID         string                 `json:"id"`
+	Action     string                 `json:"action"`
+	Params     map[string]interface{} `json:"params"`
+	ExportVars map[string]string      `json:"export_vars,omitempty"`
+}
+
+type BatchPipelineRequest struct {
+	StopOnError bool                `json:"stop_on_error,omitempty"`
+	Steps       []BatchPipelineStep `json:"steps"`
+}
+
+type BatchPipelineResponse struct {
+	Success        bool                   `json:"success"`
+	CompletedSteps int                    `json:"completed_steps"`
+	Exports        map[string]interface{} `json:"exports,omitempty"`
+	Results        []map[string]interface{}`json:"results,omitempty"`
+	FailedStep     map[string]interface{} `json:"failed_step,omitempty"`
+	Rollback       bool                   `json:"rollback_executed,omitempty"`
+}
+

@@ -13,8 +13,8 @@ Open-source Figma MCP server with full read/write access via plugin. Turn text i
 **Highlights**
 - Operates locally via the Figma Plugin API (no REST API token required)
 - Real-time execution directly on your local machine
-- **Read and Write** live Figma data via plugin bridge — 79 tools total
-- Full design automation — styles, variables, components, prototypes, and content
+- **Read and Write** live Figma data via plugin bridge — 84 tools total
+- Full design automation — styles, variables, components, prototypes, content, and transactional batch pipelines
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
 
 **Styles, Variables, Components, Prototypes, and Content**
@@ -92,6 +92,12 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 ---
 
 ## Available Tools
+
+### Write — Batch & Transactions
+
+| Tool                     | Description                                                                                                    |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `batch_execute_pipeline` | Execute a transactional batch pipeline of mutation steps in Figma with stateful variable binding and rollback |
 
 ### Write — Create
 
