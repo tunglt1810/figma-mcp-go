@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.tunglt1810/figma-mcp-go",
-  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 84 tools.",
+  "description": "Figma MCP server with full read/write access via plugin bridge — no API token or rate limits.",
   "repository": {
     "url": "https://github.com/tunglt1810/figma-mcp-go",
     "source": "github"
