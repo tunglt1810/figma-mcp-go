@@ -6,6 +6,104 @@ export type LogEntry =
 
 export type WALStack = LogEntry[];
 
+// Actions that bring a NEW node into the document. Only these may be rolled
+// back by removal — every other action returns the id of a node the user
+// already had, and removing it would destroy their work.
+//
+// Keep in sync when adding a create-style handler; `rename_page` is the
+// cautionary example: it returns an existing PAGE id.
+export const CREATE_ACTIONS = new Set([
+  'create_frame',
+  'create_rectangle',
+  'create_ellipse',
+  'create_star',
+  'create_polygon',
+  'create_line',
+  'create_text',
+  'create_section',
+  'create_component',
+  'create_component_instance',
+  'create_connector',
+  'import_image',
+  'clone_node',
+  'add_page',
+]);
+
+// Properties captured before a mutating step so rollback can put them back.
+// Deliberately limited to plain, directly assignable node properties.
+const SNAPSHOT_PROPS = [
+  'x', 'y', 'width', 'height', 'rotation', 'opacity', 'visible', 'locked',
+  'name', 'characters', 'fills', 'strokes', 'strokeWeight', 'blendMode',
+  'constraints', 'cornerRadius',
+];
+
+// Params that name an EXISTING node the step is about to mutate. `parentId` is
+// excluded on purpose: create steps do not change the parent's own properties.
+// Name-based targeting (e.g. rename_page's `pageName`) cannot be resolved to an
+// id here, so those steps simply get no undo record.
+const TARGET_ID_PARAMS = ['nodeId', 'pageId'];
+
+/** Pull the target node ids out of a step's resolved params. */
+export function extractNodeIds(params: any): string[] {
+  if (!params) return [];
+  const ids: string[] = [];
+  if (Array.isArray(params.nodeIds)) {
+    ids.push(...params.nodeIds.filter((v: any) => typeof v === 'string'));
+  }
+  for (const key of TARGET_ID_PARAMS) {
+    if (typeof params[key] === 'string') ids.push(params[key]);
+  }
+  return [...new Set(ids)];
+}
+
+/** Capture the restorable properties a node currently has. */
+export function snapshotNode(node: any): Record<string, any> {
+  const state: Record<string, any> = {};
+  for (const prop of SNAPSHOT_PROPS) {
+    if (!(prop in node)) continue;
+    const value = node[prop];
+    // figma.mixed is a symbol and cannot be assigned back — skip it rather
+    // than storing something that throws on restore.
+    if (typeof value === 'symbol') continue;
+    state[prop] = Array.isArray(value) ? [...value] : value;
+  }
+  return state;
+}
+
+/** Put a snapshot back onto a node, best-effort, property by property. */
+export async function restoreNodeProperties(
+  node: any,
+  previousState: Record<string, any>
+): Promise<void> {
+  if (previousState.characters !== undefined && typeof node.fontName !== 'symbol') {
+    try {
+      if (typeof figma !== 'undefined' && typeof figma.loadFontAsync === 'function') {
+        await figma.loadFontAsync(node.fontName);
+      }
+    } catch {
+      // Font unavailable — the characters assignment below will simply fail.
+    }
+  }
+
+  for (const [key, value] of Object.entries(previousState)) {
+    if (key === 'width' || key === 'height') continue; // restored together via resize()
+    try {
+      node[key] = value;
+    } catch {
+      // Read-only on this node type — nothing better to do during rollback.
+    }
+  }
+
+  const wantsResize = previousState.width !== undefined || previousState.height !== undefined;
+  if (wantsResize && typeof node.resize === 'function') {
+    try {
+      node.resize(previousState.width ?? node.width, previousState.height ?? node.height);
+    } catch {
+      // Node refused the resize — leave it as-is.
+    }
+  }
+}
+
 export function resolveParams(params: any, symbolTable: SymbolTable): any {
   if (typeof params === 'string') {
     if (params.startsWith('$')) {
@@ -37,12 +135,16 @@ export async function executeRollback(
   while (stack.length > 0) {
     const entry = stack.pop()!;
     try {
+      const node = await getNodeById(entry.nodeId);
+      if (!node) continue;
       if (entry.type === 'CREATE') {
-        const node = await getNodeById(entry.nodeId);
-        if (node && typeof node.remove === 'function') {
+        if (typeof node.remove === 'function') {
           node.remove();
           count++;
         }
+      } else {
+        await restoreNodeProperties(node, entry.previousState);
+        count++;
       }
     } catch (err) {
       console.error('Rollback entry error:', err);
@@ -81,7 +183,8 @@ export interface BatchPipelineResponse {
 export async function executeBatchPipeline(
   req: BatchPipelineRequest,
   handlerDispatcher: (action: string, params: any) => Promise<any>,
-  getNodeById: (id: string) => Promise<any> = async (id) => (figma as any).getNodeByIdAsync(id)
+  getNodeById: (id: string) => Promise<any> = async (id) =>
+    typeof figma !== 'undefined' ? (figma as any).getNodeByIdAsync(id) : null
 ): Promise<BatchPipelineResponse> {
   const symbolTable: SymbolTable = new Map();
   const walStack: WALStack = [];
@@ -94,9 +197,29 @@ export async function executeBatchPipeline(
     const step = req.steps[i];
     try {
       const resolvedParams = resolveParams(step.params || {}, symbolTable);
+      const isCreate = CREATE_ACTIONS.has(step.action);
+
+      // Snapshot before mutating so rollback can restore. Failing to snapshot
+      // must not abort the step — it only means this node has no undo record.
+      if (!isCreate) {
+        for (const nodeId of extractNodeIds(resolvedParams)) {
+          try {
+            const node = await getNodeById(nodeId);
+            if (node) {
+              walStack.push({ type: 'MODIFY', nodeId, previousState: snapshotNode(node) });
+            }
+          } catch {
+            // Unresolvable node — the handler will report the real error.
+          }
+        }
+      }
+
       const res = await handlerDispatcher(step.action, resolvedParams);
 
-      if (res && res.id) {
+      // Only genuine creates are removable. Modify handlers return the id of a
+      // node the user already had; treating that as a create made rollback
+      // delete their work.
+      if (isCreate && res && res.id) {
         walStack.push({ type: 'CREATE', nodeId: res.id });
       }
 
@@ -120,6 +243,7 @@ export async function executeBatchPipeline(
         return {
           success: false,
           completed_steps: i,
+          results,
           failed_step: {
             index: i,
             step_id: step.id,
@@ -152,7 +276,16 @@ export async function handleBatchPipelineRequest(
   }
 
   const dispatcher = async (action: string, params: any) => {
-    const subReq = { type: action, requestId: `${request.requestId}_${action}`, params };
+    // Write handlers read `request.nodeIds`, not `params.nodeId`. Lift the ids
+    // out of the step params so nodeIds-based tools work inside a pipeline.
+    const { nodeId, nodeIds, ...rest } = params ?? {};
+    const ids = Array.isArray(nodeIds) ? nodeIds : typeof nodeId === 'string' ? [nodeId] : undefined;
+    const subReq = {
+      type: action,
+      requestId: `${request.requestId}_${action}`,
+      nodeIds: ids,
+      params: rest,
+    };
     const res = await writeDispatcher(subReq);
     if (!res) {
       throw new Error(`Unknown pipeline action: ${action}`);
