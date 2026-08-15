@@ -713,6 +713,44 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 
 	// ── Node Control ────────────────────────────────────────────────
 
+	case "set_node_properties":
+		if len(nodeIDs) == 0 {
+			return "nodeIds is required"
+		}
+		for _, id := range nodeIDs {
+			if !ValidNodeID(id) {
+				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
+			}
+		}
+		supplied := false
+		for _, key := range nodePropertyKeys {
+			if _, ok := params[key]; ok {
+				supplied = true
+				break
+			}
+		}
+		if !supplied {
+			return "at least one of visible, locked, opacity, rotation, blendMode, constraints, or order is required"
+		}
+		if v, ok := params["opacity"].(float64); ok && (v < 0 || v > 1) {
+			return "opacity must be between 0 and 1"
+		}
+		if v, ok := params["blendMode"].(string); ok && !validBlendModes[v] {
+			return fmt.Sprintf("blendMode %q is not a valid Figma blend mode", v)
+		}
+		if v, ok := params["order"].(string); ok {
+			switch v {
+			case "bringToFront", "sendToBack", "bringForward", "sendBackward":
+			default:
+				return fmt.Sprintf("order must be bringToFront, sendToBack, bringForward, or sendBackward, got: %s", v)
+			}
+		}
+		if c, ok := params["constraints"].(map[string]interface{}); ok {
+			if msg := validateConstraintAxes(c); msg != "" {
+				return msg
+			}
+		}
+
 	case "set_visible":
 		if len(nodeIDs) == 0 {
 			return "nodeIds is required"
@@ -778,13 +816,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		if blendMode == "" {
 			return "blendMode is required"
 		}
-		validBlendModes := map[string]bool{
-			"NORMAL": true, "MULTIPLY": true, "SCREEN": true, "OVERLAY": true,
-			"DARKEN": true, "LIGHTEN": true, "COLOR_DODGE": true, "COLOR_BURN": true,
-			"HARD_LIGHT": true, "SOFT_LIGHT": true, "DIFFERENCE": true, "EXCLUSION": true,
-			"HUE": true, "SATURATION": true, "COLOR": true, "LUMINOSITY": true,
-			"PASS_THROUGH": true,
-		}
 		if !validBlendModes[blendMode] {
 			return fmt.Sprintf("blendMode %q is not a valid Figma blend mode", blendMode)
 		}
@@ -803,19 +834,8 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		if !hasH && !hasV {
 			return "at least one of horizontal or vertical is required"
 		}
-		if h, ok := params["horizontal"].(string); ok && h != "" {
-			switch h {
-			case "MIN", "MAX", "CENTER", "STRETCH", "SCALE":
-			default:
-				return fmt.Sprintf("horizontal must be MIN, MAX, CENTER, STRETCH, or SCALE, got: %s", h)
-			}
-		}
-		if v, ok := params["vertical"].(string); ok && v != "" {
-			switch v {
-			case "MIN", "MAX", "CENTER", "STRETCH", "SCALE":
-			default:
-				return fmt.Sprintf("vertical must be MIN, MAX, CENTER, STRETCH, or SCALE, got: %s", v)
-			}
+		if msg := validateConstraintAxes(params); msg != "" {
+			return msg
 		}
 
 	case "reparent_nodes":
@@ -1075,6 +1095,32 @@ func validateAutoLayoutParams(params map[string]interface{}) string {
 		case "NO_WRAP", "WRAP":
 		default:
 			return fmt.Sprintf("layoutWrap must be NO_WRAP or WRAP, got: %s", v)
+		}
+	}
+	return ""
+}
+
+var validBlendModes = map[string]bool{
+	"NORMAL": true, "MULTIPLY": true, "SCREEN": true, "OVERLAY": true,
+	"DARKEN": true, "LIGHTEN": true, "COLOR_DODGE": true, "COLOR_BURN": true,
+	"HARD_LIGHT": true, "SOFT_LIGHT": true, "DIFFERENCE": true, "EXCLUSION": true,
+	"HUE": true, "SATURATION": true, "COLOR": true, "LUMINOSITY": true,
+	"PASS_THROUGH": true,
+}
+
+// validateConstraintAxes checks the horizontal/vertical values of a constraints
+// object. Shared by set_constraints (flat params) and set_node_properties
+// (nested under "constraints"), which is why it takes a plain map.
+func validateConstraintAxes(c map[string]interface{}) string {
+	for _, axis := range []string{"horizontal", "vertical"} {
+		v, ok := c[axis].(string)
+		if !ok || v == "" {
+			continue
+		}
+		switch v {
+		case "MIN", "MAX", "CENTER", "STRETCH", "SCALE":
+		default:
+			return fmt.Sprintf("%s must be MIN, MAX, CENTER, STRETCH, or SCALE, got: %s", axis, v)
 		}
 	}
 	return ""

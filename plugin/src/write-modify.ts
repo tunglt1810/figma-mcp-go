@@ -1,8 +1,102 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint } from "./write-helpers";
 
+const REORDER_ORDERS = ["bringToFront", "sendToBack", "bringForward", "sendBackward"];
+
+// Directly assignable node properties, with the label used in the
+// "does not support X" message the eight predecessor tools produced.
+const SIMPLE_NODE_PROPS: Array<{ key: string; label: string }> = [
+  { key: "visible", label: "visibility" },
+  { key: "locked", label: "locking" },
+  { key: "opacity", label: "opacity" },
+  { key: "rotation", label: "rotation" },
+  { key: "blendMode", label: "blend mode" },
+];
+
+const reorderIndex = (order: string, currentIndex: number, siblingCount: number): number => {
+  switch (order) {
+    case "bringToFront": return siblingCount - 1;
+    case "sendToBack": return 0;
+    case "bringForward": return Math.min(currentIndex + 1, siblingCount - 1);
+    case "sendBackward": return Math.max(currentIndex - 1, 0);
+    default: return currentIndex;
+  }
+};
+
+/**
+ * Apply every requested property to one node, collecting per-property outcomes.
+ * A node can support opacity but not rotation, so failures are reported against
+ * the individual property rather than the whole node.
+ */
+const applyNodeProperties = (n: any, p: any) => {
+  const applied: Record<string, any> = {};
+  const errors: Record<string, string> = {};
+
+  for (const { key, label } of SIMPLE_NODE_PROPS) {
+    if (p[key] === undefined) continue;
+    if (!(key in n)) {
+      errors[key] = `Node does not support ${label}`;
+      continue;
+    }
+    n[key] = p[key];
+    applied[key] = n[key];
+  }
+
+  if (p.constraints !== undefined) {
+    if (!("constraints" in n)) {
+      errors.constraints = "Node does not support constraints";
+    } else {
+      const updated: any = { ...n.constraints };
+      if (p.constraints.horizontal) updated.horizontal = p.constraints.horizontal;
+      if (p.constraints.vertical) updated.vertical = p.constraints.vertical;
+      n.constraints = updated;
+      applied.constraints = n.constraints;
+    }
+  }
+
+  if (p.order !== undefined) {
+    const parent = n.parent as any;
+    if (!parent || !("children" in parent)) {
+      errors.order = "Node has no reorderable parent";
+    } else {
+      const siblings = parent.children as any[];
+      const newIndex = reorderIndex(p.order, siblings.indexOf(n), siblings.length);
+      parent.insertChild(newIndex, n);
+      applied.index = newIndex;
+    }
+  }
+
+  return { applied, errors };
+};
+
 export const handleWriteModifyRequest = async (request: any) => {
   switch (request.type) {
+    case "set_node_properties": {
+      const p = request.params || {};
+      const nodeIds = request.nodeIds || [];
+      if (nodeIds.length === 0) throw new Error("nodeIds is required");
+
+      const requested = [...SIMPLE_NODE_PROPS.map(s => s.key), "constraints", "order"];
+      if (!requested.some(key => p[key] !== undefined)) {
+        throw new Error(`at least one property is required: ${requested.join(", ")}`);
+      }
+      if (p.order !== undefined && !REORDER_ORDERS.includes(p.order)) {
+        throw new Error(`order must be ${REORDER_ORDERS.join(", ")}`);
+      }
+
+      const results: any[] = [];
+      for (const nid of nodeIds) {
+        const n = await figma.getNodeByIdAsync(nid) as any;
+        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+        const { applied, errors } = applyNodeProperties(n, p);
+        const entry: any = { nodeId: nid, applied };
+        if (Object.keys(errors).length > 0) entry.errors = errors;
+        results.push(entry);
+      }
+      figma.commitUndo();
+      return { type: request.type, requestId: request.requestId, data: { results } };
+    }
+
     case "set_text": {
       const p = request.params || {};
       const nodeId = request.nodeIds && request.nodeIds[0];

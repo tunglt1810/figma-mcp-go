@@ -10,6 +10,7 @@ import (
 func registerWriteTools(s *server.MCPServer, node *Node) {
 	registerWriteCreateTools(s, node)
 	registerWriteModifyTools(s, node)
+	registerNodePropertyTools(s, node)
 	registerWriteStyleTools(s, node)
 	registerWriteVariableTools(s, node)
 	registerWriteComponentTools(s, node)

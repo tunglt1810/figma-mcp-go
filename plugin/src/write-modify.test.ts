@@ -544,3 +544,119 @@ describe("find_replace_text", () => {
     await expect(handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "x" }))).rejects.toThrow("replace is required");
   });
 });
+
+// ── set_node_properties ───────────────────────────────────────────────────────
+//
+// Replaces set_visible, lock_nodes, unlock_nodes, set_opacity, rotate_nodes,
+// reorder_nodes, set_blend_mode and set_constraints. Errors stay per-property:
+// a node may support opacity but not rotation, and collapsing that into a
+// single per-node error would lose detail the eight separate tools had.
+
+describe("set_node_properties", () => {
+  it("applies several properties in one call with a single undo entry", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Frame", visible: true, opacity: 1, rotation: 0 };
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { visible: false, opacity: 0.5, rotation: 45 }),
+    );
+
+    expect(res?.data.results[0].applied).toEqual({ visible: false, opacity: 0.5, rotation: 45 });
+    expect(mockNodes["1:1"].visible).toBe(false);
+    expect(mockNodes["1:1"].opacity).toBe(0.5);
+    expect(mockNodes["1:1"].rotation).toBe(45);
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  it("applies falsy values rather than skipping them", async () => {
+    mockNodes["1:1"] = { id: "1:1", visible: true, locked: true, opacity: 1 };
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { visible: false, locked: false, opacity: 0 }),
+    );
+
+    expect(res?.data.results[0].applied).toEqual({ visible: false, locked: false, opacity: 0 });
+  });
+
+  it("reports unsupported properties per property, still applying the rest", async () => {
+    mockNodes["1:1"] = { id: "1:1", opacity: 1 }; // no rotation support
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { opacity: 0.5, rotation: 90 }),
+    );
+
+    expect(res?.data.results[0].applied).toEqual({ opacity: 0.5 });
+    expect(res?.data.results[0].errors.rotation).toContain("does not support rotation");
+    expect(mockNodes["1:1"].opacity).toBe(0.5);
+  });
+
+  it("reports a missing node once, not per property", async () => {
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["9:9"], { opacity: 0.5, visible: false }),
+    );
+
+    expect(res?.data.results[0].error).toBe("Node not found");
+    expect(res?.data.results[0].applied).toBeUndefined();
+  });
+
+  it("merges constraints with the axes not supplied", async () => {
+    mockNodes["1:1"] = { id: "1:1", constraints: { horizontal: "MIN", vertical: "MIN" } };
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { constraints: { horizontal: "STRETCH" } }),
+    );
+
+    expect(mockNodes["1:1"].constraints).toEqual({ horizontal: "STRETCH", vertical: "MIN" });
+    expect(res?.data.results[0].applied.constraints).toEqual({ horizontal: "STRETCH", vertical: "MIN" });
+  });
+
+  it("reorders within the parent and reports the resulting index", async () => {
+    const child = { id: "1:1" } as any;
+    const parent: any = { id: "0:1", children: [child, { id: "2:2" }, { id: "3:3" }] };
+    parent.insertChild = (index: number, node: any) => {
+      parent.children = parent.children.filter((c: any) => c !== node);
+      parent.children.splice(index, 0, node);
+    };
+    child.parent = parent;
+    mockNodes["1:1"] = child;
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { order: "bringToFront" }),
+    );
+
+    expect(res?.data.results[0].applied.index).toBe(2);
+    expect(parent.children[2]).toBe(child);
+  });
+
+  it("rejects an invalid order value", async () => {
+    mockNodes["1:1"] = { id: "1:1" };
+    await expect(
+      handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { order: "sideways" })),
+    ).rejects.toThrow(/order must be/);
+  });
+
+  it("requires at least one property", async () => {
+    mockNodes["1:1"] = { id: "1:1", opacity: 1 };
+    await expect(
+      handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], {})),
+    ).rejects.toThrow(/at least one property/);
+  });
+
+  it("requires nodeIds", async () => {
+    await expect(
+      handleWriteModifyRequest(makeRequest("set_node_properties", [], { opacity: 0.5 })),
+    ).rejects.toThrow("nodeIds is required");
+  });
+
+  it("handles multiple nodes independently", async () => {
+    mockNodes["1:1"] = { id: "1:1", opacity: 1, rotation: 0 };
+    mockNodes["2:2"] = { id: "2:2", opacity: 1 }; // no rotation
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1", "2:2"], { opacity: 0.3, rotation: 10 }),
+    );
+
+    expect(res?.data.results[0].applied).toEqual({ opacity: 0.3, rotation: 10 });
+    expect(res?.data.results[1].applied).toEqual({ opacity: 0.3 });
+    expect(res?.data.results[1].errors.rotation).toContain("does not support rotation");
+  });
+});

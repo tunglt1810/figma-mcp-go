@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -1494,5 +1495,55 @@ func TestBatchPipelineRequestSchema(t *testing.T) {
 	}
 	if req.Steps[0].Action != "create_frame" {
 		t.Errorf("expected create_frame, got %s", req.Steps[0].Action)
+	}
+}
+
+func TestValidateRPC_SetNodeProperties(t *testing.T) {
+	valid := []string{"1:1"}
+
+	cases := []struct {
+		name    string
+		nodeIDs []string
+		params  map[string]interface{}
+		wantMsg string // "" means the request must be accepted
+	}{
+		{"no nodeIds", nil, map[string]interface{}{"opacity": 0.5}, "nodeIds is required"},
+		{"bad nodeId", []string{"nope"}, map[string]interface{}{"opacity": 0.5}, "colon format"},
+		{"no properties", valid, map[string]interface{}{}, "at least one of"},
+		{"opacity too high", valid, map[string]interface{}{"opacity": 5.0}, "between 0 and 1"},
+		{"opacity negative", valid, map[string]interface{}{"opacity": -0.1}, "between 0 and 1"},
+		{"invalid blend mode", valid, map[string]interface{}{"blendMode": "NEON"}, "not a valid Figma blend mode"},
+		{"invalid order", valid, map[string]interface{}{"order": "sideways"}, "order must be"},
+		{"invalid constraint axis", valid, map[string]interface{}{
+			"constraints": map[string]interface{}{"horizontal": "MIDDLE"},
+		}, "horizontal must be"},
+
+		{"opacity at 0", valid, map[string]interface{}{"opacity": 0.0}, ""},
+		{"opacity at 1", valid, map[string]interface{}{"opacity": 1.0}, ""},
+		{"visible false only", valid, map[string]interface{}{"visible": false}, ""},
+		{"locked false only", valid, map[string]interface{}{"locked": false}, ""},
+		{"every property", valid, map[string]interface{}{
+			"visible": true, "locked": false, "opacity": 0.5, "rotation": 45.0,
+			"blendMode": "MULTIPLY", "order": "bringToFront",
+			"constraints": map[string]interface{}{"horizontal": "STRETCH", "vertical": "MIN"},
+		}, ""},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg := ValidateRPC("set_node_properties", c.nodeIDs, c.params)
+			if c.wantMsg == "" {
+				if msg != "" {
+					t.Errorf("expected the request to be accepted, got %q", msg)
+				}
+				return
+			}
+			if msg == "" {
+				t.Fatalf("expected an error containing %q, got none", c.wantMsg)
+			}
+			if !strings.Contains(msg, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
+			}
+		})
 	}
 }

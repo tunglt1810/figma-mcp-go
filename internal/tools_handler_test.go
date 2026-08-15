@@ -413,13 +413,15 @@ func TestToolCall_InvalidArgsRejected(t *testing.T) {
 		args    map[string]any
 		wantMsg string
 	}{
-		{"set_opacity", map[string]any{"nodeIds": []any{"1:1"}, "opacity": 5.0}, "opacity must be between 0 and 1"},
-		{"set_blend_mode", map[string]any{"nodeIds": []any{"1:1"}, "blendMode": "NEON"}, "not a valid Figma blend mode"},
-		{"reorder_nodes", map[string]any{"nodeIds": []any{"1:1"}, "order": "sideways"}, "order must be"},
+		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "opacity": 5.0}, "opacity must be between 0 and 1"},
+		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "blendMode": "NEON"}, "not a valid Figma blend mode"},
+		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "order": "sideways"}, "order must be"},
+		{"resize_nodes", map[string]any{"nodeIds": []any{"nope"}, "width": 10.0}, "colon format"},
+		{"search_nodes", map[string]any{"query": ""}, "query is required"},
 	}
 
 	for _, c := range cases {
-		t.Run(c.tool, func(t *testing.T) {
+		t.Run(c.tool+"/"+c.wantMsg, func(t *testing.T) {
 			argsJSON, _ := json.Marshal(c.args)
 			msg := fmt.Sprintf(
 				`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":%q,"arguments":%s}}`,
