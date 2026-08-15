@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -185,5 +186,126 @@ func TestNodeSend_NormalizesIDs(t *testing.T) {
 	}
 	if parentID, _ := capturedReq.Params["parentId"].(string); parentID == "300-400" {
 		t.Error("params.parentId was not normalised")
+	}
+}
+
+// ── Validation on the primary path ───────────────────────────────────────────
+//
+// ValidateRPC used to be reachable only from the leader's /rpc handler, i.e.
+// only for follower processes. The first process to start is the leader, so for
+// most users the validation never ran and bad arguments went straight to Figma.
+// These tests pin validation to Node.Send, which every tool call goes through.
+
+// fakeSender records what it was asked to send and never touches the network.
+type fakeSender struct {
+	calls []struct {
+		tool    string
+		nodeIDs []string
+		params  map[string]interface{}
+	}
+	resp BridgeResponse
+	err  error
+}
+
+func (f *fakeSender) Send(_ context.Context, tool string, nodeIDs []string, params map[string]interface{}) (BridgeResponse, error) {
+	f.calls = append(f.calls, struct {
+		tool    string
+		nodeIDs []string
+		params  map[string]interface{}
+	}{tool, nodeIDs, params})
+	return f.resp, f.err
+}
+
+func newNodeWithSender(s sender) *Node {
+	n := NewNode("127.0.0.1", 19940, "test")
+	n.follower = s
+	return n
+}
+
+func TestNodeSend_RejectsInvalidArgsBeforeReachingPlugin(t *testing.T) {
+	cases := []struct {
+		name    string
+		tool    string
+		nodeIDs []string
+		params  map[string]interface{}
+		wantMsg string
+	}{
+		{"opacity out of range", "set_opacity", []string{"1:1"}, map[string]interface{}{"opacity": 5.0}, "opacity must be between 0 and 1"},
+		{"invalid blend mode", "set_blend_mode", []string{"1:1"}, map[string]interface{}{"blendMode": "NEON"}, "not a valid Figma blend mode"},
+		{"missing node id", "get_node", nil, nil, "nodeId is required"},
+		{"bad node id format", "rename_node", []string{"nope"}, map[string]interface{}{"name": "x"}, "colon format"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fake := &fakeSender{}
+			n := newNodeWithSender(fake)
+
+			resp, err := n.Send(context.Background(), c.tool, c.nodeIDs, c.params)
+			if err != nil {
+				t.Fatalf("Send returned a Go error: %v", err)
+			}
+			if resp.Error == "" {
+				t.Fatalf("expected a validation error for %s, got none", c.tool)
+			}
+			if !strings.Contains(resp.Error, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", resp.Error, c.wantMsg)
+			}
+			if len(fake.calls) != 0 {
+				t.Errorf("invalid request reached the plugin: %+v", fake.calls)
+			}
+		})
+	}
+}
+
+func TestNodeSend_PassesValidArgsThrough(t *testing.T) {
+	fake := &fakeSender{resp: BridgeResponse{Data: map[string]any{"ok": true}}}
+	n := newNodeWithSender(fake)
+
+	if _, err := n.Send(context.Background(), "set_opacity", []string{"1:1"}, map[string]interface{}{"opacity": 0.5}); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if len(fake.calls) != 1 {
+		t.Fatalf("expected 1 call to the sender, got %d", len(fake.calls))
+	}
+	if fake.calls[0].tool != "set_opacity" {
+		t.Errorf("tool = %q, want set_opacity", fake.calls[0].tool)
+	}
+}
+
+// Node IDs must be normalised before validation, otherwise the hyphen format
+// LLMs emit would be rejected by the very check meant to tolerate it.
+func TestNodeSend_NormalizesBeforeValidating(t *testing.T) {
+	fake := &fakeSender{}
+	n := newNodeWithSender(fake)
+
+	resp, err := n.Send(context.Background(), "get_node", []string{"4029-12345"}, nil)
+	if err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if resp.Error != "" {
+		t.Fatalf("hyphen-format id was rejected: %s", resp.Error)
+	}
+	if len(fake.calls) != 1 || fake.calls[0].nodeIDs[0] != "4029:12345" {
+		t.Errorf("expected normalized id to reach the sender, got %+v", fake.calls)
+	}
+}
+
+// Node.Send must not mutate the caller's slice or map (P2-12).
+func TestNodeSend_DoesNotMutateCallerArgs(t *testing.T) {
+	fake := &fakeSender{}
+	n := newNodeWithSender(fake)
+
+	nodeIDs := []string{"4029-12345"}
+	params := map[string]interface{}{"nodeId": "4029-12345"}
+
+	if _, err := n.Send(context.Background(), "get_node", nodeIDs, params); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if nodeIDs[0] != "4029-12345" {
+		t.Errorf("caller slice was mutated: %v", nodeIDs)
+	}
+	if params["nodeId"] != "4029-12345" {
+		t.Errorf("caller map was mutated: %v", params)
 	}
 }

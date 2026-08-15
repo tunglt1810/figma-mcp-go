@@ -18,6 +18,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Check Go formatting
+        run: make fmt-check
+
+      - name: Vet Go code
+        run: go vet ./...
+
       - name: Test Go code
         run: make test-go
 

@@ -57,7 +57,6 @@ func registerWriteComponentTools(s *server.MCPServer, node *Node) {
 		return renderResponse(resp, err)
 	})
 
-
 	s.AddTool(mcp.NewTool("swap_component",
 		mcp.WithDescription("Swap the main component of an existing INSTANCE node, replacing it with a different component while keeping position and size."),
 		mcp.WithString("nodeId",

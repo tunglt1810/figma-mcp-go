@@ -1439,8 +1439,8 @@ func TestValidateRPC_CreateConnector(t *testing.T) {
 	}
 	if msg := ValidateRPC("create_connector", nil, map[string]interface{}{
 		"startNodeId": "1:1",
-		"endNodeId": "2:2",
-		"lineType": "ELBOW",
+		"endNodeId":   "2:2",
+		"lineType":    "ELBOW",
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
@@ -1496,4 +1496,3 @@ func TestBatchPipelineRequestSchema(t *testing.T) {
 		t.Errorf("expected create_frame, got %s", req.Steps[0].Action)
 	}
 }
-

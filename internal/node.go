@@ -10,6 +10,12 @@ import (
 
 var nodeLogger = log.New(os.Stderr, "[node] ", 0)
 
+// sender is anything that can carry a tool call to the plugin — the Leader's
+// Bridge (direct WebSocket) or a Follower (HTTP proxy to the leader).
+type sender interface {
+	Send(ctx context.Context, tool string, nodeIDs []string, params map[string]interface{}) (BridgeResponse, error)
+}
+
 // Node dynamically routes MCP tool calls to either the Leader bridge
 // or the Follower HTTP proxy, depending on the current role.
 type Node struct {
@@ -18,8 +24,39 @@ type Node struct {
 	ip       string
 	port     int
 	leader   *Leader
-	follower *Follower
+	follower sender
 	version  string
+}
+
+// nodeIDParams are the parameter names that carry a Figma node ID and so need
+// the same hyphen→colon normalization as the nodeIDs slice.
+var nodeIDParams = []string{"nodeId", "parentId", "pageId", "componentId", "startNodeId", "endNodeId"}
+
+// normalizeArgs returns copies of the arguments with node IDs normalized.
+// Copies, not in-place edits: the caller's slice and map belong to the caller.
+func normalizeArgs(nodeIDs []string, params map[string]interface{}) ([]string, map[string]interface{}) {
+	var ids []string
+	if nodeIDs != nil {
+		ids = make([]string, len(nodeIDs))
+		for i, id := range nodeIDs {
+			ids[i] = NormalizeNodeID(id)
+		}
+	}
+
+	var p map[string]interface{}
+	if params != nil {
+		p = make(map[string]interface{}, len(params))
+		for k, v := range params {
+			p[k] = v
+		}
+		for _, key := range nodeIDParams {
+			if s, ok := p[key].(string); ok {
+				p[key] = NormalizeNodeID(s)
+			}
+		}
+	}
+
+	return ids, p
 }
 
 // NewNode creates a Node in the Unknown role.
@@ -52,30 +89,34 @@ func (n *Node) RoleName() string {
 	}
 }
 
-// Send routes a request to the appropriate backend.
+// Send validates a request and routes it to the appropriate backend.
+//
+// Validation lives here rather than only in the leader's /rpc handler so that
+// it applies to every tool call. A leader process talks to its own Bridge
+// directly and never crosses /rpc, so validation placed there alone would be
+// skipped for the common single-client setup.
 func (n *Node) Send(ctx context.Context, tool string, nodeIDs []string, params map[string]interface{}) (BridgeResponse, error) {
+	// Normalize first: the hyphen format LLMs emit must be accepted, not
+	// rejected by the validation that exists to tolerate it.
+	nodeIDs, params = normalizeArgs(nodeIDs, params)
+
+	if msg := ValidateRPC(tool, nodeIDs, params); msg != "" {
+		nodeLogger.Printf("tool=%s rejected: %s", tool, msg)
+		return BridgeResponse{Error: msg}, nil
+	}
+
 	n.mu.RLock()
 	role := n.role
 	leader := n.leader
+	follower := n.follower
 	n.mu.RUnlock()
-
-	// Normalize hyphen-format node IDs that LLMs sometimes produce.
-	for i, id := range nodeIDs {
-		nodeIDs[i] = NormalizeNodeID(id)
-	}
-	// Normalize common param keys that contain node IDs.
-	for _, key := range []string{"nodeId", "parentId"} {
-		if v, ok := params[key].(string); ok {
-			params[key] = NormalizeNodeID(v)
-		}
-	}
 
 	nodeLogger.Printf("tool=%s role=%s nodeIDs=%v", tool, n.RoleName(), nodeIDs)
 
 	if role == RoleLeader && leader != nil {
 		return leader.GetBridge().Send(ctx, tool, nodeIDs, params)
 	}
-	return n.follower.Send(ctx, tool, nodeIDs, params)
+	return follower.Send(ctx, tool, nodeIDs, params)
 }
 
 // BecomeLeader attempts to bind the port and transition to Leader role.

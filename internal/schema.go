@@ -1101,11 +1101,10 @@ type BatchPipelineRequest struct {
 }
 
 type BatchPipelineResponse struct {
-	Success        bool                   `json:"success"`
-	CompletedSteps int                    `json:"completed_steps"`
-	Exports        map[string]interface{} `json:"exports,omitempty"`
-	Results        []map[string]interface{}`json:"results,omitempty"`
-	FailedStep     map[string]interface{} `json:"failed_step,omitempty"`
-	Rollback       bool                   `json:"rollback_executed,omitempty"`
+	Success        bool                     `json:"success"`
+	CompletedSteps int                      `json:"completed_steps"`
+	Exports        map[string]interface{}   `json:"exports,omitempty"`
+	Results        []map[string]interface{} `json:"results,omitempty"`
+	FailedStep     map[string]interface{}   `json:"failed_step,omitempty"`
+	Rollback       bool                     `json:"rollback_executed,omitempty"`
 }
-

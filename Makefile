@@ -1,4 +1,18 @@
-.PHONY: test test-go test-ts coverage coverage-go coverage-go-html coverage-ts build build-go build-ts
+.PHONY: fmt fmt-check vet test test-go test-ts coverage coverage-go coverage-go-html coverage-ts build build-go build-ts
+
+fmt:
+	gofmt -w .
+
+fmt-check:
+	@unformatted=$$(gofmt -l .); \
+	if [ -n "$$unformatted" ]; then \
+		echo "These files are not gofmt-formatted; run 'make fmt':"; \
+		echo "$$unformatted"; \
+		exit 1; \
+	fi
+
+vet:
+	go vet ./...
 
 build: build-go build-ts
 
