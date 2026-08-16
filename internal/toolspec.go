@@ -45,10 +45,6 @@ type paramSpec struct {
 	// Min and Max bound a numeric argument, inclusive.
 	Min, Max *float64
 
-	// Positive drops a numeric argument that is not greater than zero rather
-	// than forwarding it, letting the plugin apply its own default.
-	Positive bool
-
 	// IsNodeID marks a string argument that carries a Figma node ID, so it is
 	// checked for the colon format like the dedicated nodeIDs field is.
 	IsNodeID bool
@@ -190,13 +186,6 @@ func specArgs(spec toolSpec, args map[string]interface{}) ([]string, map[string]
 			if !ok || s == "" {
 				continue
 			}
-		case kindNumber:
-			if p.Positive {
-				n, ok := v.(float64)
-				if !ok || n <= 0 {
-					continue
-				}
-			}
 		case kindStringArray:
 			raw, ok := v.([]interface{})
 			if !ok || len(raw) == 0 {
@@ -288,6 +277,7 @@ func containsString(haystack []string, needle string) bool {
 // group has to be added for both registration and validation to see it.
 func specGroups() [][]toolSpec {
 	return [][]toolSpec{
+		readDocumentSpecs,
 		readStyleSpecs,
 	}
 }

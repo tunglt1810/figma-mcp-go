@@ -32,25 +32,13 @@ func ValidNodeID(s string) bool {
 // ValidateRPC validates an incoming RPC request against the tool's expected
 // input shape. Returns an error string on failure, empty string if valid.
 func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) string {
+	// Table-declared tools carry their own rules; derive the checks from the
+	// spec rather than repeating the argument list here.
+	if spec, ok := specRegistry[tool]; ok {
+		return validateSpec(spec, nodeIDs, params)
+	}
+
 	switch tool {
-	case "get_node":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-
-	case "get_nodes_info":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required and must not be empty"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-
 	case "export_frames_to_pdf":
 		if len(nodeIDs) == 0 {
 			return "nodeIds is required and must not be empty"
@@ -96,59 +84,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 				return fmt.Sprintf("items[%d].outputPath is required", i)
 			}
 		}
-
-	case "get_design_context":
-		if depth, ok := params["depth"].(float64); ok {
-			if depth < 0 {
-				return "depth must be a non-negative number"
-			}
-		}
-		if detail, ok := params["detail"].(string); ok && detail != "" {
-			switch detail {
-			case "minimal", "compact", "full":
-			default:
-				return fmt.Sprintf("detail must be minimal, compact, or full, got: %s", detail)
-			}
-		}
-
-	case "search_nodes":
-		query, _ := params["query"].(string)
-		if query == "" {
-			return "query is required"
-		}
-		if nodeID, ok := params["nodeId"].(string); ok && nodeID != "" {
-			if !ValidNodeID(nodeID) {
-				return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeID)
-			}
-		}
-		if limit, ok := params["limit"].(float64); ok && limit <= 0 {
-			return "limit must be a positive number"
-		}
-
-	case "get_reactions":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-
-	case "scan_text_nodes", "scan_nodes_by_types":
-		nodeID, _ := params["nodeId"].(string)
-		if nodeID == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeID) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeID)
-		}
-		if tool == "scan_nodes_by_types" {
-			types, ok := params["types"].([]interface{})
-			if !ok || len(types) == 0 {
-				return "types must be a non-empty array"
-			}
-		}
-
-	// ── Write tools ──────────────────────────────────────────────────────────
 
 	case "set_corner_radius":
 		if len(nodeIDs) == 0 {
@@ -216,14 +151,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
 		}
 
-	case "get_instance_overrides":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-
 	case "set_instance_overrides":
 		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
 			return "nodeId is required"
@@ -237,15 +164,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 		if _, ok := props.(map[string]interface{}); !ok {
 			return "properties must be an object/map"
-		}
-
-	case "export_tokens":
-		if format, ok := params["format"].(string); ok && format != "" {
-			switch format {
-			case "json", "css":
-			default:
-				return fmt.Sprintf("format must be json or css, got: %s", format)
-			}
 		}
 
 	case "create_frame":

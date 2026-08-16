@@ -1892,7 +1892,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Find all nodes of specific types in a subtree, regardless of name. Use search_nodes instead when you need to filter by name.",
+    "description": "Find all nodes of specific types in a subtree, regardless of name. Returns id, name, type, and bounds — not text content — and skips hidden nodes. Use search_nodes to filter by name, or scan_text_nodes to read text.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -1922,7 +1922,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Scan all TEXT nodes in a subtree and return their content. Shorthand for scan_nodes_by_types with ['TEXT'] — use when you only need text copy from a component or frame.",
+    "description": "Scan all TEXT nodes in a subtree and return their content, font size, and font name. Includes hidden nodes. Note that scan_nodes_by_types(['TEXT']) is not a substitute: it returns no text content and skips hidden nodes.",
     "inputSchema": {
       "properties": {
         "nodeId": {
