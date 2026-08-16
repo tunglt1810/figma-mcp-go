@@ -45,6 +45,10 @@ type paramSpec struct {
 	// Min and Max bound a numeric argument, inclusive.
 	Min, Max *float64
 
+	// Positive requires a numeric argument to be greater than zero. Distinct
+	// from Min: sizes and radii reject zero, which an inclusive bound cannot say.
+	Positive bool
+
 	// IsNodeID marks a string argument that carries a Figma node ID, so it is
 	// checked for the colon format like the dedicated nodeIDs field is.
 	IsNodeID bool
@@ -249,6 +253,9 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]interface{}
 			if p.Max != nil && n > *p.Max {
 				return fmt.Sprintf("%s must be at most %g, got: %g", p.Name, *p.Max, n)
 			}
+			if p.Positive && n <= 0 {
+				return fmt.Sprintf("%s must be positive", p.Name)
+			}
 		case kindBool:
 			if _, ok := v.(bool); !ok {
 				return fmt.Sprintf("%s must be a boolean", p.Name)
@@ -279,6 +286,9 @@ func specGroups() [][]toolSpec {
 	return [][]toolSpec{
 		readDocumentSpecs,
 		readStyleSpecs,
+		writeCreateSpecs,
+		writePageSpecs,
+		writeVariableSpecs,
 	}
 }
 

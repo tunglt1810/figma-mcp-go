@@ -896,11 +896,11 @@
           "type": "string"
         },
         "x": {
-          "description": "X position in pixels (default 0)",
+          "description": "X position (default 0)",
           "type": "number"
         },
         "y": {
-          "description": "Y position in pixels (default 0)",
+          "description": "Y position (default 0)",
           "type": "number"
         }
       },

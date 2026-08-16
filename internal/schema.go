@@ -130,14 +130,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			return "pageId or pageName is required"
 		}
 
-	case "create_component":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-
 	case "create_component_instance":
 		componentID, _ := params["componentId"].(string)
 		componentKey, _ := params["componentKey"].(string)
@@ -166,20 +158,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			return "properties must be an object/map"
 		}
 
-	case "create_frame":
-		if w, ok := params["width"].(float64); ok && w <= 0 {
-			return "width must be positive"
-		}
-		if h, ok := params["height"].(float64); ok && h <= 0 {
-			return "height must be positive"
-		}
-		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
-			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
-		}
-		if msg := validateAutoLayoutParams(params); msg != "" {
-			return msg
-		}
-
 	case "set_auto_layout":
 		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
 			return "nodeId is required"
@@ -189,58 +167,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 		if msg := validateAutoLayoutParams(params); msg != "" {
 			return msg
-		}
-
-	case "create_rectangle", "create_ellipse":
-		if w, ok := params["width"].(float64); ok && w <= 0 {
-			return "width must be positive"
-		}
-		if h, ok := params["height"].(float64); ok && h <= 0 {
-			return "height must be positive"
-		}
-		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
-			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
-		}
-
-	case "create_star":
-		if or, ok := params["outerRadius"].(float64); ok && or <= 0 {
-			return "outerRadius must be positive"
-		}
-		if ir, ok := params["innerRadius"].(float64); ok && ir <= 0 {
-			return "innerRadius must be positive"
-		}
-		if pc, ok := params["pointCount"].(float64); ok && pc < 3 {
-			return "pointCount must be at least 3"
-		}
-		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
-			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
-		}
-
-	case "create_polygon":
-		if r, ok := params["radius"].(float64); ok && r <= 0 {
-			return "radius must be positive"
-		}
-		if pc, ok := params["pointCount"].(float64); ok && pc < 3 {
-			return "pointCount must be at least 3"
-		}
-		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
-			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
-		}
-
-	case "create_line":
-		if l, ok := params["length"].(float64); ok && l <= 0 {
-			return "length must be positive"
-		}
-		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
-			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
-		}
-
-	case "create_text":
-		if text, _ := params["text"].(string); text == "" {
-			return "text is required"
-		}
-		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
-			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
 		}
 
 	case "set_text":
@@ -362,23 +288,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
 		}
 
-	case "import_image":
-		if imageData, _ := params["imageData"].(string); imageData == "" {
-			return "imageData (base64) is required"
-		}
-		if sm, ok := params["scaleMode"].(string); ok && sm != "" {
-			switch sm {
-			case "FILL", "FIT", "CROP", "TILE":
-			default:
-				return fmt.Sprintf("scaleMode must be FILL, FIT, CROP, or TILE, got: %s", sm)
-			}
-		}
-		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
-			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
-		}
-
-	// ── Style tools ──────────────────────────────────────────────────────────
-
 	case "create_paint_style":
 		if name, _ := params["name"].(string); name == "" {
 			return "name is required"
@@ -461,51 +370,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 
 	// ── Variable tools ───────────────────────────────────────────────────────
-
-	case "create_variable_collection":
-		if name, _ := params["name"].(string); name == "" {
-			return "name is required"
-		}
-
-	case "add_variable_mode":
-		if collectionId, _ := params["collectionId"].(string); collectionId == "" {
-			return "collectionId is required"
-		}
-		if modeName, _ := params["modeName"].(string); modeName == "" {
-			return "modeName is required"
-		}
-
-	case "create_variable":
-		if name, _ := params["name"].(string); name == "" {
-			return "name is required"
-		}
-		if collectionId, _ := params["collectionId"].(string); collectionId == "" {
-			return "collectionId is required"
-		}
-		varType, _ := params["type"].(string)
-		switch varType {
-		case "COLOR", "FLOAT", "STRING", "BOOLEAN":
-		default:
-			return fmt.Sprintf("type must be COLOR, FLOAT, STRING, or BOOLEAN, got: %s", varType)
-		}
-
-	case "set_variable_value":
-		if variableId, _ := params["variableId"].(string); variableId == "" {
-			return "variableId is required"
-		}
-		if modeId, _ := params["modeId"].(string); modeId == "" {
-			return "modeId is required"
-		}
-		if _, ok := params["value"]; !ok {
-			return "value is required"
-		}
-
-	case "delete_variable":
-		vid, _ := params["variableId"].(string)
-		cid, _ := params["collectionId"].(string)
-		if vid == "" && cid == "" {
-			return "variableId or collectionId is required"
-		}
 
 	// ── Linked tools ─────────────────────────────────────────────────────────
 
@@ -705,23 +569,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 
 	// ── Page management ─────────────────────────────────────────────
-
-	case "add_page":
-		if idx, ok := params["index"].(float64); ok && idx < 0 {
-			return "index must be non-negative"
-		}
-
-	case "delete_page", "rename_page":
-		pageID, _ := params["pageId"].(string)
-		pageName, _ := params["pageName"].(string)
-		if pageID == "" && pageName == "" {
-			return "pageId or pageName is required"
-		}
-		if tool == "rename_page" {
-			if newName, _ := params["newName"].(string); newName == "" {
-				return "newName is required"
-			}
-		}
 
 	case "set_effects":
 		if len(nodeIDs) == 0 || nodeIDs[0] == "" {

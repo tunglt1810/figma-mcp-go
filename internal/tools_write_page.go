@@ -1,65 +1,48 @@
 package internal
 
-import (
-	"context"
+import "github.com/mark3labs/mcp-go/server"
 
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
+// requirePageTarget accepts either a page id or an exact page name.
+func requirePageTarget(_ []string, params map[string]interface{}) string {
+	pageID, _ := params["pageId"].(string)
+	pageName, _ := params["pageName"].(string)
+	if pageID == "" && pageName == "" {
+		return "pageId or pageName is required"
+	}
+	return ""
+}
+
+var writePageSpecs = []toolSpec{
+	{
+		Name: "add_page",
+		Desc: "Add a new page to the Figma document.",
+		Params: []paramSpec{
+			{Name: "name", Kind: kindString, Desc: "Name for the new page (default 'Page')"},
+			{Name: "index", Kind: kindNumber, Min: floatPtr(0),
+				Desc: "Position index to insert the page (0 = first). Defaults to last position."},
+		},
+	},
+	{
+		Name: "delete_page",
+		Desc: "Delete a page from the Figma document. Cannot delete the only remaining page.",
+		Params: []paramSpec{
+			{Name: "pageId", Kind: kindString, Desc: "Page node ID in colon format e.g. '0:2'"},
+			{Name: "pageName", Kind: kindString, Desc: "Exact page name to delete (alternative to pageId)"},
+		},
+		Validate: requirePageTarget,
+	},
+	{
+		Name: "rename_page",
+		Desc: "Rename an existing page in the Figma document.",
+		Params: []paramSpec{
+			{Name: "pageId", Kind: kindString, Desc: "Page node ID in colon format e.g. '0:2'"},
+			{Name: "pageName", Kind: kindString, Desc: "Current page name to find (alternative to pageId)"},
+			{Name: "newName", Kind: kindString, Required: true, Desc: "New name for the page"},
+		},
+		Validate: requirePageTarget,
+	},
+}
 
 func registerWritePageTools(s *server.MCPServer, node *Node) {
-	s.AddTool(mcp.NewTool("add_page",
-		mcp.WithDescription("Add a new page to the Figma document."),
-		mcp.WithString("name", mcp.Description("Name for the new page (default 'Page')")),
-		mcp.WithNumber("index", mcp.Description("Position index to insert the page (0 = first). Defaults to last position.")),
-	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		params := map[string]interface{}{}
-		if name, ok := req.GetArguments()["name"].(string); ok && name != "" {
-			params["name"] = name
-		}
-		if idx, ok := req.GetArguments()["index"].(float64); ok {
-			params["index"] = idx
-		}
-		resp, err := node.Send(ctx, "add_page", nil, params)
-		return renderResponse(resp, err)
-	})
-
-	s.AddTool(mcp.NewTool("delete_page",
-		mcp.WithDescription("Delete a page from the Figma document. Cannot delete the only remaining page."),
-		mcp.WithString("pageId", mcp.Description("Page node ID in colon format e.g. '0:2'")),
-		mcp.WithString("pageName", mcp.Description("Exact page name to delete (alternative to pageId)")),
-	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		params := map[string]interface{}{}
-		if id, ok := req.GetArguments()["pageId"].(string); ok && id != "" {
-			params["pageId"] = id
-		}
-		if name, ok := req.GetArguments()["pageName"].(string); ok && name != "" {
-			params["pageName"] = name
-		}
-		resp, err := node.Send(ctx, "delete_page", nil, params)
-		return renderResponse(resp, err)
-	})
-
-	s.AddTool(mcp.NewTool("rename_page",
-		mcp.WithDescription("Rename an existing page in the Figma document."),
-		mcp.WithString("pageId", mcp.Description("Page node ID in colon format e.g. '0:2'")),
-		mcp.WithString("pageName", mcp.Description("Current page name to find (alternative to pageId)")),
-		mcp.WithString("newName",
-			mcp.Required(),
-			mcp.Description("New name for the page"),
-		),
-	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		params := map[string]interface{}{}
-		if id, ok := req.GetArguments()["pageId"].(string); ok && id != "" {
-			params["pageId"] = id
-		}
-		if name, ok := req.GetArguments()["pageName"].(string); ok && name != "" {
-			params["pageName"] = name
-		}
-		if newName, ok := req.GetArguments()["newName"].(string); ok {
-			params["newName"] = newName
-		}
-		resp, err := node.Send(ctx, "rename_page", nil, params)
-		return renderResponse(resp, err)
-	})
+	registerSpecs(s, node, writePageSpecs)
 }
