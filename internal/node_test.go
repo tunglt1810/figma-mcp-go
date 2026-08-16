@@ -230,8 +230,8 @@ func TestNodeSend_RejectsInvalidArgsBeforeReachingPlugin(t *testing.T) {
 		params  map[string]interface{}
 		wantMsg string
 	}{
-		{"opacity out of range", "set_opacity", []string{"1:1"}, map[string]interface{}{"opacity": 5.0}, "opacity must be between 0 and 1"},
-		{"invalid blend mode", "set_blend_mode", []string{"1:1"}, map[string]interface{}{"blendMode": "NEON"}, "not a valid Figma blend mode"},
+		{"opacity out of range", "set_node_properties", []string{"1:1"}, map[string]interface{}{"opacity": 5.0}, "opacity must be between 0 and 1"},
+		{"invalid blend mode", "set_node_properties", []string{"1:1"}, map[string]interface{}{"blendMode": "NEON"}, "not a valid Figma blend mode"},
 		{"missing node id", "get_node", nil, nil, "nodeId is required"},
 		{"bad node id format", "rename_node", []string{"nope"}, map[string]interface{}{"name": "x"}, "colon format"},
 	}
@@ -262,14 +262,14 @@ func TestNodeSend_PassesValidArgsThrough(t *testing.T) {
 	fake := &fakeSender{resp: BridgeResponse{Data: map[string]any{"ok": true}}}
 	n := newNodeWithSender(fake)
 
-	if _, err := n.Send(context.Background(), "set_opacity", []string{"1:1"}, map[string]interface{}{"opacity": 0.5}); err != nil {
+	if _, err := n.Send(context.Background(), "set_node_properties", []string{"1:1"}, map[string]interface{}{"opacity": 0.5}); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
 	if len(fake.calls) != 1 {
 		t.Fatalf("expected 1 call to the sender, got %d", len(fake.calls))
 	}
-	if fake.calls[0].tool != "set_opacity" {
-		t.Errorf("tool = %q, want set_opacity", fake.calls[0].tool)
+	if fake.calls[0].tool != "set_node_properties" {
+		t.Errorf("tool = %q, want set_node_properties", fake.calls[0].tool)
 	}
 }
 

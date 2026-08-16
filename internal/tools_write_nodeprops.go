@@ -43,45 +43,7 @@ func registerNodePropertyTools(s *server.MCPServer, node *Node) {
 			}
 		}
 
-		resp, err := sendWithFanout(ctx, node, "set_node_properties", nodeIDs, params,
-			nodePropertiesFanout(params))
+		resp, err := node.Send(ctx, "set_node_properties", nodeIDs, params)
 		return renderResponse(resp, err)
 	})
-}
-
-// nodePropertiesFanout maps a merged request onto the single-purpose commands an
-// older plugin understands. The order is fixed so the fallback behaves the same
-// way every time.
-func nodePropertiesFanout(params map[string]interface{}) []legacyCall {
-	var calls []legacyCall
-
-	if v, ok := params["visible"]; ok {
-		calls = append(calls, legacyCall{"set_visible", "visible", map[string]interface{}{"visible": v}})
-	}
-	if v, ok := params["locked"].(bool); ok {
-		tool := "unlock_nodes"
-		if v {
-			tool = "lock_nodes"
-		}
-		calls = append(calls, legacyCall{tool, "locked", nil})
-	}
-	if v, ok := params["opacity"]; ok {
-		calls = append(calls, legacyCall{"set_opacity", "opacity", map[string]interface{}{"opacity": v}})
-	}
-	if v, ok := params["rotation"]; ok {
-		calls = append(calls, legacyCall{"rotate_nodes", "rotation", map[string]interface{}{"rotation": v}})
-	}
-	if v, ok := params["blendMode"]; ok {
-		calls = append(calls, legacyCall{"set_blend_mode", "blendMode", map[string]interface{}{"blendMode": v}})
-	}
-	if v, ok := params["constraints"].(map[string]interface{}); ok {
-		calls = append(calls, legacyCall{"set_constraints", "constraints", v})
-	}
-	if v, ok := params["order"]; ok {
-		// The legacy command reports the resulting z-index, which is what the
-		// merged response records too.
-		calls = append(calls, legacyCall{"reorder_nodes", "index", map[string]interface{}{"order": v}})
-	}
-
-	return calls
 }

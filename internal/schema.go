@@ -150,23 +150,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 
 	// ── Write tools ──────────────────────────────────────────────────────────
 
-	case "set_opacity":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		op, ok := params["opacity"].(float64)
-		if !ok {
-			return "opacity is required"
-		}
-		if op < 0 || op > 1 {
-			return "opacity must be between 0 and 1"
-		}
-
 	case "set_corner_radius":
 		if len(nodeIDs) == 0 {
 			return "nodeIds is required"
@@ -749,93 +732,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			if msg := validateConstraintAxes(c); msg != "" {
 				return msg
 			}
-		}
-
-	case "set_visible":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		if _, ok := params["visible"].(bool); !ok {
-			return "visible (boolean) is required"
-		}
-
-	case "lock_nodes", "unlock_nodes":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-
-	case "rotate_nodes":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		if _, ok := params["rotation"].(float64); !ok {
-			return "rotation (degrees) is required"
-		}
-
-	case "reorder_nodes":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		order, _ := params["order"].(string)
-		switch order {
-		case "bringToFront", "sendToBack", "bringForward", "sendBackward":
-		default:
-			return fmt.Sprintf("order must be bringToFront, sendToBack, bringForward, or sendBackward, got: %s", order)
-		}
-
-	case "set_blend_mode":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		blendMode, _ := params["blendMode"].(string)
-		if blendMode == "" {
-			return "blendMode is required"
-		}
-		if !validBlendModes[blendMode] {
-			return fmt.Sprintf("blendMode %q is not a valid Figma blend mode", blendMode)
-		}
-
-	case "set_constraints":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		_, hasH := params["horizontal"]
-		_, hasV := params["vertical"]
-		if !hasH && !hasV {
-			return "at least one of horizontal or vertical is required"
-		}
-		if msg := validateConstraintAxes(params); msg != "" {
-			return msg
 		}
 
 	case "reparent_nodes":

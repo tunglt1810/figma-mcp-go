@@ -13,7 +13,7 @@ Open-source Figma MCP server with full read/write access via plugin. Turn text i
 **Highlights**
 - Operates locally via the Figma Plugin API (no REST API token required)
 - Real-time execution directly on your local machine
-- **Read and Write** live Figma data via plugin bridge — 84 tools total
+- **Read and Write** live Figma data via plugin bridge — 77 tools total
 - Full design automation — styles, variables, components, prototypes, content, and transactional batch pipelines
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
 
@@ -91,6 +91,33 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 
 ---
 
+## Upgrading
+
+**Re-download the plugin when you update the server.** The server updates itself
+through `npx`, but the Figma plugin is installed by hand, so the two can drift
+apart. A plugin older than the server will reject commands it does not know with
+`Unknown request type`.
+
+### Breaking changes in 0.1.0
+
+Eight single-purpose tools were replaced by one. Each took `nodeIds` plus a
+single property, and they are now combinations of `set_node_properties`:
+
+| Removed | Replacement |
+| ------- | ----------- |
+| `set_visible` | `set_node_properties({ nodeIds, visible })` |
+| `lock_nodes` / `unlock_nodes` | `set_node_properties({ nodeIds, locked })` |
+| `set_opacity` | `set_node_properties({ nodeIds, opacity })` |
+| `rotate_nodes` | `set_node_properties({ nodeIds, rotation })` |
+| `set_blend_mode` | `set_node_properties({ nodeIds, blendMode })` |
+| `set_constraints` | `set_node_properties({ nodeIds, constraints: { horizontal, vertical } })` |
+| `reorder_nodes` | `set_node_properties({ nodeIds, order })` |
+
+Properties can be combined, so what used to take several calls and several undo
+entries now takes one of each.
+
+---
+
 ## Available Tools
 
 ### Write — Batch & Transactions
@@ -121,16 +148,9 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 | `set_fills`              | Set solid fill color (hex) on a node                                             |
 | `set_gradient_fills`     | Set linear or radial gradient fills on a node using geometry properties          |
 | `set_strokes`            | Set solid stroke color and weight on a node                                      |
-| `set_opacity`            | Set opacity of one or more nodes (0 = transparent, 1 = opaque)                   |
 | `set_corner_radius`      | Set corner radius — uniform or per-corner                                        |
 | `set_auto_layout`        | Set or update auto-layout (flex) properties on a frame                           |
-| `set_visible`            | Show or hide one or more nodes                                                   |
-| `lock_nodes`             | Lock one or more nodes to prevent accidental edits                               |
-| `unlock_nodes`           | Unlock one or more nodes                                                         |
-| `rotate_nodes`           | Set absolute rotation in degrees on one or more nodes                            |
-| `reorder_nodes`          | Change z-order: `bringToFront`, `sendToBack`, `bringForward`, `sendBackward`     |
-| `set_blend_mode`         | Set blend mode (MULTIPLY, SCREEN, OVERLAY, …) on one or more nodes               |
-| `set_constraints`        | Set responsive constraints `{ horizontal, vertical }` on one or more nodes       |
+| `set_node_properties`    | Set any combination of visibility, lock, opacity, rotation, blend mode, constraints, and z-order on one or more nodes |
 | `set_instance_overrides` | Update Component Properties (variants, booleans, text) on a component instance   |
 | `set_annotations`        | Set Dev Mode Annotations on a node (requires paid Dev Mode seat)                 |
 | `move_nodes`             | Move nodes to an absolute x/y position                                           |
