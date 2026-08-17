@@ -1,7 +1,7 @@
 package internal
 
 import (
-	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -190,26 +190,6 @@ func TestValidateRPC_SearchNodes(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_CreateFrame(t *testing.T) {
-	// zero width
-	msg := ValidateRPC("create_frame", nil, map[string]interface{}{"width": float64(0)})
-	if msg == "" {
-		t.Error("expected error for zero width")
-	}
-	// invalid layoutMode
-	msg = ValidateRPC("create_frame", nil, map[string]interface{}{"layoutMode": "DIAGONAL"})
-	if msg == "" {
-		t.Error("expected error for invalid layoutMode")
-	}
-	// valid
-	msg = ValidateRPC("create_frame", nil, map[string]interface{}{
-		"width": float64(100), "height": float64(100), "layoutMode": "VERTICAL",
-	})
-	if msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_SetText(t *testing.T) {
 	// missing nodeId
 	if msg := ValidateRPC("set_text", nil, map[string]interface{}{"text": "hello"}); msg == "" {
@@ -223,29 +203,6 @@ func TestValidateRPC_SetText(t *testing.T) {
 	msg := ValidateRPC("set_text", []string{"1:1"}, map[string]interface{}{"text": "hello"})
 	if msg != "" {
 		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_SetFills(t *testing.T) {
-	// missing color
-	if msg := ValidateRPC("set_fills", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing color")
-	}
-	// invalid mode
-	msg := ValidateRPC("set_fills", []string{"1:1"}, map[string]interface{}{
-		"color": "#ff0000", "mode": "overwrite",
-	})
-	if msg == "" {
-		t.Error("expected error for invalid mode")
-	}
-	// valid modes
-	for _, mode := range []string{"replace", "append"} {
-		msg := ValidateRPC("set_fills", []string{"1:1"}, map[string]interface{}{
-			"color": "#ff0000", "mode": mode,
-		})
-		if msg != "" {
-			t.Errorf("unexpected error for mode %s: %s", mode, msg)
-		}
 	}
 }
 
@@ -376,49 +333,6 @@ func TestValidateRPC_SetAutoLayout(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_CreateRectangleEllipse(t *testing.T) {
-	for _, tool := range []string{"create_rectangle", "create_ellipse"} {
-		if msg := ValidateRPC(tool, nil, map[string]interface{}{"width": float64(-1)}); msg == "" {
-			t.Errorf("%s: expected error for negative width", tool)
-		}
-		if msg := ValidateRPC(tool, nil, map[string]interface{}{"height": float64(0)}); msg == "" {
-			t.Errorf("%s: expected error for zero height", tool)
-		}
-		if msg := ValidateRPC(tool, nil, map[string]interface{}{"parentId": "bad-id"}); msg == "" {
-			t.Errorf("%s: expected error for invalid parentId", tool)
-		}
-		if msg := ValidateRPC(tool, nil, map[string]interface{}{"width": float64(50), "parentId": "1:1"}); msg != "" {
-			t.Errorf("%s unexpected error: %s", tool, msg)
-		}
-	}
-}
-
-func TestValidateRPC_CreateStarPolygonLine(t *testing.T) {
-	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"outerRadius": float64(-1)}); msg == "" {
-		t.Error("create_star: expected error for negative outerRadius")
-	}
-	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"innerRadius": float64(0)}); msg == "" {
-		t.Error("create_star: expected error for zero innerRadius")
-	}
-	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"pointCount": float64(2)}); msg == "" {
-		t.Error("create_star: expected error for pointCount < 3")
-	}
-	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"parentId": "bad-id"}); msg == "" {
-		t.Error("create_star: expected error for invalid parentId")
-	}
-
-	if msg := ValidateRPC("create_polygon", nil, map[string]interface{}{"radius": float64(-1)}); msg == "" {
-		t.Error("create_polygon: expected error for negative radius")
-	}
-	if msg := ValidateRPC("create_polygon", nil, map[string]interface{}{"pointCount": float64(2)}); msg == "" {
-		t.Error("create_polygon: expected error for pointCount < 3")
-	}
-
-	if msg := ValidateRPC("create_line", nil, map[string]interface{}{"length": float64(-1)}); msg == "" {
-		t.Error("create_line: expected error for negative length")
-	}
-}
-
 func TestValidateRPC_CreateText(t *testing.T) {
 	if msg := ValidateRPC("create_text", nil, nil); msg == "" {
 		t.Error("expected error for missing text")
@@ -428,48 +342,6 @@ func TestValidateRPC_CreateText(t *testing.T) {
 	}
 	if msg := ValidateRPC("create_text", nil, map[string]interface{}{"text": "hi"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_SetStrokes(t *testing.T) {
-	if msg := ValidateRPC("set_strokes", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
-	}
-	if msg := ValidateRPC("set_strokes", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing color")
-	}
-	if msg := ValidateRPC("set_strokes", []string{"1:1"}, map[string]interface{}{"color": "#000", "mode": "bad"}); msg == "" {
-		t.Error("expected error for invalid mode")
-	}
-	for _, mode := range []string{"replace", "append"} {
-		if msg := ValidateRPC("set_strokes", []string{"1:1"}, map[string]interface{}{"color": "#000", "mode": mode}); msg != "" {
-			t.Errorf("unexpected error for mode %s: %s", mode, msg)
-		}
-	}
-}
-
-func TestValidateRPC_SetGradientFills(t *testing.T) {
-	if msg := ValidateRPC("set_gradient_fills", nil, nil); msg == "" {
-		t.Error("expected error for missing params")
-	}
-	if msg := ValidateRPC("set_gradient_fills", []string{"1:1"}, map[string]interface{}{"type": "GRADIENT_RADIAL"}); msg == "" {
-		t.Error("expected error for missing stops and geometry")
-	}
-
-	validArgs := map[string]interface{}{
-		"type": "GRADIENT_RADIAL",
-		"stops": []interface{}{
-			map[string]interface{}{"position": 0, "color": "#ff0000"},
-			map[string]interface{}{"position": 1, "color": "#00ff00"},
-		},
-		"geometry": map[string]interface{}{
-			"center":   map[string]interface{}{"percentX": 50, "percentY": 50},
-			"radius":   map[string]interface{}{"percentX": 50, "percentY": 50},
-			"rotation": 0,
-		},
-	}
-	if msg := ValidateRPC("set_gradient_fills", []string{"1:1"}, validArgs); msg != "" {
-		t.Errorf("unexpected error for valid arguments: %s", msg)
 	}
 }
 
@@ -538,67 +410,6 @@ func TestValidateRPC_ImportImage(t *testing.T) {
 		if msg := ValidateRPC("import_image", nil, map[string]interface{}{"imageData": "b64", "scaleMode": sm}); msg != "" {
 			t.Errorf("unexpected error for scaleMode %s: %s", sm, msg)
 		}
-	}
-}
-
-func TestValidateRPC_CreatePaintStyle(t *testing.T) {
-	if msg := ValidateRPC("create_paint_style", nil, nil); msg == "" {
-		t.Error("expected error for missing name")
-	}
-	if msg := ValidateRPC("create_paint_style", nil, map[string]interface{}{"name": "Primary"}); msg == "" {
-		t.Error("expected error for missing color")
-	}
-	if msg := ValidateRPC("create_paint_style", nil, map[string]interface{}{"name": "Primary", "color": "#ff0000"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_CreateTextStyle(t *testing.T) {
-	if msg := ValidateRPC("create_text_style", nil, nil); msg == "" {
-		t.Error("expected error for missing name")
-	}
-	if msg := ValidateRPC("create_text_style", nil, map[string]interface{}{"name": "H1", "textDecoration": "BOLD"}); msg == "" {
-		t.Error("expected error for invalid textDecoration")
-	}
-	if msg := ValidateRPC("create_text_style", nil, map[string]interface{}{"name": "H1", "lineHeightUnit": "EM"}); msg == "" {
-		t.Error("expected error for invalid lineHeightUnit")
-	}
-	if msg := ValidateRPC("create_text_style", nil, map[string]interface{}{"name": "H1", "letterSpacingUnit": "PT"}); msg == "" {
-		t.Error("expected error for invalid letterSpacingUnit")
-	}
-	if msg := ValidateRPC("create_text_style", nil, map[string]interface{}{
-		"name": "H1", "textDecoration": "UNDERLINE", "lineHeightUnit": "PIXELS", "letterSpacingUnit": "PERCENT",
-	}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_CreateEffectStyle(t *testing.T) {
-	if msg := ValidateRPC("create_effect_style", nil, nil); msg == "" {
-		t.Error("expected error for missing name")
-	}
-	if msg := ValidateRPC("create_effect_style", nil, map[string]interface{}{"name": "Shadow", "type": "GLOW"}); msg == "" {
-		t.Error("expected error for invalid type")
-	}
-	for _, et := range []string{"DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"} {
-		if msg := ValidateRPC("create_effect_style", nil, map[string]interface{}{"name": "S", "type": et}); msg != "" {
-			t.Errorf("unexpected error for type %s: %s", et, msg)
-		}
-	}
-}
-
-func TestValidateRPC_CreateGridStyle(t *testing.T) {
-	if msg := ValidateRPC("create_grid_style", nil, nil); msg == "" {
-		t.Error("expected error for missing name")
-	}
-	if msg := ValidateRPC("create_grid_style", nil, map[string]interface{}{"name": "Grid", "pattern": "DIAGONAL"}); msg == "" {
-		t.Error("expected error for invalid pattern")
-	}
-	if msg := ValidateRPC("create_grid_style", nil, map[string]interface{}{"name": "Grid", "alignment": "LEFT"}); msg == "" {
-		t.Error("expected error for invalid alignment")
-	}
-	if msg := ValidateRPC("create_grid_style", nil, map[string]interface{}{"name": "Grid", "pattern": "COLUMNS", "alignment": "CENTER"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
@@ -712,38 +523,6 @@ func TestValidateRPC_DetachInstance(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_SetOpacity(t *testing.T) {
-	// missing nodeIds
-	if msg := ValidateRPC("set_opacity", nil, map[string]interface{}{"opacity": float64(0.5)}); msg == "" {
-		t.Error("expected error for missing nodeIds")
-	}
-	// invalid nodeId
-	if msg := ValidateRPC("set_opacity", []string{"bad"}, map[string]interface{}{"opacity": float64(0.5)}); msg == "" {
-		t.Error("expected error for invalid nodeId")
-	}
-	// missing opacity
-	if msg := ValidateRPC("set_opacity", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing opacity")
-	}
-	// opacity out of range
-	if msg := ValidateRPC("set_opacity", []string{"1:1"}, map[string]interface{}{"opacity": float64(1.5)}); msg == "" {
-		t.Error("expected error for opacity > 1")
-	}
-	if msg := ValidateRPC("set_opacity", []string{"1:1"}, map[string]interface{}{"opacity": float64(-0.1)}); msg == "" {
-		t.Error("expected error for opacity < 0")
-	}
-	// boundary values
-	for _, op := range []float64{0, 0.5, 1} {
-		if msg := ValidateRPC("set_opacity", []string{"1:1"}, map[string]interface{}{"opacity": op}); msg != "" {
-			t.Errorf("unexpected error for opacity %v: %s", op, msg)
-		}
-	}
-	// multiple nodeIds
-	if msg := ValidateRPC("set_opacity", []string{"1:1", "2:2"}, map[string]interface{}{"opacity": float64(0.5)}); msg != "" {
-		t.Errorf("unexpected error for multiple valid nodeIds: %s", msg)
-	}
-}
-
 func TestValidateRPC_SetCornerRadius(t *testing.T) {
 	// missing nodeIds
 	if msg := ValidateRPC("set_corner_radius", nil, map[string]interface{}{"cornerRadius": float64(8)}); msg == "" {
@@ -816,28 +595,6 @@ func TestValidateRPC_UngroupNodes(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_NavigateToPage(t *testing.T) {
-	// neither pageId nor pageName
-	if msg := ValidateRPC("navigate_to_page", nil, nil); msg == "" {
-		t.Error("expected error when neither pageId nor pageName provided")
-	}
-	if msg := ValidateRPC("navigate_to_page", nil, map[string]interface{}{}); msg == "" {
-		t.Error("expected error for empty params")
-	}
-	// pageId provided
-	if msg := ValidateRPC("navigate_to_page", nil, map[string]interface{}{"pageId": "0:1"}); msg != "" {
-		t.Errorf("unexpected error for pageId: %s", msg)
-	}
-	// pageName provided
-	if msg := ValidateRPC("navigate_to_page", nil, map[string]interface{}{"pageName": "Design"}); msg != "" {
-		t.Errorf("unexpected error for pageName: %s", msg)
-	}
-	// both provided — also valid
-	if msg := ValidateRPC("navigate_to_page", nil, map[string]interface{}{"pageId": "0:1", "pageName": "Design"}); msg != "" {
-		t.Errorf("unexpected error when both provided: %s", msg)
-	}
-}
-
 func TestValidateRPC_CreateComponent(t *testing.T) {
 	// missing nodeId
 	if msg := ValidateRPC("create_component", nil, nil); msg == "" {
@@ -891,14 +648,15 @@ func TestValidateAutoLayoutParams_InvalidValues(t *testing.T) {
 		{"layoutWrap", "FLEX_WRAP"},
 	}
 	for _, c := range cases {
-		msg := ValidateRPC("create_frame", nil, map[string]interface{}{c.param: c.value})
+		msg := ValidateRPC("create_node", nil, map[string]interface{}{"type": "FRAME", c.param: c.value})
 		if msg == "" {
 			t.Errorf("expected error for invalid %s=%q", c.param, c.value)
 		}
 	}
 
 	// All valid auto-layout params together
-	msg := ValidateRPC("create_frame", nil, map[string]interface{}{
+	msg := ValidateRPC("create_node", nil, map[string]interface{}{
+		"type":                  "FRAME",
 		"primaryAxisAlignItems": "CENTER",
 		"counterAxisAlignItems": "BASELINE",
 		"primaryAxisSizingMode": "AUTO",
@@ -1070,147 +828,6 @@ func TestValidateRPC_RemoveReactions(t *testing.T) {
 
 // ── set_visible ─────────────────────────────────────────────────────
 
-func TestValidateRPC_SetVisible(t *testing.T) {
-	// missing nodeIds
-	if msg := ValidateRPC("set_visible", nil, map[string]interface{}{"visible": true}); msg == "" {
-		t.Error("expected error for missing nodeIds")
-	}
-	// invalid nodeId
-	if msg := ValidateRPC("set_visible", []string{"bad"}, map[string]interface{}{"visible": true}); msg == "" {
-		t.Error("expected error for invalid nodeId")
-	}
-	// missing visible
-	if msg := ValidateRPC("set_visible", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing visible")
-	}
-	// valid hide
-	if msg := ValidateRPC("set_visible", []string{"1:1"}, map[string]interface{}{"visible": false}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// valid show
-	if msg := ValidateRPC("set_visible", []string{"1:1"}, map[string]interface{}{"visible": true}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-// ── lock_nodes / unlock_nodes ───────────────────────────────────────
-
-func TestValidateRPC_LockUnlockNodes(t *testing.T) {
-	for _, tool := range []string{"lock_nodes", "unlock_nodes"} {
-		if msg := ValidateRPC(tool, nil, nil); msg == "" {
-			t.Errorf("%s: expected error for missing nodeIds", tool)
-		}
-		if msg := ValidateRPC(tool, []string{"bad"}, nil); msg == "" {
-			t.Errorf("%s: expected error for invalid nodeId", tool)
-		}
-		if msg := ValidateRPC(tool, []string{"1:1", "2:2"}, nil); msg != "" {
-			t.Errorf("%s: unexpected error: %s", tool, msg)
-		}
-	}
-}
-
-// ── rotate_nodes ───────────────────────────────────────────────────
-
-func TestValidateRPC_RotateNodes(t *testing.T) {
-	// missing nodeIds
-	if msg := ValidateRPC("rotate_nodes", nil, map[string]interface{}{"rotation": float64(45)}); msg == "" {
-		t.Error("expected error for missing nodeIds")
-	}
-	// invalid nodeId
-	if msg := ValidateRPC("rotate_nodes", []string{"bad"}, map[string]interface{}{"rotation": float64(45)}); msg == "" {
-		t.Error("expected error for invalid nodeId")
-	}
-	// missing rotation
-	if msg := ValidateRPC("rotate_nodes", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing rotation")
-	}
-	// valid
-	if msg := ValidateRPC("rotate_nodes", []string{"1:1"}, map[string]interface{}{"rotation": float64(-90)}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-// ── reorder_nodes ───────────────────────────────────────────────────
-
-func TestValidateRPC_ReorderNodes(t *testing.T) {
-	// missing nodeIds
-	if msg := ValidateRPC("reorder_nodes", nil, map[string]interface{}{"order": "bringToFront"}); msg == "" {
-		t.Error("expected error for missing nodeIds")
-	}
-	// invalid order
-	if msg := ValidateRPC("reorder_nodes", []string{"1:1"}, map[string]interface{}{"order": "up"}); msg == "" {
-		t.Error("expected error for invalid order")
-	}
-	// missing order (empty string falls through to default)
-	if msg := ValidateRPC("reorder_nodes", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing order")
-	}
-	// valid orders
-	for _, order := range []string{"bringToFront", "sendToBack", "bringForward", "sendBackward"} {
-		if msg := ValidateRPC("reorder_nodes", []string{"1:1"}, map[string]interface{}{"order": order}); msg != "" {
-			t.Errorf("unexpected error for order %q: %s", order, msg)
-		}
-	}
-}
-
-// ── set_blend_mode ─────────────────────────────────────────────────
-
-func TestValidateRPC_SetBlendMode(t *testing.T) {
-	// missing nodeIds
-	if msg := ValidateRPC("set_blend_mode", nil, map[string]interface{}{"blendMode": "MULTIPLY"}); msg == "" {
-		t.Error("expected error for missing nodeIds")
-	}
-	// missing blendMode
-	if msg := ValidateRPC("set_blend_mode", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing blendMode")
-	}
-	// invalid blendMode
-	if msg := ValidateRPC("set_blend_mode", []string{"1:1"}, map[string]interface{}{"blendMode": "GLOW"}); msg == "" {
-		t.Error("expected error for invalid blendMode")
-	}
-	// valid blend modes
-	for _, bm := range []string{"NORMAL", "MULTIPLY", "SCREEN", "OVERLAY", "PASS_THROUGH"} {
-		if msg := ValidateRPC("set_blend_mode", []string{"1:1"}, map[string]interface{}{"blendMode": bm}); msg != "" {
-			t.Errorf("unexpected error for blendMode %q: %s", bm, msg)
-		}
-	}
-}
-
-// ── set_constraints ────────────────────────────────────────────────
-
-func TestValidateRPC_SetConstraints(t *testing.T) {
-	// missing nodeIds
-	if msg := ValidateRPC("set_constraints", nil, map[string]interface{}{"horizontal": "CENTER"}); msg == "" {
-		t.Error("expected error for missing nodeIds")
-	}
-	// missing both horizontal and vertical
-	if msg := ValidateRPC("set_constraints", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing constraints")
-	}
-	// invalid horizontal
-	if msg := ValidateRPC("set_constraints", []string{"1:1"}, map[string]interface{}{"horizontal": "LEFT"}); msg == "" {
-		t.Error("expected error for invalid horizontal value")
-	}
-	// invalid vertical
-	if msg := ValidateRPC("set_constraints", []string{"1:1"}, map[string]interface{}{"vertical": "TOP"}); msg == "" {
-		t.Error("expected error for invalid vertical value")
-	}
-	// valid horizontal only
-	if msg := ValidateRPC("set_constraints", []string{"1:1"}, map[string]interface{}{"horizontal": "STRETCH"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// valid vertical only
-	if msg := ValidateRPC("set_constraints", []string{"1:1"}, map[string]interface{}{"vertical": "CENTER"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// valid both
-	if msg := ValidateRPC("set_constraints", []string{"1:1"}, map[string]interface{}{"horizontal": "MIN", "vertical": "MAX"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-// ── reparent_nodes ─────────────────────────────────────────────────
-
 func TestValidateRPC_ReparentNodes(t *testing.T) {
 	// missing nodeIds
 	if msg := ValidateRPC("reparent_nodes", nil, map[string]interface{}{"parentId": "2:2"}); msg == "" {
@@ -1278,51 +895,6 @@ func TestValidateRPC_FindReplaceText(t *testing.T) {
 
 // ── Page management ─────────────────────────────────────────────────
 
-func TestValidateRPC_AddPage(t *testing.T) {
-	// valid with no params
-	if msg := ValidateRPC("add_page", nil, nil); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// negative index
-	if msg := ValidateRPC("add_page", nil, map[string]interface{}{"index": float64(-1)}); msg == "" {
-		t.Error("expected error for negative index")
-	}
-	// valid with name
-	if msg := ValidateRPC("add_page", nil, map[string]interface{}{"name": "Flows"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_DeletePage(t *testing.T) {
-	// missing both pageId and pageName
-	if msg := ValidateRPC("delete_page", nil, nil); msg == "" {
-		t.Error("expected error for missing page identifier")
-	}
-	// valid with pageId
-	if msg := ValidateRPC("delete_page", nil, map[string]interface{}{"pageId": "0:2"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// valid with pageName
-	if msg := ValidateRPC("delete_page", nil, map[string]interface{}{"pageName": "Flows"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_RenamePage(t *testing.T) {
-	// missing page identifier
-	if msg := ValidateRPC("rename_page", nil, map[string]interface{}{"newName": "X"}); msg == "" {
-		t.Error("expected error for missing page identifier")
-	}
-	// missing newName
-	if msg := ValidateRPC("rename_page", nil, map[string]interface{}{"pageId": "0:2"}); msg == "" {
-		t.Error("expected error for missing newName")
-	}
-	// valid
-	if msg := ValidateRPC("rename_page", nil, map[string]interface{}{"pageId": "0:2", "newName": "Sprint 1"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_SetEffects(t *testing.T) {
 	// missing nodeId
 	if msg := ValidateRPC("set_effects", nil, map[string]interface{}{"effects": []interface{}{}}); msg == "" {
@@ -1357,25 +929,6 @@ func TestValidateRPC_SetEffects(t *testing.T) {
 		"effects": []interface{}{map[string]interface{}{"type": "LAYER_BLUR", "radius": float64(4)}},
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_CreateSection(t *testing.T) {
-	// valid with no params
-	if msg := ValidateRPC("create_section", nil, nil); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// valid with name
-	if msg := ValidateRPC("create_section", nil, map[string]interface{}{"name": "Sprint 1"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// invalid width
-	if msg := ValidateRPC("create_section", nil, map[string]interface{}{"width": float64(-10)}); msg == "" {
-		t.Error("expected error for negative width")
-	}
-	// invalid height
-	if msg := ValidateRPC("create_section", nil, map[string]interface{}{"height": float64(0)}); msg == "" {
-		t.Error("expected error for zero height")
 	}
 }
 
@@ -1439,8 +992,8 @@ func TestValidateRPC_CreateConnector(t *testing.T) {
 	}
 	if msg := ValidateRPC("create_connector", nil, map[string]interface{}{
 		"startNodeId": "1:1",
-		"endNodeId": "2:2",
-		"lineType": "ELBOW",
+		"endNodeId":   "2:2",
+		"lineType":    "ELBOW",
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
@@ -1475,25 +1028,337 @@ func TestValidateRPC_ClearAnnotations(t *testing.T) {
 	}
 }
 
-func TestBatchPipelineRequestSchema(t *testing.T) {
-	rawJSON := `{
-		"stop_on_error": true,
-		"steps": [
-			{
-				"id": "step_1",
-				"action": "create_frame",
-				"params": {"name": "Header", "width": 100, "height": 100},
-				"export_vars": {"id": "$header_id"}
-			}
-		]
-	}`
-	var req BatchPipelineRequest
-	err := json.Unmarshal([]byte(rawJSON), &req)
-	if err != nil {
-		t.Fatalf("failed to unmarshal BatchPipelineRequest: %v", err)
+func TestValidateRPC_BatchExecutePipeline(t *testing.T) {
+	step := map[string]interface{}{
+		"id":          "step_1",
+		"action":      "create_frame",
+		"params":      map[string]interface{}{"name": "Header", "width": 100.0, "height": 100.0},
+		"export_vars": map[string]interface{}{"id": "$header_id"},
 	}
-	if req.Steps[0].Action != "create_frame" {
-		t.Errorf("expected create_frame, got %s", req.Steps[0].Action)
+
+	if msg := ValidateRPC("batch_execute_pipeline", nil, map[string]interface{}{}); msg == "" {
+		t.Error("expected error for missing steps")
+	}
+	if msg := ValidateRPC("batch_execute_pipeline", nil, map[string]interface{}{
+		"steps": []interface{}{"create_frame"},
+	}); msg == "" {
+		t.Error("expected error for a step that is not an object")
+	}
+	if msg := ValidateRPC("batch_execute_pipeline", nil, map[string]interface{}{
+		"stop_on_error": true,
+		"steps":         []interface{}{step},
+	}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
+func TestValidateRPC_SetNodeProperties(t *testing.T) {
+	valid := []string{"1:1"}
+
+	cases := []struct {
+		name    string
+		nodeIDs []string
+		params  map[string]interface{}
+		wantMsg string // "" means the request must be accepted
+	}{
+		{"no nodeIds", nil, map[string]interface{}{"opacity": 0.5}, "nodeIds is required"},
+		{"bad nodeId", []string{"nope"}, map[string]interface{}{"opacity": 0.5}, "colon format"},
+		{"no properties", valid, map[string]interface{}{}, "at least one of"},
+		{"opacity too high", valid, map[string]interface{}{"opacity": 5.0}, "opacity must be at most 1"},
+		{"opacity negative", valid, map[string]interface{}{"opacity": -0.1}, "opacity must be at least 0"},
+		{"invalid blend mode", valid, map[string]interface{}{"blendMode": "NEON"}, "blendMode must be one of"},
+		{"invalid order", valid, map[string]interface{}{"order": "sideways"}, "order must be"},
+		{"invalid constraint axis", valid, map[string]interface{}{
+			"constraints": map[string]interface{}{"horizontal": "MIDDLE"},
+		}, "horizontal must be"},
+
+		{"opacity at 0", valid, map[string]interface{}{"opacity": 0.0}, ""},
+		{"opacity at 1", valid, map[string]interface{}{"opacity": 1.0}, ""},
+		{"visible false only", valid, map[string]interface{}{"visible": false}, ""},
+		{"locked false only", valid, map[string]interface{}{"locked": false}, ""},
+		{"every property", valid, map[string]interface{}{
+			"visible": true, "locked": false, "opacity": 0.5, "rotation": 45.0,
+			"blendMode": "MULTIPLY", "order": "bringToFront",
+			"constraints": map[string]interface{}{"horizontal": "STRETCH", "vertical": "MIN"},
+		}, ""},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg := ValidateRPC("set_node_properties", c.nodeIDs, c.params)
+			if c.wantMsg == "" {
+				if msg != "" {
+					t.Errorf("expected the request to be accepted, got %q", msg)
+				}
+				return
+			}
+			if msg == "" {
+				t.Fatalf("expected an error containing %q, got none", c.wantMsg)
+			}
+			if !strings.Contains(msg, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
+			}
+		})
+	}
+}
+
+func TestValidateRPC_HexColor(t *testing.T) {
+	// The plugin used to turn an unreadable color into NaN channels and paint a
+	// broken fill silently. These are rejected before the round-trip now.
+	bad := []string{"red", "rgb(255,0,0)", "#ff", "#12345", "#gggggg"}
+	for _, color := range bad {
+		if msg := ValidateRPC("set_paint", []string{"1:1"}, map[string]interface{}{"type": "SOLID", "color": color}); msg == "" {
+			t.Errorf("expected %q to be rejected", color)
+		}
+	}
+
+	// Shorthand is real CSS and the plugin expands it, so it must pass here.
+	good := []string{"#f00", "#f00a", "#ff0000", "#ff0000aa", "ff0000"}
+	for _, color := range good {
+		if msg := ValidateRPC("set_paint", []string{"1:1"}, map[string]interface{}{"type": "SOLID", "color": color}); msg != "" {
+			t.Errorf("unexpected error for %q: %s", color, msg)
+		}
+	}
+
+	// Every tool that takes a color gets the same check.
+	cases := []struct {
+		tool   string
+		params map[string]interface{}
+	}{
+		{"set_paint", map[string]interface{}{"type": "SOLID", "target": "stroke", "color": "nope"}},
+		{"create_style", map[string]interface{}{"type": "PAINT", "name": "Brand", "color": "nope"}},
+		{"create_node", map[string]interface{}{"type": "RECTANGLE", "fillColor": "nope"}},
+		{"create_node", map[string]interface{}{"type": "LINE", "strokeColor": "nope"}},
+	}
+	for _, c := range cases {
+		if msg := ValidateRPC(c.tool, []string{"1:1"}, c.params); msg == "" {
+			t.Errorf("%s: expected the bad color to be rejected", c.tool)
+		}
+	}
+}
+
+// create_style merged four tools behind a `type` discriminator. The risk that
+// buys is the model reaching for an argument that belongs to a different kind
+// of style, so those are rejected rather than dropped.
+func TestValidateRPC_CreateStyle(t *testing.T) {
+	cases := []struct {
+		name    string
+		params  map[string]interface{}
+		wantMsg string // "" means the request must be accepted
+	}{
+		{"paint", map[string]interface{}{"type": "PAINT", "name": "Brand", "color": "#ff0000"}, ""},
+		{"text", map[string]interface{}{"type": "TEXT", "name": "H1", "fontSize": 32.0}, ""},
+		{"effect", map[string]interface{}{"type": "EFFECT", "name": "Card", "effectType": "DROP_SHADOW", "radius": 8.0}, ""},
+		{"grid", map[string]interface{}{"type": "GRID", "name": "Desktop", "pattern": "COLUMNS", "count": 12.0}, ""},
+		{"description is common", map[string]interface{}{"type": "TEXT", "name": "H1", "description": "big"}, ""},
+
+		{"missing type", map[string]interface{}{"name": "Brand"}, "type is required"},
+		{"unknown type", map[string]interface{}{"type": "SHADOW", "name": "Brand"}, "type must be one of"},
+		{"missing name", map[string]interface{}{"type": "PAINT", "color": "#ff0000"}, "name is required"},
+		{"paint without color", map[string]interface{}{"type": "PAINT", "name": "Brand"}, "color is required when type is PAINT"},
+
+		{"text argument on a paint style", map[string]interface{}{
+			"type": "PAINT", "name": "Brand", "color": "#ff0000", "fontSize": 32.0,
+		}, "fontSize does not apply when type is PAINT"},
+		{"grid argument on a text style", map[string]interface{}{
+			"type": "TEXT", "name": "H1", "pattern": "COLUMNS",
+		}, "pattern does not apply when type is TEXT"},
+		{"effect argument on a grid style", map[string]interface{}{
+			"type": "GRID", "name": "Desktop", "spread": 4.0,
+		}, "spread does not apply when type is GRID"},
+		{"colour is shared, spacing is not", map[string]interface{}{
+			"type": "GRID", "name": "Desktop", "color": "#ff0000", "letterSpacingValue": 2.0,
+		}, "letterSpacingValue does not apply when type is GRID"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg := ValidateRPC("create_style", nil, c.params)
+			if c.wantMsg == "" {
+				if msg != "" {
+					t.Errorf("expected the request to be accepted, got %q", msg)
+				}
+				return
+			}
+			if !strings.Contains(msg, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
+			}
+		})
+	}
+}
+
+// manage_page merged four page tools behind an `action` discriminator.
+func TestValidateRPC_ManagePage(t *testing.T) {
+	cases := []struct {
+		name    string
+		params  map[string]interface{}
+		wantMsg string
+	}{
+		{"add", map[string]interface{}{"action": "add", "name": "Specs", "index": 0.0}, ""},
+		{"add with no arguments", map[string]interface{}{"action": "add"}, ""},
+		{"delete by id", map[string]interface{}{"action": "delete", "pageId": "0:2"}, ""},
+		{"delete by name", map[string]interface{}{"action": "delete", "pageName": "Old"}, ""},
+		{"rename", map[string]interface{}{"action": "rename", "pageId": "0:2", "newName": "New"}, ""},
+		{"navigate", map[string]interface{}{"action": "navigate", "pageName": "Design"}, ""},
+
+		{"missing action", map[string]interface{}{"pageId": "0:2"}, "action is required"},
+		{"unknown action", map[string]interface{}{"action": "duplicate"}, "action must be one of"},
+		{"delete with no target", map[string]interface{}{"action": "delete"}, "pageId or pageName is required"},
+		{"rename with no new name", map[string]interface{}{"action": "rename", "pageId": "0:2"}, "newName is required when action is rename"},
+		{"navigate with no target", map[string]interface{}{"action": "navigate"}, "pageId or pageName is required"},
+
+		{"add does not take a target", map[string]interface{}{
+			"action": "add", "pageId": "0:2",
+		}, "pageId does not apply when action is add"},
+		{"navigate does not rename", map[string]interface{}{
+			"action": "navigate", "pageId": "0:2", "newName": "New",
+		}, "newName does not apply when action is navigate"},
+		{"delete does not take an index", map[string]interface{}{
+			"action": "delete", "pageId": "0:2", "index": 1.0,
+		}, "index does not apply when action is delete"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg := ValidateRPC("manage_page", nil, c.params)
+			if c.wantMsg == "" {
+				if msg != "" {
+					t.Errorf("expected the request to be accepted, got %q", msg)
+				}
+				return
+			}
+			if !strings.Contains(msg, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
+			}
+		})
+	}
+}
+
+// set_paint merged set_fills, set_gradient_fills and set_strokes behind a
+// `type` discriminator, with `target` choosing fill or stroke.
+func TestValidateRPC_SetPaint(t *testing.T) {
+	linearStops := []interface{}{
+		map[string]interface{}{"position": 0.0, "color": "#ff0000"},
+		map[string]interface{}{"position": 1.0, "color": "#00ff00"},
+	}
+	geometry := map[string]interface{}{"start": map[string]interface{}{}, "end": map[string]interface{}{}}
+
+	cases := []struct {
+		name    string
+		params  map[string]interface{}
+		wantMsg string
+	}{
+		{"solid fill", map[string]interface{}{"type": "SOLID", "color": "#ff0000"}, ""},
+		{"solid fill with opacity", map[string]interface{}{"type": "SOLID", "color": "#ff0000", "opacity": 0.5}, ""},
+		{"solid stroke", map[string]interface{}{
+			"type": "SOLID", "target": "stroke", "color": "#000000", "strokeWeight": 2.0,
+		}, ""},
+		{"appended", map[string]interface{}{"type": "SOLID", "color": "#ff0000", "mode": "append"}, ""},
+		{"linear gradient", map[string]interface{}{
+			"type": "GRADIENT_LINEAR", "stops": linearStops, "geometry": geometry,
+		}, ""},
+
+		{"missing type", map[string]interface{}{"color": "#ff0000"}, "type is required"},
+		{"unknown type", map[string]interface{}{"type": "IMAGE"}, "type must be one of"},
+		{"solid without colour", map[string]interface{}{"type": "SOLID"}, "color is required when type is SOLID"},
+		{"gradient without stops", map[string]interface{}{"type": "GRADIENT_RADIAL", "geometry": geometry}, "stops is required"},
+
+		{"gradient argument on a solid", map[string]interface{}{
+			"type": "SOLID", "color": "#ff0000", "stops": linearStops,
+		}, "stops does not apply when type is SOLID"},
+		{"colour on a gradient", map[string]interface{}{
+			"type": "GRADIENT_LINEAR", "stops": linearStops, "geometry": geometry, "color": "#ff0000",
+		}, "color does not apply when type is GRADIENT_LINEAR"},
+
+		{"gradient on a stroke", map[string]interface{}{
+			"type": "GRADIENT_LINEAR", "target": "stroke", "stops": linearStops, "geometry": geometry,
+		}, "gradients can only target fill"},
+		{"stroke weight on a fill", map[string]interface{}{
+			"type": "SOLID", "color": "#ff0000", "strokeWeight": 2.0,
+		}, "strokeWeight applies only when target is stroke"},
+
+		{"bad stop colour", map[string]interface{}{
+			"type": "GRADIENT_LINEAR", "geometry": geometry,
+			"stops": []interface{}{map[string]interface{}{"position": 0.0, "color": "red"}},
+		}, "stops[0].color must be a hex color"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg := ValidateRPC("set_paint", []string{"1:1"}, c.params)
+			if c.wantMsg == "" {
+				if msg != "" {
+					t.Errorf("expected the request to be accepted, got %q", msg)
+				}
+				return
+			}
+			if !strings.Contains(msg, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
+			}
+		})
+	}
+}
+
+// create_node merged seven shape tools behind a `type` discriminator. This is
+// the merge the review called riskiest, because the shapes genuinely differ:
+// a star takes pointCount, a line takes length, a section takes no parent.
+func TestValidateRPC_CreateNode(t *testing.T) {
+	cases := []struct {
+		name    string
+		params  map[string]interface{}
+		wantMsg string
+	}{
+		{"frame", map[string]interface{}{"type": "FRAME", "width": 200.0, "layoutMode": "VERTICAL"}, ""},
+		{"rectangle", map[string]interface{}{"type": "RECTANGLE", "cornerRadius": 8.0, "fillColor": "#ff0000"}, ""},
+		{"ellipse arc", map[string]interface{}{"type": "ELLIPSE", "startAngle": 0.0, "endAngle": 3.14}, ""},
+		{"ring", map[string]interface{}{"type": "ELLIPSE", "innerRadiusRatio": 0.5}, ""},
+		{"star", map[string]interface{}{"type": "STAR", "pointCount": 5.0, "outerRadius": 50.0}, ""},
+		{"polygon", map[string]interface{}{"type": "POLYGON", "pointCount": 6.0, "radius": 40.0}, ""},
+		{"line", map[string]interface{}{"type": "LINE", "length": 100.0, "strokeColor": "#000000"}, ""},
+		{"section", map[string]interface{}{"type": "SECTION", "width": 800.0, "height": 600.0}, ""},
+		{"name and position are common", map[string]interface{}{
+			"type": "LINE", "name": "Divider", "x": 10.0, "y": 20.0,
+		}, ""},
+
+		{"missing type", map[string]interface{}{"width": 100.0}, "type is required"},
+		{"unknown type", map[string]interface{}{"type": "TRIANGLE"}, "type must be one of"},
+
+		{"star argument on a rectangle", map[string]interface{}{
+			"type": "RECTANGLE", "pointCount": 5.0,
+		}, "pointCount does not apply when type is RECTANGLE"},
+		{"line argument on a frame", map[string]interface{}{
+			"type": "FRAME", "length": 100.0,
+		}, "length does not apply when type is FRAME"},
+		{"auto-layout on a rectangle", map[string]interface{}{
+			"type": "RECTANGLE", "layoutMode": "VERTICAL",
+		}, "layoutMode does not apply when type is RECTANGLE"},
+		{"arc arguments on a polygon", map[string]interface{}{
+			"type": "POLYGON", "startAngle": 1.0,
+		}, "startAngle does not apply when type is POLYGON"},
+		// The section handler does not read parentId, so accepting it would be
+		// the silent no-op this whole mechanism exists to prevent.
+		{"parent on a section", map[string]interface{}{
+			"type": "SECTION", "parentId": "1:1",
+		}, "parentId does not apply when type is SECTION"},
+
+		{"zero width", map[string]interface{}{"type": "RECTANGLE", "width": 0.0}, "width must be positive"},
+		{"two-point star", map[string]interface{}{"type": "STAR", "pointCount": 2.0}, "pointCount must be at least 3"},
+		{"bad fill", map[string]interface{}{"type": "RECTANGLE", "fillColor": "red"}, "fillColor must be a hex color"},
+		{"ratio above one", map[string]interface{}{"type": "ELLIPSE", "innerRadiusRatio": 2.0}, "innerRadiusRatio must be at most 1"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg := ValidateRPC("create_node", nil, c.params)
+			if c.wantMsg == "" {
+				if msg != "" {
+					t.Errorf("expected the request to be accepted, got %q", msg)
+				}
+				return
+			}
+			if !strings.Contains(msg, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
+			}
+		})
+	}
+}

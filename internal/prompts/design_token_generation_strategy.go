@@ -59,8 +59,8 @@ Present the full token plan to the user for approval before creating anything.
 For each approved token:
 - COLOR variables: create_variable_collection() → create_variable(type="COLOR") → set_variable_value()
 - FLOAT variables: create_variable_collection() → create_variable(type="FLOAT") → set_variable_value()
-- Text styles: create_text_style() with name, fontFamily, fontSize, lineHeight, letterSpacing
-- Paint styles: create_paint_style() with name, color
+- Text styles: create_style(type: "TEXT") with name, fontFamily, fontSize, lineHeightValue, letterSpacingValue
+- Paint styles: create_style(type: "PAINT") with name, color
 
 ### Phase 4 — Linking (optional, ask user)
 

@@ -1,425 +1,420 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint } from "./write-helpers";
+import { HandlerMap } from "./dispatch";
 
-export const handleWriteModifyRequest = async (request: any) => {
-  switch (request.type) {
-    case "set_text": {
-      const p = request.params || {};
-      const nodeId = request.nodeIds && request.nodeIds[0];
-      if (!nodeId) throw new Error("nodeId is required");
-      const node = await figma.getNodeByIdAsync(nodeId);
-      if (!node) throw new Error(`Node not found: ${nodeId}`);
-      if (node.type !== "TEXT") throw new Error(`Node ${nodeId} is not a TEXT node`);
-      const fontName = typeof node.fontName === "symbol"
-        ? { family: "Inter", style: "Regular" }
-        : node.fontName;
-      await figma.loadFontAsync(fontName);
-      node.characters = p.text;
-      figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: node.id, name: node.name, characters: node.characters },
-      };
+const REORDER_ORDERS = ["bringToFront", "sendToBack", "bringForward", "sendBackward"];
+
+// Directly assignable node properties, with the label used in the
+// "does not support X" message the eight predecessor tools produced.
+const SIMPLE_NODE_PROPS: Array<{ key: string; label: string }> = [
+  { key: "visible", label: "visibility" },
+  { key: "locked", label: "locking" },
+  { key: "opacity", label: "opacity" },
+  { key: "rotation", label: "rotation" },
+  { key: "blendMode", label: "blend mode" },
+];
+
+const reorderIndex = (order: string, currentIndex: number, siblingCount: number): number => {
+  switch (order) {
+    case "bringToFront": return siblingCount - 1;
+    case "sendToBack": return 0;
+    case "bringForward": return Math.min(currentIndex + 1, siblingCount - 1);
+    case "sendBackward": return Math.max(currentIndex - 1, 0);
+    default: return currentIndex;
+  }
+};
+
+/**
+ * Apply every requested property to one node, collecting per-property outcomes.
+ * A node can support opacity but not rotation, so failures are reported against
+ * the individual property rather than the whole node.
+ */
+const applyNodeProperties = (n: any, p: any) => {
+  const applied: Record<string, any> = {};
+  const errors: Record<string, string> = {};
+
+  for (const { key, label } of SIMPLE_NODE_PROPS) {
+    if (p[key] === undefined) continue;
+    if (!(key in n)) {
+      errors[key] = `Node does not support ${label}`;
+      continue;
+    }
+    n[key] = p[key];
+    applied[key] = n[key];
+  }
+
+  if (p.constraints !== undefined) {
+    if (!("constraints" in n)) {
+      errors.constraints = "Node does not support constraints";
+    } else {
+      const updated: any = { ...n.constraints };
+      if (p.constraints.horizontal) updated.horizontal = p.constraints.horizontal;
+      if (p.constraints.vertical) updated.vertical = p.constraints.vertical;
+      n.constraints = updated;
+      applied.constraints = n.constraints;
+    }
+  }
+
+  if (p.order !== undefined) {
+    const parent = n.parent as any;
+    if (!parent || !("children" in parent)) {
+      errors.order = "Node has no reorderable parent";
+    } else {
+      const siblings = parent.children as any[];
+      const newIndex = reorderIndex(p.order, siblings.indexOf(n), siblings.length);
+      parent.insertChild(newIndex, n);
+      applied.index = newIndex;
+    }
+  }
+
+  return { applied, errors };
+};
+
+// set_paint replaced set_fills, set_gradient_fills and set_strokes on the MCP
+// surface. The three implementations stay separate below; only the surface
+// merged. `type` names the kind of paint, which the gradient implementation
+// reads directly and the solid ones do not take at all.
+export const writeModifyHandlers: HandlerMap = {
+  "set_paint": async (request) => {
+  const { target = "fill", type, ...rest } = request.params || {};
+  let action: string;
+  let params: any;
+  if (type === "SOLID") {
+    action = target === "stroke" ? "set_strokes" : "set_fills";
+    params = rest;
+  } else if (type === "GRADIENT_LINEAR" || type === "GRADIENT_RADIAL") {
+    if (target === "stroke") throw new Error("gradients can only target fill, not stroke");
+    action = "set_gradient_fills";
+    params = { ...rest, type };
+  } else {
+    throw new Error(`type must be SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL, got: ${type}`);
+  }
+  const result = await handleWriteModifyRequest({ ...request, type: action, params });
+  // Answer under the name the caller used, not the one we delegated to.
+  return { ...result, type: request.type }
+  },
+
+  "set_node_properties": async (request) => {
+    const p = request.params || {};
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+
+    const requested = [...SIMPLE_NODE_PROPS.map(s => s.key), "constraints", "order"];
+    if (!requested.some(key => p[key] !== undefined)) {
+      throw new Error(`at least one property is required: ${requested.join(", ")}`);
+    }
+    if (p.order !== undefined && !REORDER_ORDERS.includes(p.order)) {
+      throw new Error(`order must be ${REORDER_ORDERS.join(", ")}`);
     }
 
-    case "set_gradient_fills": {
-      const p = request.params || {};
-      const nodeId = request.nodeIds && request.nodeIds[0];
-      if (!nodeId) throw new Error("nodeId is required");
-      const node = await figma.getNodeByIdAsync(nodeId);
-      if (!node) throw new Error(`Node not found: ${nodeId}`);
-      if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
-      const newFill = makeGradientPaint(p.type, p.stops, p.geometry);
-      if (p.mode === "append") {
-        const existing = Array.isArray((node as any).fills) ? [...(node as any).fills] : [];
-        (node as any).fills = [...existing, newFill];
-      } else {
-        (node as any).fills = [newFill];
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const n = await figma.getNodeByIdAsync(nid) as any;
+      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      const { applied, errors } = applyNodeProperties(n, p);
+      const entry: any = { nodeId: nid, applied };
+      if (Object.keys(errors).length > 0) entry.errors = errors;
+      results.push(entry);
+    }
+    figma.commitUndo();
+    return { type: request.type, requestId: request.requestId, data: { results } };
+  },
+
+  "set_text": async (request) => {
+    const p = request.params || {};
+    const nodeId = request.nodeIds && request.nodeIds[0];
+    if (!nodeId) throw new Error("nodeId is required");
+    const node = await figma.getNodeByIdAsync(nodeId);
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    if (node.type !== "TEXT") throw new Error(`Node ${nodeId} is not a TEXT node`);
+    const fontName = typeof node.fontName === "symbol"
+      ? { family: "Inter", style: "Regular" }
+      : node.fontName;
+    await figma.loadFontAsync(fontName);
+    node.characters = p.text;
+    figma.commitUndo();
+    return {
+      type: request.type,
+      requestId: request.requestId,
+      data: { id: node.id, name: node.name, characters: node.characters },
+    };
+  },
+
+  "set_gradient_fills": async (request) => {
+    const p = request.params || {};
+    const nodeId = request.nodeIds && request.nodeIds[0];
+    if (!nodeId) throw new Error("nodeId is required");
+    const node = await figma.getNodeByIdAsync(nodeId);
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
+    const newFill = makeGradientPaint(p.type, p.stops, p.geometry);
+    if (p.mode === "append") {
+      const existing = Array.isArray((node as any).fills) ? [...(node as any).fills] : [];
+      (node as any).fills = [...existing, newFill];
+    } else {
+      (node as any).fills = [newFill];
+    }
+    figma.commitUndo();
+    return {
+      type: request.type,
+      requestId: request.requestId,
+      data: { id: node.id, name: node.name },
+    };
+  },
+
+  "set_fills": async (request) => {
+    const p = request.params || {};
+    const nodeId = request.nodeIds && request.nodeIds[0];
+    if (!nodeId) throw new Error("nodeId is required");
+    const node = await figma.getNodeByIdAsync(nodeId);
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
+    const newFill = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
+    if (p.mode === "append") {
+      // Mixed fills come back as figma.mixed, a symbol, which cannot be spread.
+      const existing = Array.isArray((node as any).fills) ? [...(node as any).fills] : [];
+      (node as any).fills = [...existing, newFill];
+    } else {
+      (node as any).fills = [newFill];
+    }
+    figma.commitUndo();
+    return {
+      type: request.type,
+      requestId: request.requestId,
+      data: { id: node.id, name: node.name },
+    };
+  },
+
+  "set_strokes": async (request) => {
+    const p = request.params || {};
+    const nodeId = request.nodeIds && request.nodeIds[0];
+    if (!nodeId) throw new Error("nodeId is required");
+    const node = await figma.getNodeByIdAsync(nodeId);
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    if (!("strokes" in node)) throw new Error(`Node ${nodeId} does not support strokes`);
+    const newStroke = makeSolidPaint(p.color);
+    if (p.mode === "append") {
+      // As with fills, mixed strokes are a symbol and cannot be spread.
+      const existing = Array.isArray((node as any).strokes) ? [...(node as any).strokes] : [];
+      (node as any).strokes = [...existing, newStroke];
+    } else {
+      (node as any).strokes = [newStroke];
+    }
+    if (p.strokeWeight != null) (node as any).strokeWeight = p.strokeWeight;
+    figma.commitUndo();
+    return {
+      type: request.type,
+      requestId: request.requestId,
+      data: { id: node.id, name: node.name },
+    };
+  },
+
+  "move_nodes": async (request) => {
+    const p = request.params || {};
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const n = await figma.getNodeByIdAsync(nid) as any;
+      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      if (!("x" in n)) { results.push({ nodeId: nid, error: "Node does not support position" }); continue; }
+      if (p.x != null) n.x = p.x;
+      if (p.y != null) n.y = p.y;
+      results.push({ nodeId: nid, x: n.x, y: n.y });
+    }
+    figma.commitUndo();
+    return { type: request.type, requestId: request.requestId, data: { results } };
+  },
+
+  "resize_nodes": async (request) => {
+    const p = request.params || {};
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const n = await figma.getNodeByIdAsync(nid) as any;
+      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      if (!("resize" in n)) { results.push({ nodeId: nid, error: "Node does not support resize" }); continue; }
+      const w = p.width != null ? p.width : n.width;
+      const h = p.height != null ? p.height : n.height;
+      n.resize(w, h);
+      results.push({ nodeId: nid, width: n.width, height: n.height });
+    }
+    figma.commitUndo();
+    return { type: request.type, requestId: request.requestId, data: { results } };
+  },
+
+  "rename_node": async (request) => {
+    const p = request.params || {};
+    const nodeId = request.nodeIds && request.nodeIds[0];
+    if (!nodeId) throw new Error("nodeId is required");
+    const node = await figma.getNodeByIdAsync(nodeId);
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    node.name = p.name;
+    return {
+      type: request.type,
+      requestId: request.requestId,
+      data: { id: node.id, name: node.name },
+    };
+  },
+
+  "clone_node": async (request) => {
+    const p = request.params || {};
+    const nodeId = request.nodeIds && request.nodeIds[0];
+    if (!nodeId) throw new Error("nodeId is required");
+    const node = await figma.getNodeByIdAsync(nodeId) as any;
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    const clone = node.clone();
+    if (p.x != null) clone.x = p.x;
+    if (p.y != null) clone.y = p.y;
+    if (p.parentId) {
+      const parent = await getParentNode(p.parentId);
+      (parent as any).appendChild(clone);
+    }
+    figma.commitUndo();
+    return {
+      type: request.type,
+      requestId: request.requestId,
+      data: { id: clone.id, name: clone.name, type: clone.type, bounds: getBounds(clone) },
+    };
+  },
+
+  "set_corner_radius": async (request) => {
+    const p = request.params || {};
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const n = await figma.getNodeByIdAsync(nid) as any;
+      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      if (!("cornerRadius" in n)) { results.push({ nodeId: nid, error: "Node does not support corner radius" }); continue; }
+      if (p.cornerRadius != null) n.cornerRadius = p.cornerRadius;
+      if (p.topLeftRadius != null) n.topLeftRadius = p.topLeftRadius;
+      if (p.topRightRadius != null) n.topRightRadius = p.topRightRadius;
+      if (p.bottomLeftRadius != null) n.bottomLeftRadius = p.bottomLeftRadius;
+      if (p.bottomRightRadius != null) n.bottomRightRadius = p.bottomRightRadius;
+      results.push({ nodeId: nid, cornerRadius: n.cornerRadius });
+    }
+    figma.commitUndo();
+    return { type: request.type, requestId: request.requestId, data: { results } };
+  },
+
+  "set_auto_layout": async (request) => {
+    const p = request.params || {};
+    const nodeId = request.nodeIds && request.nodeIds[0];
+    if (!nodeId) throw new Error("nodeId is required");
+    const node = await figma.getNodeByIdAsync(nodeId);
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    if (node.type !== "FRAME") throw new Error(`Node ${nodeId} is not a FRAME`);
+    applyAutoLayout(node, p);
+    figma.commitUndo();
+    return {
+      type: request.type,
+      requestId: request.requestId,
+      data: { id: node.id, name: node.name },
+    };
+  },
+
+  "reparent_nodes": async (request) => {
+    const p = request.params || {};
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    if (!p.parentId) throw new Error("parentId is required");
+    const newParent = await figma.getNodeByIdAsync(p.parentId) as any;
+    if (!newParent) throw new Error(`Parent not found: ${p.parentId}`);
+    if (!("appendChild" in newParent)) throw new Error(`Node ${p.parentId} cannot contain children`);
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const n = await figma.getNodeByIdAsync(nid) as any;
+      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      try {
+        newParent.appendChild(n);
+        results.push({ nodeId: nid, newParentId: p.parentId });
+      } catch (e: any) {
+        results.push({ nodeId: nid, error: e.message });
       }
-      figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: node.id, name: node.name },
-      };
     }
+    figma.commitUndo();
+    return { type: request.type, requestId: request.requestId, data: { results } };
+  },
 
-    case "set_fills": {
-      const p = request.params || {};
-      const nodeId = request.nodeIds && request.nodeIds[0];
-      if (!nodeId) throw new Error("nodeId is required");
-      const node = await figma.getNodeByIdAsync(nodeId);
-      if (!node) throw new Error(`Node not found: ${nodeId}`);
-      if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
-      const newFill = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
-      (node as any).fills = p.mode === "append"
-        ? [...((node as any).fills as Paint[]), newFill]
-        : [newFill];
-      figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: node.id, name: node.name },
-      };
-    }
-
-    case "set_strokes": {
-      const p = request.params || {};
-      const nodeId = request.nodeIds && request.nodeIds[0];
-      if (!nodeId) throw new Error("nodeId is required");
-      const node = await figma.getNodeByIdAsync(nodeId);
-      if (!node) throw new Error(`Node not found: ${nodeId}`);
-      if (!("strokes" in node)) throw new Error(`Node ${nodeId} does not support strokes`);
-      const newStroke = makeSolidPaint(p.color);
-      (node as any).strokes = p.mode === "append"
-        ? [...((node as any).strokes as Paint[]), newStroke]
-        : [newStroke];
-      if (p.strokeWeight != null) (node as any).strokeWeight = p.strokeWeight;
-      figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: node.id, name: node.name },
-      };
-    }
-
-    case "move_nodes": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        if (!("x" in n)) { results.push({ nodeId: nid, error: "Node does not support position" }); continue; }
-        if (p.x != null) n.x = p.x;
-        if (p.y != null) n.y = p.y;
-        results.push({ nodeId: nid, x: n.x, y: n.y });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "resize_nodes": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        if (!("resize" in n)) { results.push({ nodeId: nid, error: "Node does not support resize" }); continue; }
-        const w = p.width != null ? p.width : n.width;
-        const h = p.height != null ? p.height : n.height;
-        n.resize(w, h);
-        results.push({ nodeId: nid, width: n.width, height: n.height });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "rename_node": {
-      const p = request.params || {};
-      const nodeId = request.nodeIds && request.nodeIds[0];
-      if (!nodeId) throw new Error("nodeId is required");
-      const node = await figma.getNodeByIdAsync(nodeId);
-      if (!node) throw new Error(`Node not found: ${nodeId}`);
-      node.name = p.name;
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: node.id, name: node.name },
-      };
-    }
-
-    case "clone_node": {
-      const p = request.params || {};
-      const nodeId = request.nodeIds && request.nodeIds[0];
-      if (!nodeId) throw new Error("nodeId is required");
-      const node = await figma.getNodeByIdAsync(nodeId) as any;
-      if (!node) throw new Error(`Node not found: ${nodeId}`);
-      const clone = node.clone();
-      if (p.x != null) clone.x = p.x;
-      if (p.y != null) clone.y = p.y;
-      if (p.parentId) {
-        const parent = await getParentNode(p.parentId);
-        (parent as any).appendChild(clone);
-      }
-      figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: clone.id, name: clone.name, type: clone.type, bounds: getBounds(clone) },
-      };
-    }
-
-    case "set_opacity": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        if (!("opacity" in n)) { results.push({ nodeId: nid, error: "Node does not support opacity" }); continue; }
-        n.opacity = p.opacity;
-        results.push({ nodeId: nid, opacity: n.opacity });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "set_corner_radius": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        if (!("cornerRadius" in n)) { results.push({ nodeId: nid, error: "Node does not support corner radius" }); continue; }
-        if (p.cornerRadius != null) n.cornerRadius = p.cornerRadius;
-        if (p.topLeftRadius != null) n.topLeftRadius = p.topLeftRadius;
-        if (p.topRightRadius != null) n.topRightRadius = p.topRightRadius;
-        if (p.bottomLeftRadius != null) n.bottomLeftRadius = p.bottomLeftRadius;
-        if (p.bottomRightRadius != null) n.bottomRightRadius = p.bottomRightRadius;
-        results.push({ nodeId: nid, cornerRadius: n.cornerRadius });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "set_auto_layout": {
-      const p = request.params || {};
-      const nodeId = request.nodeIds && request.nodeIds[0];
-      if (!nodeId) throw new Error("nodeId is required");
-      const node = await figma.getNodeByIdAsync(nodeId);
-      if (!node) throw new Error(`Node not found: ${nodeId}`);
-      if (node.type !== "FRAME") throw new Error(`Node ${nodeId} is not a FRAME`);
-      applyAutoLayout(node, p);
-      figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: node.id, name: node.name },
-      };
-    }
-
-    case "set_visible": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        if (!("visible" in n)) { results.push({ nodeId: nid, error: "Node does not support visibility" }); continue; }
-        n.visible = p.visible;
-        results.push({ nodeId: nid, visible: n.visible });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "lock_nodes":
-    case "unlock_nodes": {
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const locked = request.type === "lock_nodes";
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        if (!("locked" in n)) { results.push({ nodeId: nid, error: "Node does not support locking" }); continue; }
-        n.locked = locked;
-        results.push({ nodeId: nid, locked: n.locked });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "rotate_nodes": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        if (!("rotation" in n)) { results.push({ nodeId: nid, error: "Node does not support rotation" }); continue; }
-        n.rotation = p.rotation;
-        results.push({ nodeId: nid, rotation: n.rotation });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "reorder_nodes": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const validOrders = ["bringToFront", "sendToBack", "bringForward", "sendBackward"];
-      if (!validOrders.includes(p.order)) {
-        throw new Error(`order must be bringToFront, sendToBack, bringForward, or sendBackward`);
-      }
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        const parent = n.parent as any;
-        if (!parent || !("children" in parent)) { results.push({ nodeId: nid, error: "Node has no reorderable parent" }); continue; }
-        const siblings = parent.children as any[];
-        const currentIndex = siblings.indexOf(n);
-        let newIndex: number;
-        switch (p.order) {
-          case "bringToFront":   newIndex = siblings.length - 1; break;
-          case "sendToBack":     newIndex = 0; break;
-          case "bringForward":   newIndex = Math.min(currentIndex + 1, siblings.length - 1); break;
-          case "sendBackward":   newIndex = Math.max(currentIndex - 1, 0); break;
-          default:               newIndex = currentIndex;
-        }
-        parent.insertChild(newIndex, n);
-        results.push({ nodeId: nid, index: newIndex });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "set_blend_mode": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        if (!("blendMode" in n)) { results.push({ nodeId: nid, error: "Node does not support blend mode" }); continue; }
-        n.blendMode = p.blendMode;
-        results.push({ nodeId: nid, blendMode: n.blendMode });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "set_constraints": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        if (!("constraints" in n)) { results.push({ nodeId: nid, error: "Node does not support constraints" }); continue; }
-        const updated: any = { ...n.constraints };
-        if (p.horizontal) updated.horizontal = p.horizontal;
-        if (p.vertical)   updated.vertical   = p.vertical;
-        n.constraints = updated;
-        results.push({ nodeId: nid, constraints: n.constraints });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "reparent_nodes": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      if (!p.parentId) throw new Error("parentId is required");
-      const newParent = await figma.getNodeByIdAsync(p.parentId) as any;
-      if (!newParent) throw new Error(`Parent not found: ${p.parentId}`);
-      if (!("appendChild" in newParent)) throw new Error(`Node ${p.parentId} cannot contain children`);
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        try {
-          newParent.appendChild(n);
-          results.push({ nodeId: nid, newParentId: p.parentId });
-        } catch (e: any) {
-          results.push({ nodeId: nid, error: e.message });
-        }
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "batch_rename_nodes": {
-      const p = request.params || {};
-      const nodeIds = request.nodeIds || [];
-      if (nodeIds.length === 0) throw new Error("nodeIds is required");
-      const results: any[] = [];
-      for (const nid of nodeIds) {
-        const n = await figma.getNodeByIdAsync(nid) as any;
-        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-        const oldName: string = n.name;
-        let newName = oldName;
-        if (p.find !== undefined && p.replace !== undefined) {
-          if (p.useRegex) {
-            try {
-              const regex = new RegExp(p.find, p.regexFlags || "g");
-              newName = newName.replace(regex, p.replace);
-            } catch (e: any) {
-              results.push({ nodeId: nid, error: `Invalid regex: ${e.message}` }); continue;
-            }
-          } else {
-            newName = newName.split(p.find).join(p.replace);
-          }
-        }
-        if (p.prefix) newName = p.prefix + newName;
-        if (p.suffix) newName = newName + p.suffix;
-        n.name = newName;
-        results.push({ nodeId: nid, oldName, name: newName });
-      }
-      figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
-    }
-
-    case "find_replace_text": {
-      const p = request.params || {};
-      if (!p.find) throw new Error("find is required");
-      if (p.replace === undefined) throw new Error("replace is required");
-      const rootNodeId = request.nodeIds && request.nodeIds[0];
-      const root: any = rootNodeId
-        ? await figma.getNodeByIdAsync(rootNodeId)
-        : figma.currentPage;
-      if (!root) throw new Error(`Root node not found: ${rootNodeId}`);
-      const textNodes: any[] = [];
-      const collect = (node: any) => {
-        if (node.type === "TEXT") textNodes.push(node);
-        if ("children" in node) (node.children as any[]).forEach(collect);
-      };
-      collect(root);
-      const results: any[] = [];
-      for (const tn of textNodes) {
-        const originalText: string = tn.characters;
-        let newText: string;
+  "batch_rename_nodes": async (request) => {
+    const p = request.params || {};
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const n = await figma.getNodeByIdAsync(nid) as any;
+      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      const oldName: string = n.name;
+      let newName = oldName;
+      if (p.find !== undefined && p.replace !== undefined) {
         if (p.useRegex) {
           try {
             const regex = new RegExp(p.find, p.regexFlags || "g");
-            newText = originalText.replace(regex, p.replace);
+            newName = newName.replace(regex, p.replace);
           } catch (e: any) {
-            results.push({ nodeId: tn.id, nodeName: tn.name, error: `Invalid regex: ${e.message}` });
-            continue;
+            results.push({ nodeId: nid, error: `Invalid regex: ${e.message}` }); continue;
           }
         } else {
-          newText = originalText.split(p.find).join(p.replace);
-        }
-        if (newText !== originalText) {
-          const fontName = typeof tn.fontName === "symbol"
-            ? { family: "Inter", style: "Regular" }
-            : tn.fontName;
-          await figma.loadFontAsync(fontName);
-          tn.characters = newText;
-          results.push({ nodeId: tn.id, nodeName: tn.name, oldText: originalText, newText });
+          newName = newName.split(p.find).join(p.replace);
         }
       }
-      figma.commitUndo();
-      const successCount = results.filter((r: any) => !r.error).length;
-      return { type: request.type, requestId: request.requestId, data: { replaced: successCount, results } };
+      if (p.prefix) newName = p.prefix + newName;
+      if (p.suffix) newName = newName + p.suffix;
+      n.name = newName;
+      results.push({ nodeId: nid, oldName, name: newName });
     }
+    figma.commitUndo();
+    return { type: request.type, requestId: request.requestId, data: { results } };
+  },
 
-    default:
-      return null;
-  }
+  "find_replace_text": async (request) => {
+    const p = request.params || {};
+    if (!p.find) throw new Error("find is required");
+    if (p.replace === undefined) throw new Error("replace is required");
+    const rootNodeId = request.nodeIds && request.nodeIds[0];
+    const root: any = rootNodeId
+      ? await figma.getNodeByIdAsync(rootNodeId)
+      : figma.currentPage;
+    if (!root) throw new Error(`Root node not found: ${rootNodeId}`);
+    const textNodes: any[] = [];
+    const collect = (node: any) => {
+      if (node.type === "TEXT") textNodes.push(node);
+      if ("children" in node) (node.children as any[]).forEach(collect);
+    };
+    collect(root);
+    const results: any[] = [];
+    for (const tn of textNodes) {
+      const originalText: string = tn.characters;
+      let newText: string;
+      if (p.useRegex) {
+        try {
+          const regex = new RegExp(p.find, p.regexFlags || "g");
+          newText = originalText.replace(regex, p.replace);
+        } catch (e: any) {
+          results.push({ nodeId: tn.id, nodeName: tn.name, error: `Invalid regex: ${e.message}` });
+          continue;
+        }
+      } else {
+        newText = originalText.split(p.find).join(p.replace);
+      }
+      if (newText !== originalText) {
+        const fontName = typeof tn.fontName === "symbol"
+          ? { family: "Inter", style: "Regular" }
+          : tn.fontName;
+        await figma.loadFontAsync(fontName);
+        tn.characters = newText;
+        results.push({ nodeId: tn.id, nodeName: tn.name, oldText: originalText, newText });
+      }
+    }
+    figma.commitUndo();
+    const successCount = results.filter((r: any) => !r.error).length;
+    return { type: request.type, requestId: request.requestId, data: { replaced: successCount, results } };
+  },
+};
+
+export const handleWriteModifyRequest = async (request: any): Promise<any> => {
+  const handler = writeModifyHandlers[request.type];
+  return handler ? handler(request) : null;
 };

@@ -60,6 +60,30 @@ describe("hexToRgb", () => {
     const result = hexToRgb("00ff00");
     expect(result.g).toBeCloseTo(1);
   });
+
+  it("expands 3-char shorthand", () => {
+    // #f00 means #ff0000, not "red then two missing channels".
+    const result = hexToRgb("#f00");
+    expect(result.r).toBeCloseTo(1);
+    expect(result.g).toBe(0);
+    expect(result.b).toBe(0);
+    expect(result.a).toBe(1);
+  });
+
+  it("expands 4-char shorthand with alpha", () => {
+    const result = hexToRgb("#f008");
+    expect(result.r).toBeCloseTo(1);
+    expect(result.a).toBeCloseTo(0x88 / 255);
+  });
+
+  // Anything it cannot read used to come back as NaN and paint a broken fill
+  // without a word of complaint.
+  it.each(["red", "rgb(255,0,0)", "#ff", "#12345", "", "#gggggg"])(
+    "rejects %o instead of returning NaN",
+    (input) => {
+      expect(() => hexToRgb(input)).toThrow(/hex color/i);
+    },
+  );
 });
 
 // ── makeSolidPaint ────────────────────────────────────────────────────────────

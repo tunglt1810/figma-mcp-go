@@ -13,7 +13,7 @@ Open-source Figma MCP server with full read/write access via plugin. Turn text i
 **Highlights**
 - Operates locally via the Figma Plugin API (no REST API token required)
 - Real-time execution directly on your local machine
-- **Read and Write** live Figma data via plugin bridge — 84 tools total
+- **Read and Write** live Figma data via plugin bridge — 63 tools total
 - Full design automation — styles, variables, components, prototypes, content, and transactional batch pipelines
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
 
@@ -89,6 +89,104 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 2. Select `manifest.json` from the [plugin.zip](https://github.com/tunglt1810/figma-mcp-go/releases)
 3. Run the plugin inside any Figma file
 
+### 3. Running more than one AI tool at once (optional)
+
+Every MCP client starts its own copy of the server, but only one process can
+hold the plugin connection on a given port. There are two ways to share, and
+they do different things.
+
+**Same Figma file, no configuration.** Leave the default config everywhere. The
+first process to bind port 1994 owns the WebSocket to the plugin; the others
+detect the port is taken and proxy their tool calls to it over HTTP. Every
+client drives the one file the plugin is open in. If the process holding the
+port exits, another takes over within a few seconds.
+
+**Different Figma files, one port each.** Give each client its own port and
+point a separate plugin instance at it:
+
+```json
+{
+  "mcpServers": {
+    "figma-mcp-go": {
+      "command": "npx",
+      "args": ["-y", "@tunglt1810/figma-mcp-go", "--port", "1995"]
+    }
+  }
+}
+```
+
+Then open the plugin in the second Figma file and set the port to match under
+the settings gear. Each client now talks to its own file, with no proxying.
+
+Note that the plugin stores host and port in `figma.clientStorage`, which is
+shared across files — changing the port makes it the default the next time you
+open the plugin anywhere, so expect to set it on whichever instance should use
+1994.
+
+`--ip` moves the listener off `127.0.0.1` (use `0.0.0.0` to accept connections
+from another machine).
+
+---
+
+## Upgrading
+
+**Re-download the plugin when you update the server.** The server updates itself
+through `npx`, but the Figma plugin is installed by hand, so the two can drift
+apart. A plugin older than the server will reject commands it does not know with
+`Unknown request type`.
+
+### Breaking changes in 0.1.0
+
+Eight single-purpose tools were replaced by one. Each took `nodeIds` plus a
+single property, and they are now combinations of `set_node_properties`:
+
+| Removed | Replacement |
+| ------- | ----------- |
+| `set_visible` | `set_node_properties({ nodeIds, visible })` |
+| `lock_nodes` / `unlock_nodes` | `set_node_properties({ nodeIds, locked })` |
+| `set_opacity` | `set_node_properties({ nodeIds, opacity })` |
+| `rotate_nodes` | `set_node_properties({ nodeIds, rotation })` |
+| `set_blend_mode` | `set_node_properties({ nodeIds, blendMode })` |
+| `set_constraints` | `set_node_properties({ nodeIds, constraints: { horizontal, vertical } })` |
+| `reorder_nodes` | `set_node_properties({ nodeIds, order })` |
+
+Properties can be combined, so what used to take several calls and several undo
+entries now takes one of each.
+
+Eighteen more tools were merged into four, each selecting between the old tools
+with one argument. An argument belonging to a different variant is rejected with
+a message naming it, rather than being ignored:
+
+| Removed | Replacement |
+| ------- | ----------- |
+| `create_frame` | `create_node({ type: "FRAME", … })` |
+| `create_rectangle` | `create_node({ type: "RECTANGLE", … })` |
+| `create_ellipse` | `create_node({ type: "ELLIPSE", … })` |
+| `create_star` | `create_node({ type: "STAR", … })` |
+| `create_polygon` | `create_node({ type: "POLYGON", … })` |
+| `create_line` | `create_node({ type: "LINE", … })` |
+| `create_section` | `create_node({ type: "SECTION", … })` |
+| `set_fills` | `set_paint({ type: "SOLID", color })` |
+| `set_strokes` | `set_paint({ type: "SOLID", target: "stroke", color, strokeWeight })` |
+| `set_gradient_fills` | `set_paint({ type: "GRADIENT_LINEAR" \| "GRADIENT_RADIAL", stops, geometry })` |
+| `create_paint_style` | `create_style({ type: "PAINT", name, color })` |
+| `create_text_style` | `create_style({ type: "TEXT", name, … })` |
+| `create_effect_style` | `create_style({ type: "EFFECT", name, effectType, … })` |
+| `create_grid_style` | `create_style({ type: "GRID", name, … })` |
+| `add_page` | `manage_page({ action: "add", name, index })` |
+| `delete_page` | `manage_page({ action: "delete", pageId \| pageName })` |
+| `rename_page` | `manage_page({ action: "rename", pageId \| pageName, newName })` |
+| `navigate_to_page` | `manage_page({ action: "navigate", pageId \| pageName })` |
+
+Two things changed behaviour rather than just name. `create_node({type:"ELLIPSE"})`
+honours `startAngle`, `endAngle` and `innerRadiusRatio`, which `create_ellipse`
+declared but ignored — arcs and rings came out as plain ellipses. And `name` now
+works on stars, polygons and lines, which read it but never declared it.
+
+`create_effect_style`'s `type` argument is `effectType` under `create_style`,
+because `type` names the kind of style. Gradients can only target a fill;
+`set_paint` says so rather than accepting `target: "stroke"` and doing nothing.
+
 ---
 
 ## Available Tools
@@ -103,14 +201,11 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 
 | Tool                        | Description                                                |
 | --------------------------- | ---------------------------------------------------------- |
-| `create_frame`              | Create a frame with optional auto-layout, fill, and parent |
-| `create_rectangle`          | Create a rectangle with optional fill and corner radius    |
-| `create_ellipse`            | Create an ellipse or circle                                |
+| `create_node`               | Create a FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION |
 | `create_text`               | Create a text node (font loaded automatically)             |
 | `import_image`              | Decode base64 image and place it as a rectangle fill       |
 | `create_component`          | Convert an existing FRAME node into a reusable component   |
 | `create_component_instance` | Create an instance of a component (local or library)       |
-| `create_section`            | Create a Figma Section node to organise frames on a page   |
 | `create_connector`          | Create a Connector line between nodes (FigJam only)        |
 
 ### Write — Modify
@@ -118,19 +213,10 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 | Tool                     | Description                                                                      |
 | ------------------------ | -------------------------------------------------------------------------------- |
 | `set_text`               | Update text content of an existing TEXT node                                     |
-| `set_fills`              | Set solid fill color (hex) on a node                                             |
-| `set_gradient_fills`     | Set linear or radial gradient fills on a node using geometry properties          |
-| `set_strokes`            | Set solid stroke color and weight on a node                                      |
-| `set_opacity`            | Set opacity of one or more nodes (0 = transparent, 1 = opaque)                   |
+| `set_paint`              | Paint a node's fill or stroke — solid, linear gradient, or radial gradient       |
 | `set_corner_radius`      | Set corner radius — uniform or per-corner                                        |
 | `set_auto_layout`        | Set or update auto-layout (flex) properties on a frame                           |
-| `set_visible`            | Show or hide one or more nodes                                                   |
-| `lock_nodes`             | Lock one or more nodes to prevent accidental edits                               |
-| `unlock_nodes`           | Unlock one or more nodes                                                         |
-| `rotate_nodes`           | Set absolute rotation in degrees on one or more nodes                            |
-| `reorder_nodes`          | Change z-order: `bringToFront`, `sendToBack`, `bringForward`, `sendBackward`     |
-| `set_blend_mode`         | Set blend mode (MULTIPLY, SCREEN, OVERLAY, …) on one or more nodes               |
-| `set_constraints`        | Set responsive constraints `{ horizontal, vertical }` on one or more nodes       |
+| `set_node_properties`    | Set any combination of visibility, lock, opacity, rotation, blend mode, constraints, and z-order on one or more nodes |
 | `set_instance_overrides` | Update Component Properties (variants, booleans, text) on a component instance   |
 | `set_annotations`        | Set Dev Mode Annotations on a node (requires paid Dev Mode seat)                 |
 | `move_nodes`             | Move nodes to an absolute x/y position                                           |
@@ -160,10 +246,7 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 | Tool                  | Description                                                             |
 | --------------------- | ----------------------------------------------------------------------- |
 | `set_effects`         | Apply drop shadow / blur effects directly on a node (no style required) |
-| `create_paint_style`  | Create a named paint style with a solid color                           |
-| `create_text_style`   | Create a named text style with font, size, and spacing                  |
-| `create_effect_style` | Create a named effect style (drop shadow, inner shadow, blur)           |
-| `create_grid_style`   | Create a named layout grid style (columns, rows, or grid)               |
+| `create_style`        | Create a named PAINT, TEXT, EFFECT, or GRID style                       |
 | `update_paint_style`  | Rename or recolor an existing paint style                               |
 | `apply_style_to_node` | Apply an existing local style to a node, linking it to that style       |
 | `delete_style`        | Delete any style (paint, text, effect, or grid) by ID                   |
@@ -181,17 +264,14 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 
 ### Write — Pages
 
-| Tool          | Description                                               |
-| ------------- | --------------------------------------------------------- |
-| `add_page`    | Add a new page to the document (optional name and index)  |
-| `delete_page` | Delete a page by ID or name (cannot delete the only page) |
-| `rename_page` | Rename a page by ID or current name                       |
+| Tool          | Description                                                         |
+| ------------- | ------------------------------------------------------------------- |
+| `manage_page` | Add, delete, rename, or navigate to a page (`action` selects which) |
 
 ### Write — Components & Navigation
 
 | Tool               | Description                                                 |
 | ------------------ | ----------------------------------------------------------- |
-| `navigate_to_page` | Switch the active Figma page by ID or name                  |
 | `group_nodes`      | Group two or more nodes into a GROUP                        |
 | `ungroup_nodes`    | Ungroup GROUP nodes, moving children to the parent          |
 | `swap_component`   | Swap the main component of an INSTANCE node                 |

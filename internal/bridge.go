@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,6 +25,21 @@ type pendingEntry struct {
 	ch    chan BridgeResponse
 	timer *time.Timer
 	once  sync.Once // guards channel close/send — prevents panic on concurrent timeout + response
+
+	// timeout is this tool's budget, restored on every progress update;
+	// hardDeadline is the point past which no progress update extends it.
+	timeout      time.Duration
+	hardDeadline time.Time
+}
+
+// nextTimeout is how long a progress update may extend this request, capped by
+// the hard deadline. Zero or less means the request has run out of time.
+func (e *pendingEntry) nextTimeout() time.Duration {
+	remaining := time.Until(e.hardDeadline)
+	if remaining < e.timeout {
+		return remaining
+	}
+	return e.timeout
 }
 
 // Bridge manages the single WebSocket connection from the Figma plugin
@@ -34,22 +51,59 @@ type Bridge struct {
 	pending map[string]*pendingEntry
 	counter atomic.Int64
 	version string
+
+	// Ping cadence, overridable in tests so they need not wait 20 seconds.
+	pingInterval time.Duration
+	pingTimeout  time.Duration
 }
 
 // NewBridge creates a ready-to-use Bridge.
 func NewBridge(version string) *Bridge {
 	return &Bridge{
-		pending: make(map[string]*pendingEntry),
-		version: version,
+		pending:      make(map[string]*pendingEntry),
+		version:      version,
+		pingInterval: defaultPingInterval,
+		pingTimeout:  defaultPingTimeout,
 	}
+}
+
+// allowedOrigin reports whether a browser at this Origin may open the bridge.
+// A new connection replaces the live one, so without this any page the user had
+// open could connect to the local port, displace the real plugin and answer
+// tool calls itself. Browsers set Origin and scripts cannot forge it, which is
+// what makes the check worth having.
+//
+// Figma serves plugin UI from a sandboxed iframe, whose Origin is the literal
+// "null". Allowing that leaves one gap: a hostile page can sandbox an iframe of
+// its own and present "null" too. It closes the ordinary case, which is a page
+// simply running a script.
+func allowedOrigin(origin string) bool {
+	if origin == "" || origin == "null" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "figma.com" || strings.HasSuffix(host, ".figma.com") ||
+		host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // HandleUpgrade upgrades an HTTP request to a WebSocket connection.
 // Only one plugin connection is maintained at a time; a new connection
 // replaces the old one (same behaviour as the TypeScript version).
 func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
+	if origin := r.Header.Get("Origin"); !allowedOrigin(origin) {
+		bridgeLogger.Printf("upgrade refused: origin %q is not allowed", origin)
+		http.Error(w, "origin not allowed", http.StatusForbidden)
+		return
+	}
+
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true, // skip Origin check — plugin connects via Figma's sandbox
+		// The check above replaces the library's: it has to accept the "null"
+		// origin of a sandboxed iframe, which the library rejects outright.
+		InsecureSkipVerify: true,
 	})
 	if err != nil {
 		bridgeLogger.Printf("upgrade error: %v", err)
@@ -76,6 +130,42 @@ func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 		bridgeLogger.Printf("plugin connected from %s", r.RemoteAddr)
 	}
 	go b.readLoop(conn)
+	go b.keepalive(conn)
+}
+
+// keepalive pings the plugin on a timer. Without it a connection that died
+// without a close frame — laptop asleep, network dropped — keeps looking alive,
+// and the first sign of trouble is a tool call timing out much later. A missed
+// pong closes the connection, so the next call fails immediately and says the
+// plugin is not connected.
+//
+// Ping writes a control frame, which the library serialises separately from
+// data messages, so this does not need the write lock and cannot block a send
+// while it waits for the pong.
+func (b *Bridge) keepalive(conn *websocket.Conn) {
+	ticker := time.NewTicker(b.pingInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		b.mu.RLock()
+		current := b.conn
+		b.mu.RUnlock()
+		if current != conn {
+			return // replaced or already gone
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), b.pingTimeout)
+		err := conn.Ping(ctx)
+		cancel()
+		if err != nil {
+			bridgeLogger.Printf("keepalive: no pong, dropping connection: %v", err)
+			// CloseNow, not Close: a graceful close waits for the peer's close
+			// frame, and the peer not answering is exactly what got us here.
+			// Dropping the socket makes readLoop return, which clears b.conn.
+			conn.CloseNow() //nolint:errcheck
+			return
+		}
+	}
 }
 
 // readLoop reads messages from the plugin and resolves pending requests.
@@ -107,8 +197,15 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 			if ok {
 				// Stop before Reset to avoid the AfterFunc firing during Reset.
 				entry.timer.Stop()
-				entry.timer.Reset(60 * time.Second)
-				bridgeLogger.Printf("progress %s: %d%% %s", resp.RequestID, resp.Progress, resp.Message)
+				if extension := entry.nextTimeout(); extension > 0 {
+					entry.timer.Reset(extension)
+					bridgeLogger.Printf("progress %s: %d%% %s", resp.RequestID, resp.Progress, resp.Message)
+				} else {
+					// Past the hard deadline; let the timer fire immediately
+					// rather than letting progress hold the request open.
+					entry.timer.Reset(time.Nanosecond)
+					bridgeLogger.Printf("progress %s: %d%% %s (past the %s ceiling — timing out)", resp.RequestID, resp.Progress, resp.Message, maxToolTimeout)
+				}
 			} else {
 				bridgeLogger.Printf("progress %s: %d%% %s (no pending entry — already resolved or timed out)", resp.RequestID, resp.Progress, resp.Message)
 			}
@@ -185,17 +282,15 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 	}
 
 	ch := make(chan BridgeResponse, 1)
-	entry := &pendingEntry{ch: ch}
+	timeout := timeoutFor(requestType)
+	entry := &pendingEntry{
+		ch:           ch,
+		timeout:      timeout,
+		hardDeadline: time.Now().Add(maxToolTimeout),
+	}
 
 	// Register before sending to avoid a race where the response
 	// arrives before we store the channel.
-	// get_document on large files can take longer; give it more headroom.
-	timeout := 30 * time.Second
-	if requestType == "get_document" {
-		timeout = 60 * time.Second
-	} else if requestType == "batch_execute_pipeline" {
-		timeout = 120 * time.Second
-	}
 	entry.timer = time.AfterFunc(timeout, func() {
 		bridgeLogger.Printf("→ %s %s timed out after %s", requestID, requestType, timeout)
 		b.mu.Lock()

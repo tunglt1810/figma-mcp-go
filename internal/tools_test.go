@@ -294,20 +294,48 @@ func TestWriteBase64_CreatesIntermediateDirs(t *testing.T) {
 	}
 }
 
-func TestWriteBase64_RejectsExistingFile(t *testing.T) {
+// Screenshotting the same node twice is the normal loop — capture, adjust the
+// design, capture again. Refusing to overwrite meant the second capture failed
+// until the user deleted the file by hand.
+func TestWriteBase64_OverwritesExistingFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "existing.png")
-	b64 := base64.StdEncoding.EncodeToString([]byte("data"))
 
-	// Create the file first.
-	if _, err := writeBase64(b64, path); err != nil {
+	if _, err := writeBase64(base64.StdEncoding.EncodeToString([]byte("first")), path); err != nil {
 		t.Fatalf("first write: %v", err)
 	}
+	if _, err := writeBase64(base64.StdEncoding.EncodeToString([]byte("second")), path); err != nil {
+		t.Fatalf("second write: %v", err)
+	}
 
-	// Second write must fail.
-	_, err := writeBase64(b64, path)
-	if err == nil {
-		t.Error("expected error when file already exists")
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if string(got) != "second" {
+		t.Errorf("file contents = %q, want the second write", got)
+	}
+}
+
+// Overwriting must truncate: a shorter image must not leave the tail of the
+// longer one behind it.
+func TestWriteBase64_TruncatesOnOverwrite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "existing.png")
+
+	if _, err := writeBase64(base64.StdEncoding.EncodeToString([]byte("a much longer payload")), path); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	if _, err := writeBase64(base64.StdEncoding.EncodeToString([]byte("short")), path); err != nil {
+		t.Fatalf("second write: %v", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if string(got) != "short" {
+		t.Errorf("file contents = %q, want %q", got, "short")
 	}
 }
 

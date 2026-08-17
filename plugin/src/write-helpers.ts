@@ -2,13 +2,25 @@ import { invertTransform } from "./serializers";
 
 // Write helpers — utilities used exclusively by write handlers.
 
+// Accepts #RGB, #RGBA, #RRGGBB and #RRGGBBAA, with or without the leading #.
+// Anything else is an error: the old version returned NaN channels, which Figma
+// painted as a broken fill without reporting anything.
 export const hexToRgb = (hex: string) => {
-  const clean = hex.replace("#", "");
+  const clean = typeof hex === "string" ? hex.replace(/^#/, "") : "";
+  if (!/^([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)) {
+    throw new Error(
+      `Invalid hex color: ${JSON.stringify(hex)} — expected #RGB, #RGBA, #RRGGBB, or #RRGGBBAA`,
+    );
+  }
+  // Shorthand doubles each digit: #f80 is #ff8800.
+  const full = clean.length <= 4
+    ? clean.split("").map(c => c + c).join("")
+    : clean;
   return {
-    r: parseInt(clean.slice(0, 2), 16) / 255,
-    g: parseInt(clean.slice(2, 4), 16) / 255,
-    b: parseInt(clean.slice(4, 6), 16) / 255,
-    a: clean.length >= 8 ? parseInt(clean.slice(6, 8), 16) / 255 : 1,
+    r: parseInt(full.slice(0, 2), 16) / 255,
+    g: parseInt(full.slice(2, 4), 16) / 255,
+    b: parseInt(full.slice(4, 6), 16) / 255,
+    a: full.length >= 8 ? parseInt(full.slice(6, 8), 16) / 255 : 1,
   };
 };
 

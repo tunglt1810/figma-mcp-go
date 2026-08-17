@@ -44,16 +44,16 @@ func addDesignStrategy(s *server.MCPServer) {
    - Group related inputs (e.g., username/password) together
 
 5. Element Creation:
-   - Use create_frame() for containers and input fields
+   - Use create_node(type: "FRAME") for containers and input fields
    - Use create_text() for labels, buttons text, and links
    - Set appropriate colors and styles:
      * Use fillColor for backgrounds
-     * Use set_strokes() for borders
+     * Use set_paint(target: "stroke") for borders
      * Set proper fontStyle for different text elements
 
 6. Modifying existing elements:
    - Use set_text() to modify text content of a TEXT node
-   - Use set_fills() to change background/fill colors
+   - Use set_paint(type: "SOLID", color) to change background/fill colors
    - Use move_nodes() / resize_nodes() for position and size adjustments
 
 7. Visual Hierarchy:

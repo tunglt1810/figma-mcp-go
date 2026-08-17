@@ -24,48 +24,6 @@ beforeEach(() => {
 
 // ── set_opacity ───────────────────────────────────────────────────────────────
 
-describe("set_opacity", () => {
-  it("sets opacity on a node", async () => {
-    mockNodes["1:1"] = { id: "1:1", name: "Frame", opacity: 1 };
-    const res = await handleWriteModifyRequest(makeRequest("set_opacity", ["1:1"], { opacity: 0.5 }));
-    expect(res?.data.results[0].opacity).toBe(0.5);
-    expect(mockNodes["1:1"].opacity).toBe(0.5);
-    expect(commitUndoCalled).toBe(true);
-  });
-
-  it("sets opacity to 0", async () => {
-    mockNodes["1:1"] = { id: "1:1", opacity: 1 };
-    const res = await handleWriteModifyRequest(makeRequest("set_opacity", ["1:1"], { opacity: 0 }));
-    expect(res?.data.results[0].opacity).toBe(0);
-  });
-
-  it("reports error for missing node", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("set_opacity", ["9:9"], { opacity: 0.5 }));
-    expect(res?.data.results[0].error).toBe("Node not found");
-  });
-
-  it("reports error for node without opacity support", async () => {
-    mockNodes["1:1"] = { id: "1:1", name: "Page" }; // no opacity property
-    const res = await handleWriteModifyRequest(makeRequest("set_opacity", ["1:1"], { opacity: 0.5 }));
-    expect(res?.data.results[0].error).toContain("does not support opacity");
-  });
-
-  it("handles multiple nodeIds", async () => {
-    mockNodes["1:1"] = { id: "1:1", opacity: 1 };
-    mockNodes["2:2"] = { id: "2:2", opacity: 1 };
-    const res = await handleWriteModifyRequest(makeRequest("set_opacity", ["1:1", "2:2"], { opacity: 0.25 }));
-    expect(res?.data.results).toHaveLength(2);
-    expect(mockNodes["1:1"].opacity).toBe(0.25);
-    expect(mockNodes["2:2"].opacity).toBe(0.25);
-  });
-
-  it("throws for empty nodeIds", async () => {
-    await expect(handleWriteModifyRequest(makeRequest("set_opacity", [], { opacity: 0.5 }))).rejects.toThrow();
-  });
-});
-
-// ── set_corner_radius ─────────────────────────────────────────────────────────
-
 describe("set_corner_radius", () => {
   it("sets uniform cornerRadius", async () => {
     mockNodes["1:1"] = { id: "1:1", cornerRadius: 0 };
@@ -116,270 +74,6 @@ describe("set_corner_radius", () => {
 });
 
 // ── set_visible ───────────────────────────────────────────────────────────────
-
-describe("set_visible", () => {
-  it("hides a node", async () => {
-    mockNodes["1:1"] = { id: "1:1", name: "Frame", visible: true };
-    const res = await handleWriteModifyRequest(makeRequest("set_visible", ["1:1"], { visible: false }));
-    expect(mockNodes["1:1"].visible).toBe(false);
-    expect(res?.data.results[0].visible).toBe(false);
-    expect(commitUndoCalled).toBe(true);
-  });
-
-  it("shows a hidden node", async () => {
-    mockNodes["1:1"] = { id: "1:1", visible: false };
-    const res = await handleWriteModifyRequest(makeRequest("set_visible", ["1:1"], { visible: true }));
-    expect(mockNodes["1:1"].visible).toBe(true);
-    expect(res?.data.results[0].visible).toBe(true);
-  });
-
-  it("reports error for missing node", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("set_visible", ["9:9"], { visible: false }));
-    expect(res?.data.results[0].error).toBe("Node not found");
-  });
-
-  it("reports error for node without visibility support", async () => {
-    mockNodes["1:1"] = { id: "1:1" }; // no visible property
-    const res = await handleWriteModifyRequest(makeRequest("set_visible", ["1:1"], { visible: false }));
-    expect(res?.data.results[0].error).toContain("does not support visibility");
-  });
-
-  it("handles multiple nodes", async () => {
-    mockNodes["1:1"] = { id: "1:1", visible: true };
-    mockNodes["2:2"] = { id: "2:2", visible: true };
-    const res = await handleWriteModifyRequest(makeRequest("set_visible", ["1:1", "2:2"], { visible: false }));
-    expect(res?.data.results).toHaveLength(2);
-    expect(mockNodes["1:1"].visible).toBe(false);
-    expect(mockNodes["2:2"].visible).toBe(false);
-  });
-
-  it("throws for empty nodeIds", async () => {
-    await expect(handleWriteModifyRequest(makeRequest("set_visible", [], { visible: false }))).rejects.toThrow();
-  });
-});
-
-// ── lock_nodes / unlock_nodes ─────────────────────────────────────────────────
-
-describe("lock_nodes", () => {
-  it("locks a node", async () => {
-    mockNodes["1:1"] = { id: "1:1", locked: false };
-    const res = await handleWriteModifyRequest(makeRequest("lock_nodes", ["1:1"]));
-    expect(mockNodes["1:1"].locked).toBe(true);
-    expect(res?.data.results[0].locked).toBe(true);
-    expect(commitUndoCalled).toBe(true);
-  });
-
-  it("reports error for missing node", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("lock_nodes", ["9:9"]));
-    expect(res?.data.results[0].error).toBe("Node not found");
-  });
-
-  it("reports error for node without locked support", async () => {
-    mockNodes["1:1"] = { id: "1:1" }; // no locked property
-    const res = await handleWriteModifyRequest(makeRequest("lock_nodes", ["1:1"]));
-    expect(res?.data.results[0].error).toContain("does not support locking");
-  });
-});
-
-describe("unlock_nodes", () => {
-  it("unlocks a node", async () => {
-    mockNodes["1:1"] = { id: "1:1", locked: true };
-    const res = await handleWriteModifyRequest(makeRequest("unlock_nodes", ["1:1"]));
-    expect(mockNodes["1:1"].locked).toBe(false);
-    expect(res?.data.results[0].locked).toBe(false);
-  });
-
-  it("handles multiple nodes", async () => {
-    mockNodes["1:1"] = { id: "1:1", locked: true };
-    mockNodes["2:2"] = { id: "2:2", locked: true };
-    const res = await handleWriteModifyRequest(makeRequest("unlock_nodes", ["1:1", "2:2"]));
-    expect(res?.data.results).toHaveLength(2);
-    expect(mockNodes["1:1"].locked).toBe(false);
-    expect(mockNodes["2:2"].locked).toBe(false);
-  });
-});
-
-// ── rotate_nodes ──────────────────────────────────────────────────────────────
-
-describe("rotate_nodes", () => {
-  it("rotates a node", async () => {
-    mockNodes["1:1"] = { id: "1:1", rotation: 0 };
-    const res = await handleWriteModifyRequest(makeRequest("rotate_nodes", ["1:1"], { rotation: 45 }));
-    expect(mockNodes["1:1"].rotation).toBe(45);
-    expect(res?.data.results[0].rotation).toBe(45);
-    expect(commitUndoCalled).toBe(true);
-  });
-
-  it("sets negative rotation", async () => {
-    mockNodes["1:1"] = { id: "1:1", rotation: 0 };
-    await handleWriteModifyRequest(makeRequest("rotate_nodes", ["1:1"], { rotation: -90 }));
-    expect(mockNodes["1:1"].rotation).toBe(-90);
-  });
-
-  it("reports error for missing node", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("rotate_nodes", ["9:9"], { rotation: 45 }));
-    expect(res?.data.results[0].error).toBe("Node not found");
-  });
-
-  it("reports error for node without rotation support", async () => {
-    mockNodes["1:1"] = { id: "1:1" }; // no rotation property
-    const res = await handleWriteModifyRequest(makeRequest("rotate_nodes", ["1:1"], { rotation: 45 }));
-    expect(res?.data.results[0].error).toContain("does not support rotation");
-  });
-
-  it("handles multiple nodes", async () => {
-    mockNodes["1:1"] = { id: "1:1", rotation: 0 };
-    mockNodes["2:2"] = { id: "2:2", rotation: 0 };
-    const res = await handleWriteModifyRequest(makeRequest("rotate_nodes", ["1:1", "2:2"], { rotation: 90 }));
-    expect(res?.data.results).toHaveLength(2);
-    expect(mockNodes["1:1"].rotation).toBe(90);
-    expect(mockNodes["2:2"].rotation).toBe(90);
-  });
-});
-
-// ── reorder_nodes ─────────────────────────────────────────────────────────────
-
-describe("reorder_nodes", () => {
-  const makeParent = (children: any[]) => ({
-    children,
-    insertChild(index: number, child: any) {
-      const i = this.children.indexOf(child);
-      if (i !== -1) this.children.splice(i, 1);
-      this.children.splice(index, 0, child);
-    },
-  });
-
-  it("brings node to front", async () => {
-    const parent = makeParent([]);
-    const nodeA = { id: "1:1", parent };
-    const nodeB = { id: "2:2", parent };
-    parent.children = [nodeA, nodeB];
-    mockNodes["1:1"] = nodeA;
-    const res = await handleWriteModifyRequest(makeRequest("reorder_nodes", ["1:1"], { order: "bringToFront" }));
-    expect(res?.data.results[0].index).toBe(1);
-    expect(parent.children[1]).toBe(nodeA);
-    expect(commitUndoCalled).toBe(true);
-  });
-
-  it("sends node to back", async () => {
-    const parent = makeParent([]);
-    const nodeA = { id: "1:1", parent };
-    const nodeB = { id: "2:2", parent };
-    parent.children = [nodeA, nodeB];
-    mockNodes["2:2"] = nodeB;
-    const res = await handleWriteModifyRequest(makeRequest("reorder_nodes", ["2:2"], { order: "sendToBack" }));
-    expect(res?.data.results[0].index).toBe(0);
-    expect(parent.children[0]).toBe(nodeB);
-  });
-
-  it("brings forward one step", async () => {
-    const parent = makeParent([]);
-    const nodeA = { id: "1:1", parent };
-    const nodeB = { id: "2:2", parent };
-    const nodeC = { id: "3:3", parent };
-    parent.children = [nodeA, nodeB, nodeC];
-    mockNodes["1:1"] = nodeA;
-    const res = await handleWriteModifyRequest(makeRequest("reorder_nodes", ["1:1"], { order: "bringForward" }));
-    expect(res?.data.results[0].index).toBe(1);
-  });
-
-  it("sends backward one step", async () => {
-    const parent = makeParent([]);
-    const nodeA = { id: "1:1", parent };
-    const nodeB = { id: "2:2", parent };
-    parent.children = [nodeA, nodeB];
-    mockNodes["2:2"] = nodeB;
-    const res = await handleWriteModifyRequest(makeRequest("reorder_nodes", ["2:2"], { order: "sendBackward" }));
-    expect(res?.data.results[0].index).toBe(0);
-  });
-
-  it("throws for invalid order", async () => {
-    mockNodes["1:1"] = { id: "1:1" };
-    await expect(handleWriteModifyRequest(makeRequest("reorder_nodes", ["1:1"], { order: "invalid" }))).rejects.toThrow();
-  });
-
-  it("reports error for missing node", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("reorder_nodes", ["9:9"], { order: "bringToFront" }));
-    expect(res?.data.results[0].error).toBe("Node not found");
-  });
-
-  it("reports error for node without parent", async () => {
-    mockNodes["1:1"] = { id: "1:1", parent: null };
-    const res = await handleWriteModifyRequest(makeRequest("reorder_nodes", ["1:1"], { order: "bringToFront" }));
-    expect(res?.data.results[0].error).toContain("no reorderable parent");
-  });
-});
-
-// ── set_blend_mode ────────────────────────────────────────────────────────────
-
-describe("set_blend_mode", () => {
-  it("sets blend mode on a node", async () => {
-    mockNodes["1:1"] = { id: "1:1", blendMode: "NORMAL" };
-    const res = await handleWriteModifyRequest(makeRequest("set_blend_mode", ["1:1"], { blendMode: "MULTIPLY" }));
-    expect(mockNodes["1:1"].blendMode).toBe("MULTIPLY");
-    expect(res?.data.results[0].blendMode).toBe("MULTIPLY");
-    expect(commitUndoCalled).toBe(true);
-  });
-
-  it("reports error for missing node", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("set_blend_mode", ["9:9"], { blendMode: "MULTIPLY" }));
-    expect(res?.data.results[0].error).toBe("Node not found");
-  });
-
-  it("reports error for node without blend mode support", async () => {
-    mockNodes["1:1"] = { id: "1:1" }; // no blendMode property
-    const res = await handleWriteModifyRequest(makeRequest("set_blend_mode", ["1:1"], { blendMode: "MULTIPLY" }));
-    expect(res?.data.results[0].error).toContain("does not support blend mode");
-  });
-
-  it("handles multiple nodes", async () => {
-    mockNodes["1:1"] = { id: "1:1", blendMode: "NORMAL" };
-    mockNodes["2:2"] = { id: "2:2", blendMode: "NORMAL" };
-    const res = await handleWriteModifyRequest(makeRequest("set_blend_mode", ["1:1", "2:2"], { blendMode: "SCREEN" }));
-    expect(res?.data.results).toHaveLength(2);
-    expect(mockNodes["1:1"].blendMode).toBe("SCREEN");
-    expect(mockNodes["2:2"].blendMode).toBe("SCREEN");
-  });
-});
-
-// ── set_constraints ───────────────────────────────────────────────────────────
-
-describe("set_constraints", () => {
-  it("sets horizontal constraint", async () => {
-    mockNodes["1:1"] = { id: "1:1", constraints: { horizontal: "MIN", vertical: "MIN" } };
-    const res = await handleWriteModifyRequest(makeRequest("set_constraints", ["1:1"], { horizontal: "CENTER" }));
-    expect(mockNodes["1:1"].constraints.horizontal).toBe("CENTER");
-    expect(mockNodes["1:1"].constraints.vertical).toBe("MIN"); // unchanged
-    expect(commitUndoCalled).toBe(true);
-  });
-
-  it("sets vertical constraint", async () => {
-    mockNodes["1:1"] = { id: "1:1", constraints: { horizontal: "MIN", vertical: "MIN" } };
-    await handleWriteModifyRequest(makeRequest("set_constraints", ["1:1"], { vertical: "MAX" }));
-    expect(mockNodes["1:1"].constraints.vertical).toBe("MAX");
-    expect(mockNodes["1:1"].constraints.horizontal).toBe("MIN"); // unchanged
-  });
-
-  it("sets both constraints simultaneously", async () => {
-    mockNodes["1:1"] = { id: "1:1", constraints: { horizontal: "MIN", vertical: "MIN" } };
-    await handleWriteModifyRequest(makeRequest("set_constraints", ["1:1"], { horizontal: "STRETCH", vertical: "STRETCH" }));
-    expect(mockNodes["1:1"].constraints.horizontal).toBe("STRETCH");
-    expect(mockNodes["1:1"].constraints.vertical).toBe("STRETCH");
-  });
-
-  it("reports error for missing node", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("set_constraints", ["9:9"], { horizontal: "CENTER" }));
-    expect(res?.data.results[0].error).toBe("Node not found");
-  });
-
-  it("reports error for node without constraints support", async () => {
-    mockNodes["1:1"] = { id: "1:1" }; // no constraints property
-    const res = await handleWriteModifyRequest(makeRequest("set_constraints", ["1:1"], { horizontal: "CENTER" }));
-    expect(res?.data.results[0].error).toContain("does not support constraints");
-  });
-});
-
-// ── reparent_nodes ────────────────────────────────────────────────────────────
 
 describe("reparent_nodes", () => {
   it("moves a node to a new parent", async () => {
@@ -542,5 +236,221 @@ describe("find_replace_text", () => {
 
   it("throws if replace is missing", async () => {
     await expect(handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "x" }))).rejects.toThrow("replace is required");
+  });
+});
+
+// ── set_node_properties ───────────────────────────────────────────────────────
+//
+// Replaces set_visible, lock_nodes, unlock_nodes, set_opacity, rotate_nodes,
+// reorder_nodes, set_blend_mode and set_constraints. Errors stay per-property:
+// a node may support opacity but not rotation, and collapsing that into a
+// single per-node error would lose detail the eight separate tools had.
+
+describe("set_node_properties", () => {
+  it("applies several properties in one call with a single undo entry", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Frame", visible: true, opacity: 1, rotation: 0 };
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { visible: false, opacity: 0.5, rotation: 45 }),
+    );
+
+    expect(res?.data.results[0].applied).toEqual({ visible: false, opacity: 0.5, rotation: 45 });
+    expect(mockNodes["1:1"].visible).toBe(false);
+    expect(mockNodes["1:1"].opacity).toBe(0.5);
+    expect(mockNodes["1:1"].rotation).toBe(45);
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  it("applies falsy values rather than skipping them", async () => {
+    mockNodes["1:1"] = { id: "1:1", visible: true, locked: true, opacity: 1 };
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { visible: false, locked: false, opacity: 0 }),
+    );
+
+    expect(res?.data.results[0].applied).toEqual({ visible: false, locked: false, opacity: 0 });
+  });
+
+  it("reports unsupported properties per property, still applying the rest", async () => {
+    mockNodes["1:1"] = { id: "1:1", opacity: 1 }; // no rotation support
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { opacity: 0.5, rotation: 90 }),
+    );
+
+    expect(res?.data.results[0].applied).toEqual({ opacity: 0.5 });
+    expect(res?.data.results[0].errors.rotation).toContain("does not support rotation");
+    expect(mockNodes["1:1"].opacity).toBe(0.5);
+  });
+
+  it("reports a missing node once, not per property", async () => {
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["9:9"], { opacity: 0.5, visible: false }),
+    );
+
+    expect(res?.data.results[0].error).toBe("Node not found");
+    expect(res?.data.results[0].applied).toBeUndefined();
+  });
+
+  it("merges constraints with the axes not supplied", async () => {
+    mockNodes["1:1"] = { id: "1:1", constraints: { horizontal: "MIN", vertical: "MIN" } };
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { constraints: { horizontal: "STRETCH" } }),
+    );
+
+    expect(mockNodes["1:1"].constraints).toEqual({ horizontal: "STRETCH", vertical: "MIN" });
+    expect(res?.data.results[0].applied.constraints).toEqual({ horizontal: "STRETCH", vertical: "MIN" });
+  });
+
+  it("reorders within the parent and reports the resulting index", async () => {
+    const child = { id: "1:1" } as any;
+    const parent: any = { id: "0:1", children: [child, { id: "2:2" }, { id: "3:3" }] };
+    parent.insertChild = (index: number, node: any) => {
+      parent.children = parent.children.filter((c: any) => c !== node);
+      parent.children.splice(index, 0, node);
+    };
+    child.parent = parent;
+    mockNodes["1:1"] = child;
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { order: "bringToFront" }),
+    );
+
+    expect(res?.data.results[0].applied.index).toBe(2);
+    expect(parent.children[2]).toBe(child);
+  });
+
+  it("rejects an invalid order value", async () => {
+    mockNodes["1:1"] = { id: "1:1" };
+    await expect(
+      handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { order: "sideways" })),
+    ).rejects.toThrow(/order must be/);
+  });
+
+  it("requires at least one property", async () => {
+    mockNodes["1:1"] = { id: "1:1", opacity: 1 };
+    await expect(
+      handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], {})),
+    ).rejects.toThrow(/at least one property/);
+  });
+
+  it("requires nodeIds", async () => {
+    await expect(
+      handleWriteModifyRequest(makeRequest("set_node_properties", [], { opacity: 0.5 })),
+    ).rejects.toThrow("nodeIds is required");
+  });
+
+  it("handles multiple nodes independently", async () => {
+    mockNodes["1:1"] = { id: "1:1", opacity: 1, rotation: 0 };
+    mockNodes["2:2"] = { id: "2:2", opacity: 1 }; // no rotation
+
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1", "2:2"], { opacity: 0.3, rotation: 10 }),
+    );
+
+    expect(res?.data.results[0].applied).toEqual({ opacity: 0.3, rotation: 10 });
+    expect(res?.data.results[1].applied).toEqual({ opacity: 0.3 });
+    expect(res?.data.results[1].errors.rotation).toContain("does not support rotation");
+  });
+});
+
+describe("set_fills", () => {
+  it("replaces the existing fills", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [{ type: "SOLID" }] };
+    await handleWriteModifyRequest(
+      makeRequest("set_fills", ["1:1"], { color: "#ff0000" }),
+    );
+    expect(mockNodes["1:1"].fills).toHaveLength(1);
+    expect(mockNodes["1:1"].fills[0].color.r).toBeCloseTo(1);
+  });
+
+  it("appends to the existing fills", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [{ type: "SOLID" }] };
+    await handleWriteModifyRequest(
+      makeRequest("set_fills", ["1:1"], { color: "#00ff00", mode: "append" }),
+    );
+    expect(mockNodes["1:1"].fills).toHaveLength(2);
+  });
+
+  // A node whose children disagree reports fills as figma.mixed, a symbol.
+  // Spreading that threw "fills is not iterable"; set_gradient_fills already
+  // guarded against it, set_fills did not.
+  it("appends onto mixed fills instead of throwing", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: Symbol("figma.mixed") };
+    await handleWriteModifyRequest(
+      makeRequest("set_fills", ["1:1"], { color: "#00ff00", mode: "append" }),
+    );
+    expect(mockNodes["1:1"].fills).toHaveLength(1);
+  });
+
+  it("reports a bad color rather than painting NaN", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [] };
+    await expect(
+      handleWriteModifyRequest(makeRequest("set_fills", ["1:1"], { color: "red" })),
+    ).rejects.toThrow(/hex color/i);
+  });
+});
+
+describe("set_strokes", () => {
+  it("appends onto mixed strokes instead of throwing", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", strokes: Symbol("figma.mixed") };
+    await handleWriteModifyRequest(
+      makeRequest("set_strokes", ["1:1"], { color: "#000000", mode: "append" }),
+    );
+    expect(mockNodes["1:1"].strokes).toHaveLength(1);
+  });
+
+  it("accepts shorthand hex", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", strokes: [] };
+    await handleWriteModifyRequest(
+      makeRequest("set_strokes", ["1:1"], { color: "#f00" }),
+    );
+    expect(mockNodes["1:1"].strokes[0].color.r).toBeCloseTo(1);
+  });
+});
+
+// set_paint replaced set_fills, set_gradient_fills and set_strokes on the MCP
+// surface. These check the router reaches each implementation.
+describe("set_paint", () => {
+  const paint = (params: any) =>
+    handleWriteModifyRequest({ type: "set_paint", requestId: "req-1", nodeIds: ["1:1"], params });
+
+  it("routes SOLID to fills by default", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [], strokes: [] };
+    const res = await paint({ type: "SOLID", color: "#ff0000" });
+    expect(mockNodes["1:1"].fills).toHaveLength(1);
+    expect(mockNodes["1:1"].strokes).toHaveLength(0);
+    expect(res.type).toBe("set_paint");
+  });
+
+  it("routes SOLID to strokes and carries strokeWeight", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [], strokes: [] };
+    await paint({ type: "SOLID", target: "stroke", color: "#000000", strokeWeight: 3 });
+    expect(mockNodes["1:1"].strokes).toHaveLength(1);
+    expect(mockNodes["1:1"].strokeWeight).toBe(3);
+    expect(mockNodes["1:1"].fills).toHaveLength(0);
+  });
+
+  it("routes a gradient and passes the kind through", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [] };
+    await paint({
+      type: "GRADIENT_LINEAR",
+      stops: [{ position: 0, color: "#ff0000" }, { position: 1, color: "#00ff00" }],
+      geometry: { start: { percentX: 0, percentY: 0 }, end: { percentX: 100, percentY: 0 } },
+    });
+    expect(mockNodes["1:1"].fills[0].type).toBe("GRADIENT_LINEAR");
+  });
+
+  it("refuses a gradient on a stroke", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [], strokes: [] };
+    await expect(
+      paint({ type: "GRADIENT_LINEAR", target: "stroke", stops: [], geometry: {} }),
+    ).rejects.toThrow(/gradients can only target fill/);
+  });
+
+  it("reports an unknown kind rather than silently doing nothing", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [] };
+    await expect(paint({ type: "IMAGE", color: "#ff0000" })).rejects.toThrow(/SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL/);
   });
 });

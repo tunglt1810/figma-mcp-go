@@ -106,4 +106,3 @@ func (e *Election) tick(ctx context.Context) error {
 func itoa(n int) string {
 	return fmt.Sprintf("%d", n)
 }
-

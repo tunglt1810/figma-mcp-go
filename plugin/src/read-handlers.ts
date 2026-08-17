@@ -1,8 +1,15 @@
-import { handleReadDocumentRequest } from "./read-document";
-import { handleReadStyleRequest } from "./read-styles";
-import { handleReadExportRequest } from "./read-export";
+import { HandlerMap, mergeHandlers } from "./dispatch";
+import { readDocumentHandlers } from "./read-document";
+import { readStylesHandlers } from "./read-styles";
+import { readExportHandlers } from "./read-export";
 
-export const handleReadRequest = async (request: any) =>
-  (await handleReadDocumentRequest(request)) ??
-  (await handleReadStyleRequest(request)) ??
-  (await handleReadExportRequest(request));
+export const readHandlers: HandlerMap = mergeHandlers(
+  readDocumentHandlers,
+  readStylesHandlers,
+  readExportHandlers,
+);
+
+export const handleReadRequest = async (request: any): Promise<any> => {
+  const handler = readHandlers[request.type];
+  return handler ? handler(request) : null;
+};

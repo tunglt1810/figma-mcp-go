@@ -23,9 +23,23 @@ jobs:
         id: version
         run: echo "value=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      - name: Build binaries
+      # The binary embeds server.json and the plugin build reads
+      # npm/package.json, so both are baked in before the tag is ever
+      # consulted. Fail loudly rather than ship a release whose parts
+      # disagree about which version they are.
+      - name: Check committed versions match the tag
         env:
           VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          for f in server.json npm/package.json; do
+            got=$(jq -r .version "$f")
+            if [ "$got" != "$VERSION" ]; then
+              echo "::error::$f says $got, tag says $VERSION — bump it and re-tag"
+              exit 1
+            fi
+          done
+
+      - name: Build binaries
         run: |
           for GOOS in darwin linux windows; do
             for GOARCH in amd64 arm64; do
@@ -36,7 +50,6 @@ jobs:
               mkdir -p "$OUTDIR"
 
               GOOS=$GOOS GOARCH=$GOARCH go build \
-                -ldflags "-X main.version=$VERSION" \
                 -o "$OUTDIR/$BIN" \
                 ./cmd/figma-mcp-go
 

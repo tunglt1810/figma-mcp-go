@@ -84,10 +84,10 @@ type saveResult struct {
 	Error        string  `json:"error,omitempty"`
 }
 
-func executeSaveScreenshots(ctx context.Context, node *Node, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	rawItems, _ := req.GetArguments()["items"].([]interface{})
-	defaultFormat, _ := req.GetArguments()["format"].(string)
-	defaultScale, _ := req.GetArguments()["scale"].(float64)
+func executeSaveScreenshots(ctx context.Context, node *Node, params map[string]interface{}) (*mcp.CallToolResult, error) {
+	rawItems, _ := params["items"].([]interface{})
+	defaultFormat, _ := params["format"].(string)
+	defaultScale, _ := params["scale"].(float64)
 
 	workDir, err := os.Getwd()
 	if err != nil {
@@ -220,16 +220,13 @@ func writeBase64(b64, outputPath string) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
 		return 0, fmt.Errorf("mkdir: %w", err)
 	}
-	f, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil {
-		if os.IsExist(err) {
-			return 0, fmt.Errorf("file already exists at outputPath: %s", outputPath)
-		}
+	// Overwrite: re-capturing a node to the same path is the normal loop, and
+	// refusing meant the user had to delete the file by hand between captures.
+	// resolveOutputPath has already confined the path to the working directory.
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
 		return 0, err
 	}
-	defer f.Close()
-	n, err := f.Write(data)
-	return n, err
+	return len(data), nil
 }
 
 func resolveOutputPath(outputPath, workDir string) (string, error) {

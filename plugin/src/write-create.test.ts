@@ -5,6 +5,11 @@ import { handleWriteCreateRequest } from "./write-create";
 
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
+let createdNodes: any[];
+
+const track = (node: any) => { createdNodes.push(node); return node; };
+const lastCreated = (type: string) =>
+  [...createdNodes].reverse().find(n => n.type === type);
 let createdComponents: any[];
 
 const makeRequest = (type: string, nodeIds?: string[], params?: any) => ({
@@ -19,6 +24,7 @@ let mockCurrentPage: any;
 beforeEach(() => {
   commitUndoCalled = false;
   createdComponents = [];
+  createdNodes = [];
   mockNodes = {};
   mockCurrentPage = { id: "0:1", name: "Page 1", appendChild: () => {} };
   (globalThis as any).figma = {
@@ -38,10 +44,13 @@ beforeEach(() => {
       createdComponents.push(comp);
       return comp;
     },
-    createStar: () => ({ id: "star:new", type: "STAR", name: "Star", resize(w: number, h: number) { this.width = w; this.height = h; } }),
-    createPolygon: () => ({ id: "poly:new", type: "POLYGON", name: "Polygon", resize(w: number, h: number) { this.width = w; this.height = h; } }),
-    createLine: () => ({ id: "line:new", type: "LINE", name: "Line", resize(w: number, h: number) { this.width = w; this.height = h; } }),
-    createEllipse: () => ({ id: "ellipse:new", type: "ELLIPSE", name: "Ellipse", resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createFrame: () => track({ id: "frame:new", type: "FRAME", name: "Frame", layoutMode: "NONE", resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createRectangle: () => track({ id: "rect:new", type: "RECTANGLE", name: "Rectangle", resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createSection: () => track({ id: "section:new", type: "SECTION", name: "Section", resizeWithoutConstraints(w: number, h: number) { this.width = w; this.height = h; }, resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createStar: () => track({ id: "star:new", type: "STAR", name: "Star", resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createPolygon: () => track({ id: "poly:new", type: "POLYGON", name: "Polygon", resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createLine: () => track({ id: "line:new", type: "LINE", name: "Line", resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createEllipse: () => track({ id: "ellipse:new", type: "ELLIPSE", name: "Ellipse", resize(w: number, h: number) { this.width = w; this.height = h; } }),
     commitUndo: () => { commitUndoCalled = true; },
     mixed: Symbol("mixed"),
   };
@@ -337,5 +346,66 @@ describe("create_ellipse", () => {
     }));
     expect(appendedChild.type).toBe("ELLIPSE");
     expect(appendedChild.arcData).toEqual(arcData);
+  });
+});
+
+// startAngle/endAngle/innerRadiusRatio were declared by the tool but the
+// handler only read arcData, so every arc and ring came out a plain ellipse.
+describe("create_ellipse arcs", () => {
+  it("builds arcData from the angle arguments", async () => {
+    const res = await handleWriteCreateRequest(makeRequest("create_ellipse", [], {
+      startAngle: 0, endAngle: 3.14, innerRadiusRatio: 0.5,
+    }));
+    const ellipse = lastCreated("ELLIPSE");
+    expect(ellipse.arcData).toEqual({ startingAngle: 0, endingAngle: 3.14, innerRadius: 0.5 });
+    expect(res?.data.id).toBeDefined();
+  });
+
+  it("defaults the end angle to a full turn when only the inner radius is given", async () => {
+    await handleWriteCreateRequest(makeRequest("create_ellipse", [], { innerRadiusRatio: 0.6 }));
+    const ellipse = lastCreated("ELLIPSE");
+    expect(ellipse.arcData.endingAngle).toBeCloseTo(Math.PI * 2);
+    expect(ellipse.arcData.innerRadius).toBe(0.6);
+  });
+
+  it("leaves arcData alone for a plain ellipse", async () => {
+    await handleWriteCreateRequest(makeRequest("create_ellipse", [], { width: 50, height: 50 }));
+    expect(lastCreated("ELLIPSE").arcData).toBeUndefined();
+  });
+});
+
+// create_node replaced seven create_* tools on the MCP surface. These check the
+// router reaches each of the seven implementations.
+describe("create_node", () => {
+  const create = (params: any) =>
+    handleWriteCreateRequest({ type: "create_node", requestId: "req-1", nodeIds: [], params });
+
+  it.each([
+    ["FRAME", "FRAME"],
+    ["RECTANGLE", "RECTANGLE"],
+    ["ELLIPSE", "ELLIPSE"],
+    ["STAR", "STAR"],
+    ["POLYGON", "POLYGON"],
+    ["LINE", "LINE"],
+    ["SECTION", "SECTION"],
+  ])("routes %s to its implementation", async (type, nodeType) => {
+    const res = await create({ type, name: `A ${type}` });
+    expect(res.data.type).toBe(nodeType);
+    // The response names the tool the caller actually called.
+    expect(res.type).toBe("create_node");
+  });
+
+  it("carries the shape's own arguments through", async () => {
+    await create({ type: "STAR", pointCount: 7, outerRadius: 60 });
+    expect(lastCreated("STAR").pointCount).toBe(7);
+  });
+
+  it("carries the arc arguments through to an ellipse", async () => {
+    await create({ type: "ELLIPSE", innerRadiusRatio: 0.4 });
+    expect(lastCreated("ELLIPSE").arcData.innerRadius).toBe(0.4);
+  });
+
+  it("reports an unknown shape rather than silently doing nothing", async () => {
+    await expect(create({ type: "TRIANGLE" })).rejects.toThrow(/FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION/);
   });
 });

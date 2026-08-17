@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"testing"
 )
 
@@ -102,13 +103,106 @@ func TestToolSchemas_ArrayItemsHaveType(t *testing.T) {
 	}
 }
 
-// TestToolSchemas_AllToolsRegistered asserts the expected tool count so that
-// accidentally dropped registrations are caught.
-func TestToolSchemas_AllToolsRegistered(t *testing.T) {
+// expectedTools is the exact set of tools the server advertises, sorted.
+// Changing the tool surface is a breaking change for every MCP client, so it
+// must be a deliberate edit here rather than a silently drifting count.
+var expectedTools = []string{
+	"add_variable_mode",
+	"apply_style_to_node",
+	"batch_execute_pipeline",
+	"batch_rename_nodes",
+	"bind_variable_to_node",
+	"clear_annotations",
+	"clone_node",
+	"create_component",
+	"create_component_instance",
+	"create_connector",
+	"create_node",
+	"create_style",
+	"create_text",
+	"create_variable",
+	"create_variable_collection",
+	"delete_nodes",
+	"delete_style",
+	"delete_variable",
+	"detach_instance",
+	"export_frames_to_pdf",
+	"export_tokens",
+	"find_replace_text",
+	"get_annotations",
+	"get_design_context",
+	"get_document",
+	"get_fonts",
+	"get_instance_overrides",
+	"get_local_components",
+	"get_metadata",
+	"get_node",
+	"get_nodes_info",
+	"get_pages",
+	"get_reactions",
+	"get_screenshot",
+	"get_selection",
+	"get_styles",
+	"get_variable_defs",
+	"get_viewport",
+	"group_nodes",
+	"import_image",
+	"manage_page",
+	"move_nodes",
+	"remove_reactions",
+	"rename_node",
+	"reparent_nodes",
+	"resize_nodes",
+	"save_screenshots",
+	"scan_nodes_by_types",
+	"scan_text_nodes",
+	"search_nodes",
+	"set_annotations",
+	"set_node_properties",
+	"set_paint",
+	"set_auto_layout",
+	"set_corner_radius",
+	"set_effects",
+	"set_instance_overrides",
+	"set_reactions",
+	"set_text",
+	"set_variable_value",
+	"swap_component",
+	"ungroup_nodes",
+	"update_paint_style",
+}
+
+// TestToolSchemas_ExpectedToolSet pins the advertised tool names. A count alone
+// hides a rename or a swap; comparing names reports exactly what moved.
+func TestToolSchemas_ExpectedToolSet(t *testing.T) {
 	resp := listTools(t)
-	const want = 84
-	got := len(resp.Result.Tools)
-	if got != want {
-		t.Errorf("expected %d registered tools, got %d — update the constant if tools were intentionally added or removed", want, got)
+
+	got := make([]string, 0, len(resp.Result.Tools))
+	for _, tool := range resp.Result.Tools {
+		got = append(got, tool.Name)
+	}
+	sort.Strings(got)
+
+	want := make(map[string]bool, len(expectedTools))
+	for _, name := range expectedTools {
+		want[name] = true
+	}
+	have := make(map[string]bool, len(got))
+	for _, name := range got {
+		have[name] = true
+	}
+
+	for _, name := range expectedTools {
+		if !have[name] {
+			t.Errorf("tool %q is expected but not registered", name)
+		}
+	}
+	for _, name := range got {
+		if !want[name] {
+			t.Errorf("tool %q is registered but not in expectedTools — add it there if intended", name)
+		}
+	}
+	if len(got) != len(expectedTools) {
+		t.Errorf("registered %d tools, expected %d", len(got), len(expectedTools))
 	}
 }

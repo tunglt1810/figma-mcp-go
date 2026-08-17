@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -339,18 +340,18 @@ func TestHandlers_NodeControlTools(t *testing.T) {
 func TestHandlers_PageManagementTools(t *testing.T) {
 	s, _ := newTestServer(t)
 
-	// add_page
-	callTool(t, s, "add_page", map[string]any{"name": "Flows"})
-	callTool(t, s, "add_page", map[string]any{}) // minimal
-	callTool(t, s, "add_page", map[string]any{"name": "Sprint 1", "index": float64(0)})
+	callTool(t, s, "manage_page", map[string]any{"action": "add", "name": "Flows"})
+	callTool(t, s, "manage_page", map[string]any{"action": "add"}) // minimal
+	callTool(t, s, "manage_page", map[string]any{"action": "add", "name": "Sprint 1", "index": float64(0)})
 
-	// delete_page
-	callTool(t, s, "delete_page", map[string]any{"pageId": "0:2"})
-	callTool(t, s, "delete_page", map[string]any{"pageName": "Flows"})
+	callTool(t, s, "manage_page", map[string]any{"action": "delete", "pageId": "0:2"})
+	callTool(t, s, "manage_page", map[string]any{"action": "delete", "pageName": "Flows"})
 
-	// rename_page
-	callTool(t, s, "rename_page", map[string]any{"pageId": "0:2", "newName": "Sprint 1"})
-	callTool(t, s, "rename_page", map[string]any{"pageName": "Flows", "newName": "User Flows"})
+	callTool(t, s, "manage_page", map[string]any{"action": "rename", "pageId": "0:2", "newName": "Sprint 1"})
+	callTool(t, s, "manage_page", map[string]any{"action": "rename", "pageName": "Flows", "newName": "User Flows"})
+
+	callTool(t, s, "manage_page", map[string]any{"action": "navigate", "pageId": "0:2"})
+	callTool(t, s, "manage_page", map[string]any{"action": "navigate", "pageName": "Flows"})
 }
 
 func TestHandlers_ReparentBatchRenameTextReplaceEffectsSection(t *testing.T) {
@@ -399,4 +400,41 @@ func TestHandlers_ReparentBatchRenameTextReplaceEffectsSection(t *testing.T) {
 	callTool(t, s, "create_section", map[string]any{"name": "Sprint 1", "x": float64(0), "y": float64(0)})
 	callTool(t, s, "create_section", map[string]any{}) // minimal
 	callTool(t, s, "create_section", map[string]any{"width": float64(1200), "height": float64(900)})
+}
+
+// TestToolCall_InvalidArgsRejected proves validation is reachable from the MCP
+// entry point, not just from Node.Send. Before validation moved into Node.Send
+// a leader process forwarded these straight to Figma.
+func TestToolCall_InvalidArgsRejected(t *testing.T) {
+	s, _ := newTestServer(t)
+
+	cases := []struct {
+		tool    string
+		args    map[string]any
+		wantMsg string
+	}{
+		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "opacity": 5.0}, "opacity must be at most 1"},
+		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "blendMode": "NEON"}, "blendMode must be one of"},
+		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "order": "sideways"}, "order must be"},
+		{"resize_nodes", map[string]any{"nodeIds": []any{"nope"}, "width": 10.0}, "colon format"},
+		{"search_nodes", map[string]any{"query": ""}, "query is required"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.tool+"/"+c.wantMsg, func(t *testing.T) {
+			argsJSON, _ := json.Marshal(c.args)
+			msg := fmt.Sprintf(
+				`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":%q,"arguments":%s}}`,
+				c.tool, argsJSON,
+			)
+			raw := s.HandleMessage(context.Background(), []byte(msg))
+			b, err := json.Marshal(raw)
+			if err != nil {
+				t.Fatalf("marshal response: %v", err)
+			}
+			if !strings.Contains(string(b), c.wantMsg) {
+				t.Errorf("response for %s did not carry the validation error %q:\n%s", c.tool, c.wantMsg, b)
+			}
+		})
+	}
 }
