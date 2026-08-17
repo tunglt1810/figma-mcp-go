@@ -12,10 +12,9 @@
 | **G2** — P1-5, P1-6, P1-7 | Validation vào `Node.Send`; một bảng timeout cho bridge/follower/progress; validate hex color ở cả Go và plugin |
 | **G3** — P2-8 → P2-16 | `gofmt`/`go vet` vào CI; mixed fills/strokes; `$variable` chỉ khớp identifier; normalize node ID trong cả cây params; ghi đè được file export; check Origin của WebSocket; xoá `BatchPipeline*` dead code |
 | **G4** | Thu gọn tool Tier 1: 8 tool node-property gộp thành `set_node_properties` (breaking, cần cài lại plugin) |
-| **G6** | Bảng tool declarative — cả 77 tool khai báo trong `toolSpec`; `ValidateRPC` chỉ còn tra bảng. P1-4 (`steps` sai kiểu) hết theo |
-
+| **G5** | Thu gọn tool Tier 2: shape 7→1, paint 3→1, style 4→1, page 4→1. 77 → 63 tool |
+| **G6** | Bảng tool declarative — mọi tool khai báo trong `toolSpec`; `ValidateRPC` chỉ còn tra bảng. P1-4 (`steps` sai kiểu) hết theo |
 | **G8** — B4 | Bridge ping mỗi 20s, drop connection không pong |
-| **G5** | Thu gọn tool Tier 2: 4 nhóm gộp lại (shape 7→1, paint 3→1, style 4→1, page 4→1). 77 → 63 tool |
 
 Không còn bug nào trong danh sách này để mở.
 
