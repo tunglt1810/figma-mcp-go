@@ -125,6 +125,23 @@ func TestToolWireShape(t *testing.T) {
 			wantParams:  map[string]interface{}{"indices": []interface{}{}},
 		},
 		{
+			// Empty clears every effect on the node, so the array has to be
+			// forwarded rather than treated as an absent argument.
+			name:        "empty effects clears them",
+			tool:        "set_effects",
+			args:        map[string]any{"nodeId": "1:1", "effects": []any{}},
+			wantNodeIDs: []string{"1:1"},
+			wantParams:  map[string]interface{}{"effects": []interface{}{}},
+		},
+		{
+			// This tool takes no node ids at all; both ends live in params.
+			name:        "connector endpoints stay in params",
+			tool:        "create_connector",
+			args:        map[string]any{"startNodeId": "1:1", "endNodeId": "2:2"},
+			wantNodeIDs: nil,
+			wantParams:  map[string]interface{}{"startNodeId": "1:1", "endNodeId": "2:2"},
+		},
+		{
 			name:        "false is a value, not an omission",
 			tool:        "set_node_properties",
 			args:        map[string]any{"nodeIds": []any{"1:1"}, "visible": false},

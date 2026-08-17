@@ -348,10 +348,12 @@ func specGroups() [][]toolSpec {
 	return [][]toolSpec{
 		readDocumentSpecs,
 		readStyleSpecs,
+		writeComponentSpecs,
 		writeCreateSpecs,
 		writeModifySpecs,
 		writePageSpecs,
 		writePrototypeSpecs,
+		writeStyleSpecs,
 		writeVariableSpecs,
 	}
 }
