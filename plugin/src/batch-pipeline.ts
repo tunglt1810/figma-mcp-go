@@ -104,9 +104,19 @@ export async function restoreNodeProperties(
   }
 }
 
+// A variable reference is the whole string and looks like an identifier.
+// Treating every $-prefixed string as one meant "$100" aborted the pipeline
+// with "Undefined pipeline variable: $100".
+const VARIABLE_REFERENCE = /^\$[A-Za-z_][A-Za-z0-9_]*$/;
+
 export function resolveParams(params: any, symbolTable: SymbolTable): any {
   if (typeof params === 'string') {
-    if (params.startsWith('$')) {
+    // $$ escapes a literal $, for the rare string that really does start with
+    // one and would otherwise read as a reference.
+    if (params.startsWith('$$')) {
+      return params.slice(1);
+    }
+    if (VARIABLE_REFERENCE.test(params)) {
       if (!symbolTable.has(params)) {
         throw new Error(`Undefined pipeline variable: ${params}`);
       }

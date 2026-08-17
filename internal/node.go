@@ -30,7 +30,13 @@ type Node struct {
 
 // nodeIDParams are the parameter names that carry a Figma node ID and so need
 // the same hyphen→colon normalization as the nodeIDs slice.
-var nodeIDParams = []string{"nodeId", "parentId", "pageId", "componentId", "startNodeId", "endNodeId"}
+// nodeIDParams name the arguments that carry a single node ID. They are
+// matched at any depth: a pipeline step nests a whole parameter set of its own
+// under steps[].params, and a reaction nests a destination below that again.
+var nodeIDParams = map[string]bool{
+	"nodeId": true, "parentId": true, "pageId": true, "componentId": true,
+	"startNodeId": true, "endNodeId": true, "destinationId": true,
+}
 
 // normalizeArgs returns copies of the arguments with node IDs normalized.
 // Copies, not in-place edits: the caller's slice and map belong to the caller.
@@ -45,18 +51,61 @@ func normalizeArgs(nodeIDs []string, params map[string]interface{}) ([]string, m
 
 	var p map[string]interface{}
 	if params != nil {
-		p = make(map[string]interface{}, len(params))
-		for k, v := range params {
-			p[k] = v
-		}
-		for _, key := range nodeIDParams {
-			if s, ok := p[key].(string); ok {
-				p[key] = NormalizeNodeID(s)
-			}
-		}
+		p, _ = normalizeValue(params).(map[string]interface{})
 	}
 
 	return ids, p
+}
+
+// normalizeValue rebuilds v with every node ID it can find normalized. Maps and
+// slices are rebuilt rather than edited, so nothing the caller passed in
+// changes underfoot.
+func normalizeValue(v interface{}) interface{} {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(t))
+		for k, val := range t {
+			switch {
+			case nodeIDParams[k]:
+				if s, ok := val.(string); ok {
+					out[k] = NormalizeNodeID(s)
+					continue
+				}
+				out[k] = normalizeValue(val)
+			case k == "nodeIds":
+				out[k] = normalizeIDList(val)
+			default:
+				out[k] = normalizeValue(val)
+			}
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(t))
+		for i, item := range t {
+			out[i] = normalizeValue(item)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+// normalizeIDList handles a "nodeIds" value, which is a list of ids rather than
+// a nested structure.
+func normalizeIDList(v interface{}) interface{} {
+	list, ok := v.([]interface{})
+	if !ok {
+		return normalizeValue(v)
+	}
+	out := make([]interface{}, len(list))
+	for i, item := range list {
+		if s, ok := item.(string); ok {
+			out[i] = NormalizeNodeID(s)
+			continue
+		}
+		out[i] = normalizeValue(item)
+	}
+	return out
 }
 
 // NewNode creates a Node in the Unknown role.

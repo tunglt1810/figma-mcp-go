@@ -309,3 +309,68 @@ func TestNodeSend_DoesNotMutateCallerArgs(t *testing.T) {
 		t.Errorf("caller map was mutated: %v", params)
 	}
 }
+
+// A pipeline step carries a whole parameter set of its own, one level below
+// anything the top-level pass reached — so hyphen IDs inside a pipeline went
+// to the plugin unconverted and the step failed to find its node.
+func TestNodeSend_NormalizesIDsInsidePipelineSteps(t *testing.T) {
+	fake := &fakeSender{}
+	n := newNodeWithSender(fake)
+
+	steps := []interface{}{
+		map[string]interface{}{
+			"action": "clone_node",
+			"params": map[string]interface{}{
+				"nodeId":   "100-200",
+				"parentId": "300-400",
+			},
+		},
+		map[string]interface{}{
+			"action": "delete_nodes",
+			"params": map[string]interface{}{
+				"nodeIds": []interface{}{"1-1", "2-2"},
+			},
+		},
+	}
+	if _, err := n.Send(context.Background(), "batch_execute_pipeline", nil, map[string]interface{}{"steps": steps}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(fake.calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(fake.calls))
+	}
+
+	sent, _ := fake.calls[0].params["steps"].([]interface{})
+	if len(sent) != 2 {
+		t.Fatalf("expected 2 steps, got %d", len(sent))
+	}
+
+	first, _ := sent[0].(map[string]interface{})["params"].(map[string]interface{})
+	if first["nodeId"] != "100:200" {
+		t.Errorf("steps[0].params.nodeId = %v, want 100:200", first["nodeId"])
+	}
+	if first["parentId"] != "300:400" {
+		t.Errorf("steps[0].params.parentId = %v, want 300:400", first["parentId"])
+	}
+
+	second, _ := sent[1].(map[string]interface{})["params"].(map[string]interface{})
+	ids, _ := second["nodeIds"].([]interface{})
+	if len(ids) != 2 || ids[0] != "1:1" || ids[1] != "2:2" {
+		t.Errorf("steps[1].params.nodeIds = %v, want [1:1 2:2]", ids)
+	}
+}
+
+// Normalizing must still copy rather than edit: the nested maps belong to the
+// caller too.
+func TestNodeSend_DoesNotMutateNestedCallerArgs(t *testing.T) {
+	fake := &fakeSender{}
+	n := newNodeWithSender(fake)
+
+	inner := map[string]interface{}{"nodeId": "100-200"}
+	steps := []interface{}{map[string]interface{}{"action": "clone_node", "params": inner}}
+	if _, err := n.Send(context.Background(), "batch_execute_pipeline", nil, map[string]interface{}{"steps": steps}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if inner["nodeId"] != "100-200" {
+		t.Errorf("caller's nested map was mutated: nodeId = %v", inner["nodeId"])
+	}
+}

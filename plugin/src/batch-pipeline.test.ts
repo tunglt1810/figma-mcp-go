@@ -23,6 +23,27 @@ describe('SymbolTable & resolveParams', () => {
     const params = { parent_id: '$missing_var' };
     expect(() => resolveParams(params, table)).toThrow('Undefined pipeline variable: $missing_var');
   });
+
+  // Any string starting with $ used to be treated as a variable reference, so
+  // a price, a CSS variable or a shell-looking string aborted the pipeline.
+  it.each(['$100', '$1,299.00', '$', '$ 50', '$--brand-color', '$3.50/mo'])(
+    'leaves %o alone — it is not a variable name',
+    (text) => {
+      const table: SymbolTable = new Map();
+      expect(resolveParams({ text }, table).text).toBe(text);
+    },
+  );
+
+  it('still resolves real variable names', () => {
+    const table: SymbolTable = new Map();
+    table.set('$header_id', '1:2');
+    expect(resolveParams({ id: '$header_id' }, table).id).toBe('1:2');
+  });
+
+  it('unescapes $$ to a literal $', () => {
+    const table: SymbolTable = new Map();
+    expect(resolveParams({ text: '$$header_id' }, table).text).toBe('$header_id');
+  });
 });
 
 describe('WAL Rollback', () => {
