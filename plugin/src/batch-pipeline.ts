@@ -29,6 +29,19 @@ export const CREATE_ACTIONS = new Set([
   'add_page',
 ]);
 
+/**
+ * Whether a step brought a new node into the document, and may therefore be
+ * rolled back by removal. manage_page merged four page tools behind an `action`
+ * argument, so the step's name alone no longer answers this: only `add` creates
+ * a page, and treating the others as creates would remove a page the user had.
+ */
+export function isCreateStep(action: string, params: any): boolean {
+  if (action === 'manage_page') {
+    return params?.action === 'add';
+  }
+  return CREATE_ACTIONS.has(action);
+}
+
 // Properties captured before a mutating step so rollback can put them back.
 // Deliberately limited to plain, directly assignable node properties.
 const SNAPSHOT_PROPS = [
@@ -207,7 +220,7 @@ export async function executeBatchPipeline(
     const step = req.steps[i];
     try {
       const resolvedParams = resolveParams(step.params || {}, symbolTable);
-      const isCreate = CREATE_ACTIONS.has(step.action);
+      const isCreate = isCreateStep(step.action, resolvedParams);
 
       // Snapshot before mutating so rollback can restore. Failing to snapshot
       // must not abort the step — it only means this node has no undo record.

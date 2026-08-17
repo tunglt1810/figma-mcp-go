@@ -4,15 +4,6 @@ import "github.com/mark3labs/mcp-go/server"
 
 var writeComponentSpecs = []toolSpec{
 	{
-		Name: "navigate_to_page",
-		Desc: "Switch the active Figma page. Provide either pageId or pageName.",
-		Params: []paramSpec{
-			{Name: "pageId", Kind: kindString, Desc: "Page node ID in colon format e.g. '0:1'"},
-			{Name: "pageName", Kind: kindString, Desc: "Exact page name to navigate to"},
-		},
-		Validate: requirePageTarget,
-	},
-	{
 		Name:       "group_nodes",
 		Desc:       "Group two or more nodes into a GROUP. All nodes must share the same parent.",
 		NodeIDs:    nodeIDsMulti,

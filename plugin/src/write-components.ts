@@ -53,28 +53,6 @@ export const handleWriteComponentRequest = async (request: any) => {
       return { type: request.type, requestId: request.requestId, data: { results } };
     }
 
-    case "navigate_to_page": {
-      const p = request.params || {};
-      let page: PageNode | undefined;
-      if (p.pageId) {
-        const found = await figma.getNodeByIdAsync(p.pageId);
-        if (!found) throw new Error(`Page not found: ${p.pageId}`);
-        if (found.type !== "PAGE") throw new Error(`Node ${p.pageId} is not a PAGE`);
-        page = found as PageNode;
-      } else if (p.pageName) {
-        page = figma.root.children.find(pg => pg.name === p.pageName) as PageNode | undefined;
-        if (!page) throw new Error(`Page not found with name: ${p.pageName}`);
-      } else {
-        throw new Error("pageId or pageName is required");
-      }
-      await figma.setCurrentPageAsync(page);
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: page.id, name: page.name },
-      };
-    }
-
     case "group_nodes": {
       const p = request.params || {};
       const nodeIds = request.nodeIds || [];

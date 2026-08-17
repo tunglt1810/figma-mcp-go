@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { executeRollback, resolveParams, SymbolTable, WALStack } from './batch-pipeline';
+import { executeRollback, isCreateStep, resolveParams, SymbolTable, WALStack } from './batch-pipeline';
 import { handleWriteRequest } from './write-handlers';
 
 describe('SymbolTable & resolveParams', () => {
@@ -407,5 +407,23 @@ describe('batch pipeline → real write handlers', () => {
     expect(res.data.success).toBe(false);
     expect(removed).toBe(false);
     expect(page.name).toBe('Home'); // rolled back to the original name
+  });
+});
+
+// manage_page merged four page tools, so whether a step created something is no
+// longer decided by the action name alone. Getting this wrong either leaks a
+// page the pipeline created or, far worse, removes one the user already had.
+describe('isCreateStep', () => {
+  it('treats manage_page add as a create', () => {
+    expect(isCreateStep('manage_page', { action: 'add', name: 'Specs' })).toBe(true);
+  });
+
+  it.each(['delete', 'rename', 'navigate'])('does not treat manage_page %s as a create', (action) => {
+    expect(isCreateStep('manage_page', { action, pageId: '0:2' })).toBe(false);
+  });
+
+  it('still recognises the plain create actions', () => {
+    expect(isCreateStep('create_frame', {})).toBe(true);
+    expect(isCreateStep('rename_node', { nodeId: '1:1' })).toBe(false);
   });
 });

@@ -107,7 +107,6 @@ func TestToolSchemas_ArrayItemsHaveType(t *testing.T) {
 // Changing the tool surface is a breaking change for every MCP client, so it
 // must be a deliberate edit here rather than a silently drifting count.
 var expectedTools = []string{
-	"add_page",
 	"add_variable_mode",
 	"apply_style_to_node",
 	"batch_execute_pipeline",
@@ -130,7 +129,6 @@ var expectedTools = []string{
 	"create_variable",
 	"create_variable_collection",
 	"delete_nodes",
-	"delete_page",
 	"delete_style",
 	"delete_variable",
 	"detach_instance",
@@ -155,11 +153,10 @@ var expectedTools = []string{
 	"get_viewport",
 	"group_nodes",
 	"import_image",
+	"manage_page",
 	"move_nodes",
-	"navigate_to_page",
 	"remove_reactions",
 	"rename_node",
-	"rename_page",
 	"reparent_nodes",
 	"resize_nodes",
 	"save_screenshots",

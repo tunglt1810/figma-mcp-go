@@ -1,28 +1,4 @@
 {
-  "add_page": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Add a new page to the Figma document.",
-    "inputSchema": {
-      "properties": {
-        "index": {
-          "description": "Position index to insert the page (0 = first). Defaults to last position.",
-          "type": "number"
-        },
-        "name": {
-          "description": "Name for the new page (default 'Page')",
-          "type": "string"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "add_page"
-  },
   "add_variable_mode": {
     "annotations": {
       "readOnlyHint": false,
@@ -995,30 +971,6 @@
     },
     "name": "delete_nodes"
   },
-  "delete_page": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Delete a page from the Figma document. Cannot delete the only remaining page.",
-    "inputSchema": {
-      "properties": {
-        "pageId": {
-          "description": "Page node ID in colon format e.g. '0:2'",
-          "type": "string"
-        },
-        "pageName": {
-          "description": "Exact page name to delete (alternative to pageId)",
-          "type": "string"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "delete_page"
-  },
   "delete_style": {
     "annotations": {
       "readOnlyHint": false,
@@ -1563,6 +1515,48 @@
     },
     "name": "import_image"
   },
+  "manage_page": {
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true
+    },
+    "description": "Add, delete, rename, or navigate to a page. `action` selects which, and each takes its own arguments — add: name, index. delete: pageId or pageName. rename: pageId or pageName, plus newName. navigate: pageId or pageName. An argument belonging to a different action is rejected rather than ignored. Use get_pages to list page IDs and names.",
+    "inputSchema": {
+      "properties": {
+        "action": {
+          "description": "What to do: add, delete, rename, or navigate",
+          "type": "string"
+        },
+        "index": {
+          "description": "add: position to insert at (0 = first). Defaults to last.",
+          "type": "number"
+        },
+        "name": {
+          "description": "add: name for the new page (default 'Page')",
+          "type": "string"
+        },
+        "newName": {
+          "description": "rename: the page's new name",
+          "type": "string"
+        },
+        "pageId": {
+          "description": "Page node ID in colon format e.g. '0:2' (delete, rename, navigate)",
+          "type": "string"
+        },
+        "pageName": {
+          "description": "Exact page name, an alternative to pageId (delete, rename, navigate)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    "name": "manage_page"
+  },
   "move_nodes": {
     "annotations": {
       "readOnlyHint": false,
@@ -1595,30 +1589,6 @@
       "type": "object"
     },
     "name": "move_nodes"
-  },
-  "navigate_to_page": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Switch the active Figma page. Provide either pageId or pageName.",
-    "inputSchema": {
-      "properties": {
-        "pageId": {
-          "description": "Page node ID in colon format e.g. '0:1'",
-          "type": "string"
-        },
-        "pageName": {
-          "description": "Exact page name to navigate to",
-          "type": "string"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "navigate_to_page"
   },
   "remove_reactions": {
     "annotations": {
@@ -1675,36 +1645,6 @@
       "type": "object"
     },
     "name": "rename_node"
-  },
-  "rename_page": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Rename an existing page in the Figma document.",
-    "inputSchema": {
-      "properties": {
-        "newName": {
-          "description": "New name for the page",
-          "type": "string"
-        },
-        "pageId": {
-          "description": "Page node ID in colon format e.g. '0:2'",
-          "type": "string"
-        },
-        "pageName": {
-          "description": "Current page name to find (alternative to pageId)",
-          "type": "string"
-        }
-      },
-      "required": [
-        "newName"
-      ],
-      "type": "object"
-    },
-    "name": "rename_page"
   },
   "reparent_nodes": {
     "annotations": {

@@ -6,6 +6,7 @@ import { handleWritePageRequest } from "./write-page";
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
 let mockPages: any[];
+let currentPage: any;
 
 const makeRequest = (type: string, nodeIds?: string[], params?: any) => ({
   type,
@@ -17,12 +18,13 @@ const makeRequest = (type: string, nodeIds?: string[], params?: any) => ({
 beforeEach(() => {
   commitUndoCalled = false;
   mockNodes = {};
+  currentPage = null;
   mockPages = [{ id: "0:1", name: "Page 1", type: "PAGE", remove: () => { mockPages.splice(mockPages.indexOf(page1), 1); } }];
   const page1 = mockPages[0];
   (globalThis as any).figma = {
     createPage: () => {
       const page: any = {
-        id: `page:${Date.now()}`,
+        id: `page:${mockPages.length + 1}`,
         name: "Page",
         type: "PAGE",
         remove() { mockPages.splice(mockPages.indexOf(this), 1); },
@@ -30,7 +32,9 @@ beforeEach(() => {
       mockPages.push(page);
       return page;
     },
-    getNodeByIdAsync: async (id: string) => mockNodes[id] ?? null,
+    getNodeByIdAsync: async (id: string) =>
+      mockNodes[id] ?? mockPages.find(p => p.id === id) ?? null,
+    setCurrentPageAsync: async (page: any) => { currentPage = page; },
     commitUndo: () => { commitUndoCalled = true; },
     root: {
       get children() { return mockPages; },
@@ -168,5 +172,86 @@ describe("handleWritePageRequest unknown", () => {
   it("returns null for unrecognised type", async () => {
     const res = await handleWritePageRequest(makeRequest("unknown_page_op"));
     expect(res).toBeNull();
+  });
+});
+
+// ── navigate_to_page ──────────────────────────────────────────────────────────
+
+describe("navigate_to_page", () => {
+  it("navigates by pageId", async () => {
+    mockNodes["0:2"] = { id: "0:2", name: "Page 2", type: "PAGE" };
+    const res = await handleWritePageRequest(makeRequest("navigate_to_page", [], { pageId: "0:2" }));
+    expect(currentPage?.id).toBe("0:2");
+    expect(res?.data.id).toBe("0:2");
+    expect(res?.data.name).toBe("Page 2");
+  });
+
+  it("navigates by pageName", async () => {
+    const res = await handleWritePageRequest(makeRequest("navigate_to_page", [], { pageName: "Page 1" }));
+    expect(currentPage?.name).toBe("Page 1");
+    expect(res?.data.name).toBe("Page 1");
+  });
+
+  it("throws when pageId node not found", async () => {
+    await expect(
+      handleWritePageRequest(makeRequest("navigate_to_page", [], { pageId: "9:9" }))
+    ).rejects.toThrow("Page not found: 9:9");
+  });
+
+  it("throws when pageId node is not a PAGE", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Frame", type: "FRAME" };
+    await expect(
+      handleWritePageRequest(makeRequest("navigate_to_page", [], { pageId: "1:1" }))
+    ).rejects.toThrow("is not a PAGE");
+  });
+
+  it("throws when pageName not found", async () => {
+    await expect(
+      handleWritePageRequest(makeRequest("navigate_to_page", [], { pageName: "Nonexistent" }))
+    ).rejects.toThrow("Page not found");
+  });
+
+  it("throws when neither pageId nor pageName provided", async () => {
+    await expect(
+      handleWritePageRequest(makeRequest("navigate_to_page", [], {}))
+    ).rejects.toThrow("pageId or pageName is required");
+  });
+});
+
+// manage_page replaced four page tools on the MCP surface. These check the
+// router reaches each implementation and the arguments survive the trip.
+describe("manage_page", () => {
+  const manage = (params: any) =>
+    handleWritePageRequest({ type: "manage_page", requestId: "req-1", nodeIds: [], params });
+
+  it("routes add", async () => {
+    const res = await manage({ action: "add", name: "Specs" });
+    expect(res.data.name).toBe("Specs");
+    expect(mockPages.some(p => p.name === "Specs")).toBe(true);
+    // The response names the tool the caller actually called.
+    expect(res.type).toBe("manage_page");
+  });
+
+  it("routes rename and carries newName", async () => {
+    await manage({ action: "add", name: "Old" });
+    const res = await manage({ action: "rename", pageName: "Old", newName: "New" });
+    expect(res.data.name).toBe("New");
+    expect(mockPages.some(p => p.name === "New")).toBe(true);
+  });
+
+  it("routes navigate", async () => {
+    await manage({ action: "add", name: "Target" });
+    await manage({ action: "navigate", pageName: "Target" });
+    expect(currentPage.name).toBe("Target");
+  });
+
+  it("routes delete", async () => {
+    await manage({ action: "add", name: "Doomed" });
+    await manage({ action: "delete", pageName: "Doomed" });
+    expect(mockPages.some(p => p.name === "Doomed")).toBe(false);
+  });
+
+  it("reports an unknown action rather than silently doing nothing", async () => {
+    await expect(manage({ action: "duplicate" })).rejects.toThrow(/add, delete, rename, or navigate/);
   });
 });

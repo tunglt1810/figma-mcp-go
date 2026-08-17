@@ -38,49 +38,6 @@ beforeEach(() => {
   };
 });
 
-// ── navigate_to_page ──────────────────────────────────────────────────────────
-
-describe("navigate_to_page", () => {
-  it("navigates by pageId", async () => {
-    mockNodes["0:2"] = { id: "0:2", name: "Page 2", type: "PAGE" };
-    const res = await handleWriteComponentRequest(makeRequest("navigate_to_page", [], { pageId: "0:2" }));
-    expect(navigatedTo?.id).toBe("0:2");
-    expect(res?.data.id).toBe("0:2");
-    expect(res?.data.name).toBe("Page 2");
-  });
-
-  it("navigates by pageName", async () => {
-    const res = await handleWriteComponentRequest(makeRequest("navigate_to_page", [], { pageName: "Page 2" }));
-    expect(navigatedTo?.name).toBe("Page 2");
-    expect(res?.data.name).toBe("Page 2");
-  });
-
-  it("throws when pageId node not found", async () => {
-    await expect(
-      handleWriteComponentRequest(makeRequest("navigate_to_page", [], { pageId: "9:9" }))
-    ).rejects.toThrow("Page not found: 9:9");
-  });
-
-  it("throws when pageId node is not a PAGE", async () => {
-    mockNodes["1:1"] = { id: "1:1", name: "Frame", type: "FRAME" };
-    await expect(
-      handleWriteComponentRequest(makeRequest("navigate_to_page", [], { pageId: "1:1" }))
-    ).rejects.toThrow("is not a PAGE");
-  });
-
-  it("throws when pageName not found", async () => {
-    await expect(
-      handleWriteComponentRequest(makeRequest("navigate_to_page", [], { pageName: "Nonexistent" }))
-    ).rejects.toThrow("Page not found");
-  });
-
-  it("throws when neither pageId nor pageName provided", async () => {
-    await expect(
-      handleWriteComponentRequest(makeRequest("navigate_to_page", [], {}))
-    ).rejects.toThrow("pageId or pageName is required");
-  });
-});
-
 // ── group_nodes ───────────────────────────────────────────────────────────────
 
 describe("group_nodes", () => {

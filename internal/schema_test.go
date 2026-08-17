@@ -736,28 +736,6 @@ func TestValidateRPC_UngroupNodes(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_NavigateToPage(t *testing.T) {
-	// neither pageId nor pageName
-	if msg := ValidateRPC("navigate_to_page", nil, nil); msg == "" {
-		t.Error("expected error when neither pageId nor pageName provided")
-	}
-	if msg := ValidateRPC("navigate_to_page", nil, map[string]interface{}{}); msg == "" {
-		t.Error("expected error for empty params")
-	}
-	// pageId provided
-	if msg := ValidateRPC("navigate_to_page", nil, map[string]interface{}{"pageId": "0:1"}); msg != "" {
-		t.Errorf("unexpected error for pageId: %s", msg)
-	}
-	// pageName provided
-	if msg := ValidateRPC("navigate_to_page", nil, map[string]interface{}{"pageName": "Design"}); msg != "" {
-		t.Errorf("unexpected error for pageName: %s", msg)
-	}
-	// both provided — also valid
-	if msg := ValidateRPC("navigate_to_page", nil, map[string]interface{}{"pageId": "0:1", "pageName": "Design"}); msg != "" {
-		t.Errorf("unexpected error when both provided: %s", msg)
-	}
-}
-
 func TestValidateRPC_CreateComponent(t *testing.T) {
 	// missing nodeId
 	if msg := ValidateRPC("create_component", nil, nil); msg == "" {
@@ -1057,51 +1035,6 @@ func TestValidateRPC_FindReplaceText(t *testing.T) {
 
 // ── Page management ─────────────────────────────────────────────────
 
-func TestValidateRPC_AddPage(t *testing.T) {
-	// valid with no params
-	if msg := ValidateRPC("add_page", nil, nil); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// negative index
-	if msg := ValidateRPC("add_page", nil, map[string]interface{}{"index": float64(-1)}); msg == "" {
-		t.Error("expected error for negative index")
-	}
-	// valid with name
-	if msg := ValidateRPC("add_page", nil, map[string]interface{}{"name": "Flows"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_DeletePage(t *testing.T) {
-	// missing both pageId and pageName
-	if msg := ValidateRPC("delete_page", nil, nil); msg == "" {
-		t.Error("expected error for missing page identifier")
-	}
-	// valid with pageId
-	if msg := ValidateRPC("delete_page", nil, map[string]interface{}{"pageId": "0:2"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// valid with pageName
-	if msg := ValidateRPC("delete_page", nil, map[string]interface{}{"pageName": "Flows"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_RenamePage(t *testing.T) {
-	// missing page identifier
-	if msg := ValidateRPC("rename_page", nil, map[string]interface{}{"newName": "X"}); msg == "" {
-		t.Error("expected error for missing page identifier")
-	}
-	// missing newName
-	if msg := ValidateRPC("rename_page", nil, map[string]interface{}{"pageId": "0:2"}); msg == "" {
-		t.Error("expected error for missing newName")
-	}
-	// valid
-	if msg := ValidateRPC("rename_page", nil, map[string]interface{}{"pageId": "0:2", "newName": "Sprint 1"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_SetEffects(t *testing.T) {
 	// missing nodeId
 	if msg := ValidateRPC("set_effects", nil, map[string]interface{}{"effects": []interface{}{}}); msg == "" {
@@ -1400,6 +1333,53 @@ func TestValidateRPC_CreateStyle(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			msg := ValidateRPC("create_style", nil, c.params)
+			if c.wantMsg == "" {
+				if msg != "" {
+					t.Errorf("expected the request to be accepted, got %q", msg)
+				}
+				return
+			}
+			if !strings.Contains(msg, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
+			}
+		})
+	}
+}
+
+// manage_page merged four page tools behind an `action` discriminator.
+func TestValidateRPC_ManagePage(t *testing.T) {
+	cases := []struct {
+		name    string
+		params  map[string]interface{}
+		wantMsg string
+	}{
+		{"add", map[string]interface{}{"action": "add", "name": "Specs", "index": 0.0}, ""},
+		{"add with no arguments", map[string]interface{}{"action": "add"}, ""},
+		{"delete by id", map[string]interface{}{"action": "delete", "pageId": "0:2"}, ""},
+		{"delete by name", map[string]interface{}{"action": "delete", "pageName": "Old"}, ""},
+		{"rename", map[string]interface{}{"action": "rename", "pageId": "0:2", "newName": "New"}, ""},
+		{"navigate", map[string]interface{}{"action": "navigate", "pageName": "Design"}, ""},
+
+		{"missing action", map[string]interface{}{"pageId": "0:2"}, "action is required"},
+		{"unknown action", map[string]interface{}{"action": "duplicate"}, "action must be one of"},
+		{"delete with no target", map[string]interface{}{"action": "delete"}, "pageId or pageName is required"},
+		{"rename with no new name", map[string]interface{}{"action": "rename", "pageId": "0:2"}, "newName is required when action is rename"},
+		{"navigate with no target", map[string]interface{}{"action": "navigate"}, "pageId or pageName is required"},
+
+		{"add does not take a target", map[string]interface{}{
+			"action": "add", "pageId": "0:2",
+		}, "pageId does not apply when action is add"},
+		{"navigate does not rename", map[string]interface{}{
+			"action": "navigate", "pageId": "0:2", "newName": "New",
+		}, "newName does not apply when action is navigate"},
+		{"delete does not take an index", map[string]interface{}{
+			"action": "delete", "pageId": "0:2", "index": 1.0,
+		}, "index does not apply when action is delete"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg := ValidateRPC("manage_page", nil, c.params)
 			if c.wantMsg == "" {
 				if msg != "" {
 					t.Errorf("expected the request to be accepted, got %q", msg)
