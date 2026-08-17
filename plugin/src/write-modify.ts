@@ -69,7 +69,30 @@ const applyNodeProperties = (n: any, p: any) => {
   return { applied, errors };
 };
 
-export const handleWriteModifyRequest = async (request: any) => {
+// set_paint replaced set_fills, set_gradient_fills and set_strokes on the MCP
+// surface. The three implementations stay separate below; only the surface
+// merged. `type` names the kind of paint, which the gradient implementation
+// reads directly and the solid ones do not take at all.
+export const handleWriteModifyRequest = async (request: any): Promise<any> => {
+  if (request.type === "set_paint") {
+    const { target = "fill", type, ...rest } = request.params || {};
+    let action: string;
+    let params: any;
+    if (type === "SOLID") {
+      action = target === "stroke" ? "set_strokes" : "set_fills";
+      params = rest;
+    } else if (type === "GRADIENT_LINEAR" || type === "GRADIENT_RADIAL") {
+      if (target === "stroke") throw new Error("gradients can only target fill, not stroke");
+      action = "set_gradient_fills";
+      params = { ...rest, type };
+    } else {
+      throw new Error(`type must be SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL, got: ${type}`);
+    }
+    const result = await handleWriteModifyRequest({ ...request, type: action, params });
+    // Answer under the name the caller used, not the one we delegated to.
+    return { ...result, type: request.type };
+  }
+
   switch (request.type) {
     case "set_node_properties": {
       const p = request.params || {};

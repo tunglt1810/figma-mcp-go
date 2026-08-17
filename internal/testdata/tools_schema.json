@@ -2025,80 +2025,6 @@
     },
     "name": "set_effects"
   },
-  "set_fills": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Set the fill color on a single node (takes one nodeId, not an array). Use mode='append' to stack a new fill on top of existing fills instead of replacing them.",
-    "inputSchema": {
-      "properties": {
-        "color": {
-          "description": "Fill color as hex: #RRGGBB e.g. #FF5733 or #RRGGBBAA e.g. #FF573380 for 50% alpha",
-          "type": "string"
-        },
-        "mode": {
-          "description": "'replace' (default) overwrites all existing fills; 'append' stacks this fill on top of existing ones",
-          "type": "string"
-        },
-        "nodeId": {
-          "description": "Node ID in colon format e.g. '4029:12345'",
-          "type": "string"
-        },
-        "opacity": {
-          "description": "Fill opacity 0–1 (default 1). Combines multiplicatively with any alpha in the color hex.",
-          "type": "number"
-        }
-      },
-      "required": [
-        "nodeId",
-        "color"
-      ],
-      "type": "object"
-    },
-    "name": "set_fills"
-  },
-  "set_gradient_fills": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Set a linear or radial gradient fill on a single node.",
-    "inputSchema": {
-      "properties": {
-        "geometry": {
-          "description": "Geometry object representing gradient coordinates (start, end, angle OR center, radius, rotation) in percentX/Y. See specs."
-        },
-        "mode": {
-          "description": "'replace' (default) overwrites all existing fills; 'append' stacks this fill on top of existing ones",
-          "type": "string"
-        },
-        "nodeId": {
-          "description": "Node ID in colon format e.g. '4029:12345'",
-          "type": "string"
-        },
-        "stops": {
-          "description": "Array of color stops, e.g. [{position: 0, color: '#ff0000'}, {position: 1, color: '#00ff00'}]"
-        },
-        "type": {
-          "description": "Gradient type: GRADIENT_LINEAR or GRADIENT_RADIAL",
-          "type": "string"
-        }
-      },
-      "required": [
-        "nodeId",
-        "type",
-        "stops",
-        "geometry"
-      ],
-      "type": "object"
-    },
-    "name": "set_gradient_fills"
-  },
   "set_instance_overrides": {
     "annotations": {
       "readOnlyHint": false,
@@ -2181,6 +2107,59 @@
     },
     "name": "set_node_properties"
   },
+  "set_paint": {
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true
+    },
+    "description": "Paint a node's fill or stroke. `type` selects the kind of paint and each takes its own arguments — SOLID: color, opacity. GRADIENT_LINEAR / GRADIENT_RADIAL: stops, geometry. `target` chooses fill (default) or stroke; gradients can only target fill. An argument belonging to a different kind is rejected rather than ignored.",
+    "inputSchema": {
+      "properties": {
+        "color": {
+          "description": "SOLID: color as hex — #RRGGBB e.g. #FF5733, or #RRGGBBAA e.g. #FF573380 for 50% alpha (required)",
+          "type": "string"
+        },
+        "geometry": {
+          "description": "GRADIENT: coordinates in percentX/Y — start, end, angle for linear; center, radius, rotation for radial (required)"
+        },
+        "mode": {
+          "description": "'replace' (default) overwrites the existing paints; 'append' stacks this one on top",
+          "type": "string"
+        },
+        "nodeId": {
+          "description": "Node ID in colon format e.g. '4029:12345'",
+          "type": "string"
+        },
+        "opacity": {
+          "description": "SOLID: paint opacity 0–1 (default 1). Combines multiplicatively with any alpha in the color hex.",
+          "type": "number"
+        },
+        "stops": {
+          "description": "GRADIENT: array of color stops e.g. [{position: 0, color: '#ff0000'}, {position: 1, color: '#00ff00'}] (required)"
+        },
+        "strokeWeight": {
+          "description": "Stroke weight in pixels (default 1). Only when target is stroke.",
+          "type": "number"
+        },
+        "target": {
+          "description": "What to paint: 'fill' (default) or 'stroke'",
+          "type": "string"
+        },
+        "type": {
+          "description": "Kind of paint: SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nodeId",
+        "type"
+      ],
+      "type": "object"
+    },
+    "name": "set_paint"
+  },
   "set_reactions": {
     "annotations": {
       "readOnlyHint": false,
@@ -2214,41 +2193,6 @@
       "type": "object"
     },
     "name": "set_reactions"
-  },
-  "set_strokes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Set the stroke color and weight on a single node (takes one nodeId, not an array). Use mode='append' to stack a new stroke on top of existing strokes instead of replacing them.",
-    "inputSchema": {
-      "properties": {
-        "color": {
-          "description": "Stroke color as hex e.g. #000000",
-          "type": "string"
-        },
-        "mode": {
-          "description": "'replace' (default) overwrites all strokes; 'append' stacks on top of existing strokes",
-          "type": "string"
-        },
-        "nodeId": {
-          "description": "Node ID in colon format e.g. '4029:12345'",
-          "type": "string"
-        },
-        "strokeWeight": {
-          "description": "Stroke weight in pixels (default 1)",
-          "type": "number"
-        }
-      },
-      "required": [
-        "nodeId",
-        "color"
-      ],
-      "type": "object"
-    },
-    "name": "set_strokes"
   },
   "set_text": {
     "annotations": {

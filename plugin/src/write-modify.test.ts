@@ -409,3 +409,48 @@ describe("set_strokes", () => {
     expect(mockNodes["1:1"].strokes[0].color.r).toBeCloseTo(1);
   });
 });
+
+// set_paint replaced set_fills, set_gradient_fills and set_strokes on the MCP
+// surface. These check the router reaches each implementation.
+describe("set_paint", () => {
+  const paint = (params: any) =>
+    handleWriteModifyRequest({ type: "set_paint", requestId: "req-1", nodeIds: ["1:1"], params });
+
+  it("routes SOLID to fills by default", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [], strokes: [] };
+    const res = await paint({ type: "SOLID", color: "#ff0000" });
+    expect(mockNodes["1:1"].fills).toHaveLength(1);
+    expect(mockNodes["1:1"].strokes).toHaveLength(0);
+    expect(res.type).toBe("set_paint");
+  });
+
+  it("routes SOLID to strokes and carries strokeWeight", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [], strokes: [] };
+    await paint({ type: "SOLID", target: "stroke", color: "#000000", strokeWeight: 3 });
+    expect(mockNodes["1:1"].strokes).toHaveLength(1);
+    expect(mockNodes["1:1"].strokeWeight).toBe(3);
+    expect(mockNodes["1:1"].fills).toHaveLength(0);
+  });
+
+  it("routes a gradient and passes the kind through", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [] };
+    await paint({
+      type: "GRADIENT_LINEAR",
+      stops: [{ position: 0, color: "#ff0000" }, { position: 1, color: "#00ff00" }],
+      geometry: { start: { percentX: 0, percentY: 0 }, end: { percentX: 100, percentY: 0 } },
+    });
+    expect(mockNodes["1:1"].fills[0].type).toBe("GRADIENT_LINEAR");
+  });
+
+  it("refuses a gradient on a stroke", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [], strokes: [] };
+    await expect(
+      paint({ type: "GRADIENT_LINEAR", target: "stroke", stops: [], geometry: {} }),
+    ).rejects.toThrow(/gradients can only target fill/);
+  });
+
+  it("reports an unknown kind rather than silently doing nothing", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [] };
+    await expect(paint({ type: "IMAGE", color: "#ff0000" })).rejects.toThrow(/SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL/);
+  });
+});

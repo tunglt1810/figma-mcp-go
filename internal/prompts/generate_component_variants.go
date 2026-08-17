@@ -64,7 +64,7 @@ create_frame(name="Variants/ComponentName", width=totalWidth, height=totalHeight
 
 **Color themes:**
 - Clone source: clone_node(sourceId, parentId=containerId)
-- For each fill-bearing child: set_fills(nodeId, color=themeHex)
+- For each fill-bearing child: set_paint(nodeId, type="SOLID", color=themeHex)
 - Color mapping suggestion:
   - Primary   → use brand primary color
   - Secondary → use brand secondary color
@@ -75,7 +75,7 @@ create_frame(name="Variants/ComponentName", width=totalWidth, height=totalHeight
 
 **States:**
 - Clone source: clone_node(sourceId, parentId=containerId)
-- Disabled: set_fills on background to gray (#94A3B8), reduce fill opacity of text nodes
+- Disabled: set_paint on background to gray (#94A3B8), reduce fill opacity of text nodes
 - Hover: slightly lighten the primary fill
 - rename_node to "ComponentName/Hover" etc.
 

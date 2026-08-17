@@ -56,7 +56,7 @@ Show the full table to the user for review before creating anything.
 
 ## Creation Steps
 
-1. For each style row, call create_text_style() with:
+1. For each style row, call create_style(type: "TEXT") with:
    - name: e.g. "Heading/H1"
    - fontFamily: the chosen font
    - fontStyle: map weight to style name ("Regular"=400, "Medium"=500, "SemiBold"=600, "Bold"=700)
@@ -64,7 +64,7 @@ Show the full table to the user for review before creating anything.
    - lineHeightValue + lineHeightUnit="PIXELS" (convert ratio × size to px)
    - letterSpacingValue + letterSpacingUnit="PERCENT" (convert em to %)
 
-2. Skip styles already present with the same name (create_text_style is idempotent).
+2. Skip styles already present with the same name (create_style is idempotent).
 
 ## Rules
 - Always show the scale preview table before executing.

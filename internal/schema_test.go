@@ -226,29 +226,6 @@ func TestValidateRPC_SetText(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_SetFills(t *testing.T) {
-	// missing color
-	if msg := ValidateRPC("set_fills", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing color")
-	}
-	// invalid mode
-	msg := ValidateRPC("set_fills", []string{"1:1"}, map[string]interface{}{
-		"color": "#ff0000", "mode": "overwrite",
-	})
-	if msg == "" {
-		t.Error("expected error for invalid mode")
-	}
-	// valid modes
-	for _, mode := range []string{"replace", "append"} {
-		msg := ValidateRPC("set_fills", []string{"1:1"}, map[string]interface{}{
-			"color": "#ff0000", "mode": mode,
-		})
-		if msg != "" {
-			t.Errorf("unexpected error for mode %s: %s", mode, msg)
-		}
-	}
-}
-
 func TestValidateRPC_MoveNodes(t *testing.T) {
 	// no x or y
 	msg := ValidateRPC("move_nodes", []string{"1:1"}, nil)
@@ -428,61 +405,6 @@ func TestValidateRPC_CreateText(t *testing.T) {
 	}
 	if msg := ValidateRPC("create_text", nil, map[string]interface{}{"text": "hi"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_SetStrokes(t *testing.T) {
-	if msg := ValidateRPC("set_strokes", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
-	}
-	if msg := ValidateRPC("set_strokes", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing color")
-	}
-	if msg := ValidateRPC("set_strokes", []string{"1:1"}, map[string]interface{}{"color": "#000", "mode": "bad"}); msg == "" {
-		t.Error("expected error for invalid mode")
-	}
-	for _, mode := range []string{"replace", "append"} {
-		if msg := ValidateRPC("set_strokes", []string{"1:1"}, map[string]interface{}{"color": "#000", "mode": mode}); msg != "" {
-			t.Errorf("unexpected error for mode %s: %s", mode, msg)
-		}
-	}
-}
-
-func TestValidateRPC_SetGradientFills(t *testing.T) {
-	if msg := ValidateRPC("set_gradient_fills", nil, nil); msg == "" {
-		t.Error("expected error for missing params")
-	}
-	if msg := ValidateRPC("set_gradient_fills", []string{"1:1"}, map[string]interface{}{"type": "GRADIENT_RADIAL"}); msg == "" {
-		t.Error("expected error for missing stops and geometry")
-	}
-
-	validArgs := map[string]interface{}{
-		"type": "GRADIENT_RADIAL",
-		"stops": []interface{}{
-			map[string]interface{}{"position": 0, "color": "#ff0000"},
-			map[string]interface{}{"position": 1, "color": "#00ff00"},
-		},
-		"geometry": map[string]interface{}{
-			"center":   map[string]interface{}{"percentX": 50, "percentY": 50},
-			"radius":   map[string]interface{}{"percentX": 50, "percentY": 50},
-			"rotation": 0,
-		},
-	}
-	if msg := ValidateRPC("set_gradient_fills", []string{"1:1"}, validArgs); msg != "" {
-		t.Errorf("unexpected error for valid arguments: %s", msg)
-	}
-
-	// A stop's color is a level deeper than a paramSpec reaches, but it ends up
-	// in the same hexToRgb call and used to become NaN just as quietly.
-	badStops := map[string]interface{}{
-		"type": "GRADIENT_LINEAR",
-		"stops": []interface{}{
-			map[string]interface{}{"position": 0, "color": "red"},
-		},
-		"geometry": map[string]interface{}{},
-	}
-	if msg := ValidateRPC("set_gradient_fills", []string{"1:1"}, badStops); msg == "" {
-		t.Error("expected error for a stop color that is not hex")
 	}
 }
 
@@ -1266,7 +1188,7 @@ func TestValidateRPC_HexColor(t *testing.T) {
 	// broken fill silently. These are rejected before the round-trip now.
 	bad := []string{"red", "rgb(255,0,0)", "#ff", "#12345", "#gggggg"}
 	for _, color := range bad {
-		if msg := ValidateRPC("set_fills", []string{"1:1"}, map[string]interface{}{"color": color}); msg == "" {
+		if msg := ValidateRPC("set_paint", []string{"1:1"}, map[string]interface{}{"type": "SOLID", "color": color}); msg == "" {
 			t.Errorf("expected %q to be rejected", color)
 		}
 	}
@@ -1274,7 +1196,7 @@ func TestValidateRPC_HexColor(t *testing.T) {
 	// Shorthand is real CSS and the plugin expands it, so it must pass here.
 	good := []string{"#f00", "#f00a", "#ff0000", "#ff0000aa", "ff0000"}
 	for _, color := range good {
-		if msg := ValidateRPC("set_fills", []string{"1:1"}, map[string]interface{}{"color": color}); msg != "" {
+		if msg := ValidateRPC("set_paint", []string{"1:1"}, map[string]interface{}{"type": "SOLID", "color": color}); msg != "" {
 			t.Errorf("unexpected error for %q: %s", color, msg)
 		}
 	}
@@ -1284,7 +1206,7 @@ func TestValidateRPC_HexColor(t *testing.T) {
 		tool   string
 		params map[string]interface{}
 	}{
-		{"set_strokes", map[string]interface{}{"color": "nope"}},
+		{"set_paint", map[string]interface{}{"type": "SOLID", "target": "stroke", "color": "nope"}},
 		{"create_style", map[string]interface{}{"type": "PAINT", "name": "Brand", "color": "nope"}},
 		{"create_rectangle", map[string]interface{}{"fillColor": "nope"}},
 		{"create_line", map[string]interface{}{"strokeColor": "nope"}},
@@ -1380,6 +1302,71 @@ func TestValidateRPC_ManagePage(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			msg := ValidateRPC("manage_page", nil, c.params)
+			if c.wantMsg == "" {
+				if msg != "" {
+					t.Errorf("expected the request to be accepted, got %q", msg)
+				}
+				return
+			}
+			if !strings.Contains(msg, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
+			}
+		})
+	}
+}
+
+// set_paint merged set_fills, set_gradient_fills and set_strokes behind a
+// `type` discriminator, with `target` choosing fill or stroke.
+func TestValidateRPC_SetPaint(t *testing.T) {
+	linearStops := []interface{}{
+		map[string]interface{}{"position": 0.0, "color": "#ff0000"},
+		map[string]interface{}{"position": 1.0, "color": "#00ff00"},
+	}
+	geometry := map[string]interface{}{"start": map[string]interface{}{}, "end": map[string]interface{}{}}
+
+	cases := []struct {
+		name    string
+		params  map[string]interface{}
+		wantMsg string
+	}{
+		{"solid fill", map[string]interface{}{"type": "SOLID", "color": "#ff0000"}, ""},
+		{"solid fill with opacity", map[string]interface{}{"type": "SOLID", "color": "#ff0000", "opacity": 0.5}, ""},
+		{"solid stroke", map[string]interface{}{
+			"type": "SOLID", "target": "stroke", "color": "#000000", "strokeWeight": 2.0,
+		}, ""},
+		{"appended", map[string]interface{}{"type": "SOLID", "color": "#ff0000", "mode": "append"}, ""},
+		{"linear gradient", map[string]interface{}{
+			"type": "GRADIENT_LINEAR", "stops": linearStops, "geometry": geometry,
+		}, ""},
+
+		{"missing type", map[string]interface{}{"color": "#ff0000"}, "type is required"},
+		{"unknown type", map[string]interface{}{"type": "IMAGE"}, "type must be one of"},
+		{"solid without colour", map[string]interface{}{"type": "SOLID"}, "color is required when type is SOLID"},
+		{"gradient without stops", map[string]interface{}{"type": "GRADIENT_RADIAL", "geometry": geometry}, "stops is required"},
+
+		{"gradient argument on a solid", map[string]interface{}{
+			"type": "SOLID", "color": "#ff0000", "stops": linearStops,
+		}, "stops does not apply when type is SOLID"},
+		{"colour on a gradient", map[string]interface{}{
+			"type": "GRADIENT_LINEAR", "stops": linearStops, "geometry": geometry, "color": "#ff0000",
+		}, "color does not apply when type is GRADIENT_LINEAR"},
+
+		{"gradient on a stroke", map[string]interface{}{
+			"type": "GRADIENT_LINEAR", "target": "stroke", "stops": linearStops, "geometry": geometry,
+		}, "gradients can only target fill"},
+		{"stroke weight on a fill", map[string]interface{}{
+			"type": "SOLID", "color": "#ff0000", "strokeWeight": 2.0,
+		}, "strokeWeight applies only when target is stroke"},
+
+		{"bad stop colour", map[string]interface{}{
+			"type": "GRADIENT_LINEAR", "geometry": geometry,
+			"stops": []interface{}{map[string]interface{}{"position": 0.0, "color": "red"}},
+		}, "stops[0].color must be a hex color"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg := ValidateRPC("set_paint", []string{"1:1"}, c.params)
 			if c.wantMsg == "" {
 				if msg != "" {
 					t.Errorf("expected the request to be accepted, got %q", msg)

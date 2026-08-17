@@ -17,6 +17,15 @@ var nodePropertyKeys = []string{
 	"visible", "locked", "opacity", "rotation", "blendMode", "constraints", "order",
 }
 
+// paintVariants say which arguments belong to which kind of paint. set_fills,
+// set_gradient_fills and set_strokes became one tool; without this the
+// arguments of the other kinds would be accepted and silently dropped.
+var paintVariants = map[string]variantSpec{
+	"SOLID":           {Allowed: []string{"color", "opacity"}, Required: []string{"color"}},
+	"GRADIENT_LINEAR": {Allowed: []string{"stops", "geometry"}, Required: []string{"stops", "geometry"}},
+	"GRADIENT_RADIAL": {Allowed: []string{"stops", "geometry"}, Required: []string{"stops", "geometry"}},
+}
+
 var validNodeOrders = []string{"bringToFront", "sendToBack", "bringForward", "sendBackward"}
 
 var writeModifySpecs = []toolSpec{
@@ -32,63 +41,59 @@ var writeModifySpecs = []toolSpec{
 		},
 	},
 	{
-		Name:       "set_fills",
-		Desc:       "Set the fill color on a single node (takes one nodeId, not an array). Use mode='append' to stack a new fill on top of existing fills instead of replacing them.",
+		Name: "set_paint",
+		Desc: "Paint a node's fill or stroke. `type` selects the kind of paint and each takes its own arguments — " +
+			"SOLID: color, opacity. " +
+			"GRADIENT_LINEAR / GRADIENT_RADIAL: stops, geometry. " +
+			"`target` chooses fill (default) or stroke; gradients can only target fill. " +
+			"An argument belonging to a different kind is rejected rather than ignored.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
 		Params: []paramSpec{
-			{Name: "color", Kind: kindString, IsHexColor: true, Required: true,
-				Desc: "Fill color as hex: #RRGGBB e.g. #FF5733 or #RRGGBBAA e.g. #FF573380 for 50% alpha"},
+			{Name: "type", Kind: kindString, Required: true, Enum: variantKinds(paintVariants),
+				Desc: "Kind of paint: SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL"},
+			{Name: "target", Kind: kindString, Enum: []string{"fill", "stroke"},
+				Desc: "What to paint: 'fill' (default) or 'stroke'"},
+			{Name: "color", Kind: kindString, IsHexColor: true,
+				Desc: "SOLID: color as hex — #RRGGBB e.g. #FF5733, or #RRGGBBAA e.g. #FF573380 for 50% alpha (required)"},
 			{Name: "opacity", Kind: kindNumber,
-				Desc: "Fill opacity 0–1 (default 1). Combines multiplicatively with any alpha in the color hex."},
-			fillModeParam("'replace' (default) overwrites all existing fills; 'append' stacks this fill on top of existing ones"),
+				Desc: "SOLID: paint opacity 0–1 (default 1). Combines multiplicatively with any alpha in the color hex."},
+			{Name: "stops", Kind: kindAny,
+				Desc: "GRADIENT: array of color stops e.g. [{position: 0, color: '#ff0000'}, {position: 1, color: '#00ff00'}] (required)"},
+			{Name: "geometry", Kind: kindAny,
+				Desc: "GRADIENT: coordinates in percentX/Y — start, end, angle for linear; center, radius, rotation for radial (required)"},
+			{Name: "strokeWeight", Kind: kindNumber,
+				Desc: "Stroke weight in pixels (default 1). Only when target is stroke."},
+			fillModeParam("'replace' (default) overwrites the existing paints; 'append' stacks this one on top"),
 		},
-	},
-	{
-		Name:       "set_gradient_fills",
-		Desc:       "Set a linear or radial gradient fill on a single node.",
-		NodeIDs:    nodeIDsSingle,
-		NodeIDsReq: true,
-		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
-		Params: []paramSpec{
-			{Name: "type", Kind: kindString, Required: true, Enum: []string{"GRADIENT_LINEAR", "GRADIENT_RADIAL"},
-				Desc: "Gradient type: GRADIENT_LINEAR or GRADIENT_RADIAL"},
-			{Name: "stops", Kind: kindAny, Required: true,
-				Desc: "Array of color stops, e.g. [{position: 0, color: '#ff0000'}, {position: 1, color: '#00ff00'}]"},
-			{Name: "geometry", Kind: kindAny, Required: true,
-				Desc: "Geometry object representing gradient coordinates (start, end, angle OR center, radius, rotation) in percentX/Y. See specs."},
-			fillModeParam("'replace' (default) overwrites all existing fills; 'append' stacks this fill on top of existing ones"),
-		},
-		// The stops carry colors of their own, one level down from anything a
-		// paramSpec can reach.
-		Validate: func(_ []string, params map[string]interface{}) string {
-			stops, ok := params["stops"].([]interface{})
-			if !ok {
-				return "stops must be an array"
+		Validate: func(nodeIDs []string, params map[string]interface{}) string {
+			if msg := requireVariant("type", paintVariants, "target", "mode", "strokeWeight")(nodeIDs, params); msg != "" {
+				return msg
 			}
-			for i, raw := range stops {
-				stop, ok := raw.(map[string]interface{})
-				if !ok {
-					return fmt.Sprintf("stops[%d] must be an object", i)
-				}
-				if color, _ := stop["color"].(string); !ValidHexColor(color) {
-					return fmt.Sprintf("stops[%d].color must be a hex color e.g. #FF5733, got: %s", i, color)
+			kind, _ := params["type"].(string)
+			target, _ := params["target"].(string)
+			if kind != "SOLID" && target == "stroke" {
+				return "gradients can only target fill, not stroke"
+			}
+			if _, ok := params["strokeWeight"]; ok && target != "stroke" {
+				return "strokeWeight applies only when target is stroke"
+			}
+			// The stops carry colors of their own, one level down from anything
+			// a paramSpec can reach.
+			if kind != "SOLID" {
+				stops, _ := params["stops"].([]interface{})
+				for i, raw := range stops {
+					stop, ok := raw.(map[string]interface{})
+					if !ok {
+						return fmt.Sprintf("stops[%d] must be an object", i)
+					}
+					if color, _ := stop["color"].(string); !ValidHexColor(color) {
+						return fmt.Sprintf("stops[%d].color must be a hex color e.g. #FF5733, got: %s", i, color)
+					}
 				}
 			}
 			return ""
-		},
-	},
-	{
-		Name:       "set_strokes",
-		Desc:       "Set the stroke color and weight on a single node (takes one nodeId, not an array). Use mode='append' to stack a new stroke on top of existing strokes instead of replacing them.",
-		NodeIDs:    nodeIDsSingle,
-		NodeIDsReq: true,
-		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
-		Params: []paramSpec{
-			{Name: "color", Kind: kindString, IsHexColor: true, Required: true, Desc: "Stroke color as hex e.g. #000000"},
-			{Name: "strokeWeight", Kind: kindNumber, Desc: "Stroke weight in pixels (default 1)"},
-			fillModeParam("'replace' (default) overwrites all strokes; 'append' stacks on top of existing strokes"),
 		},
 	},
 	{

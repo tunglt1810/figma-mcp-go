@@ -38,8 +38,8 @@ in Figma, maintaining design consistency while reducing manual work.
 
 ### 3. Apply Overrides to Targets
 - For text overrides: use set_text(nodeId: "target-text-node-id", text: "copied text")
-- For fill overrides: use set_fills(nodeId: "target-node-id", color: "#hexcolor")
-- For stroke overrides: use set_strokes(nodeId: "target-node-id", color: "#hexcolor")
+- For fill overrides: use set_paint(nodeId: "target-node-id", type: "SOLID", color: "#hexcolor")
+- For stroke overrides: use set_paint(nodeId: "target-node-id", type: "SOLID", target: "stroke", color: "#hexcolor")
 - Process targets one at a time or identify patterns to apply systematically
 
 ### 4. Verification
