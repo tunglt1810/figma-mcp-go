@@ -24,10 +24,9 @@ type Follower struct {
 func NewFollower(leaderURL string) *Follower {
 	return &Follower{
 		leaderURL: leaderURL,
-		client: &http.Client{
-			// 35s > 30s bridge timeout — gives the leader time to time out first
-			Timeout: 35 * time.Second,
-		},
+		// No client-wide Timeout: one number cannot serve tools whose budgets
+		// differ. Send sets a per-request deadline from the shared table.
+		client: &http.Client{},
 	}
 }
 
@@ -35,6 +34,11 @@ func NewFollower(leaderURL string) *Follower {
 func (f *Follower) Send(ctx context.Context, tool string, nodeIDs []string, params map[string]interface{}) (BridgeResponse, error) {
 	followerLogger.Printf("proxy %s nodeIDs=%v params=%v → %s/rpc", tool, nodeIDs, params, f.leaderURL)
 	start := time.Now()
+
+	// Outlast the leader's own timeout so its error reaches the caller instead
+	// of a transport deadline that says nothing about what failed.
+	ctx, cancel := context.WithTimeout(ctx, followerTimeoutFor(tool))
+	defer cancel()
 
 	rpcReq := RPCRequest{
 		Tool:    tool,

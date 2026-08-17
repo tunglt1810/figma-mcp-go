@@ -23,6 +23,21 @@ type pendingEntry struct {
 	ch    chan BridgeResponse
 	timer *time.Timer
 	once  sync.Once // guards channel close/send — prevents panic on concurrent timeout + response
+
+	// timeout is this tool's budget, restored on every progress update;
+	// hardDeadline is the point past which no progress update extends it.
+	timeout      time.Duration
+	hardDeadline time.Time
+}
+
+// nextTimeout is how long a progress update may extend this request, capped by
+// the hard deadline. Zero or less means the request has run out of time.
+func (e *pendingEntry) nextTimeout() time.Duration {
+	remaining := time.Until(e.hardDeadline)
+	if remaining < e.timeout {
+		return remaining
+	}
+	return e.timeout
 }
 
 // Bridge manages the single WebSocket connection from the Figma plugin
@@ -107,8 +122,15 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 			if ok {
 				// Stop before Reset to avoid the AfterFunc firing during Reset.
 				entry.timer.Stop()
-				entry.timer.Reset(60 * time.Second)
-				bridgeLogger.Printf("progress %s: %d%% %s", resp.RequestID, resp.Progress, resp.Message)
+				if extension := entry.nextTimeout(); extension > 0 {
+					entry.timer.Reset(extension)
+					bridgeLogger.Printf("progress %s: %d%% %s", resp.RequestID, resp.Progress, resp.Message)
+				} else {
+					// Past the hard deadline; let the timer fire immediately
+					// rather than letting progress hold the request open.
+					entry.timer.Reset(time.Nanosecond)
+					bridgeLogger.Printf("progress %s: %d%% %s (past the %s ceiling — timing out)", resp.RequestID, resp.Progress, resp.Message, maxToolTimeout)
+				}
 			} else {
 				bridgeLogger.Printf("progress %s: %d%% %s (no pending entry — already resolved or timed out)", resp.RequestID, resp.Progress, resp.Message)
 			}
@@ -185,17 +207,15 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 	}
 
 	ch := make(chan BridgeResponse, 1)
-	entry := &pendingEntry{ch: ch}
+	timeout := timeoutFor(requestType)
+	entry := &pendingEntry{
+		ch:           ch,
+		timeout:      timeout,
+		hardDeadline: time.Now().Add(maxToolTimeout),
+	}
 
 	// Register before sending to avoid a race where the response
 	// arrives before we store the channel.
-	// get_document on large files can take longer; give it more headroom.
-	timeout := 30 * time.Second
-	if requestType == "get_document" {
-		timeout = 60 * time.Second
-	} else if requestType == "batch_execute_pipeline" {
-		timeout = 120 * time.Second
-	}
 	entry.timer = time.AfterFunc(timeout, func() {
 		bridgeLogger.Printf("→ %s %s timed out after %s", requestID, requestType, timeout)
 		b.mu.Lock()
