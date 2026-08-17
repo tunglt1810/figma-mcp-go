@@ -89,6 +89,43 @@ codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
 2. Select `manifest.json` from the [plugin.zip](https://github.com/tunglt1810/figma-mcp-go/releases)
 3. Run the plugin inside any Figma file
 
+### 3. Running more than one AI tool at once (optional)
+
+Every MCP client starts its own copy of the server, but only one process can
+hold the plugin connection on a given port. There are two ways to share, and
+they do different things.
+
+**Same Figma file, no configuration.** Leave the default config everywhere. The
+first process to bind port 1994 owns the WebSocket to the plugin; the others
+detect the port is taken and proxy their tool calls to it over HTTP. Every
+client drives the one file the plugin is open in. If the process holding the
+port exits, another takes over within a few seconds.
+
+**Different Figma files, one port each.** Give each client its own port and
+point a separate plugin instance at it:
+
+```json
+{
+  "mcpServers": {
+    "figma-mcp-go": {
+      "command": "npx",
+      "args": ["-y", "@tunglt1810/figma-mcp-go", "--port", "1995"]
+    }
+  }
+}
+```
+
+Then open the plugin in the second Figma file and set the port to match under
+the settings gear. Each client now talks to its own file, with no proxying.
+
+Note that the plugin stores host and port in `figma.clientStorage`, which is
+shared across files — changing the port makes it the default the next time you
+open the plugin anywhere, so expect to set it on whichever instance should use
+1994.
+
+`--ip` moves the listener off `127.0.0.1` (use `0.0.0.0` to accept connections
+from another machine).
+
 ---
 
 ## Upgrading
