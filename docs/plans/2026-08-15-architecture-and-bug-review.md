@@ -14,16 +14,15 @@
 | **G4** | Thu gọn tool Tier 1: 8 tool node-property gộp thành `set_node_properties` (breaking, cần cài lại plugin) |
 | **G5** | Thu gọn tool Tier 2: shape 7→1, paint 3→1, style 4→1, page 4→1. 77 → 63 tool |
 | **G6** | Bảng tool declarative — mọi tool khai báo trong `toolSpec`; `ValidateRPC` chỉ còn tra bảng. P1-4 (`steps` sai kiểu) hết theo |
-| **G8** — B4 | Bridge ping mỗi 20s, drop connection không pong |
+| **G8** — B4 + B5 | Bridge ping mỗi 20s, drop connection không pong; dispatch plugin thành map, trùng tên tool là lỗi lúc load |
 
 Không còn bug nào trong danh sách này để mở.
 
-**B5 (dispatch map plugin) chưa làm — có chủ ý.** Lý do hiệu năng trong báo cáo
-không đúng: 10 lần `switch` trên string là nano giây, round-trip là mili giây.
-Lợi ích thật là chặn trùng tên tool và thiếu handler; cái đó đã có bằng một test
-so bảng tool Go với `case` trong plugin (`tools_plugin_test.go`), rẻ hơn nhiều so
-với viết lại 10 `switch` lớn. Nếu vẫn muốn map thì đó là quyết định về style, không
-phải sửa bug.
+**B5 đã làm, nhưng lý do trong báo cáo không đúng.** Hiệu năng không phải vấn đề:
+10 lần `switch` trên string là nano giây, round-trip là mili giây. Cái map thật sự
+mua được là (a) trùng tên tool giữa hai module thành lỗi ném lúc load thay vì
+"module nào đứng trước thì thắng", (b) một chỗ duy nhất để tra tên. Kèm theo vẫn
+giữ test so bảng tool Go với handler plugin (`tools_plugin_test.go`).
 
 **Về cảnh báo trong mục Tier 2** ("gộp quá tay thì LLM chọn sai param nhiều hơn
 chọn sai tool"): cảnh báo đúng, nên mỗi tool gộp có `requireVariant` — param
