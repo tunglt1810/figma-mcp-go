@@ -14,8 +14,19 @@
 | **G4** | Thu gọn tool Tier 1: 8 tool node-property gộp thành `set_node_properties` (breaking, cần cài lại plugin) |
 | **G6** | Bảng tool declarative — cả 77 tool khai báo trong `toolSpec`; `ValidateRPC` chỉ còn tra bảng. P1-4 (`steps` sai kiểu) hết theo |
 
-Không còn bug nào trong danh sách này để mở. Chưa làm: **G5** (thu gọn tool Tier 2),
-**G7** (đơn giản hoá leader/follower), **G8** (keepalive bridge + dispatch map plugin).
+| **G8** — B4 | Bridge ping mỗi 20s, drop connection không pong |
+
+Không còn bug nào trong danh sách này để mở.
+
+**B5 (dispatch map plugin) chưa làm — có chủ ý.** Lý do hiệu năng trong báo cáo
+không đúng: 10 lần `switch` trên string là nano giây, round-trip là mili giây.
+Lợi ích thật là chặn trùng tên tool và thiếu handler; cái đó đã có bằng một test
+so bảng tool Go với `case` trong plugin (`tools_plugin_test.go`), rẻ hơn nhiều so
+với viết lại 10 `switch` lớn. Nếu vẫn muốn map thì đó là quyết định về style, không
+phải sửa bug.
+
+Chưa làm: **G5** (thu gọn tool Tier 2 — breaking), **G7** (đơn giản hoá
+leader/follower — cần biết thực tế bao nhiêu user chạy nhiều MCP client).
 
 ---
 
