@@ -13,71 +13,74 @@ func styleDescriptionParam(desc string) paramSpec {
 	return paramSpec{Name: "description", Kind: kindString, Desc: desc}
 }
 
+// styleVariants say which arguments belong to which kind of style. Four
+// create_*_style tools became one; without this the arguments of the other
+// three would be accepted and silently dropped.
+var styleVariants = map[string]variantSpec{
+	"PAINT": {Allowed: []string{"color"}, Required: []string{"color"}},
+	"TEXT": {Allowed: []string{
+		"fontSize", "fontFamily", "fontStyle", "textDecoration",
+		"lineHeightValue", "lineHeightUnit", "letterSpacingValue", "letterSpacingUnit",
+	}},
+	"EFFECT": {Allowed: []string{"effectType", "color", "opacity", "radius", "offsetX", "offsetY", "spread"}},
+	"GRID": {Allowed: []string{
+		"pattern", "count", "gutterSize", "offset", "alignment", "sectionSize", "color", "opacity",
+	}},
+}
+
 var writeStyleSpecs = []toolSpec{
 	{
-		Name: "create_paint_style",
-		Desc: "Create a new local paint style with a solid fill color.",
+		Name: "create_style",
+		Desc: "Create a local style. `type` selects what kind, and each kind takes its own arguments — " +
+			"PAINT: color. " +
+			"TEXT: fontSize, fontFamily, fontStyle, textDecoration, lineHeightValue/Unit, letterSpacingValue/Unit. " +
+			"EFFECT: effectType, color, opacity, radius, offsetX, offsetY, spread. " +
+			"GRID: pattern, count, gutterSize, offset, alignment, sectionSize, color, opacity. " +
+			"An argument belonging to a different kind is rejected rather than ignored. " +
+			"Returns the new style's ID; apply it with apply_style_to_node.",
 		Params: []paramSpec{
-			{Name: "name", Kind: kindString, Required: true, Desc: "Style name e.g. 'Brand/Primary'"},
-			{Name: "color", Kind: kindString, IsHexColor: true, Required: true, Desc: "Fill color as hex e.g. #FF5733"},
-			styleDescriptionParam("Optional style description"),
-		},
-	},
-	{
-		Name: "create_text_style",
-		Desc: "Create a new local text style (typography preset). Returns the new style's ID. Apply it to nodes with apply_style_to_node. Use get_styles to list existing text styles.",
-		Params: []paramSpec{
+			{Name: "type", Kind: kindString, Required: true, Enum: variantKinds(styleVariants),
+				Desc: "Kind of style: PAINT, TEXT, EFFECT, or GRID"},
 			{Name: "name", Kind: kindString, Required: true,
-				Desc: "Style name — use slash notation to organise into groups e.g. 'Heading/H1', 'Body/Regular'"},
-			{Name: "fontSize", Kind: kindNumber, Desc: "Font size in pixels (default 16)"},
+				Desc: "Style name — use slash notation to organise into groups e.g. 'Brand/Primary', 'Heading/H1'"},
+			styleDescriptionParam("Optional description shown in the Figma style panel"),
+
+			{Name: "color", Kind: kindString, IsHexColor: true,
+				Desc: "PAINT: fill color as hex e.g. #FF5733 (required). EFFECT: shadow color (default #000000). GRID: grid line color (default #FF0000)"},
+			{Name: "opacity", Kind: kindNumber,
+				Desc: "EFFECT: shadow color opacity 0–1 (default 0.25). GRID: grid line opacity 0–1 (default 0.1)"},
+
+			{Name: "fontSize", Kind: kindNumber, Desc: "TEXT: font size in pixels (default 16)"},
 			{Name: "fontFamily", Kind: kindString,
-				Desc: "Font family name e.g. 'Inter', 'Roboto' (default Inter). Must be installed in Figma."},
+				Desc: "TEXT: font family name e.g. 'Inter', 'Roboto' (default Inter). Must be installed in Figma."},
 			{Name: "fontStyle", Kind: kindString,
-				Desc: "Font style variant e.g. 'Regular', 'Bold', 'Medium', 'SemiBold' (default Regular)"},
+				Desc: "TEXT: style variant e.g. 'Regular', 'Bold', 'Medium', 'SemiBold' (default Regular)"},
 			{Name: "textDecoration", Kind: kindString, Enum: []string{"NONE", "UNDERLINE", "STRIKETHROUGH"},
-				Desc: "Text decoration: NONE (default), UNDERLINE, or STRIKETHROUGH"},
-			{Name: "lineHeightValue", Kind: kindNumber, Desc: "Line height value (unit set by lineHeightUnit)"},
+				Desc: "TEXT: NONE (default), UNDERLINE, or STRIKETHROUGH"},
+			{Name: "lineHeightValue", Kind: kindNumber, Desc: "TEXT: line height value (unit set by lineHeightUnit)"},
 			{Name: "lineHeightUnit", Kind: kindString, Enum: []string{"PIXELS", "PERCENT"},
-				Desc: "Line height unit: PIXELS (default) or PERCENT"},
-			{Name: "letterSpacingValue", Kind: kindNumber, Desc: "Letter spacing value (unit set by letterSpacingUnit)"},
+				Desc: "TEXT: line height unit — PIXELS (default) or PERCENT"},
+			{Name: "letterSpacingValue", Kind: kindNumber, Desc: "TEXT: letter spacing value (unit set by letterSpacingUnit)"},
 			{Name: "letterSpacingUnit", Kind: kindString, Enum: []string{"PIXELS", "PERCENT"},
-				Desc: "Letter spacing unit: PIXELS (default) or PERCENT"},
-			styleDescriptionParam("Optional human-readable description shown in the Figma style panel"),
-		},
-	},
-	{
-		Name: "create_effect_style",
-		Desc: "Create a new local effect style (drop shadow, inner shadow, or blur).",
-		Params: []paramSpec{
-			{Name: "name", Kind: kindString, Required: true, Desc: "Style name e.g. 'Shadow/Card'"},
-			{Name: "type", Kind: kindString, Enum: effectTypes,
-				Desc: "Effect type: DROP_SHADOW (default), INNER_SHADOW, LAYER_BLUR, or BACKGROUND_BLUR"},
-			{Name: "color", Kind: kindString, IsHexColor: true, Desc: "Shadow color as hex e.g. #000000 (default #000000, shadows only)"},
-			{Name: "opacity", Kind: kindNumber, Desc: "Shadow color opacity 0–1 (default 0.25, shadows only)"},
-			{Name: "radius", Kind: kindNumber, Desc: "Blur radius in pixels (default 8 for shadows, 4 for blurs)"},
-			{Name: "offsetX", Kind: kindNumber, Desc: "Shadow X offset in pixels (default 0, shadows only)"},
-			{Name: "offsetY", Kind: kindNumber, Desc: "Shadow Y offset in pixels (default 4, shadows only)"},
-			{Name: "spread", Kind: kindNumber, Desc: "Shadow spread in pixels (default 0, shadows only)"},
-			styleDescriptionParam("Optional style description"),
-		},
-	},
-	{
-		Name: "create_grid_style",
-		Desc: "Create a new local layout grid style.",
-		Params: []paramSpec{
-			{Name: "name", Kind: kindString, Required: true, Desc: "Style name e.g. 'Grid/Desktop'"},
+				Desc: "TEXT: letter spacing unit — PIXELS (default) or PERCENT"},
+
+			{Name: "effectType", Kind: kindString, Enum: effectTypes,
+				Desc: "EFFECT: DROP_SHADOW (default), INNER_SHADOW, LAYER_BLUR, or BACKGROUND_BLUR"},
+			{Name: "radius", Kind: kindNumber, Desc: "EFFECT: blur radius in pixels (default 8 for shadows, 4 for blurs)"},
+			{Name: "offsetX", Kind: kindNumber, Desc: "EFFECT: shadow X offset in pixels (default 0)"},
+			{Name: "offsetY", Kind: kindNumber, Desc: "EFFECT: shadow Y offset in pixels (default 4)"},
+			{Name: "spread", Kind: kindNumber, Desc: "EFFECT: shadow spread in pixels (default 0)"},
+
 			{Name: "pattern", Kind: kindString, Enum: []string{"GRID", "COLUMNS", "ROWS"},
-				Desc: "Grid pattern: GRID (default), COLUMNS, or ROWS"},
-			{Name: "count", Kind: kindNumber, Desc: "Number of columns or rows (COLUMNS/ROWS only, default 12)"},
-			{Name: "gutterSize", Kind: kindNumber, Desc: "Gutter size in pixels (COLUMNS/ROWS only, default 16)"},
-			{Name: "offset", Kind: kindNumber, Desc: "Margin/offset in pixels (COLUMNS/ROWS only, default 0)"},
+				Desc: "GRID: pattern — GRID (default), COLUMNS, or ROWS"},
+			{Name: "count", Kind: kindNumber, Desc: "GRID: number of columns or rows (COLUMNS/ROWS only, default 12)"},
+			{Name: "gutterSize", Kind: kindNumber, Desc: "GRID: gutter size in pixels (COLUMNS/ROWS only, default 16)"},
+			{Name: "offset", Kind: kindNumber, Desc: "GRID: margin in pixels (COLUMNS/ROWS only, default 0)"},
 			{Name: "alignment", Kind: kindString, Enum: []string{"STRETCH", "CENTER", "MIN", "MAX"},
-				Desc: "Alignment: STRETCH (default), CENTER, MIN, or MAX (COLUMNS/ROWS only)"},
-			{Name: "sectionSize", Kind: kindNumber, Desc: "Grid cell size in pixels (GRID only, default 8)"},
-			{Name: "color", Kind: kindString, IsHexColor: true, Desc: "Grid line color as hex e.g. #FF0000 (GRID only, default #FF0000)"},
-			{Name: "opacity", Kind: kindNumber, Desc: "Grid line opacity 0–1 (GRID only, default 0.1)"},
-			styleDescriptionParam("Optional style description"),
+				Desc: "GRID: STRETCH (default), CENTER, MIN, or MAX (COLUMNS/ROWS only)"},
+			{Name: "sectionSize", Kind: kindNumber, Desc: "GRID: cell size in pixels (GRID pattern only, default 8)"},
 		},
+		Validate: requireVariant("type", styleVariants, "name", "description"),
 	},
 	{
 		Name: "update_paint_style",

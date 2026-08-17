@@ -554,67 +554,6 @@ func TestValidateRPC_ImportImage(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_CreatePaintStyle(t *testing.T) {
-	if msg := ValidateRPC("create_paint_style", nil, nil); msg == "" {
-		t.Error("expected error for missing name")
-	}
-	if msg := ValidateRPC("create_paint_style", nil, map[string]interface{}{"name": "Primary"}); msg == "" {
-		t.Error("expected error for missing color")
-	}
-	if msg := ValidateRPC("create_paint_style", nil, map[string]interface{}{"name": "Primary", "color": "#ff0000"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_CreateTextStyle(t *testing.T) {
-	if msg := ValidateRPC("create_text_style", nil, nil); msg == "" {
-		t.Error("expected error for missing name")
-	}
-	if msg := ValidateRPC("create_text_style", nil, map[string]interface{}{"name": "H1", "textDecoration": "BOLD"}); msg == "" {
-		t.Error("expected error for invalid textDecoration")
-	}
-	if msg := ValidateRPC("create_text_style", nil, map[string]interface{}{"name": "H1", "lineHeightUnit": "EM"}); msg == "" {
-		t.Error("expected error for invalid lineHeightUnit")
-	}
-	if msg := ValidateRPC("create_text_style", nil, map[string]interface{}{"name": "H1", "letterSpacingUnit": "PT"}); msg == "" {
-		t.Error("expected error for invalid letterSpacingUnit")
-	}
-	if msg := ValidateRPC("create_text_style", nil, map[string]interface{}{
-		"name": "H1", "textDecoration": "UNDERLINE", "lineHeightUnit": "PIXELS", "letterSpacingUnit": "PERCENT",
-	}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_CreateEffectStyle(t *testing.T) {
-	if msg := ValidateRPC("create_effect_style", nil, nil); msg == "" {
-		t.Error("expected error for missing name")
-	}
-	if msg := ValidateRPC("create_effect_style", nil, map[string]interface{}{"name": "Shadow", "type": "GLOW"}); msg == "" {
-		t.Error("expected error for invalid type")
-	}
-	for _, et := range []string{"DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"} {
-		if msg := ValidateRPC("create_effect_style", nil, map[string]interface{}{"name": "S", "type": et}); msg != "" {
-			t.Errorf("unexpected error for type %s: %s", et, msg)
-		}
-	}
-}
-
-func TestValidateRPC_CreateGridStyle(t *testing.T) {
-	if msg := ValidateRPC("create_grid_style", nil, nil); msg == "" {
-		t.Error("expected error for missing name")
-	}
-	if msg := ValidateRPC("create_grid_style", nil, map[string]interface{}{"name": "Grid", "pattern": "DIAGONAL"}); msg == "" {
-		t.Error("expected error for invalid pattern")
-	}
-	if msg := ValidateRPC("create_grid_style", nil, map[string]interface{}{"name": "Grid", "alignment": "LEFT"}); msg == "" {
-		t.Error("expected error for invalid alignment")
-	}
-	if msg := ValidateRPC("create_grid_style", nil, map[string]interface{}{"name": "Grid", "pattern": "COLUMNS", "alignment": "CENTER"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_UpdatePaintStyle(t *testing.T) {
 	if msg := ValidateRPC("update_paint_style", nil, nil); msg == "" {
 		t.Error("expected error for missing styleId")
@@ -1413,7 +1352,7 @@ func TestValidateRPC_HexColor(t *testing.T) {
 		params map[string]interface{}
 	}{
 		{"set_strokes", map[string]interface{}{"color": "nope"}},
-		{"create_paint_style", map[string]interface{}{"name": "Brand", "color": "nope"}},
+		{"create_style", map[string]interface{}{"type": "PAINT", "name": "Brand", "color": "nope"}},
 		{"create_rectangle", map[string]interface{}{"fillColor": "nope"}},
 		{"create_line", map[string]interface{}{"strokeColor": "nope"}},
 	}
@@ -1421,5 +1360,55 @@ func TestValidateRPC_HexColor(t *testing.T) {
 		if msg := ValidateRPC(c.tool, []string{"1:1"}, c.params); msg == "" {
 			t.Errorf("%s: expected the bad color to be rejected", c.tool)
 		}
+	}
+}
+
+// create_style merged four tools behind a `type` discriminator. The risk that
+// buys is the model reaching for an argument that belongs to a different kind
+// of style, so those are rejected rather than dropped.
+func TestValidateRPC_CreateStyle(t *testing.T) {
+	cases := []struct {
+		name    string
+		params  map[string]interface{}
+		wantMsg string // "" means the request must be accepted
+	}{
+		{"paint", map[string]interface{}{"type": "PAINT", "name": "Brand", "color": "#ff0000"}, ""},
+		{"text", map[string]interface{}{"type": "TEXT", "name": "H1", "fontSize": 32.0}, ""},
+		{"effect", map[string]interface{}{"type": "EFFECT", "name": "Card", "effectType": "DROP_SHADOW", "radius": 8.0}, ""},
+		{"grid", map[string]interface{}{"type": "GRID", "name": "Desktop", "pattern": "COLUMNS", "count": 12.0}, ""},
+		{"description is common", map[string]interface{}{"type": "TEXT", "name": "H1", "description": "big"}, ""},
+
+		{"missing type", map[string]interface{}{"name": "Brand"}, "type is required"},
+		{"unknown type", map[string]interface{}{"type": "SHADOW", "name": "Brand"}, "type must be one of"},
+		{"missing name", map[string]interface{}{"type": "PAINT", "color": "#ff0000"}, "name is required"},
+		{"paint without color", map[string]interface{}{"type": "PAINT", "name": "Brand"}, "color is required when type is PAINT"},
+
+		{"text argument on a paint style", map[string]interface{}{
+			"type": "PAINT", "name": "Brand", "color": "#ff0000", "fontSize": 32.0,
+		}, "fontSize does not apply when type is PAINT"},
+		{"grid argument on a text style", map[string]interface{}{
+			"type": "TEXT", "name": "H1", "pattern": "COLUMNS",
+		}, "pattern does not apply when type is TEXT"},
+		{"effect argument on a grid style", map[string]interface{}{
+			"type": "GRID", "name": "Desktop", "spread": 4.0,
+		}, "spread does not apply when type is GRID"},
+		{"colour is shared, spacing is not", map[string]interface{}{
+			"type": "GRID", "name": "Desktop", "color": "#ff0000", "letterSpacingValue": 2.0,
+		}, "letterSpacingValue does not apply when type is GRID"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg := ValidateRPC("create_style", nil, c.params)
+			if c.wantMsg == "" {
+				if msg != "" {
+					t.Errorf("expected the request to be accepted, got %q", msg)
+				}
+				return
+			}
+			if !strings.Contains(msg, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
+			}
+		})
 	}
 }

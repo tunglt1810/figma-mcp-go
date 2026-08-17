@@ -1,6 +1,29 @@
 import { makeSolidPaint, hexToRgb } from "./write-helpers";
 
-export const handleWriteStyleRequest = async (request: any) => {
+// create_style replaced four create_*_style tools on the MCP surface. The four
+// implementations stay separate below, because they genuinely are: only the
+// surface merged. `effectType` is unwrapped back to `type`, which the style kind
+// took over at the outer level.
+const STYLE_ACTIONS: Record<string, string> = {
+  PAINT: "create_paint_style",
+  TEXT: "create_text_style",
+  EFFECT: "create_effect_style",
+  GRID: "create_grid_style",
+};
+
+export const handleWriteStyleRequest = async (request: any): Promise<any> => {
+  if (request.type === "create_style") {
+    const { type, effectType, ...rest } = request.params || {};
+    const action = STYLE_ACTIONS[type];
+    if (!action) {
+      throw new Error(`type must be PAINT, TEXT, EFFECT, or GRID, got: ${type}`);
+    }
+    const params = effectType != null ? { ...rest, type: effectType } : rest;
+    const result = await handleWriteStyleRequest({ ...request, type: action, params });
+    // Answer under the name the caller used, not the one we delegated to.
+    return { ...result, type: request.type };
+  }
+
   switch (request.type) {
     case "create_paint_style": {
       const p = request.params || {};

@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -330,6 +331,70 @@ func validateArrayParam(p paramSpec, v interface{}) string {
 		}
 	}
 	return ""
+}
+
+// variantSpec describes one variant of a merged tool: the arguments it accepts
+// and the ones it cannot do without.
+type variantSpec struct {
+	Allowed  []string
+	Required []string
+}
+
+// requireVariant builds a Validate for a tool that merged several tools behind
+// a discriminator argument.
+//
+// Merging tools trades one failure for another: the model stops picking the
+// wrong tool and starts picking the wrong argument. That trade is only worth
+// making if the wrong argument is reported rather than quietly ignored, so an
+// argument belonging to a different variant is an error here, named and
+// attributed to the variant it belongs to.
+func requireVariant(discriminator string, variants map[string]variantSpec, common ...string) func([]string, map[string]interface{}) string {
+	return func(_ []string, params map[string]interface{}) string {
+		kind, _ := params[discriminator].(string)
+		variant, known := variants[kind]
+		if !known {
+			// The discriminator's Enum has already reported an unknown value,
+			// and a missing one is reported by Required.
+			return ""
+		}
+
+		allowed := map[string]bool{discriminator: true}
+		for _, k := range common {
+			allowed[k] = true
+		}
+		for _, k := range variant.Allowed {
+			allowed[k] = true
+		}
+
+		var stray []string
+		for k := range params {
+			if !allowed[k] {
+				stray = append(stray, k)
+			}
+		}
+		if len(stray) > 0 {
+			sort.Strings(stray) // a map's order must not reach the message
+			return fmt.Sprintf("%s does not apply when %s is %s", stray[0], discriminator, kind)
+		}
+
+		for _, k := range variant.Required {
+			if _, ok := params[k]; !ok {
+				return fmt.Sprintf("%s is required when %s is %s", k, discriminator, kind)
+			}
+		}
+		return ""
+	}
+}
+
+// variantKinds lists a variant map's keys in sorted order, for the
+// discriminator's Enum.
+func variantKinds(variants map[string]variantSpec) []string {
+	kinds := make([]string, 0, len(variants))
+	for k := range variants {
+		kinds = append(kinds, k)
+	}
+	sort.Strings(kinds)
+	return kinds
 }
 
 // requireAnyOf builds a Validate rejecting a request that supplies none of the

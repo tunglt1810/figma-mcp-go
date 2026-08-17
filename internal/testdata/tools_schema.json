@@ -371,60 +371,6 @@
     },
     "name": "create_connector"
   },
-  "create_effect_style": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new local effect style (drop shadow, inner shadow, or blur).",
-    "inputSchema": {
-      "properties": {
-        "color": {
-          "description": "Shadow color as hex e.g. #000000 (default #000000, shadows only)",
-          "type": "string"
-        },
-        "description": {
-          "description": "Optional style description",
-          "type": "string"
-        },
-        "name": {
-          "description": "Style name e.g. 'Shadow/Card'",
-          "type": "string"
-        },
-        "offsetX": {
-          "description": "Shadow X offset in pixels (default 0, shadows only)",
-          "type": "number"
-        },
-        "offsetY": {
-          "description": "Shadow Y offset in pixels (default 4, shadows only)",
-          "type": "number"
-        },
-        "opacity": {
-          "description": "Shadow color opacity 0–1 (default 0.25, shadows only)",
-          "type": "number"
-        },
-        "radius": {
-          "description": "Blur radius in pixels (default 8 for shadows, 4 for blurs)",
-          "type": "number"
-        },
-        "spread": {
-          "description": "Shadow spread in pixels (default 0, shadows only)",
-          "type": "number"
-        },
-        "type": {
-          "description": "Effect type: DROP_SHADOW (default), INNER_SHADOW, LAYER_BLUR, or BACKGROUND_BLUR",
-          "type": "string"
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "type": "object"
-    },
-    "name": "create_effect_style"
-  },
   "create_ellipse": {
     "annotations": {
       "readOnlyHint": false,
@@ -573,64 +519,6 @@
     },
     "name": "create_frame"
   },
-  "create_grid_style": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new local layout grid style.",
-    "inputSchema": {
-      "properties": {
-        "alignment": {
-          "description": "Alignment: STRETCH (default), CENTER, MIN, or MAX (COLUMNS/ROWS only)",
-          "type": "string"
-        },
-        "color": {
-          "description": "Grid line color as hex e.g. #FF0000 (GRID only, default #FF0000)",
-          "type": "string"
-        },
-        "count": {
-          "description": "Number of columns or rows (COLUMNS/ROWS only, default 12)",
-          "type": "number"
-        },
-        "description": {
-          "description": "Optional style description",
-          "type": "string"
-        },
-        "gutterSize": {
-          "description": "Gutter size in pixels (COLUMNS/ROWS only, default 16)",
-          "type": "number"
-        },
-        "name": {
-          "description": "Style name e.g. 'Grid/Desktop'",
-          "type": "string"
-        },
-        "offset": {
-          "description": "Margin/offset in pixels (COLUMNS/ROWS only, default 0)",
-          "type": "number"
-        },
-        "opacity": {
-          "description": "Grid line opacity 0–1 (GRID only, default 0.1)",
-          "type": "number"
-        },
-        "pattern": {
-          "description": "Grid pattern: GRID (default), COLUMNS, or ROWS",
-          "type": "string"
-        },
-        "sectionSize": {
-          "description": "Grid cell size in pixels (GRID only, default 8)",
-          "type": "number"
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "type": "object"
-    },
-    "name": "create_grid_style"
-  },
   "create_line": {
     "annotations": {
       "readOnlyHint": false,
@@ -674,37 +562,6 @@
       "type": "object"
     },
     "name": "create_line"
-  },
-  "create_paint_style": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new local paint style with a solid fill color.",
-    "inputSchema": {
-      "properties": {
-        "color": {
-          "description": "Fill color as hex e.g. #FF5733",
-          "type": "string"
-        },
-        "description": {
-          "description": "Optional style description",
-          "type": "string"
-        },
-        "name": {
-          "description": "Style name e.g. 'Brand/Primary'",
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "color"
-      ],
-      "type": "object"
-    },
-    "name": "create_paint_style"
   },
   "create_polygon": {
     "annotations": {
@@ -882,6 +739,121 @@
     },
     "name": "create_star"
   },
+  "create_style": {
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true
+    },
+    "description": "Create a local style. `type` selects what kind, and each kind takes its own arguments — PAINT: color. TEXT: fontSize, fontFamily, fontStyle, textDecoration, lineHeightValue/Unit, letterSpacingValue/Unit. EFFECT: effectType, color, opacity, radius, offsetX, offsetY, spread. GRID: pattern, count, gutterSize, offset, alignment, sectionSize, color, opacity. An argument belonging to a different kind is rejected rather than ignored. Returns the new style's ID; apply it with apply_style_to_node.",
+    "inputSchema": {
+      "properties": {
+        "alignment": {
+          "description": "GRID: STRETCH (default), CENTER, MIN, or MAX (COLUMNS/ROWS only)",
+          "type": "string"
+        },
+        "color": {
+          "description": "PAINT: fill color as hex e.g. #FF5733 (required). EFFECT: shadow color (default #000000). GRID: grid line color (default #FF0000)",
+          "type": "string"
+        },
+        "count": {
+          "description": "GRID: number of columns or rows (COLUMNS/ROWS only, default 12)",
+          "type": "number"
+        },
+        "description": {
+          "description": "Optional description shown in the Figma style panel",
+          "type": "string"
+        },
+        "effectType": {
+          "description": "EFFECT: DROP_SHADOW (default), INNER_SHADOW, LAYER_BLUR, or BACKGROUND_BLUR",
+          "type": "string"
+        },
+        "fontFamily": {
+          "description": "TEXT: font family name e.g. 'Inter', 'Roboto' (default Inter). Must be installed in Figma.",
+          "type": "string"
+        },
+        "fontSize": {
+          "description": "TEXT: font size in pixels (default 16)",
+          "type": "number"
+        },
+        "fontStyle": {
+          "description": "TEXT: style variant e.g. 'Regular', 'Bold', 'Medium', 'SemiBold' (default Regular)",
+          "type": "string"
+        },
+        "gutterSize": {
+          "description": "GRID: gutter size in pixels (COLUMNS/ROWS only, default 16)",
+          "type": "number"
+        },
+        "letterSpacingUnit": {
+          "description": "TEXT: letter spacing unit — PIXELS (default) or PERCENT",
+          "type": "string"
+        },
+        "letterSpacingValue": {
+          "description": "TEXT: letter spacing value (unit set by letterSpacingUnit)",
+          "type": "number"
+        },
+        "lineHeightUnit": {
+          "description": "TEXT: line height unit — PIXELS (default) or PERCENT",
+          "type": "string"
+        },
+        "lineHeightValue": {
+          "description": "TEXT: line height value (unit set by lineHeightUnit)",
+          "type": "number"
+        },
+        "name": {
+          "description": "Style name — use slash notation to organise into groups e.g. 'Brand/Primary', 'Heading/H1'",
+          "type": "string"
+        },
+        "offset": {
+          "description": "GRID: margin in pixels (COLUMNS/ROWS only, default 0)",
+          "type": "number"
+        },
+        "offsetX": {
+          "description": "EFFECT: shadow X offset in pixels (default 0)",
+          "type": "number"
+        },
+        "offsetY": {
+          "description": "EFFECT: shadow Y offset in pixels (default 4)",
+          "type": "number"
+        },
+        "opacity": {
+          "description": "EFFECT: shadow color opacity 0–1 (default 0.25). GRID: grid line opacity 0–1 (default 0.1)",
+          "type": "number"
+        },
+        "pattern": {
+          "description": "GRID: pattern — GRID (default), COLUMNS, or ROWS",
+          "type": "string"
+        },
+        "radius": {
+          "description": "EFFECT: blur radius in pixels (default 8 for shadows, 4 for blurs)",
+          "type": "number"
+        },
+        "sectionSize": {
+          "description": "GRID: cell size in pixels (GRID pattern only, default 8)",
+          "type": "number"
+        },
+        "spread": {
+          "description": "EFFECT: shadow spread in pixels (default 0)",
+          "type": "number"
+        },
+        "textDecoration": {
+          "description": "TEXT: NONE (default), UNDERLINE, or STRIKETHROUGH",
+          "type": "string"
+        },
+        "type": {
+          "description": "Kind of style: PAINT, TEXT, EFFECT, or GRID",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "name"
+      ],
+      "type": "object"
+    },
+    "name": "create_style"
+  },
   "create_text": {
     "annotations": {
       "readOnlyHint": false,
@@ -935,64 +907,6 @@
       "type": "object"
     },
     "name": "create_text"
-  },
-  "create_text_style": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new local text style (typography preset). Returns the new style's ID. Apply it to nodes with apply_style_to_node. Use get_styles to list existing text styles.",
-    "inputSchema": {
-      "properties": {
-        "description": {
-          "description": "Optional human-readable description shown in the Figma style panel",
-          "type": "string"
-        },
-        "fontFamily": {
-          "description": "Font family name e.g. 'Inter', 'Roboto' (default Inter). Must be installed in Figma.",
-          "type": "string"
-        },
-        "fontSize": {
-          "description": "Font size in pixels (default 16)",
-          "type": "number"
-        },
-        "fontStyle": {
-          "description": "Font style variant e.g. 'Regular', 'Bold', 'Medium', 'SemiBold' (default Regular)",
-          "type": "string"
-        },
-        "letterSpacingUnit": {
-          "description": "Letter spacing unit: PIXELS (default) or PERCENT",
-          "type": "string"
-        },
-        "letterSpacingValue": {
-          "description": "Letter spacing value (unit set by letterSpacingUnit)",
-          "type": "number"
-        },
-        "lineHeightUnit": {
-          "description": "Line height unit: PIXELS (default) or PERCENT",
-          "type": "string"
-        },
-        "lineHeightValue": {
-          "description": "Line height value (unit set by lineHeightUnit)",
-          "type": "number"
-        },
-        "name": {
-          "description": "Style name — use slash notation to organise into groups e.g. 'Heading/H1', 'Body/Regular'",
-          "type": "string"
-        },
-        "textDecoration": {
-          "description": "Text decoration: NONE (default), UNDERLINE, or STRIKETHROUGH",
-          "type": "string"
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "type": "object"
-    },
-    "name": "create_text_style"
   },
   "create_variable": {
     "annotations": {

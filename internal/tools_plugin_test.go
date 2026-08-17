@@ -12,10 +12,17 @@ import (
 // there compiled, shipped, and failed at the user's machine with "Unknown
 // request type". This checks the halves line up.
 
-// pluginOnlyInGo are the tools the plugin deliberately has no case for.
+// pluginOnlyInGo are the tools the plugin deliberately does not handle.
 var pluginOnlyInGo = map[string]string{
-	"batch_execute_pipeline": "handleBatchPipelineRequest takes the whole request before the switches, because it dispatches the steps itself",
-	"save_screenshots":       "never reaches the plugin — the Go handler calls get_screenshot once per item and writes the files",
+	"save_screenshots": "never reaches the plugin — the Go handler calls get_screenshot once per item and writes the files",
+}
+
+// A handler claims a tool either with a switch case or, for the tools that are
+// routed before the switch, with a comparison against request.type.
+func pluginClaims(sources, tool string) bool {
+	return strings.Contains(sources, `case "`+tool+`"`) ||
+		strings.Contains(sources, `request.type === "`+tool+`"`) ||
+		strings.Contains(sources, `request.type !== '`+tool+`'`)
 }
 
 func TestEveryToolHasAPluginHandler(t *testing.T) {
@@ -23,12 +30,12 @@ func TestEveryToolHasAPluginHandler(t *testing.T) {
 
 	for name := range specRegistry {
 		if reason, expected := pluginOnlyInGo[name]; expected {
-			if strings.Contains(sources, `case "`+name+`"`) {
-				t.Errorf("%s has a plugin case after all — drop it from pluginOnlyInGo (%s)", name, reason)
+			if pluginClaims(sources, name) {
+				t.Errorf("%s has a plugin handler after all — drop it from pluginOnlyInGo (%s)", name, reason)
 			}
 			continue
 		}
-		if !strings.Contains(sources, `case "`+name+`"`) {
+		if !pluginClaims(sources, name) {
 			t.Errorf("tool %q is declared in the table but no plugin handler claims it", name)
 		}
 	}
