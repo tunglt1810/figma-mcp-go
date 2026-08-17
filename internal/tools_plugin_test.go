@@ -17,11 +17,11 @@ var pluginOnlyInGo = map[string]string{
 	"save_screenshots": "never reaches the plugin — the Go handler calls get_screenshot once per item and writes the files",
 }
 
-// A handler claims a tool either with a switch case or, for the tools that are
-// routed before the switch, with a comparison against request.type.
+// A handler claims a tool by being the map entry under its name. The pipeline
+// is the exception: it takes the whole request before dispatch, so it compares
+// against request.type instead.
 func pluginClaims(sources, tool string) bool {
-	return strings.Contains(sources, `case "`+tool+`"`) ||
-		strings.Contains(sources, `request.type === "`+tool+`"`) ||
+	return strings.Contains(sources, `"`+tool+`": async (request)`) ||
 		strings.Contains(sources, `request.type !== '`+tool+`'`)
 }
 
