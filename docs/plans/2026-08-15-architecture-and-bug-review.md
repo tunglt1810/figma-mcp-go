@@ -14,6 +14,7 @@
 | **G4** | Thu gọn tool Tier 1: 8 tool node-property gộp thành `set_node_properties` (breaking, cần cài lại plugin) |
 | **G5** | Thu gọn tool Tier 2: shape 7→1, paint 3→1, style 4→1, page 4→1. 77 → 63 tool |
 | **G6** | Bảng tool declarative — mọi tool khai báo trong `toolSpec`; `ValidateRPC` chỉ còn tra bảng. P1-4 (`steps` sai kiểu) hết theo |
+| **G7** — B3 | **Không làm** — giữ leader/follower; xem phần dưới |
 | **G8** — B4 + B5 | Bridge ping mỗi 20s, drop connection không pong; dispatch plugin thành map, trùng tên tool là lỗi lúc load |
 
 Không còn bug nào trong danh sách này để mở.
@@ -29,10 +30,21 @@ chọn sai tool"): cảnh báo đúng, nên mỗi tool gộp có `requireVariant
 thuộc variant khác bị **báo lỗi kèm tên param và tên variant**, không bị bỏ qua
 âm thầm. Đổi một lỗi khó thấy lấy một lỗi nói thẳng.
 
-Chưa làm: **G7** (đơn giản hoá leader/follower). Lưu ý lý do trong B3 đã yếu đi
+**G7 — quyết định: không làm, giữ leader/follower.** Lý do trong B3 đã yếu đi
 nhiều: hai nguồn bug được nêu ở đó (P1-5 validation lệch, P1-6 timeout lệch) đều
-đã sửa, nên phần còn lại chỉ là ~500 dòng code đang chạy tốt. Vẫn cần biết thực
-tế bao nhiêu user chạy nhiều MCP client trước khi xoá.
+đã sửa, nên phần còn lại chỉ là ~500 dòng đang chạy tốt.
+
+Hai topology tồn tại song song và làm hai việc khác nhau:
+
+- **Nhiều client → một file Figma**, không cần cấu hình: process đầu tiên chiếm
+  1994 giữ WebSocket, các process sau proxy qua `/rpc`. Đây là leader/follower.
+- **Nhiều client → nhiều file Figma**: mỗi client một `--port`, mỗi plugin
+  instance trỏ vào port riêng. Không có follower nào chạy.
+
+Cách hai vốn đã làm được nhưng chưa từng được ghi ở đâu; nay có trong README.
+Xoá leader/follower sẽ lấy mất cách một, tức trường hợp zero-config hai
+terminal cùng tác động lên một file — trong khi package đã publish npm công
+khai. Giữ.
 
 ---
 
