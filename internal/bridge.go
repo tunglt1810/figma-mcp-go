@@ -51,13 +51,19 @@ type Bridge struct {
 	pending map[string]*pendingEntry
 	counter atomic.Int64
 	version string
+
+	// Ping cadence, overridable in tests so they need not wait 20 seconds.
+	pingInterval time.Duration
+	pingTimeout  time.Duration
 }
 
 // NewBridge creates a ready-to-use Bridge.
 func NewBridge(version string) *Bridge {
 	return &Bridge{
-		pending: make(map[string]*pendingEntry),
-		version: version,
+		pending:      make(map[string]*pendingEntry),
+		version:      version,
+		pingInterval: defaultPingInterval,
+		pingTimeout:  defaultPingTimeout,
 	}
 }
 
@@ -124,6 +130,42 @@ func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 		bridgeLogger.Printf("plugin connected from %s", r.RemoteAddr)
 	}
 	go b.readLoop(conn)
+	go b.keepalive(conn)
+}
+
+// keepalive pings the plugin on a timer. Without it a connection that died
+// without a close frame — laptop asleep, network dropped — keeps looking alive,
+// and the first sign of trouble is a tool call timing out much later. A missed
+// pong closes the connection, so the next call fails immediately and says the
+// plugin is not connected.
+//
+// Ping writes a control frame, which the library serialises separately from
+// data messages, so this does not need the write lock and cannot block a send
+// while it waits for the pong.
+func (b *Bridge) keepalive(conn *websocket.Conn) {
+	ticker := time.NewTicker(b.pingInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		b.mu.RLock()
+		current := b.conn
+		b.mu.RUnlock()
+		if current != conn {
+			return // replaced or already gone
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), b.pingTimeout)
+		err := conn.Ping(ctx)
+		cancel()
+		if err != nil {
+			bridgeLogger.Printf("keepalive: no pong, dropping connection: %v", err)
+			// CloseNow, not Close: a graceful close waits for the peer's close
+			// frame, and the peer not answering is exactly what got us here.
+			// Dropping the socket makes readLoop return, which clears b.conn.
+			conn.CloseNow() //nolint:errcheck
+			return
+		}
+	}
 }
 
 // readLoop reads messages from the plugin and resolves pending requests.

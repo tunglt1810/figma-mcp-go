@@ -271,3 +271,78 @@ func TestAllowedOrigin(t *testing.T) {
 		}
 	}
 }
+
+// A connection that dies without a close frame — laptop sleep, network drop —
+// used to look alive until the next tool call timed out 30 seconds later. The
+// keepalive notices instead: a client that has stopped reading never pongs.
+func TestKeepalive_DropsAConnectionThatStopsAnswering(t *testing.T) {
+	bridge := NewBridge("0.1.0")
+	bridge.pingInterval = 20 * time.Millisecond
+	bridge.pingTimeout = 60 * time.Millisecond
+
+	srv := httptest.NewServer(http.HandlerFunc(bridge.HandleUpgrade))
+	t.Cleanup(srv.Close)
+
+	// A raw TCP connection speaking the handshake by hand: it never reads
+	// frames, so it can never answer a ping.
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
+	clientConn, _, err := websocket.Dial(context.Background(), wsURL, nil)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	t.Cleanup(func() { clientConn.Close(websocket.StatusNormalClosure, "") })
+
+	waitFor(t, 500*time.Millisecond, bridge.IsConnected, "bridge to register the connection")
+
+	// The client never calls Read, so the library never sends a pong.
+	waitFor(t, 2*time.Second, func() bool { return !bridge.IsConnected() },
+		"the bridge to drop the silent connection")
+}
+
+// A client that is reading normally answers pings, and the connection stays up.
+func TestKeepalive_LeavesAHealthyConnectionAlone(t *testing.T) {
+	bridge := NewBridge("0.1.0")
+	bridge.pingInterval = 20 * time.Millisecond
+	bridge.pingTimeout = 200 * time.Millisecond
+
+	srv := httptest.NewServer(http.HandlerFunc(bridge.HandleUpgrade))
+	t.Cleanup(srv.Close)
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
+	clientConn, _, err := websocket.Dial(context.Background(), wsURL, nil)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	t.Cleanup(func() { clientConn.Close(websocket.StatusNormalClosure, "") })
+
+	// Reading is what lets the library answer pings.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		for {
+			var msg map[string]interface{}
+			if err := wsjson.Read(ctx, clientConn, &msg); err != nil {
+				return
+			}
+		}
+	}()
+
+	waitFor(t, 500*time.Millisecond, bridge.IsConnected, "bridge to register the connection")
+
+	time.Sleep(300 * time.Millisecond) // several ping rounds
+	if !bridge.IsConnected() {
+		t.Error("a connection answering pings was dropped")
+	}
+}
+
+func waitFor(t *testing.T, limit time.Duration, cond func() bool, what string) {
+	t.Helper()
+	deadline := time.Now().Add(limit)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out after %s waiting for %s", limit, what)
+}

@@ -17,6 +17,12 @@ const (
 	// request open forever.
 	maxToolTimeout = 10 * time.Minute
 
+	// defaultPingInterval / defaultPingTimeout keep the plugin connection
+	// honest. Without a ping the bridge cannot tell a quiet plugin from a dead
+	// one until a tool call times out.
+	defaultPingInterval = 20 * time.Second
+	defaultPingTimeout  = 10 * time.Second
+
 	// followerGrace keeps the follower waiting a little past the leader's
 	// deadline, so the caller gets the leader's real error rather than a
 	// transport timeout that says nothing about what went wrong.
