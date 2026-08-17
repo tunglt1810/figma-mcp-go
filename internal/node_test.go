@@ -230,8 +230,8 @@ func TestNodeSend_RejectsInvalidArgsBeforeReachingPlugin(t *testing.T) {
 		params  map[string]interface{}
 		wantMsg string
 	}{
-		{"opacity out of range", "set_node_properties", []string{"1:1"}, map[string]interface{}{"opacity": 5.0}, "opacity must be between 0 and 1"},
-		{"invalid blend mode", "set_node_properties", []string{"1:1"}, map[string]interface{}{"blendMode": "NEON"}, "not a valid Figma blend mode"},
+		{"opacity out of range", "set_node_properties", []string{"1:1"}, map[string]interface{}{"opacity": 5.0}, "opacity must be at most 1"},
+		{"invalid blend mode", "set_node_properties", []string{"1:1"}, map[string]interface{}{"blendMode": "NEON"}, "blendMode must be one of"},
 		{"missing node id", "get_node", nil, nil, "nodeId is required"},
 		{"bad node id format", "rename_node", []string{"nope"}, map[string]interface{}{"name": "x"}, "colon format"},
 	}

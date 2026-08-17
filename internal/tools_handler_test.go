@@ -413,8 +413,8 @@ func TestToolCall_InvalidArgsRejected(t *testing.T) {
 		args    map[string]any
 		wantMsg string
 	}{
-		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "opacity": 5.0}, "opacity must be between 0 and 1"},
-		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "blendMode": "NEON"}, "not a valid Figma blend mode"},
+		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "opacity": 5.0}, "opacity must be at most 1"},
+		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "blendMode": "NEON"}, "blendMode must be one of"},
 		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "order": "sideways"}, "order must be"},
 		{"resize_nodes", map[string]any{"nodeIds": []any{"nope"}, "width": 10.0}, "colon format"},
 		{"search_nodes", map[string]any{"query": ""}, "query is required"},

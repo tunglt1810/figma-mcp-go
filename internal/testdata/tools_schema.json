@@ -2024,7 +2024,7 @@
           "type": "number"
         },
         "itemSpacing": {
-          "description": "Gap between children",
+          "description": "Auto-layout gap between children",
           "type": "number"
         },
         "layoutMode": {
@@ -2040,19 +2040,19 @@
           "type": "string"
         },
         "paddingBottom": {
-          "description": "Bottom padding",
+          "description": "Auto-layout bottom padding",
           "type": "number"
         },
         "paddingLeft": {
-          "description": "Left padding",
+          "description": "Auto-layout left padding",
           "type": "number"
         },
         "paddingRight": {
-          "description": "Right padding",
+          "description": "Auto-layout right padding",
           "type": "number"
         },
         "paddingTop": {
-          "description": "Top padding",
+          "description": "Auto-layout top padding",
           "type": "number"
         },
         "primaryAxisAlignItems": {

@@ -42,39 +42,99 @@ func callWire(t *testing.T, s *server.MCPServer, tool string, args map[string]an
 
 func TestToolWireShape(t *testing.T) {
 	cases := []struct {
+		name        string
 		tool        string
 		args        map[string]any
 		wantNodeIDs []string
 		wantParams  map[string]interface{}
 	}{
 		{
+			name: "no arguments",
 			tool: "get_styles", args: map[string]any{},
 			wantNodeIDs: nil, wantParams: map[string]interface{}{},
 		},
 		{
 			// The node id belongs in params here; the plugin reads
 			// request.params.nodeId and ignores request.nodeIds.
+			name: "node id stays in params",
 			tool: "get_annotations", args: map[string]any{"nodeId": "4029:12345"},
 			wantNodeIDs: nil, wantParams: map[string]interface{}{"nodeId": "4029:12345"},
 		},
 		{
+			name: "no node id",
 			tool: "get_annotations", args: map[string]any{},
 			wantNodeIDs: nil, wantParams: map[string]interface{}{},
 		},
 		{
+			name: "format forwarded",
 			tool: "export_tokens", args: map[string]any{"format": "css"},
 			wantNodeIDs: nil, wantParams: map[string]interface{}{"format": "css"},
 		},
 		{
 			// An omitted argument must stay omitted so the plugin's own default
 			// applies, rather than being sent as a zero value.
+			name: "omitted argument stays omitted",
 			tool: "export_tokens", args: map[string]any{},
 			wantNodeIDs: nil, wantParams: map[string]interface{}{},
+		},
+		{
+			// The plugin reads request.nodeIds[0] as the search root, so the
+			// nodeId argument must travel in the nodeIDs field, not in params.
+			name:        "scoped to a subtree",
+			tool:        "find_replace_text",
+			args:        map[string]any{"nodeId": "4029:12345", "find": "a", "replace": "b"},
+			wantNodeIDs: []string{"4029:12345"},
+			wantParams:  map[string]interface{}{"find": "a", "replace": "b"},
+		},
+		{
+			name: "whole page",
+			tool: "find_replace_text", args: map[string]any{"find": "a", "replace": ""},
+			wantNodeIDs: nil,
+			// An empty replacement deletes matches, so it must reach the plugin
+			// rather than being dropped as an absent argument.
+			wantParams: map[string]interface{}{"find": "a", "replace": ""},
+		},
+		{
+			name: "empty text clears the node",
+			tool: "set_text", args: map[string]any{"nodeId": "1:1", "text": ""},
+			wantNodeIDs: []string{"1:1"}, wantParams: map[string]interface{}{"text": ""},
+		},
+		{
+			name:        "empty replacement strips the found text",
+			tool:        "batch_rename_nodes",
+			args:        map[string]any{"nodeIds": []any{"1:1"}, "find": "old", "replace": ""},
+			wantNodeIDs: []string{"1:1"},
+			wantParams:  map[string]interface{}{"find": "old", "replace": ""},
+		},
+		{
+			// The old handler forwarded every argument it was given, node id
+			// included; only declared parameters should reach the plugin now.
+			name:        "node id is not repeated in params",
+			tool:        "set_auto_layout",
+			args:        map[string]any{"nodeId": "1:1", "layoutMode": "VERTICAL", "itemSpacing": 8},
+			wantNodeIDs: []string{"1:1"},
+			wantParams:  map[string]interface{}{"layoutMode": "VERTICAL", "itemSpacing": float64(8)},
+		},
+		{
+			// An empty array means "remove them all" and is not the same as
+			// omitting the argument.
+			name:        "empty indices removes every reaction",
+			tool:        "remove_reactions",
+			args:        map[string]any{"nodeId": "1:1", "indices": []any{}},
+			wantNodeIDs: []string{"1:1"},
+			wantParams:  map[string]interface{}{"indices": []interface{}{}},
+		},
+		{
+			name:        "false is a value, not an omission",
+			tool:        "set_node_properties",
+			args:        map[string]any{"nodeIds": []any{"1:1"}, "visible": false},
+			wantNodeIDs: []string{"1:1"},
+			wantParams:  map[string]interface{}{"visible": false},
 		},
 	}
 
 	for _, c := range cases {
-		t.Run(c.tool+"/"+fmt.Sprint(len(c.args)), func(t *testing.T) {
+		t.Run(c.tool+"/"+c.name, func(t *testing.T) {
 			s, fake := newWireTestServer(t)
 			callWire(t, s, c.tool, c.args)
 

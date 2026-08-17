@@ -24,6 +24,9 @@ const (
 	kindNumber
 	kindBool
 	kindStringArray
+	kindNumberArray
+	kindObjectArray
+	kindArray // an array whose element shape the schema does not state
 	kindObject
 	kindAny
 )
@@ -52,6 +55,10 @@ type paramSpec struct {
 	// IsNodeID marks a string argument that carries a Figma node ID, so it is
 	// checked for the colon format like the dedicated nodeIDs field is.
 	IsNodeID bool
+
+	// AllowEmpty forwards an empty string instead of treating it as absent.
+	// Replacement strings and text bodies use "" to mean "clear this".
+	AllowEmpty bool
 }
 
 func (p paramSpec) wireName() string {
@@ -115,6 +122,12 @@ func (p paramSpec) toolOption() mcp.ToolOption {
 		return mcp.WithBoolean(p.Name, opts...)
 	case kindStringArray:
 		return mcp.WithArray(p.Name, append(opts, mcp.WithStringItems())...)
+	case kindNumberArray:
+		return mcp.WithArray(p.Name, append(opts, mcp.Items(map[string]any{"type": "number"}))...)
+	case kindObjectArray:
+		return mcp.WithArray(p.Name, append(opts, mcp.Items(map[string]any{"type": "object"}))...)
+	case kindArray:
+		return mcp.WithArray(p.Name, opts...)
 	case kindObject:
 		return mcp.WithObject(p.Name, opts...)
 	case kindAny:
@@ -187,7 +200,7 @@ func specArgs(spec toolSpec, args map[string]interface{}) ([]string, map[string]
 		switch p.Kind {
 		case kindString:
 			s, ok := v.(string)
-			if !ok || s == "" {
+			if !ok || (s == "" && !p.AllowEmpty) {
 				continue
 			}
 		case kindStringArray:
@@ -260,6 +273,14 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]interface{}
 			if _, ok := v.(bool); !ok {
 				return fmt.Sprintf("%s must be a boolean", p.Name)
 			}
+		case kindObject:
+			if _, ok := v.(map[string]interface{}); !ok {
+				return fmt.Sprintf("%s must be an object", p.Name)
+			}
+		case kindStringArray, kindNumberArray, kindObjectArray, kindArray:
+			if msg := validateArrayParam(p, v); msg != "" {
+				return msg
+			}
 		}
 	}
 
@@ -267,6 +288,47 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]interface{}
 		return spec.Validate(nodeIDs, params)
 	}
 	return ""
+}
+
+// validateArrayParam checks an array argument and, where the spec states an
+// element type, each of its elements.
+func validateArrayParam(p paramSpec, v interface{}) string {
+	items, ok := v.([]interface{})
+	if !ok {
+		return fmt.Sprintf("%s must be an array", p.Name)
+	}
+	for i, item := range items {
+		var wrong bool
+		var want string
+		switch p.Kind {
+		case kindStringArray:
+			_, good := item.(string)
+			wrong, want = !good, "a string"
+		case kindNumberArray:
+			_, good := item.(float64)
+			wrong, want = !good, "a number"
+		case kindObjectArray:
+			_, good := item.(map[string]interface{})
+			wrong, want = !good, "an object"
+		}
+		if wrong {
+			return fmt.Sprintf("%s[%d] must be %s", p.Name, i, want)
+		}
+	}
+	return ""
+}
+
+// requireAnyOf builds a Validate rejecting a request that supplies none of the
+// listed arguments. Several tools accept a choice of fields but need one.
+func requireAnyOf(msg string, keys ...string) func([]string, map[string]interface{}) string {
+	return func(_ []string, params map[string]interface{}) string {
+		for _, k := range keys {
+			if _, ok := params[k]; ok {
+				return ""
+			}
+		}
+		return msg
+	}
 }
 
 func containsString(haystack []string, needle string) bool {
@@ -287,7 +349,9 @@ func specGroups() [][]toolSpec {
 		readDocumentSpecs,
 		readStyleSpecs,
 		writeCreateSpecs,
+		writeModifySpecs,
 		writePageSpecs,
+		writePrototypeSpecs,
 		writeVariableSpecs,
 	}
 }

@@ -85,24 +85,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			}
 		}
 
-	case "set_corner_radius":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		_, hasUniform := params["cornerRadius"]
-		_, hasTL := params["topLeftRadius"]
-		_, hasTR := params["topRightRadius"]
-		_, hasBL := params["bottomLeftRadius"]
-		_, hasBR := params["bottomRightRadius"]
-		if !hasUniform && !hasTL && !hasTR && !hasBL && !hasBR {
-			return "at least one of cornerRadius, topLeftRadius, topRightRadius, bottomLeftRadius, or bottomRightRadius is required"
-		}
-
 	case "group_nodes":
 		if len(nodeIDs) < 2 {
 			return "nodeIds must contain at least 2 nodes to group"
@@ -156,136 +138,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 		if _, ok := props.(map[string]interface{}); !ok {
 			return "properties must be an object/map"
-		}
-
-	case "set_auto_layout":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-		if msg := validateAutoLayoutParams(params); msg != "" {
-			return msg
-		}
-
-	case "set_text":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-		if _, ok := params["text"].(string); !ok {
-			return "text is required"
-		}
-
-	case "set_fills":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-		if color, _ := params["color"].(string); color == "" {
-			return "color is required (hex string e.g. #FF5733)"
-		}
-		if mode, ok := params["mode"].(string); ok && mode != "replace" && mode != "append" {
-			return "mode must be 'replace' or 'append'"
-		}
-
-	case "set_gradient_fills":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-		typ, _ := params["type"].(string)
-		if typ != "GRADIENT_LINEAR" && typ != "GRADIENT_RADIAL" {
-			return "type must be GRADIENT_LINEAR or GRADIENT_RADIAL"
-		}
-		if _, ok := params["stops"]; !ok {
-			return "stops array is required"
-		}
-		if _, ok := params["geometry"]; !ok {
-			return "geometry object is required"
-		}
-
-	case "set_strokes":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-		if color, _ := params["color"].(string); color == "" {
-			return "color is required (hex string e.g. #FF5733)"
-		}
-		if mode, ok := params["mode"].(string); ok && mode != "replace" && mode != "append" {
-			return "mode must be 'replace' or 'append'"
-		}
-
-	case "move_nodes":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		_, hasX := params["x"]
-		_, hasY := params["y"]
-		if !hasX && !hasY {
-			return "at least one of x or y is required"
-		}
-
-	case "resize_nodes":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		_, hasW := params["width"]
-		_, hasH := params["height"]
-		if !hasW && !hasH {
-			return "at least one of width or height is required"
-		}
-
-	case "delete_nodes":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required and must not be empty"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-
-	case "rename_node":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-		if name, _ := params["name"].(string); name == "" {
-			return "name is required"
-		}
-
-	case "clone_node":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
-			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
 		}
 
 	case "create_paint_style":
@@ -431,145 +283,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 
 	// ── Prototype tools ──────────────────────────────────────────────────────
 
-	case "set_reactions":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-		rawReactions, ok := params["reactions"]
-		if !ok {
-			return "reactions is required"
-		}
-		reactions, ok := rawReactions.([]any)
-		if !ok {
-			return "reactions must be an array"
-		}
-		if mode, ok := params["mode"].(string); ok && mode != "" {
-			if mode != "replace" && mode != "append" {
-				return fmt.Sprintf("mode must be 'replace' or 'append', got: %s", mode)
-			}
-		}
-		for i, raw := range reactions {
-			r, ok := raw.(map[string]any)
-			if !ok {
-				return fmt.Sprintf("reactions[%d] must be an object", i)
-			}
-			if msg := validateReaction(i, r); msg != "" {
-				return msg
-			}
-		}
-
-	case "remove_reactions":
-		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
-			return "nodeId is required"
-		}
-		if !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-		if raw, ok := params["indices"].([]any); ok {
-			for i, v := range raw {
-				if _, ok := v.(float64); !ok {
-					return fmt.Sprintf("indices[%d] must be a number", i)
-				}
-			}
-		}
-
-	// ── Node Control ────────────────────────────────────────────────
-
-	case "set_node_properties":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		supplied := false
-		for _, key := range nodePropertyKeys {
-			if _, ok := params[key]; ok {
-				supplied = true
-				break
-			}
-		}
-		if !supplied {
-			return "at least one of visible, locked, opacity, rotation, blendMode, constraints, or order is required"
-		}
-		if v, ok := params["opacity"].(float64); ok && (v < 0 || v > 1) {
-			return "opacity must be between 0 and 1"
-		}
-		if v, ok := params["blendMode"].(string); ok && !validBlendModes[v] {
-			return fmt.Sprintf("blendMode %q is not a valid Figma blend mode", v)
-		}
-		if v, ok := params["order"].(string); ok {
-			switch v {
-			case "bringToFront", "sendToBack", "bringForward", "sendBackward":
-			default:
-				return fmt.Sprintf("order must be bringToFront, sendToBack, bringForward, or sendBackward, got: %s", v)
-			}
-		}
-		if c, ok := params["constraints"].(map[string]interface{}); ok {
-			if msg := validateConstraintAxes(c); msg != "" {
-				return msg
-			}
-		}
-
-	case "reparent_nodes":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		parentID, _ := params["parentId"].(string)
-		if parentID == "" {
-			return "parentId is required"
-		}
-		if !ValidNodeID(parentID) {
-			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", parentID)
-		}
-
-	case "batch_rename_nodes":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		_, hasFind := params["find"]
-		_, hasReplace := params["replace"]
-		_, hasPrefix := params["prefix"]
-		_, hasSuffix := params["suffix"]
-		if !hasFind && !hasReplace && !hasPrefix && !hasSuffix {
-			return "at least one of find/replace, prefix, or suffix is required"
-		}
-		if hasFind && !hasReplace {
-			return "replace is required when find is provided"
-		}
-
-	case "find_replace_text":
-		find, _ := params["find"].(string)
-		if find == "" {
-			return "find is required"
-		}
-		if _, ok := params["replace"]; !ok {
-			return "replace is required"
-		}
-		if nodeID, ok := params["nodeId"].(string); ok && nodeID != "" && !ValidNodeID(nodeID) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeID)
-		}
-		if len(nodeIDs) > 0 && nodeIDs[0] != "" && !ValidNodeID(nodeIDs[0]) {
-			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
-		}
-
-	// ── Page management ─────────────────────────────────────────────
-
 	case "set_effects":
 		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
 			return "nodeId is required"
@@ -596,14 +309,6 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			default:
 				return fmt.Sprintf("effects[%d].type must be DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, or BACKGROUND_BLUR, got: %s", i, t)
 			}
-		}
-
-	case "create_section":
-		if w, ok := params["width"].(float64); ok && w <= 0 {
-			return "width must be positive"
-		}
-		if h, ok := params["height"].(float64); ok && h <= 0 {
-			return "height must be positive"
 		}
 
 	case "create_connector":
@@ -761,12 +466,13 @@ func validateAutoLayoutParams(params map[string]interface{}) string {
 	return ""
 }
 
-var validBlendModes = map[string]bool{
-	"NORMAL": true, "MULTIPLY": true, "SCREEN": true, "OVERLAY": true,
-	"DARKEN": true, "LIGHTEN": true, "COLOR_DODGE": true, "COLOR_BURN": true,
-	"HARD_LIGHT": true, "SOFT_LIGHT": true, "DIFFERENCE": true, "EXCLUSION": true,
-	"HUE": true, "SATURATION": true, "COLOR": true, "LUMINOSITY": true,
-	"PASS_THROUGH": true,
+// blendModeNames are the Figma blend modes, in the order the API documents them.
+var blendModeNames = []string{
+	"NORMAL", "MULTIPLY", "SCREEN", "OVERLAY",
+	"DARKEN", "LIGHTEN", "COLOR_DODGE", "COLOR_BURN",
+	"HARD_LIGHT", "SOFT_LIGHT", "DIFFERENCE", "EXCLUSION",
+	"HUE", "SATURATION", "COLOR", "LUMINOSITY",
+	"PASS_THROUGH",
 }
 
 // validateConstraintAxes checks the horizontal/vertical values of a constraints

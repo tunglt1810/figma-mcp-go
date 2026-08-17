@@ -1,15 +1,8 @@
 package internal
 
-import (
-	"context"
+import "github.com/mark3labs/mcp-go/server"
 
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func registerWritePrototypeTools(s *server.MCPServer, node *Node) {
-	s.AddTool(mcp.NewTool("set_reactions",
-		mcp.WithDescription(`Set prototype reactions on a node. Use mode "replace" (default) to overwrite all reactions, or "append" to add to existing ones.
+const setReactionsDesc = `Set prototype reactions on a node. Use mode "replace" (default) to overwrite all reactions, or "append" to add to existing ones.
 
 Supported triggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT, MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN
 Supported action types: NODE (navigation), BACK, CLOSE, URL
@@ -34,53 +27,46 @@ Example — auto-advance after 3 seconds:
 {"nodeId":"1:2","reactions":[{"trigger":{"type":"AFTER_TIMEOUT","timeout":3000},"actions":[{"type":"NODE","destinationId":"1:4","navigation":"NAVIGATE","transition":{"type":"DISSOLVE","duration":0.3,"easing":{"type":"EASE_OUT"}},"preserveScrollPosition":false}]}]}
 
 Example — go back on click:
-{"nodeId":"1:2","reactions":[{"trigger":{"type":"ON_CLICK"},"actions":[{"type":"BACK"}]}]}`),
-		mcp.WithString("nodeId",
-			mcp.Required(),
-			mcp.Description("Node ID in colon format e.g. '4029:12345'"),
-		),
-		mcp.WithArray("reactions",
-			mcp.Required(),
-			mcp.Description("Array of reaction objects. Each has a 'trigger' and an 'actions' array (plural) of Action objects."),
-			mcp.Items(map[string]any{"type": "object"}),
-		),
-		mcp.WithString("mode",
-			mcp.Description(`"replace" (default) overwrites all existing reactions; "append" adds to them`),
-		),
-	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		args := req.GetArguments()
-		nodeID, _ := args["nodeId"].(string)
-		nodeID = NormalizeNodeID(nodeID)
-		params := map[string]any{
-			"reactions": args["reactions"],
-		}
-		if mode, ok := args["mode"].(string); ok && mode != "" {
-			params["mode"] = mode
-		}
-		resp, err := node.Send(ctx, "set_reactions", []string{nodeID}, params)
-		return renderResponse(resp, err)
-	})
+{"nodeId":"1:2","reactions":[{"trigger":{"type":"ON_CLICK"},"actions":[{"type":"BACK"}]}]}`
 
-	s.AddTool(mcp.NewTool("remove_reactions",
-		mcp.WithDescription("Remove prototype reactions from a node. Omit indices to remove all reactions. Provide a zero-based indices array to remove specific reactions (use get_reactions first to see current indices)."),
-		mcp.WithString("nodeId",
-			mcp.Required(),
-			mcp.Description("Node ID in colon format e.g. '4029:12345'"),
-		),
-		mcp.WithArray("indices",
-			mcp.Description("Zero-based indices of reactions to remove. Omit or pass [] to remove all."),
-			mcp.Items(map[string]any{"type": "number"}),
-		),
-	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		args := req.GetArguments()
-		nodeID, _ := args["nodeId"].(string)
-		nodeID = NormalizeNodeID(nodeID)
-		params := map[string]any{}
-		// Pass indices as-is; the plugin handles both []any and JSON string.
-		if indices := args["indices"]; indices != nil {
-			params["indices"] = indices
-		}
-		resp, err := node.Send(ctx, "remove_reactions", []string{nodeID}, params)
-		return renderResponse(resp, err)
-	})
+var writePrototypeSpecs = []toolSpec{
+	{
+		Name:       "set_reactions",
+		Desc:       setReactionsDesc,
+		NodeIDs:    nodeIDsSingle,
+		NodeIDsReq: true,
+		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
+		Params: []paramSpec{
+			{Name: "reactions", Kind: kindObjectArray, Required: true,
+				Desc: "Array of reaction objects. Each has a 'trigger' and an 'actions' array (plural) of Action objects."},
+			{Name: "mode", Kind: kindString, Enum: []string{"replace", "append"},
+				Desc: `"replace" (default) overwrites all existing reactions; "append" adds to them`},
+		},
+		Validate: func(_ []string, params map[string]interface{}) string {
+			reactions, _ := params["reactions"].([]interface{})
+			for i, raw := range reactions {
+				// The element type is already checked; only the contents remain.
+				r, _ := raw.(map[string]interface{})
+				if msg := validateReaction(i, r); msg != "" {
+					return msg
+				}
+			}
+			return ""
+		},
+	},
+	{
+		Name:       "remove_reactions",
+		Desc:       "Remove prototype reactions from a node. Omit indices to remove all reactions. Provide a zero-based indices array to remove specific reactions (use get_reactions first to see current indices).",
+		NodeIDs:    nodeIDsSingle,
+		NodeIDsReq: true,
+		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
+		Params: []paramSpec{
+			{Name: "indices", Kind: kindNumberArray,
+				Desc: "Zero-based indices of reactions to remove. Omit or pass [] to remove all."},
+		},
+	},
+}
+
+func registerWritePrototypeTools(s *server.MCPServer, node *Node) {
+	registerSpecs(s, node, writePrototypeSpecs)
 }

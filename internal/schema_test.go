@@ -1337,9 +1337,9 @@ func TestValidateRPC_SetNodeProperties(t *testing.T) {
 		{"no nodeIds", nil, map[string]interface{}{"opacity": 0.5}, "nodeIds is required"},
 		{"bad nodeId", []string{"nope"}, map[string]interface{}{"opacity": 0.5}, "colon format"},
 		{"no properties", valid, map[string]interface{}{}, "at least one of"},
-		{"opacity too high", valid, map[string]interface{}{"opacity": 5.0}, "between 0 and 1"},
-		{"opacity negative", valid, map[string]interface{}{"opacity": -0.1}, "between 0 and 1"},
-		{"invalid blend mode", valid, map[string]interface{}{"blendMode": "NEON"}, "not a valid Figma blend mode"},
+		{"opacity too high", valid, map[string]interface{}{"opacity": 5.0}, "opacity must be at most 1"},
+		{"opacity negative", valid, map[string]interface{}{"opacity": -0.1}, "opacity must be at least 0"},
+		{"invalid blend mode", valid, map[string]interface{}{"blendMode": "NEON"}, "blendMode must be one of"},
 		{"invalid order", valid, map[string]interface{}{"order": "sideways"}, "order must be"},
 		{"invalid constraint axis", valid, map[string]interface{}{
 			"constraints": map[string]interface{}{"horizontal": "MIDDLE"},
