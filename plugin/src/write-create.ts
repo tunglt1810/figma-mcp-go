@@ -1,7 +1,33 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from "./write-helpers";
 
-export const handleWriteCreateRequest = async (request: any) => {
+// create_node replaced seven create_* tools on the MCP surface. The seven
+// implementations stay separate below, because these shapes genuinely differ;
+// only the surface merged.
+const NODE_ACTIONS: Record<string, string> = {
+  FRAME: "create_frame",
+  RECTANGLE: "create_rectangle",
+  ELLIPSE: "create_ellipse",
+  STAR: "create_star",
+  POLYGON: "create_polygon",
+  LINE: "create_line",
+  SECTION: "create_section",
+};
+
+export const handleWriteCreateRequest = async (request: any): Promise<any> => {
+  if (request.type === "create_node") {
+    const { type, ...params } = request.params || {};
+    const action = NODE_ACTIONS[type];
+    if (!action) {
+      throw new Error(
+        `type must be FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION, got: ${type}`,
+      );
+    }
+    const result = await handleWriteCreateRequest({ ...request, type: action, params });
+    // Answer under the name the caller used, not the one we delegated to.
+    return { ...result, type: request.type };
+  }
+
   switch (request.type) {
     case "create_frame": {
       const p = request.params || {};
@@ -50,7 +76,18 @@ export const handleWriteCreateRequest = async (request: any) => {
       ellipse.y = p.y != null ? p.y : 0;
       if (p.name) ellipse.name = p.name;
       if (p.fillColor) ellipse.fills = [makeSolidPaint(p.fillColor)];
-      if (p.arcData) ellipse.arcData = p.arcData;
+      // startAngle/endAngle/innerRadiusRatio were declared by the tool but
+      // never read here, so arcs and rings silently came out as plain
+      // ellipses. Assemble Figma's arcData from them.
+      if (p.startAngle != null || p.endAngle != null || p.innerRadiusRatio != null) {
+        ellipse.arcData = {
+          startingAngle: p.startAngle ?? 0,
+          endingAngle: p.endAngle ?? Math.PI * 2,
+          innerRadius: p.innerRadiusRatio ?? 0,
+        };
+      } else if (p.arcData) {
+        ellipse.arcData = p.arcData;
+      }
       (parent as any).appendChild(ellipse);
       figma.commitUndo();
       return {

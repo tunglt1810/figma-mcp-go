@@ -59,4 +59,6 @@ var retiredTools = map[string]bool{
 	"create_effect_style": true, "create_grid_style": true,
 	"add_page": true, "delete_page": true, "rename_page": true, "navigate_to_page": true,
 	"set_fills": true, "set_gradient_fills": true, "set_strokes": true,
+	"create_frame": true, "create_rectangle": true, "create_ellipse": true,
+	"create_star": true, "create_polygon": true, "create_line": true, "create_section": true,
 }

@@ -44,7 +44,7 @@ func addDesignStrategy(s *server.MCPServer) {
    - Group related inputs (e.g., username/password) together
 
 5. Element Creation:
-   - Use create_frame() for containers and input fields
+   - Use create_node(type: "FRAME") for containers and input fields
    - Use create_text() for labels, buttons text, and links
    - Set appropriate colors and styles:
      * Use fillColor for backgrounds

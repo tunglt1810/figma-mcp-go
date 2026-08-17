@@ -190,26 +190,6 @@ func TestValidateRPC_SearchNodes(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_CreateFrame(t *testing.T) {
-	// zero width
-	msg := ValidateRPC("create_frame", nil, map[string]interface{}{"width": float64(0)})
-	if msg == "" {
-		t.Error("expected error for zero width")
-	}
-	// invalid layoutMode
-	msg = ValidateRPC("create_frame", nil, map[string]interface{}{"layoutMode": "DIAGONAL"})
-	if msg == "" {
-		t.Error("expected error for invalid layoutMode")
-	}
-	// valid
-	msg = ValidateRPC("create_frame", nil, map[string]interface{}{
-		"width": float64(100), "height": float64(100), "layoutMode": "VERTICAL",
-	})
-	if msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_SetText(t *testing.T) {
 	// missing nodeId
 	if msg := ValidateRPC("set_text", nil, map[string]interface{}{"text": "hello"}); msg == "" {
@@ -350,49 +330,6 @@ func TestValidateRPC_SetAutoLayout(t *testing.T) {
 	}
 	if msg := ValidateRPC("set_auto_layout", []string{"1:1"}, map[string]interface{}{"layoutMode": "HORIZONTAL"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_CreateRectangleEllipse(t *testing.T) {
-	for _, tool := range []string{"create_rectangle", "create_ellipse"} {
-		if msg := ValidateRPC(tool, nil, map[string]interface{}{"width": float64(-1)}); msg == "" {
-			t.Errorf("%s: expected error for negative width", tool)
-		}
-		if msg := ValidateRPC(tool, nil, map[string]interface{}{"height": float64(0)}); msg == "" {
-			t.Errorf("%s: expected error for zero height", tool)
-		}
-		if msg := ValidateRPC(tool, nil, map[string]interface{}{"parentId": "bad-id"}); msg == "" {
-			t.Errorf("%s: expected error for invalid parentId", tool)
-		}
-		if msg := ValidateRPC(tool, nil, map[string]interface{}{"width": float64(50), "parentId": "1:1"}); msg != "" {
-			t.Errorf("%s unexpected error: %s", tool, msg)
-		}
-	}
-}
-
-func TestValidateRPC_CreateStarPolygonLine(t *testing.T) {
-	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"outerRadius": float64(-1)}); msg == "" {
-		t.Error("create_star: expected error for negative outerRadius")
-	}
-	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"innerRadius": float64(0)}); msg == "" {
-		t.Error("create_star: expected error for zero innerRadius")
-	}
-	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"pointCount": float64(2)}); msg == "" {
-		t.Error("create_star: expected error for pointCount < 3")
-	}
-	if msg := ValidateRPC("create_star", nil, map[string]interface{}{"parentId": "bad-id"}); msg == "" {
-		t.Error("create_star: expected error for invalid parentId")
-	}
-
-	if msg := ValidateRPC("create_polygon", nil, map[string]interface{}{"radius": float64(-1)}); msg == "" {
-		t.Error("create_polygon: expected error for negative radius")
-	}
-	if msg := ValidateRPC("create_polygon", nil, map[string]interface{}{"pointCount": float64(2)}); msg == "" {
-		t.Error("create_polygon: expected error for pointCount < 3")
-	}
-
-	if msg := ValidateRPC("create_line", nil, map[string]interface{}{"length": float64(-1)}); msg == "" {
-		t.Error("create_line: expected error for negative length")
 	}
 }
 
@@ -711,14 +648,15 @@ func TestValidateAutoLayoutParams_InvalidValues(t *testing.T) {
 		{"layoutWrap", "FLEX_WRAP"},
 	}
 	for _, c := range cases {
-		msg := ValidateRPC("create_frame", nil, map[string]interface{}{c.param: c.value})
+		msg := ValidateRPC("create_node", nil, map[string]interface{}{"type": "FRAME", c.param: c.value})
 		if msg == "" {
 			t.Errorf("expected error for invalid %s=%q", c.param, c.value)
 		}
 	}
 
 	// All valid auto-layout params together
-	msg := ValidateRPC("create_frame", nil, map[string]interface{}{
+	msg := ValidateRPC("create_node", nil, map[string]interface{}{
+		"type":                  "FRAME",
 		"primaryAxisAlignItems": "CENTER",
 		"counterAxisAlignItems": "BASELINE",
 		"primaryAxisSizingMode": "AUTO",
@@ -994,25 +932,6 @@ func TestValidateRPC_SetEffects(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_CreateSection(t *testing.T) {
-	// valid with no params
-	if msg := ValidateRPC("create_section", nil, nil); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// valid with name
-	if msg := ValidateRPC("create_section", nil, map[string]interface{}{"name": "Sprint 1"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-	// invalid width
-	if msg := ValidateRPC("create_section", nil, map[string]interface{}{"width": float64(-10)}); msg == "" {
-		t.Error("expected error for negative width")
-	}
-	// invalid height
-	if msg := ValidateRPC("create_section", nil, map[string]interface{}{"height": float64(0)}); msg == "" {
-		t.Error("expected error for zero height")
-	}
-}
-
 func TestValidateRPC_CreateComponentInstance(t *testing.T) {
 	if msg := ValidateRPC("create_component_instance", nil, nil); msg == "" {
 		t.Error("expected error for missing componentId/Key")
@@ -1208,8 +1127,8 @@ func TestValidateRPC_HexColor(t *testing.T) {
 	}{
 		{"set_paint", map[string]interface{}{"type": "SOLID", "target": "stroke", "color": "nope"}},
 		{"create_style", map[string]interface{}{"type": "PAINT", "name": "Brand", "color": "nope"}},
-		{"create_rectangle", map[string]interface{}{"fillColor": "nope"}},
-		{"create_line", map[string]interface{}{"strokeColor": "nope"}},
+		{"create_node", map[string]interface{}{"type": "RECTANGLE", "fillColor": "nope"}},
+		{"create_node", map[string]interface{}{"type": "LINE", "strokeColor": "nope"}},
 	}
 	for _, c := range cases {
 		if msg := ValidateRPC(c.tool, []string{"1:1"}, c.params); msg == "" {
@@ -1367,6 +1286,70 @@ func TestValidateRPC_SetPaint(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			msg := ValidateRPC("set_paint", []string{"1:1"}, c.params)
+			if c.wantMsg == "" {
+				if msg != "" {
+					t.Errorf("expected the request to be accepted, got %q", msg)
+				}
+				return
+			}
+			if !strings.Contains(msg, c.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
+			}
+		})
+	}
+}
+
+// create_node merged seven shape tools behind a `type` discriminator. This is
+// the merge the review called riskiest, because the shapes genuinely differ:
+// a star takes pointCount, a line takes length, a section takes no parent.
+func TestValidateRPC_CreateNode(t *testing.T) {
+	cases := []struct {
+		name    string
+		params  map[string]interface{}
+		wantMsg string
+	}{
+		{"frame", map[string]interface{}{"type": "FRAME", "width": 200.0, "layoutMode": "VERTICAL"}, ""},
+		{"rectangle", map[string]interface{}{"type": "RECTANGLE", "cornerRadius": 8.0, "fillColor": "#ff0000"}, ""},
+		{"ellipse arc", map[string]interface{}{"type": "ELLIPSE", "startAngle": 0.0, "endAngle": 3.14}, ""},
+		{"ring", map[string]interface{}{"type": "ELLIPSE", "innerRadiusRatio": 0.5}, ""},
+		{"star", map[string]interface{}{"type": "STAR", "pointCount": 5.0, "outerRadius": 50.0}, ""},
+		{"polygon", map[string]interface{}{"type": "POLYGON", "pointCount": 6.0, "radius": 40.0}, ""},
+		{"line", map[string]interface{}{"type": "LINE", "length": 100.0, "strokeColor": "#000000"}, ""},
+		{"section", map[string]interface{}{"type": "SECTION", "width": 800.0, "height": 600.0}, ""},
+		{"name and position are common", map[string]interface{}{
+			"type": "LINE", "name": "Divider", "x": 10.0, "y": 20.0,
+		}, ""},
+
+		{"missing type", map[string]interface{}{"width": 100.0}, "type is required"},
+		{"unknown type", map[string]interface{}{"type": "TRIANGLE"}, "type must be one of"},
+
+		{"star argument on a rectangle", map[string]interface{}{
+			"type": "RECTANGLE", "pointCount": 5.0,
+		}, "pointCount does not apply when type is RECTANGLE"},
+		{"line argument on a frame", map[string]interface{}{
+			"type": "FRAME", "length": 100.0,
+		}, "length does not apply when type is FRAME"},
+		{"auto-layout on a rectangle", map[string]interface{}{
+			"type": "RECTANGLE", "layoutMode": "VERTICAL",
+		}, "layoutMode does not apply when type is RECTANGLE"},
+		{"arc arguments on a polygon", map[string]interface{}{
+			"type": "POLYGON", "startAngle": 1.0,
+		}, "startAngle does not apply when type is POLYGON"},
+		// The section handler does not read parentId, so accepting it would be
+		// the silent no-op this whole mechanism exists to prevent.
+		{"parent on a section", map[string]interface{}{
+			"type": "SECTION", "parentId": "1:1",
+		}, "parentId does not apply when type is SECTION"},
+
+		{"zero width", map[string]interface{}{"type": "RECTANGLE", "width": 0.0}, "width must be positive"},
+		{"two-point star", map[string]interface{}{"type": "STAR", "pointCount": 2.0}, "pointCount must be at least 3"},
+		{"bad fill", map[string]interface{}{"type": "RECTANGLE", "fillColor": "red"}, "fillColor must be a hex color"},
+		{"ratio above one", map[string]interface{}{"type": "ELLIPSE", "innerRadiusRatio": 2.0}, "innerRadiusRatio must be at most 1"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg := ValidateRPC("create_node", nil, c.params)
 			if c.wantMsg == "" {
 				if msg != "" {
 					t.Errorf("expected the request to be accepted, got %q", msg)

@@ -13,6 +13,7 @@ export type WALStack = LogEntry[];
 // Keep in sync when adding a create-style handler; `rename_page` is the
 // cautionary example: it returns an existing PAGE id.
 export const CREATE_ACTIONS = new Set([
+  'create_node',
   'create_frame',
   'create_rectangle',
   'create_ellipse',

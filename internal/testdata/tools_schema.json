@@ -347,72 +347,20 @@
     },
     "name": "create_connector"
   },
-  "create_ellipse": {
+  "create_node": {
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Create a new ellipse (circle/oval) on the current page or inside a parent node.",
+    "description": "Create a shape on the current page or inside a parent. `type` selects which, and each takes its own arguments — FRAME: width, height, fillColor, and the auto-layout arguments. RECTANGLE: width, height, fillColor, cornerRadius. ELLIPSE: width, height, fillColor, startAngle, endAngle, innerRadiusRatio (the last three make arcs and rings). STAR: pointCount, outerRadius, innerRadius, fillColor, cornerRadius. POLYGON: pointCount, radius, fillColor, cornerRadius. LINE: length, rotation, strokeColor, strokeWeight. SECTION: width, height — and no parent, sections live on the page. x, y and name apply to all of them. An argument belonging to a different shape is rejected rather than ignored. Use create_text for text and create_component_instance for components.",
     "inputSchema": {
       "properties": {
-        "endAngle": {
-          "description": "End angle for arcs in radians (default 0)",
+        "cornerRadius": {
+          "description": "Corner radius in pixels. RECTANGLE, STAR, POLYGON.",
           "type": "number"
         },
-        "fillColor": {
-          "description": "Fill color as hex e.g. #3B82F6",
-          "type": "string"
-        },
-        "height": {
-          "description": "Height in pixels (default 100)",
-          "type": "number"
-        },
-        "innerRadiusRatio": {
-          "description": "Inner radius ratio for rings/donuts (default 0)",
-          "type": "number"
-        },
-        "name": {
-          "description": "Ellipse name",
-          "type": "string"
-        },
-        "parentId": {
-          "description": "Parent node ID in colon format. Defaults to current page.",
-          "type": "string"
-        },
-        "startAngle": {
-          "description": "Start angle for arcs in radians (default 0)",
-          "type": "number"
-        },
-        "width": {
-          "description": "Width in pixels (default 100)",
-          "type": "number"
-        },
-        "x": {
-          "description": "X position (default 0)",
-          "type": "number"
-        },
-        "y": {
-          "description": "Y position (default 0)",
-          "type": "number"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "create_ellipse"
-  },
-  "create_frame": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new frame on the current page or inside a parent node.",
-    "inputSchema": {
-      "properties": {
         "counterAxisAlignItems": {
           "description": "Cross-axis alignment: MIN, CENTER, MAX, or BASELINE",
           "type": "string"
@@ -425,12 +373,24 @@
           "description": "Gap between wrapped rows/columns (only when layoutWrap is WRAP)",
           "type": "number"
         },
+        "endAngle": {
+          "description": "ELLIPSE: arc end angle in radians (default a full turn)",
+          "type": "number"
+        },
         "fillColor": {
-          "description": "Fill color as hex e.g. #FFFFFF",
+          "description": "Fill color as hex e.g. #FF5733. Every shape but LINE and SECTION.",
           "type": "string"
         },
         "height": {
-          "description": "Height in pixels (default 100)",
+          "description": "Height in pixels (default 100). FRAME, RECTANGLE, ELLIPSE, SECTION.",
+          "type": "number"
+        },
+        "innerRadius": {
+          "description": "STAR: inner radius in pixels (default 0.3819 of the outer)",
+          "type": "number"
+        },
+        "innerRadiusRatio": {
+          "description": "ELLIPSE: inner radius as a fraction of the outer, for rings and donuts (default 0)",
           "type": "number"
         },
         "itemSpacing": {
@@ -445,9 +405,17 @@
           "description": "Wrap behaviour: NO_WRAP or WRAP",
           "type": "string"
         },
+        "length": {
+          "description": "LINE: length in pixels (default 100)",
+          "type": "number"
+        },
         "name": {
-          "description": "Frame name",
+          "description": "Node name shown in the layers panel",
           "type": "string"
+        },
+        "outerRadius": {
+          "description": "STAR: outer radius in pixels (default 50)",
+          "type": "number"
         },
         "paddingBottom": {
           "description": "Auto-layout bottom padding",
@@ -466,8 +434,12 @@
           "type": "number"
         },
         "parentId": {
-          "description": "Parent node ID in colon format. Defaults to current page.",
+          "description": "Parent node ID in colon format. Defaults to current page. Not accepted for SECTION.",
           "type": "string"
+        },
+        "pointCount": {
+          "description": "STAR: number of points (default 5). POLYGON: number of sides (default 3).",
+          "type": "number"
         },
         "primaryAxisAlignItems": {
           "description": "Main-axis alignment: MIN, CENTER, MAX, or SPACE_BETWEEN",
@@ -477,144 +449,32 @@
           "description": "Main-axis sizing: FIXED or AUTO (hug)",
           "type": "string"
         },
-        "width": {
-          "description": "Width in pixels (default 100)",
+        "radius": {
+          "description": "POLYGON: radius in pixels (default 50)",
           "type": "number"
-        },
-        "x": {
-          "description": "X position (default 0)",
-          "type": "number"
-        },
-        "y": {
-          "description": "Y position (default 0)",
-          "type": "number"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "create_frame"
-  },
-  "create_line": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new line.",
-    "inputSchema": {
-      "properties": {
-        "length": {
-          "description": "Length in pixels (default 100)",
-          "type": "number"
-        },
-        "parentId": {
-          "description": "Parent node ID in colon format.",
-          "type": "string"
         },
         "rotation": {
-          "description": "Rotation in degrees (default 0)",
+          "description": "LINE: rotation in degrees (default 0)",
+          "type": "number"
+        },
+        "startAngle": {
+          "description": "ELLIPSE: arc start angle in radians (default 0)",
           "type": "number"
         },
         "strokeColor": {
-          "description": "Stroke color as hex e.g. #000000",
+          "description": "LINE: stroke color as hex e.g. #000000",
           "type": "string"
         },
         "strokeWeight": {
-          "description": "Stroke weight in pixels (default 1)",
+          "description": "LINE: stroke weight in pixels (default 1)",
           "type": "number"
         },
-        "x": {
-          "description": "X position (default 0)",
-          "type": "number"
-        },
-        "y": {
-          "description": "Y position (default 0)",
-          "type": "number"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "create_line"
-  },
-  "create_polygon": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new polygon shape.",
-    "inputSchema": {
-      "properties": {
-        "cornerRadius": {
-          "description": "Corner radius in pixels",
-          "type": "number"
-        },
-        "fillColor": {
-          "description": "Fill color as hex e.g. #FF5733",
-          "type": "string"
-        },
-        "parentId": {
-          "description": "Parent node ID in colon format.",
-          "type": "string"
-        },
-        "pointCount": {
-          "description": "Number of sides (default 3)",
-          "type": "number"
-        },
-        "radius": {
-          "description": "Radius in pixels (default 50)",
-          "type": "number"
-        },
-        "x": {
-          "description": "X position (default 0)",
-          "type": "number"
-        },
-        "y": {
-          "description": "Y position (default 0)",
-          "type": "number"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "create_polygon"
-  },
-  "create_rectangle": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new rectangle on the current page or inside a parent node.",
-    "inputSchema": {
-      "properties": {
-        "cornerRadius": {
-          "description": "Corner radius in pixels",
-          "type": "number"
-        },
-        "fillColor": {
-          "description": "Fill color as hex e.g. #FF5733",
-          "type": "string"
-        },
-        "height": {
-          "description": "Height in pixels (default 100)",
-          "type": "number"
-        },
-        "name": {
-          "description": "Rectangle name",
-          "type": "string"
-        },
-        "parentId": {
-          "description": "Parent node ID in colon format. Defaults to current page.",
+        "type": {
+          "description": "Shape to create: FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION",
           "type": "string"
         },
         "width": {
-          "description": "Width in pixels (default 100)",
+          "description": "Width in pixels (default 100). FRAME, RECTANGLE, ELLIPSE, SECTION.",
           "type": "number"
         },
         "x": {
@@ -626,94 +486,12 @@
           "type": "number"
         }
       },
-      "required": [],
+      "required": [
+        "type"
+      ],
       "type": "object"
     },
-    "name": "create_rectangle"
-  },
-  "create_section": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a Figma Section node on the current page. Sections are the modern way to organize frames and groups on a page.",
-    "inputSchema": {
-      "properties": {
-        "height": {
-          "description": "Height in pixels",
-          "type": "number"
-        },
-        "name": {
-          "description": "Section name (default 'Section')",
-          "type": "string"
-        },
-        "width": {
-          "description": "Width in pixels",
-          "type": "number"
-        },
-        "x": {
-          "description": "X position (default 0)",
-          "type": "number"
-        },
-        "y": {
-          "description": "Y position (default 0)",
-          "type": "number"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "create_section"
-  },
-  "create_star": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new star shape.",
-    "inputSchema": {
-      "properties": {
-        "cornerRadius": {
-          "description": "Corner radius in pixels",
-          "type": "number"
-        },
-        "fillColor": {
-          "description": "Fill color as hex e.g. #FF5733",
-          "type": "string"
-        },
-        "innerRadius": {
-          "description": "Inner radius in pixels (default calculated based on 0.3819 ratio)",
-          "type": "number"
-        },
-        "outerRadius": {
-          "description": "Outer radius in pixels (default 50)",
-          "type": "number"
-        },
-        "parentId": {
-          "description": "Parent node ID in colon format.",
-          "type": "string"
-        },
-        "pointCount": {
-          "description": "Number of points (default 5)",
-          "type": "number"
-        },
-        "x": {
-          "description": "X position (default 0)",
-          "type": "number"
-        },
-        "y": {
-          "description": "Y position (default 0)",
-          "type": "number"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "create_star"
+    "name": "create_node"
   },
   "create_style": {
     "annotations": {

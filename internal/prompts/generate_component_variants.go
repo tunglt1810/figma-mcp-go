@@ -49,7 +49,7 @@ Calculate layout:
 - Total container width = (cloneWidth + 24) × columns
 
 ### 3. Create container frame (if requested)
-create_frame(name="Variants/ComponentName", width=totalWidth, height=totalHeight,
+create_node(type="FRAME", name="Variants/ComponentName", width=totalWidth, height=totalHeight,
              layoutMode="HORIZONTAL", itemSpacing=24, paddingTop=32, paddingLeft=32,
              paddingRight=32, paddingBottom=32)
 

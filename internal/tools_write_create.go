@@ -17,14 +17,6 @@ func positionParams() []paramSpec {
 	}
 }
 
-// boxParams are position plus a positive width and height.
-func boxParams() []paramSpec {
-	return append(positionParams(),
-		paramSpec{Name: "width", Kind: kindNumber, Positive: true, Desc: "Width in pixels (default 100)"},
-		paramSpec{Name: "height", Kind: kindNumber, Positive: true, Desc: "Height in pixels (default 100)"},
-	)
-}
-
 // autoLayoutParams describe a frame's auto-layout (flex) configuration.
 func autoLayoutParams() []paramSpec {
 	return []paramSpec{
@@ -50,77 +42,75 @@ func autoLayoutParams() []paramSpec {
 	}
 }
 
-func frameParams() []paramSpec {
-	params := boxParams()
-	params = append(params,
-		paramSpec{Name: "name", Kind: kindString, Desc: "Frame name"},
-		paramSpec{Name: "fillColor", Kind: kindString, IsHexColor: true, Desc: "Fill color as hex e.g. #FFFFFF"},
-	)
-	params = append(params, autoLayoutParams()...)
-	return append(params, parentIDParam(defaultParentDesc))
+// nodeVariants say which arguments belong to which shape. Seven create_* tools
+// became one, and these shapes genuinely differ — a star takes pointCount, a
+// line takes length — so an argument from the wrong shape is an error rather
+// than something dropped on the way to Figma.
+//
+// parentId is deliberately absent from SECTION: the handler does not read it,
+// and accepting it would be exactly the silent no-op this guards against.
+var nodeVariants = map[string]variantSpec{
+	"FRAME":     {Allowed: append([]string{"width", "height", "fillColor", "parentId"}, autoLayoutParamNames...)},
+	"RECTANGLE": {Allowed: []string{"width", "height", "fillColor", "cornerRadius", "parentId"}},
+	"ELLIPSE":   {Allowed: []string{"width", "height", "fillColor", "startAngle", "endAngle", "innerRadiusRatio", "parentId"}},
+	"STAR":      {Allowed: []string{"pointCount", "outerRadius", "innerRadius", "fillColor", "cornerRadius", "parentId"}},
+	"POLYGON":   {Allowed: []string{"pointCount", "radius", "fillColor", "cornerRadius", "parentId"}},
+	"LINE":      {Allowed: []string{"length", "rotation", "strokeColor", "strokeWeight", "parentId"}},
+	"SECTION":   {Allowed: []string{"width", "height"}},
 }
+
+var autoLayoutParamNames = []string{"layoutMode", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing", "primaryAxisAlignItems", "counterAxisAlignItems", "primaryAxisSizingMode", "counterAxisSizingMode", "layoutWrap", "counterAxisSpacing"}
 
 var writeCreateSpecs = []toolSpec{
 	{
-		Name:   "create_frame",
-		Desc:   "Create a new frame on the current page or inside a parent node.",
-		Params: frameParams(),
-	},
-	{
-		Name: "create_rectangle",
-		Desc: "Create a new rectangle on the current page or inside a parent node.",
-		Params: append(boxParams(),
-			paramSpec{Name: "name", Kind: kindString, Desc: "Rectangle name"},
-			paramSpec{Name: "fillColor", Kind: kindString, IsHexColor: true, Desc: "Fill color as hex e.g. #FF5733"},
-			paramSpec{Name: "cornerRadius", Kind: kindNumber, Desc: "Corner radius in pixels"},
-			parentIDParam(defaultParentDesc),
-		),
-	},
-	{
-		Name: "create_ellipse",
-		Desc: "Create a new ellipse (circle/oval) on the current page or inside a parent node.",
-		Params: append(boxParams(),
-			paramSpec{Name: "name", Kind: kindString, Desc: "Ellipse name"},
-			paramSpec{Name: "fillColor", Kind: kindString, IsHexColor: true, Desc: "Fill color as hex e.g. #3B82F6"},
-			paramSpec{Name: "startAngle", Kind: kindNumber, Desc: "Start angle for arcs in radians (default 0)"},
-			paramSpec{Name: "endAngle", Kind: kindNumber, Desc: "End angle for arcs in radians (default 0)"},
-			paramSpec{Name: "innerRadiusRatio", Kind: kindNumber, Desc: "Inner radius ratio for rings/donuts (default 0)"},
-			parentIDParam(defaultParentDesc),
-		),
-	},
-	{
-		Name: "create_star",
-		Desc: "Create a new star shape.",
-		Params: append(positionParams(),
-			paramSpec{Name: "pointCount", Kind: kindNumber, Min: floatPtr(3), Desc: "Number of points (default 5)"},
-			paramSpec{Name: "outerRadius", Kind: kindNumber, Positive: true, Desc: "Outer radius in pixels (default 50)"},
-			paramSpec{Name: "innerRadius", Kind: kindNumber, Positive: true, Desc: "Inner radius in pixels (default calculated based on 0.3819 ratio)"},
-			paramSpec{Name: "fillColor", Kind: kindString, IsHexColor: true, Desc: "Fill color as hex e.g. #FF5733"},
-			paramSpec{Name: "cornerRadius", Kind: kindNumber, Desc: "Corner radius in pixels"},
-			parentIDParam("Parent node ID in colon format."),
-		),
-	},
-	{
-		Name: "create_polygon",
-		Desc: "Create a new polygon shape.",
-		Params: append(positionParams(),
-			paramSpec{Name: "pointCount", Kind: kindNumber, Min: floatPtr(3), Desc: "Number of sides (default 3)"},
-			paramSpec{Name: "radius", Kind: kindNumber, Positive: true, Desc: "Radius in pixels (default 50)"},
-			paramSpec{Name: "fillColor", Kind: kindString, IsHexColor: true, Desc: "Fill color as hex e.g. #FF5733"},
-			paramSpec{Name: "cornerRadius", Kind: kindNumber, Desc: "Corner radius in pixels"},
-			parentIDParam("Parent node ID in colon format."),
-		),
-	},
-	{
-		Name: "create_line",
-		Desc: "Create a new line.",
-		Params: append(positionParams(),
-			paramSpec{Name: "length", Kind: kindNumber, Positive: true, Desc: "Length in pixels (default 100)"},
-			paramSpec{Name: "rotation", Kind: kindNumber, Desc: "Rotation in degrees (default 0)"},
-			paramSpec{Name: "strokeColor", Kind: kindString, IsHexColor: true, Desc: "Stroke color as hex e.g. #000000"},
-			paramSpec{Name: "strokeWeight", Kind: kindNumber, Desc: "Stroke weight in pixels (default 1)"},
-			parentIDParam("Parent node ID in colon format."),
-		),
+		Name: "create_node",
+		Desc: "Create a shape on the current page or inside a parent. `type` selects which, and each takes its own arguments — " +
+			"FRAME: width, height, fillColor, and the auto-layout arguments. " +
+			"RECTANGLE: width, height, fillColor, cornerRadius. " +
+			"ELLIPSE: width, height, fillColor, startAngle, endAngle, innerRadiusRatio (the last three make arcs and rings). " +
+			"STAR: pointCount, outerRadius, innerRadius, fillColor, cornerRadius. " +
+			"POLYGON: pointCount, radius, fillColor, cornerRadius. " +
+			"LINE: length, rotation, strokeColor, strokeWeight. " +
+			"SECTION: width, height — and no parent, sections live on the page. " +
+			"x, y and name apply to all of them. An argument belonging to a different shape is rejected rather than ignored. " +
+			"Use create_text for text and create_component_instance for components.",
+		Params: append([]paramSpec{
+			{Name: "type", Kind: kindString, Required: true, Enum: variantKinds(nodeVariants),
+				Desc: "Shape to create: FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION"},
+			{Name: "name", Kind: kindString, Desc: "Node name shown in the layers panel"},
+			{Name: "x", Kind: kindNumber, Desc: "X position (default 0)"},
+			{Name: "y", Kind: kindNumber, Desc: "Y position (default 0)"},
+			{Name: "width", Kind: kindNumber, Positive: true,
+				Desc: "Width in pixels (default 100). FRAME, RECTANGLE, ELLIPSE, SECTION."},
+			{Name: "height", Kind: kindNumber, Positive: true,
+				Desc: "Height in pixels (default 100). FRAME, RECTANGLE, ELLIPSE, SECTION."},
+			{Name: "fillColor", Kind: kindString, IsHexColor: true,
+				Desc: "Fill color as hex e.g. #FF5733. Every shape but LINE and SECTION."},
+			{Name: "cornerRadius", Kind: kindNumber,
+				Desc: "Corner radius in pixels. RECTANGLE, STAR, POLYGON."},
+			{Name: "startAngle", Kind: kindNumber,
+				Desc: "ELLIPSE: arc start angle in radians (default 0)"},
+			{Name: "endAngle", Kind: kindNumber,
+				Desc: "ELLIPSE: arc end angle in radians (default a full turn)"},
+			{Name: "innerRadiusRatio", Kind: kindNumber, Min: floatPtr(0), Max: floatPtr(1),
+				Desc: "ELLIPSE: inner radius as a fraction of the outer, for rings and donuts (default 0)"},
+			{Name: "pointCount", Kind: kindNumber, Min: floatPtr(3),
+				Desc: "STAR: number of points (default 5). POLYGON: number of sides (default 3)."},
+			{Name: "outerRadius", Kind: kindNumber, Positive: true,
+				Desc: "STAR: outer radius in pixels (default 50)"},
+			{Name: "innerRadius", Kind: kindNumber, Positive: true,
+				Desc: "STAR: inner radius in pixels (default 0.3819 of the outer)"},
+			{Name: "radius", Kind: kindNumber, Positive: true,
+				Desc: "POLYGON: radius in pixels (default 50)"},
+			{Name: "length", Kind: kindNumber, Positive: true,
+				Desc: "LINE: length in pixels (default 100)"},
+			{Name: "rotation", Kind: kindNumber, Desc: "LINE: rotation in degrees (default 0)"},
+			{Name: "strokeColor", Kind: kindString, IsHexColor: true,
+				Desc: "LINE: stroke color as hex e.g. #000000"},
+			{Name: "strokeWeight", Kind: kindNumber, Desc: "LINE: stroke weight in pixels (default 1)"},
+			parentIDParam(defaultParentDesc + " Not accepted for SECTION."),
+		}, autoLayoutParams()...),
+		Validate: requireVariant("type", nodeVariants, "name", "x", "y"),
 	},
 	{
 		Name: "create_text",
@@ -159,16 +149,6 @@ var writeCreateSpecs = []toolSpec{
 		Params: []paramSpec{
 			{Name: "name", Kind: kindString, Desc: "Optional name for the component. Defaults to the frame's current name."},
 		},
-	},
-	{
-		Name: "create_section",
-		Desc: "Create a Figma Section node on the current page. Sections are the modern way to organize frames and groups on a page.",
-		Params: append([]paramSpec{
-			{Name: "name", Kind: kindString, Desc: "Section name (default 'Section')"},
-		}, append(positionParams(),
-			paramSpec{Name: "width", Kind: kindNumber, Positive: true, Desc: "Width in pixels"},
-			paramSpec{Name: "height", Kind: kindNumber, Positive: true, Desc: "Height in pixels"},
-		)...),
 	},
 }
 
