@@ -354,3 +354,58 @@ describe("set_node_properties", () => {
     expect(res?.data.results[1].errors.rotation).toContain("does not support rotation");
   });
 });
+
+describe("set_fills", () => {
+  it("replaces the existing fills", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [{ type: "SOLID" }] };
+    await handleWriteModifyRequest(
+      makeRequest("set_fills", ["1:1"], { color: "#ff0000" }),
+    );
+    expect(mockNodes["1:1"].fills).toHaveLength(1);
+    expect(mockNodes["1:1"].fills[0].color.r).toBeCloseTo(1);
+  });
+
+  it("appends to the existing fills", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [{ type: "SOLID" }] };
+    await handleWriteModifyRequest(
+      makeRequest("set_fills", ["1:1"], { color: "#00ff00", mode: "append" }),
+    );
+    expect(mockNodes["1:1"].fills).toHaveLength(2);
+  });
+
+  // A node whose children disagree reports fills as figma.mixed, a symbol.
+  // Spreading that threw "fills is not iterable"; set_gradient_fills already
+  // guarded against it, set_fills did not.
+  it("appends onto mixed fills instead of throwing", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: Symbol("figma.mixed") };
+    await handleWriteModifyRequest(
+      makeRequest("set_fills", ["1:1"], { color: "#00ff00", mode: "append" }),
+    );
+    expect(mockNodes["1:1"].fills).toHaveLength(1);
+  });
+
+  it("reports a bad color rather than painting NaN", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [] };
+    await expect(
+      handleWriteModifyRequest(makeRequest("set_fills", ["1:1"], { color: "red" })),
+    ).rejects.toThrow(/hex color/i);
+  });
+});
+
+describe("set_strokes", () => {
+  it("appends onto mixed strokes instead of throwing", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", strokes: Symbol("figma.mixed") };
+    await handleWriteModifyRequest(
+      makeRequest("set_strokes", ["1:1"], { color: "#000000", mode: "append" }),
+    );
+    expect(mockNodes["1:1"].strokes).toHaveLength(1);
+  });
+
+  it("accepts shorthand hex", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", strokes: [] };
+    await handleWriteModifyRequest(
+      makeRequest("set_strokes", ["1:1"], { color: "#f00" }),
+    );
+    expect(mockNodes["1:1"].strokes[0].color.r).toBeCloseTo(1);
+  });
+});

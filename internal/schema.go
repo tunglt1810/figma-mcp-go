@@ -29,6 +29,17 @@ func ValidNodeID(s string) bool {
 	return nodeIDPattern.MatchString(s)
 }
 
+// hexColorPattern matches #RGB, #RGBA, #RRGGBB and #RRGGBBAA, with the leading
+// # optional. It mirrors what the plugin's hexToRgb accepts.
+var hexColorPattern = regexp.MustCompile(`^#?([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`)
+
+// ValidHexColor reports whether s is a hex color the plugin can read. Anything
+// else — a color name, an rgb() call, a truncated hex — used to reach Figma as
+// NaN channels and paint a broken fill without reporting an error.
+func ValidHexColor(s string) bool {
+	return hexColorPattern.MatchString(s)
+}
+
 // ValidateRPC validates an incoming RPC request against the tool's expected
 // input shape. Returns an error string on failure, empty string if valid.
 // Every tool declares its rules in the spec table; this is the lookup.

@@ -1,6 +1,10 @@
 package internal
 
-import "github.com/mark3labs/mcp-go/server"
+import (
+	"fmt"
+
+	"github.com/mark3labs/mcp-go/server"
+)
 
 // fillModeParam is the shared replace/append switch on the paint tools.
 func fillModeParam(desc string) paramSpec {
@@ -34,7 +38,7 @@ var writeModifySpecs = []toolSpec{
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
 		Params: []paramSpec{
-			{Name: "color", Kind: kindString, Required: true,
+			{Name: "color", Kind: kindString, IsHexColor: true, Required: true,
 				Desc: "Fill color as hex: #RRGGBB e.g. #FF5733 or #RRGGBBAA e.g. #FF573380 for 50% alpha"},
 			{Name: "opacity", Kind: kindNumber,
 				Desc: "Fill opacity 0–1 (default 1). Combines multiplicatively with any alpha in the color hex."},
@@ -56,6 +60,24 @@ var writeModifySpecs = []toolSpec{
 				Desc: "Geometry object representing gradient coordinates (start, end, angle OR center, radius, rotation) in percentX/Y. See specs."},
 			fillModeParam("'replace' (default) overwrites all existing fills; 'append' stacks this fill on top of existing ones"),
 		},
+		// The stops carry colors of their own, one level down from anything a
+		// paramSpec can reach.
+		Validate: func(_ []string, params map[string]interface{}) string {
+			stops, ok := params["stops"].([]interface{})
+			if !ok {
+				return "stops must be an array"
+			}
+			for i, raw := range stops {
+				stop, ok := raw.(map[string]interface{})
+				if !ok {
+					return fmt.Sprintf("stops[%d] must be an object", i)
+				}
+				if color, _ := stop["color"].(string); !ValidHexColor(color) {
+					return fmt.Sprintf("stops[%d].color must be a hex color e.g. #FF5733, got: %s", i, color)
+				}
+			}
+			return ""
+		},
 	},
 	{
 		Name:       "set_strokes",
@@ -64,7 +86,7 @@ var writeModifySpecs = []toolSpec{
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
 		Params: []paramSpec{
-			{Name: "color", Kind: kindString, Required: true, Desc: "Stroke color as hex e.g. #000000"},
+			{Name: "color", Kind: kindString, IsHexColor: true, Required: true, Desc: "Stroke color as hex e.g. #000000"},
 			{Name: "strokeWeight", Kind: kindNumber, Desc: "Stroke weight in pixels (default 1)"},
 			fillModeParam("'replace' (default) overwrites all strokes; 'append' stacks on top of existing strokes"),
 		},

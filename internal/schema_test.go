@@ -471,6 +471,19 @@ func TestValidateRPC_SetGradientFills(t *testing.T) {
 	if msg := ValidateRPC("set_gradient_fills", []string{"1:1"}, validArgs); msg != "" {
 		t.Errorf("unexpected error for valid arguments: %s", msg)
 	}
+
+	// A stop's color is a level deeper than a paramSpec reaches, but it ends up
+	// in the same hexToRgb call and used to become NaN just as quietly.
+	badStops := map[string]interface{}{
+		"type": "GRADIENT_LINEAR",
+		"stops": []interface{}{
+			map[string]interface{}{"position": 0, "color": "red"},
+		},
+		"geometry": map[string]interface{}{},
+	}
+	if msg := ValidateRPC("set_gradient_fills", []string{"1:1"}, badStops); msg == "" {
+		t.Error("expected error for a stop color that is not hex")
+	}
 }
 
 func TestValidateRPC_ResizeNodes(t *testing.T) {
@@ -1373,5 +1386,40 @@ func TestValidateRPC_SetNodeProperties(t *testing.T) {
 				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
 			}
 		})
+	}
+}
+
+func TestValidateRPC_HexColor(t *testing.T) {
+	// The plugin used to turn an unreadable color into NaN channels and paint a
+	// broken fill silently. These are rejected before the round-trip now.
+	bad := []string{"red", "rgb(255,0,0)", "#ff", "#12345", "#gggggg"}
+	for _, color := range bad {
+		if msg := ValidateRPC("set_fills", []string{"1:1"}, map[string]interface{}{"color": color}); msg == "" {
+			t.Errorf("expected %q to be rejected", color)
+		}
+	}
+
+	// Shorthand is real CSS and the plugin expands it, so it must pass here.
+	good := []string{"#f00", "#f00a", "#ff0000", "#ff0000aa", "ff0000"}
+	for _, color := range good {
+		if msg := ValidateRPC("set_fills", []string{"1:1"}, map[string]interface{}{"color": color}); msg != "" {
+			t.Errorf("unexpected error for %q: %s", color, msg)
+		}
+	}
+
+	// Every tool that takes a color gets the same check.
+	cases := []struct {
+		tool   string
+		params map[string]interface{}
+	}{
+		{"set_strokes", map[string]interface{}{"color": "nope"}},
+		{"create_paint_style", map[string]interface{}{"name": "Brand", "color": "nope"}},
+		{"create_rectangle", map[string]interface{}{"fillColor": "nope"}},
+		{"create_line", map[string]interface{}{"strokeColor": "nope"}},
+	}
+	for _, c := range cases {
+		if msg := ValidateRPC(c.tool, []string{"1:1"}, c.params); msg == "" {
+			t.Errorf("%s: expected the bad color to be rejected", c.tool)
+		}
 	}
 }

@@ -147,9 +147,13 @@ export const handleWriteModifyRequest = async (request: any) => {
       if (!node) throw new Error(`Node not found: ${nodeId}`);
       if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
       const newFill = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
-      (node as any).fills = p.mode === "append"
-        ? [...((node as any).fills as Paint[]), newFill]
-        : [newFill];
+      if (p.mode === "append") {
+        // Mixed fills come back as figma.mixed, a symbol, which cannot be spread.
+        const existing = Array.isArray((node as any).fills) ? [...(node as any).fills] : [];
+        (node as any).fills = [...existing, newFill];
+      } else {
+        (node as any).fills = [newFill];
+      }
       figma.commitUndo();
       return {
         type: request.type,
@@ -166,9 +170,13 @@ export const handleWriteModifyRequest = async (request: any) => {
       if (!node) throw new Error(`Node not found: ${nodeId}`);
       if (!("strokes" in node)) throw new Error(`Node ${nodeId} does not support strokes`);
       const newStroke = makeSolidPaint(p.color);
-      (node as any).strokes = p.mode === "append"
-        ? [...((node as any).strokes as Paint[]), newStroke]
-        : [newStroke];
+      if (p.mode === "append") {
+        // As with fills, mixed strokes are a symbol and cannot be spread.
+        const existing = Array.isArray((node as any).strokes) ? [...(node as any).strokes] : [];
+        (node as any).strokes = [...existing, newStroke];
+      } else {
+        (node as any).strokes = [newStroke];
+      }
       if (p.strokeWeight != null) (node as any).strokeWeight = p.strokeWeight;
       figma.commitUndo();
       return {

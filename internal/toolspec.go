@@ -56,6 +56,9 @@ type paramSpec struct {
 	// checked for the colon format like the dedicated nodeIDs field is.
 	IsNodeID bool
 
+	// IsHexColor marks a string argument that carries a hex color.
+	IsHexColor bool
+
 	// AllowEmpty forwards an empty string instead of treating it as absent.
 	// Replacement strings and text bodies use "" to mean "clear this".
 	AllowEmpty bool
@@ -262,6 +265,9 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]interface{}
 			}
 			if p.IsNodeID && s != "" && !ValidNodeID(s) {
 				return fmt.Sprintf("%s must use colon format e.g. 4029:12345, got: %s", p.Name, s)
+			}
+			if p.IsHexColor && !ValidHexColor(s) {
+				return fmt.Sprintf("%s must be a hex color e.g. #FF5733, got: %s", p.Name, s)
 			}
 		case kindNumber:
 			n, ok := v.(float64)
