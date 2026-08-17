@@ -92,16 +92,41 @@
     "inputSchema": {
       "properties": {
         "steps": {
-          "description": "Array of pipeline steps to execute in sequence",
-          "properties": {},
-          "type": "object"
+          "description": "Array of pipeline steps to execute in sequence. Each step is {id, action, params, export_vars?}.",
+          "items": {
+            "properties": {
+              "action": {
+                "description": "Tool name to run e.g. create_frame",
+                "type": "string"
+              },
+              "export_vars": {
+                "description": "Map of variable name to a field of this step's result",
+                "type": "object"
+              },
+              "id": {
+                "description": "Step identifier, referenced by $variables in later steps",
+                "type": "string"
+              },
+              "params": {
+                "description": "Arguments for the action",
+                "type": "object"
+              }
+            },
+            "required": [
+              "action"
+            ],
+            "type": "object"
+          },
+          "type": "array"
         },
         "stop_on_error": {
           "description": "Whether to stop execution and rollback on error (default true)",
           "type": "boolean"
         }
       },
-      "required": [],
+      "required": [
+        "steps"
+      ],
       "type": "object"
     },
     "name": "batch_execute_pipeline"

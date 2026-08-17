@@ -31,63 +31,13 @@ func ValidNodeID(s string) bool {
 
 // ValidateRPC validates an incoming RPC request against the tool's expected
 // input shape. Returns an error string on failure, empty string if valid.
+// Every tool declares its rules in the spec table; this is the lookup.
 func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) string {
-	// Table-declared tools carry their own rules; derive the checks from the
-	// spec rather than repeating the argument list here.
-	if spec, ok := specRegistry[tool]; ok {
-		return validateSpec(spec, nodeIDs, params)
+	spec, ok := specRegistry[tool]
+	if !ok {
+		return ""
 	}
-
-	switch tool {
-	case "export_frames_to_pdf":
-		if len(nodeIDs) == 0 {
-			return "nodeIds is required and must not be empty"
-		}
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-
-	case "get_screenshot":
-		for _, id := range nodeIDs {
-			if !ValidNodeID(id) {
-				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
-			}
-		}
-		if format, ok := params["format"].(string); ok {
-			if !validExportFormat(format) {
-				return fmt.Sprintf("format must be PNG, SVG, JPG, or PDF, got: %s", format)
-			}
-		}
-
-	case "save_screenshots":
-		items, ok := params["items"]
-		if !ok {
-			return "items is required"
-		}
-		itemList, ok := items.([]interface{})
-		if !ok || len(itemList) == 0 {
-			return "items must be a non-empty array"
-		}
-		for i, item := range itemList {
-			m, ok := item.(map[string]interface{})
-			if !ok {
-				return fmt.Sprintf("items[%d] must be an object", i)
-			}
-			nodeID, _ := m["nodeId"].(string)
-			if !ValidNodeID(nodeID) {
-				return fmt.Sprintf("items[%d].nodeId must use colon format e.g. 4029:12345", i)
-			}
-			outputPath, _ := m["outputPath"].(string)
-			if outputPath == "" {
-				return fmt.Sprintf("items[%d].outputPath is required", i)
-			}
-		}
-
-	}
-
-	return ""
+	return validateSpec(spec, nodeIDs, params)
 }
 
 var validTriggerTypes = map[string]bool{
@@ -148,52 +98,6 @@ func validateActionType(idx int, action map[string]any) string {
 	return ""
 }
 
-func validateAutoLayoutParams(params map[string]interface{}) string {
-	if lm, ok := params["layoutMode"].(string); ok && lm != "" {
-		switch lm {
-		case "HORIZONTAL", "VERTICAL", "NONE":
-		default:
-			return fmt.Sprintf("layoutMode must be HORIZONTAL, VERTICAL, or NONE, got: %s", lm)
-		}
-	}
-	if v, ok := params["primaryAxisAlignItems"].(string); ok && v != "" {
-		switch v {
-		case "MIN", "CENTER", "MAX", "SPACE_BETWEEN":
-		default:
-			return fmt.Sprintf("primaryAxisAlignItems must be MIN, CENTER, MAX, or SPACE_BETWEEN, got: %s", v)
-		}
-	}
-	if v, ok := params["counterAxisAlignItems"].(string); ok && v != "" {
-		switch v {
-		case "MIN", "CENTER", "MAX", "BASELINE":
-		default:
-			return fmt.Sprintf("counterAxisAlignItems must be MIN, CENTER, MAX, or BASELINE, got: %s", v)
-		}
-	}
-	if v, ok := params["primaryAxisSizingMode"].(string); ok && v != "" {
-		switch v {
-		case "FIXED", "AUTO":
-		default:
-			return fmt.Sprintf("primaryAxisSizingMode must be FIXED or AUTO, got: %s", v)
-		}
-	}
-	if v, ok := params["counterAxisSizingMode"].(string); ok && v != "" {
-		switch v {
-		case "FIXED", "AUTO":
-		default:
-			return fmt.Sprintf("counterAxisSizingMode must be FIXED or AUTO, got: %s", v)
-		}
-	}
-	if v, ok := params["layoutWrap"].(string); ok && v != "" {
-		switch v {
-		case "NO_WRAP", "WRAP":
-		default:
-			return fmt.Sprintf("layoutWrap must be NO_WRAP or WRAP, got: %s", v)
-		}
-	}
-	return ""
-}
-
 // blendModeNames are the Figma blend modes, in the order the API documents them.
 var blendModeNames = []string{
 	"NORMAL", "MULTIPLY", "SCREEN", "OVERLAY",
@@ -204,8 +108,7 @@ var blendModeNames = []string{
 }
 
 // validateConstraintAxes checks the horizontal/vertical values of a constraints
-// object. Shared by set_constraints (flat params) and set_node_properties
-// (nested under "constraints"), which is why it takes a plain map.
+// object, which set_node_properties carries nested under "constraints".
 func validateConstraintAxes(c map[string]interface{}) string {
 	for _, axis := range []string{"horizontal", "vertical"} {
 		v, ok := c[axis].(string)
@@ -227,25 +130,4 @@ func validExportFormat(f string) bool {
 		return true
 	}
 	return false
-}
-
-type BatchPipelineStep struct {
-	ID         string                 `json:"id"`
-	Action     string                 `json:"action"`
-	Params     map[string]interface{} `json:"params"`
-	ExportVars map[string]string      `json:"export_vars,omitempty"`
-}
-
-type BatchPipelineRequest struct {
-	StopOnError bool                `json:"stop_on_error,omitempty"`
-	Steps       []BatchPipelineStep `json:"steps"`
-}
-
-type BatchPipelineResponse struct {
-	Success        bool                     `json:"success"`
-	CompletedSteps int                      `json:"completed_steps"`
-	Exports        map[string]interface{}   `json:"exports,omitempty"`
-	Results        []map[string]interface{} `json:"results,omitempty"`
-	FailedStep     map[string]interface{}   `json:"failed_step,omitempty"`
-	Rollback       bool                     `json:"rollback_executed,omitempty"`
 }

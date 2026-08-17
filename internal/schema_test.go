@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -1303,25 +1302,27 @@ func TestValidateRPC_ClearAnnotations(t *testing.T) {
 	}
 }
 
-func TestBatchPipelineRequestSchema(t *testing.T) {
-	rawJSON := `{
-		"stop_on_error": true,
-		"steps": [
-			{
-				"id": "step_1",
-				"action": "create_frame",
-				"params": {"name": "Header", "width": 100, "height": 100},
-				"export_vars": {"id": "$header_id"}
-			}
-		]
-	}`
-	var req BatchPipelineRequest
-	err := json.Unmarshal([]byte(rawJSON), &req)
-	if err != nil {
-		t.Fatalf("failed to unmarshal BatchPipelineRequest: %v", err)
+func TestValidateRPC_BatchExecutePipeline(t *testing.T) {
+	step := map[string]interface{}{
+		"id":          "step_1",
+		"action":      "create_frame",
+		"params":      map[string]interface{}{"name": "Header", "width": 100.0, "height": 100.0},
+		"export_vars": map[string]interface{}{"id": "$header_id"},
 	}
-	if req.Steps[0].Action != "create_frame" {
-		t.Errorf("expected create_frame, got %s", req.Steps[0].Action)
+
+	if msg := ValidateRPC("batch_execute_pipeline", nil, map[string]interface{}{}); msg == "" {
+		t.Error("expected error for missing steps")
+	}
+	if msg := ValidateRPC("batch_execute_pipeline", nil, map[string]interface{}{
+		"steps": []interface{}{"create_frame"},
+	}); msg == "" {
+		t.Error("expected error for a step that is not an object")
+	}
+	if msg := ValidateRPC("batch_execute_pipeline", nil, map[string]interface{}{
+		"stop_on_error": true,
+		"steps":         []interface{}{step},
+	}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
 	}
 }
 

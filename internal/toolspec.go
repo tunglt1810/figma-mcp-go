@@ -59,6 +59,10 @@ type paramSpec struct {
 	// AllowEmpty forwards an empty string instead of treating it as absent.
 	// Replacement strings and text bodies use "" to mean "clear this".
 	AllowEmpty bool
+
+	// ItemSchema spells out an array's element schema where "an object" is too
+	// vague to be useful to the client.
+	ItemSchema map[string]any
 }
 
 func (p paramSpec) wireName() string {
@@ -125,7 +129,11 @@ func (p paramSpec) toolOption() mcp.ToolOption {
 	case kindNumberArray:
 		return mcp.WithArray(p.Name, append(opts, mcp.Items(map[string]any{"type": "number"}))...)
 	case kindObjectArray:
-		return mcp.WithArray(p.Name, append(opts, mcp.Items(map[string]any{"type": "object"}))...)
+		items := p.ItemSchema
+		if items == nil {
+			items = map[string]any{"type": "object"}
+		}
+		return mcp.WithArray(p.Name, append(opts, mcp.Items(items))...)
 	case kindArray:
 		return mcp.WithArray(p.Name, opts...)
 	case kindObject:
@@ -346,6 +354,8 @@ func containsString(haystack []string, needle string) bool {
 // group has to be added for both registration and validation to see it.
 func specGroups() [][]toolSpec {
 	return [][]toolSpec{
+		{batchPipelineSpec},
+		exportSpecs,
 		readDocumentSpecs,
 		readStyleSpecs,
 		writeComponentSpecs,
@@ -381,6 +391,24 @@ func registerSpecs(s *server.MCPServer, node *Node, specs []toolSpec) {
 	for _, spec := range specs {
 		s.AddTool(buildTool(spec), specHandler(node, spec))
 	}
+}
+
+// customHandler is the handler of a tool that does work in Go — writing files,
+// merging PDFs — around its call to the plugin. It is handed arguments already
+// split, normalized and checked against the spec.
+type customHandler func(ctx context.Context, nodeIDs []string, params map[string]interface{}) (*mcp.CallToolResult, error)
+
+// registerCustom adds a table-declared tool whose handler is not a plain
+// forwarder. The schema and the validation still come from the spec; only the
+// body differs, so these tools cannot drift from the table either.
+func registerCustom(s *server.MCPServer, spec toolSpec, h customHandler) {
+	s.AddTool(buildTool(spec), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		nodeIDs, params := normalizeArgs(specArgs(spec, req.GetArguments()))
+		if msg := validateSpec(spec, nodeIDs, params); msg != "" {
+			return mcp.NewToolResultError(msg), nil
+		}
+		return h(ctx, nodeIDs, params)
+	})
 }
 
 func floatPtr(f float64) *float64 { return &f }

@@ -185,3 +185,13 @@ func TestSpecRegistry_MatchesRegisteredTools(t *testing.T) {
 		}
 	}
 }
+
+// Every tool is now table-declared, so the registry and the registered set are
+// the same set. A hand-written registration would show up here.
+func TestSpecRegistry_CoversEveryTool(t *testing.T) {
+	for _, tool := range listTools(t).Result.Tools {
+		if _, ok := specRegistry[tool.Name]; !ok {
+			t.Errorf("tool %q is registered but has no spec", tool.Name)
+		}
+	}
+}
