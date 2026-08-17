@@ -134,9 +134,10 @@ func executeExportFramesToPDF(ctx context.Context, node *Node, nodeIDs []string,
 	if err := os.MkdirAll(filepath.Dir(resolvedPath), 0o755); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("mkdir: %v", err)), nil
 	}
-	if _, statErr := os.Stat(resolvedPath); statErr == nil {
-		return mcp.NewToolResultError(fmt.Sprintf("file already exists: %s", resolvedPath)), nil
-	}
+	// Overwrite, as save_screenshots does: re-exporting after a design change is
+	// the normal loop. The path is already confined to the working directory.
+	_, statErr := os.Stat(resolvedPath)
+	replaced := statErr == nil
 	if err := os.WriteFile(resolvedPath, merged, 0o644); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("write file: %v", err)), nil
 	}
@@ -145,6 +146,7 @@ func executeExportFramesToPDF(ctx context.Context, node *Node, nodeIDs []string,
 		"outputPath":   resolvedPath,
 		"bytesWritten": len(merged),
 		"pageCount":    len(pages),
+		"replaced":     replaced,
 		"success":      true,
 	})
 	return mcp.NewToolResultText(string(out)), nil

@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -59,12 +61,43 @@ func NewBridge(version string) *Bridge {
 	}
 }
 
+// allowedOrigin reports whether a browser at this Origin may open the bridge.
+// A new connection replaces the live one, so without this any page the user had
+// open could connect to the local port, displace the real plugin and answer
+// tool calls itself. Browsers set Origin and scripts cannot forge it, which is
+// what makes the check worth having.
+//
+// Figma serves plugin UI from a sandboxed iframe, whose Origin is the literal
+// "null". Allowing that leaves one gap: a hostile page can sandbox an iframe of
+// its own and present "null" too. It closes the ordinary case, which is a page
+// simply running a script.
+func allowedOrigin(origin string) bool {
+	if origin == "" || origin == "null" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "figma.com" || strings.HasSuffix(host, ".figma.com") ||
+		host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
 // HandleUpgrade upgrades an HTTP request to a WebSocket connection.
 // Only one plugin connection is maintained at a time; a new connection
 // replaces the old one (same behaviour as the TypeScript version).
 func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
+	if origin := r.Header.Get("Origin"); !allowedOrigin(origin) {
+		bridgeLogger.Printf("upgrade refused: origin %q is not allowed", origin)
+		http.Error(w, "origin not allowed", http.StatusForbidden)
+		return
+	}
+
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true, // skip Origin check — plugin connects via Figma's sandbox
+		// The check above replaces the library's: it has to accept the "null"
+		// origin of a sandboxed iframe, which the library rejects outright.
+		InsecureSkipVerify: true,
 	})
 	if err != nil {
 		bridgeLogger.Printf("upgrade error: %v", err)

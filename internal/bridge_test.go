@@ -240,3 +240,34 @@ func TestBridgeIsConnected(t *testing.T) {
 		t.Error("should be connected after upgrade")
 	}
 }
+
+// The bridge skipped the Origin check entirely, and a new connection replaces
+// the live one — so any page the user had open could connect to the local port,
+// displace the real plugin and answer tool calls with whatever it liked.
+func TestAllowedOrigin(t *testing.T) {
+	allowed := []string{
+		"",                      // non-browser client, sends no Origin
+		"null",                  // Figma serves plugin UI in a sandboxed iframe
+		"https://www.figma.com", // and a same-origin iframe in some contexts
+		"https://figma.com",
+		"http://localhost:5173", // plugin UI in dev
+		"http://127.0.0.1:1994",
+	}
+	for _, origin := range allowed {
+		if !allowedOrigin(origin) {
+			t.Errorf("origin %q should be allowed", origin)
+		}
+	}
+
+	denied := []string{
+		"https://evil.com",
+		"http://evil.com",
+		"https://figma.com.evil.com",
+		"https://notfigma.com",
+	}
+	for _, origin := range denied {
+		if allowedOrigin(origin) {
+			t.Errorf("origin %q should be denied", origin)
+		}
+	}
+}
