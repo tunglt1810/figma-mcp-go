@@ -6,12 +6,12 @@
     "url": "https://github.com/tunglt1810/figma-mcp-go",
     "source": "github"
   },
-  "version": "0.0.7",
+  "version": "0.1.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@tunglt1810/figma-mcp-go",
-      "version": "0.0.7",
+      "version": "0.1.0",
       "transport": {
         "type": "stdio"
       }
