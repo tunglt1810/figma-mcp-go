@@ -8,12 +8,14 @@
 
 | Hạng mục | Kết quả |
 |---|---|
-| **G1** — P0-1, P0-2, P0-3 | Rollback pipeline snapshot đúng node đích, khôi phục thuộc tính, trả `results` khi lỗi |
-| **G3** (một phần) | `gofmt`/`go vet` vào CI; P2-16 — xoá `BatchPipeline*` dead code |
+| **G1** — P0-1, P0-2, P0-3 | Rollback pipeline snapshot đúng node đích, khôi phục thuộc tính, trả `results` khi lỗi (P2-11 hết theo) |
+| **G2** — P1-5, P1-6, P1-7 | Validation vào `Node.Send`; một bảng timeout cho bridge/follower/progress; validate hex color ở cả Go và plugin |
+| **G3** — P2-8 → P2-16 | `gofmt`/`go vet` vào CI; mixed fills/strokes; `$variable` chỉ khớp identifier; normalize node ID trong cả cây params; ghi đè được file export; check Origin của WebSocket; xoá `BatchPipeline*` dead code |
 | **G4** | Thu gọn tool Tier 1: 8 tool node-property gộp thành `set_node_properties` (breaking, cần cài lại plugin) |
-| **G6** | Bảng tool declarative — cả 77 tool khai báo trong `toolSpec`; `ValidateRPC` chỉ còn tra bảng. P1-4 (`steps` sai kiểu) và P1-5 (validation lệch leader/follower) hết theo |
+| **G6** | Bảng tool declarative — cả 77 tool khai báo trong `toolSpec`; `ValidateRPC` chỉ còn tra bảng. P1-4 (`steps` sai kiểu) hết theo |
 
-Bug còn mở: P1-6 (timeout ladder), P1-7 (hex color), P2-8 → P2-15.
+Không còn bug nào trong danh sách này để mở. Chưa làm: **G5** (thu gọn tool Tier 2),
+**G7** (đơn giản hoá leader/follower), **G8** (keepalive bridge + dispatch map plugin).
 
 ---
 
