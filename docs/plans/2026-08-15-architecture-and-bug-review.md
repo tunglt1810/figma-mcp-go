@@ -1,74 +1,76 @@
 # Architecture & Bug Review — figma-mcp-go
 
-**Ngày:** 2026-08-15
-**Phạm vi:** toàn bộ Go server (`internal/`, `cmd/`) + Figma plugin (`plugin/src/`)
-**Trạng thái:** research only — tài liệu này để chọn hạng mục triển khai. Phần thân giữ nguyên nội dung ngày khảo sát; xem bảng dưới để biết mục nào đã làm.
+**Date:** 2026-08-15
+**Scope:** the whole Go server (`internal/`, `cmd/`) plus the Figma plugin (`plugin/src/`)
+**Status:** research only — this document exists to choose work packages from. The body is kept as written on the day of the survey; see the table below for what has since been done.
 
-### Đã triển khai từ báo cáo này
+### Shipped from this report
 
-| Hạng mục | Kết quả |
+| Package | Result |
 |---|---|
-| **G1** — P0-1, P0-2, P0-3 | Rollback pipeline snapshot đúng node đích, khôi phục thuộc tính, trả `results` khi lỗi (P2-11 hết theo) |
-| **G2** — P1-5, P1-6, P1-7 | Validation vào `Node.Send`; một bảng timeout cho bridge/follower/progress; validate hex color ở cả Go và plugin |
-| **G3** — P2-8 → P2-16 | `gofmt`/`go vet` vào CI; mixed fills/strokes; `$variable` chỉ khớp identifier; normalize node ID trong cả cây params; ghi đè được file export; check Origin của WebSocket; xoá `BatchPipeline*` dead code |
-| **G4** | Thu gọn tool Tier 1: 8 tool node-property gộp thành `set_node_properties` (breaking, cần cài lại plugin) |
-| **G5** | Thu gọn tool Tier 2: shape 7→1, paint 3→1, style 4→1, page 4→1. 77 → 63 tool |
-| **G6** | Bảng tool declarative — mọi tool khai báo trong `toolSpec`; `ValidateRPC` chỉ còn tra bảng. P1-4 (`steps` sai kiểu) hết theo |
-| **G7** — B3 | **Không làm** — giữ leader/follower; xem phần dưới |
-| **G8** — B4 + B5 | Bridge ping mỗi 20s, drop connection không pong; dispatch plugin thành map, trùng tên tool là lỗi lúc load |
+| **G1** — P0-1, P0-2, P0-3 | Pipeline rollback snapshots the right target node, restores properties, and returns `results` on failure (P2-11 goes with it) |
+| **G2** — P1-5, P1-6, P1-7 | Validation moved into `Node.Send`; one timeout table for bridge/follower/progress; hex colors validated in both Go and the plugin |
+| **G3** — P2-8 → P2-16 | `gofmt`/`go vet` in CI; mixed fills/strokes; `$variable` matches identifiers only; node IDs normalized through the whole param tree; exports can overwrite; WebSocket Origin checked; `BatchPipeline*` dead code deleted |
+| **G4** | Tool surface Tier 1: eight node-property tools merged into `set_node_properties` (breaking — the plugin must be reinstalled) |
+| **G5** | Tool surface Tier 2: shapes 7→1, paint 3→1, styles 4→1, pages 4→1. 77 → 63 tools |
+| **G6** | Declarative tool table — every tool declares itself in a `toolSpec`; `ValidateRPC` is now a table lookup. P1-4 (`steps` declared with the wrong type) goes with it |
+| **G7** — B3 | **Declined** — leader/follower stays; see below |
+| **G8** — B4 + B5 | Bridge pings every 20s and drops a connection that stops answering; plugin dispatch is a map, so a duplicate tool name is an error at load time |
 
-Không còn bug nào trong danh sách này để mở.
+No bug on this list is still open.
 
-**B5 đã làm, nhưng lý do trong báo cáo không đúng.** Hiệu năng không phải vấn đề:
-10 lần `switch` trên string là nano giây, round-trip là mili giây. Cái map thật sự
-mua được là (a) trùng tên tool giữa hai module thành lỗi ném lúc load thay vì
-"module nào đứng trước thì thắng", (b) một chỗ duy nhất để tra tên. Kèm theo vẫn
-giữ test so bảng tool Go với handler plugin (`tools_plugin_test.go`).
+**B5 was done, but the reason given in this report is wrong.** Performance was never the
+problem: ten `switch` statements over a string are nanoseconds, and the round-trip is
+milliseconds. What the map actually buys is (a) a duplicate tool name across two modules
+throwing at load time instead of "whichever module comes first wins", and (b) one place to
+look a name up. The Go-table-vs-plugin-handler test (`tools_plugin_test.go`) is kept
+alongside it.
 
-**Về cảnh báo trong mục Tier 2** ("gộp quá tay thì LLM chọn sai param nhiều hơn
-chọn sai tool"): cảnh báo đúng, nên mỗi tool gộp có `requireVariant` — param
-thuộc variant khác bị **báo lỗi kèm tên param và tên variant**, không bị bỏ qua
-âm thầm. Đổi một lỗi khó thấy lấy một lỗi nói thẳng.
+**On the warning in the Tier 2 section** ("merge too hard and the LLM picks the wrong
+parameter more often than it picks the wrong tool"): the warning is right, so each merged
+tool has a `requireVariant` — a parameter belonging to a different variant is **rejected by
+name, along with the variant's name**, rather than dropped silently. A hard-to-see failure
+traded for one that says what it is.
 
-**G7 — quyết định: không làm, giữ leader/follower.** Lý do trong B3 đã yếu đi
-nhiều: hai nguồn bug được nêu ở đó (P1-5 validation lệch, P1-6 timeout lệch) đều
-đã sửa, nên phần còn lại chỉ là ~500 dòng đang chạy tốt.
+**G7 — decision: not done, leader/follower stays.** The reasoning in B3 has weakened
+considerably: both bug sources it cites (P1-5 divergent validation, P1-6 divergent
+timeouts) are fixed, so what remains is ~500 lines that work.
 
-Hai topology tồn tại song song và làm hai việc khác nhau:
+Two topologies exist side by side and do different things:
 
-- **Nhiều client → một file Figma**, không cần cấu hình: process đầu tiên chiếm
-  1994 giữ WebSocket, các process sau proxy qua `/rpc`. Đây là leader/follower.
-- **Nhiều client → nhiều file Figma**: mỗi client một `--port`, mỗi plugin
-  instance trỏ vào port riêng. Không có follower nào chạy.
+- **Several clients → one Figma file**, no configuration: the first process to take 1994
+  holds the WebSocket, the rest proxy through `/rpc`. This is leader/follower.
+- **Several clients → several Figma files**: one `--port` per client, each plugin instance
+  pointed at its own port. No follower runs at all.
 
-Cách hai vốn đã làm được nhưng chưa từng được ghi ở đâu; nay có trong README.
-Xoá leader/follower sẽ lấy mất cách một, tức trường hợp zero-config hai
-terminal cùng tác động lên một file — trong khi package đã publish npm công
-khai. Giữ.
+The second was always possible but had never been written down anywhere; it is now in the
+README. Removing leader/follower would take away the first — the zero-config case of two
+terminals acting on one file — for a package that is already published on npm. Keep it.
 
 ---
 
-## 0. Số liệu nền
+## 0. Baseline numbers
 
-| Chỉ số | Giá trị | Đo bằng |
+| Metric | Value | Measured with |
 |---|---|---|
-| Go LOC (không tính test) | ~4.900 | `wc -l` |
-| Plugin TS LOC (không tính test) | ~2.400 | `wc -l` |
-| Số MCP tool | 84 | `tools_schema_test.go` |
-| Payload `tools/list` | **58.931 bytes ≈ 14.7k token** | `HandleMessage` + `json.Marshal` |
-| Số dòng validation (`schema.go`) | 940 | chỉ chạy trên 1 trong 2 code path (xem P1-5) |
+| Go LOC (excluding tests) | ~4,900 | `wc -l` |
+| Plugin TS LOC (excluding tests) | ~2,400 | `wc -l` |
+| MCP tools | 84 | `tools_schema_test.go` |
+| `tools/list` payload | **58,931 bytes ≈ 14.7k tokens** | `HandleMessage` + `json.Marshal` |
+| Validation lines (`schema.go`) | 940 | runs on only one of the two code paths (see P1-5) |
 | `go test ./...` | PASS | — |
-| `gofmt -l .` | **5 file lỗi format** | election.go, schema.go, schema_test.go, tools_write.go, tools_write_components.go |
+| `gofmt -l .` | **5 files misformatted** | election.go, schema.go, schema_test.go, tools_write.go, tools_write_components.go |
 
-14.7k token schema = ~7% cửa sổ context 200k, trả phí ở **mọi** session, trước khi làm bất cứ việc gì.
+14.7k tokens of schema is ~7% of a 200k context window, paid in **every** session, before
+any work happens.
 
 ---
 
-## PHẦN A — BUG
+## PART A — BUGS
 
-### 🔴 P0-1 — `batch_execute_pipeline` rollback xoá node có sẵn của user (mất dữ liệu)
+### 🔴 P0-1 — `batch_execute_pipeline` rollback deletes the user's existing nodes (data loss)
 
-**Vị trí:** `plugin/src/batch-pipeline.ts:99-101`
+**Location:** `plugin/src/batch-pipeline.ts:99-101`
 
 ```ts
 if (res && res.id) {
@@ -76,56 +78,66 @@ if (res && res.id) {
 }
 ```
 
-WAL coi **mọi** kết quả có `.id` là node vừa được tạo. Nhưng rất nhiều handler trả về `id` của node **đã tồn tại**.
+The WAL treats **every** result carrying an `.id` as a node that was just created. But
+plenty of handlers return the `id` of a node that **already existed**.
 
-**Repro reachable ngay hôm nay:**
+**Reachable repro today:**
 
 ```json
 {"steps":[
   {"id":"s1","action":"rename_page","params":{"pageName":"Home","newName":"Landing"}},
-  {"id":"s2","action":"create_frame","params":{"parentId":"$khong_ton_tai"}}
+  {"id":"s2","action":"create_frame","params":{"parentId":"$does_not_exist"}}
 ]}
 ```
 
-- `rename_page` trả `data: { id: page.id, ... }` (`plugin/src/write-page.ts:71`) — id của **page thật của user**
-- s2 fail → `executeRollback` gọi `page.remove()`
-- → **Toàn bộ page và mọi thứ trên đó bị xoá vĩnh viễn.**
+- `rename_page` returns `data: { id: page.id, ... }` (`plugin/src/write-page.ts:71`) — the id of the **user's real page**
+- s2 fails → `executeRollback` calls `page.remove()`
+- → **the whole page and everything on it is gone for good.**
 
-Sau khi fix P0-2 (nối `nodeIds`), lỗ hổng này mở rộng ra ~20 handler nữa: `set_fills`, `set_text`, `set_strokes`, `rename_node`, `set_auto_layout`… tất cả đều trả `id` của node có sẵn.
+Once P0-2 (wiring `nodeIds`) is fixed, this hole widens to another ~20 handlers:
+`set_fills`, `set_text`, `set_strokes`, `rename_node`, `set_auto_layout`… all of which
+return the `id` of a node that already existed.
 
-**Fix:** chỉ push `CREATE` khi action thuộc allow-list `create_*` / `clone_node` / `add_page` / `import_image`, hoặc để handler tự khai báo `data.__created = true`. Cách sau an toàn hơn vì không phụ thuộc quy ước đặt tên.
+**Fix:** push `CREATE` only when the action is on an allow-list of `create_*` /
+`clone_node` / `add_page` / `import_image`, or let the handler declare
+`data.__created = true` itself. The latter is safer because it does not depend on a naming
+convention.
 
 ---
 
-### 🔴 P0-2 — Pipeline không truyền `nodeIds` → ~34/57 write tool không dùng được
+### 🔴 P0-2 — The pipeline does not pass `nodeIds` → ~34 of 57 write tools are unusable
 
-**Vị trí:** `plugin/src/batch-pipeline.ts:155`
+**Location:** `plugin/src/batch-pipeline.ts:155`
 
 ```ts
 const subReq = { type: action, requestId: `${request.requestId}_${action}`, params };
 ```
 
-Không có field `nodeIds`. Nhưng handler đọc như thế này (`plugin/src/write-modify.ts:8`):
+There is no `nodeIds` field. But handlers read it like this
+(`plugin/src/write-modify.ts:8`):
 
 ```ts
 const nodeId = request.nodeIds && request.nodeIds[0];
 if (!nodeId) throw new Error("nodeId is required");
 ```
 
-**Thống kê `request.nodeIds` trong plugin write handlers:**
+**Uses of `request.nodeIds` in the plugin's write handlers:**
 
-| File | Số lần dùng | Trạng thái trong pipeline |
+| File | Uses | State inside a pipeline |
 |---|---|---|
-| `write-modify.ts` | 20 | ❌ hỏng toàn bộ |
-| `write-components.ts` | 8 | ❌ hỏng phần lớn |
+| `write-modify.ts` | 20 | ❌ all broken |
+| `write-components.ts` | 8 | ❌ mostly broken |
 | `write-styles.ts` | 3 | ❌ `apply_style_to_node`, `set_effects`, `bind_variable_to_node` |
-| `write-prototype.ts` | 2 | ❌ hỏng |
+| `write-prototype.ts` | 2 | ❌ broken |
 | `write-create.ts` | 1 | ❌ `create_component` |
-| `write-page.ts`, `write-variables.ts` | 0 | ✅ chạy được |
+| `write-page.ts`, `write-variables.ts` | 0 | ✅ work |
 
-Nghĩa là pipeline **chỉ tạo node được, không sửa được node nào**. Tính năng flagship "transactional mutation" thực tế chỉ hoạt động một nửa.
+So the pipeline **can only create nodes, not modify any**. The flagship "transactional
+mutation" feature works at half strength.
 
-**Vì sao test không bắt được:** `batch-pipeline.test.ts` chỉ test `executeBatchPipeline` với `mockDispatcher` tự viết — không bao giờ chạy qua `handleBatchPipelineRequest` → `dispatchSingle`, chính là chỗ mất `nodeIds`.
+**Why the tests miss it:** `batch-pipeline.test.ts` only exercises `executeBatchPipeline`
+with a hand-written `mockDispatcher` — it never runs through
+`handleBatchPipelineRequest` → `dispatchSingle`, which is exactly where `nodeIds` is lost.
 
 **Fix:**
 ```ts
@@ -136,93 +148,112 @@ const dispatcher = async (action: string, params: any) => {
   ...
 };
 ```
-+ thêm integration test đi qua `handleWriteRequest` thật.
+plus an integration test that goes through the real `handleWriteRequest`.
 
 ---
 
-### 🔴 P0-3 — WAL `MODIFY` chưa implement, trái với chính design doc của nó
+### 🔴 P0-3 — WAL `MODIFY` is unimplemented, contradicting its own design doc
 
-**Vị trí:** `plugin/src/batch-pipeline.ts:32-52`
+**Location:** `plugin/src/batch-pipeline.ts:32-52`
 
-`LogEntry` khai báo `MODIFY` với `previousState`, nhưng:
-- không chỗ nào push entry `MODIFY`
-- `executeRollback` chỉ có nhánh `if (entry.type === 'CREATE')`
+`LogEntry` declares `MODIFY` with a `previousState`, but:
+- nothing ever pushes a `MODIFY` entry
+- `executeRollback` only has the `if (entry.type === 'CREATE')` branch
 
-Design doc `docs/specs/2026-08-01-batch-execute-pipeline-design.md:142,148` đã spec rõ: snapshot `fills/strokes/x/y/width/height/characters` trước MODIFY, rollback bằng `restoreNodeProperties()`. Phần này chưa được viết.
+The design doc `docs/specs/2026-08-01-batch-execute-pipeline-design.md:142,148` specifies
+it clearly: snapshot `fills/strokes/x/y/width/height/characters` before a MODIFY, roll back
+with `restoreNodeProperties()`. That part was never written.
 
-**Hệ quả:** tool description nói *"transactional … with rollback support"* nhưng thực tế mọi thay đổi lên node có sẵn là **không thể hoàn tác**. LLM tin vào description → dùng pipeline cho các thao tác nguy hiểm.
+**Consequence:** the tool description says *"transactional … with rollback support"* while
+in reality every change to an existing node is **not undoable**. The LLM believes the
+description and uses the pipeline for dangerous operations.
 
-**Fix:** hoặc implement MODIFY snapshot đúng spec, hoặc sửa description thành *"rollback chỉ xoá node mới tạo; thay đổi lên node có sẵn không được hoàn tác"*. Cái sau rẻ và trung thực, nên làm ngay kèm P0-1.
+**Fix:** either implement the MODIFY snapshot as specified, or change the description to
+*"rollback only removes newly created nodes; changes to existing nodes are not undone"*.
+The latter is cheap and honest, so do it immediately alongside P0-1.
 
 ---
 
-### 🟠 P1-4 — Schema `steps` khai sai kiểu, lại không `required`
+### 🟠 P1-4 — The `steps` schema declares the wrong type, and is not `required`
 
-**Vị trí:** `internal/tools_write.go:25`
+**Location:** `internal/tools_write.go:25`
 
-Schema thực tế server phát ra:
+The schema the server actually emits:
 ```json
 "steps": { "type": "object", "properties": {}, "description": "Array of pipeline steps to execute in sequence" }
 ```
 
-Ba vấn đề cùng lúc:
-1. `type: "object"` nhưng plugin lặp `req.steps[i]` → cần **array**. MCP client nào validate strict sẽ reject.
-2. `properties: {}` — LLM không có tí thông tin nào về shape của một step (`id`/`action`/`params`/`export_vars`).
-3. `required: []` — `steps` không bắt buộc.
+Three problems at once:
+1. `type: "object"`, but the plugin iterates `req.steps[i]` → it needs an **array**. Any MCP client that validates strictly will reject it.
+2. `properties: {}` — the LLM gets no information at all about the shape of a step (`id`/`action`/`params`/`export_vars`).
+3. `required: []` — `steps` is optional.
 
-**Fix:** `mcp.WithArray("steps", mcp.Required(), mcp.WithObjectItems(...))` mô tả đầy đủ shape step. Thêm case `batch_execute_pipeline` vào `ValidateRPC` (hiện không có).
+**Fix:** `mcp.WithArray("steps", mcp.Required(), mcp.WithObjectItems(...))` describing the
+full step shape. Add a `batch_execute_pipeline` case to `ValidateRPC` (there is none today).
 
 ---
 
-### 🟠 P1-5 — 940 dòng validation chỉ chạy trên code path phụ
+### 🟠 P1-5 — 940 lines of validation run only on the secondary code path
 
-**Vị trí:** `internal/leader.go:127` — **call site duy nhất** của `ValidateRPC`.
+**Location:** `internal/leader.go:127` — the **only** call site of `ValidateRPC`.
 
-Luồng thực tế (`internal/node.go:75-78`):
+The real flow (`internal/node.go:75-78`):
 
 ```
 MCP client → tool handler → node.Send()
-                              ├── role == LEADER   → bridge.Send()        ← KHÔNG validate
+                              ├── role == LEADER   → bridge.Send()        ← NO validation
                               └── role == FOLLOWER → follower.Send()
-                                                      → leader /rpc → ValidateRPC ← có validate
+                                                      → leader /rpc → ValidateRPC ← validated
 ```
 
-Process đầu tiên khởi động luôn là **leader**. Nghĩa là với đại đa số user (1 MCP client), **toàn bộ `schema.go` là dead code**.
+The first process to start is always the **leader**. Which means that for the vast majority
+of users (one MCP client), **all of `schema.go` is dead code**.
 
-**Hệ quả cụ thể:** cùng một lệnh `set_opacity(opacity=5)`
-- leader → gửi thẳng xuống Figma → lỗi khó hiểu từ plugin API, hoặc âm thầm sai
-- follower → `"opacity must be between 0 and 1"`
+**Concrete consequence:** the same `set_opacity(opacity=5)` call
+- as leader → sent straight to Figma → an incomprehensible error from the plugin API, or a silent wrong result
+- as follower → `"opacity must be between 0 and 1"`
 
-Hành vi khác nhau tuỳ process nào start trước — cực khó debug.
+Behavior differs depending on which process started first — extremely hard to debug.
 
-**Fix:** đưa `ValidateRPC` vào đầu `Node.Send()`. Leader `/rpc` giữ nguyên (defense in depth cho input từ mạng). Một dòng code, thu hồi 940 dòng logic đang bỏ không.
+**Fix:** move `ValidateRPC` to the top of `Node.Send()`. Leave the leader's `/rpc` check in
+place (defense in depth for input off the network). One line of code reclaims 940 lines of
+logic that is currently idle.
 
 ---
 
-### 🟠 P1-6 — Thang timeout không nhất quán → `get_document` / pipeline luôn fail ở follower
+### 🟠 P1-6 — Inconsistent timeout scale → `get_document` / pipelines always fail on a follower
 
-| Nơi | Timeout |
+| Where | Timeout |
 |---|---|
-| `bridge.go:193` mặc định | 30s |
+| `bridge.go:193` default | 30s |
 | `bridge.go:194` `get_document` | 60s |
 | `bridge.go:196` `batch_execute_pipeline` | 120s |
-| `bridge.go:110` reset khi có progress | **60s cứng** |
-| `follower.go:29` HTTP client | **35s cứng** |
+| `bridge.go:110` reset on progress | **hardcoded 60s** |
+| `follower.go:29` HTTP client | **hardcoded 35s** |
 
-Hai lỗi:
+Two bugs:
 
-1. **Follower không bao giờ chờ nổi tool dài.** File lớn cần 45s → leader vẫn đang chờ, follower đã đứt ở 35s. `batch_execute_pipeline` (120s) qua follower thực tế trần là 35s.
-2. **Progress update rút ngắn timeout của pipeline.** `entry.timer.Reset(60 * time.Second)` — một progress update ở giây thứ 10 của pipeline 120s hạ trần xuống 70s. Cơ chế "kéo dài timeout" lại làm ngược.
+1. **A follower can never wait out a long tool.** A large file needs 45s → the leader is
+   still waiting while the follower gave up at 35s. `batch_execute_pipeline` (120s) has an
+   effective ceiling of 35s through a follower.
+2. **A progress update shortens the pipeline's timeout.**
+   `entry.timer.Reset(60 * time.Second)` — one progress update at second 10 of a 120s
+   pipeline lowers the ceiling to 70s. The mechanism meant to extend the timeout does the
+   opposite.
 
-Comment ở `follower.go:28` (`35s > 30s bridge timeout`) đúng ở thời điểm viết, nhưng đã lạc hậu sau khi thêm 2 timeout đặc biệt.
+The comment at `follower.go:28` (`35s > 30s bridge timeout`) was true when written, but went
+stale once the two special timeouts were added.
 
-**Fix:** một bảng timeout dùng chung, `follower.client.Timeout` derive từ đó (`timeoutFor(tool) + 5s`), progress reset dùng `timeoutFor(tool)` chứ không hardcode 60s. Thêm trần tổng để plugin gửi progress vô hạn không giữ request sống mãi.
+**Fix:** one shared timeout table, with `follower.client.Timeout` derived from it
+(`timeoutFor(tool) + 5s`), and the progress reset using `timeoutFor(tool)` rather than a
+hardcoded 60s. Add an overall ceiling so a plugin sending progress forever cannot keep a
+request alive indefinitely.
 
 ---
 
-### 🟠 P1-7 — Không có tầng nào validate màu hex
+### 🟠 P1-7 — No layer validates hex colors
 
-**Vị trí:** `plugin/src/write-helpers.ts:5-13`
+**Location:** `plugin/src/write-helpers.ts:5-13`
 
 ```ts
 export const hexToRgb = (hex: string) => {
@@ -231,69 +262,80 @@ export const hexToRgb = (hex: string) => {
 };
 ```
 
-| Input | Kết quả |
+| Input | Result |
 |---|---|
-| `#f00` (shorthand 3 ký tự) | `b = parseInt("", 16)/255 = NaN` → fill hỏng, **không báo lỗi** |
+| `#f00` (3-character shorthand) | `b = parseInt("", 16)/255 = NaN` → broken fill, **no error** |
 | `red` | `{r: NaN, g: NaN, b: NaN}` |
 | `rgb(255,0,0)` | NaN |
 
-`schema.go:363` chỉ kiểm `color != ""`. LLM rất hay sinh `#f00` hoặc tên màu.
+`schema.go:363` only checks `color != ""`. LLMs very often emit `#f00` or a color name.
 
-**Fix:** validate + expand shorthand ở Go (`^#?([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`), trả lỗi rõ ràng thay vì NaN âm thầm. Áp cho `set_fills`, `set_strokes`, `create_paint_style`, `set_gradient_fills.stops[].color`.
-
----
-
-### 🟡 P2-8 — `set_fills` mode=`append` vỡ khi `fills` là `figma.mixed`
-
-`plugin/src/write-modify.ts:56-58` spread thẳng `(node as any).fills`. Nếu node có fills hỗn hợp, `fills` là `symbol` → `TypeError: fills is not iterable`.
-
-`set_gradient_fills:34` đã có guard `Array.isArray(...)`. Bất nhất giữa hai handler cùng loại.
+**Fix:** validate and expand the shorthand in Go
+(`^#?([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`), returning a clear error instead of
+a silent NaN. Apply it to `set_fills`, `set_strokes`, `create_paint_style`, and
+`set_gradient_fills.stops[].color`.
 
 ---
 
-### 🟡 P2-9 — `resolveParams` nuốt mọi string bắt đầu bằng `$`
+### 🟡 P2-8 — `set_fills` with mode=`append` breaks when `fills` is `figma.mixed`
 
-`plugin/src/batch-pipeline.ts:11-16`: `if (params.startsWith('$'))` → throw nếu không có trong symbol table.
+`plugin/src/write-modify.ts:56-58` spreads `(node as any).fills` directly. If the node has
+mixed fills, `fills` is a `symbol` → `TypeError: fills is not iterable`.
 
-`create_text(text: "$100")` trong pipeline → `Error: Undefined pipeline variable: $100`. Giá tiền, biến CSS, template string đều dính.
-
-**Fix:** chỉ nhận pattern `^\$[A-Za-z_][A-Za-z0-9_]*$`, và hỗ trợ escape `$$` → `$`.
+`set_gradient_fills:34` already has an `Array.isArray(...)` guard. Two handlers of the same
+kind, inconsistent with each other.
 
 ---
 
-### 🟡 P2-10 — WebSocket tắt hoàn toàn Origin check
+### 🟡 P2-9 — `resolveParams` swallows every string starting with `$`
+
+`plugin/src/batch-pipeline.ts:11-16`: `if (params.startsWith('$'))` → throws if the string
+is not in the symbol table.
+
+`create_text(text: "$100")` inside a pipeline → `Error: Undefined pipeline variable: $100`.
+Prices, CSS variables, and template strings all hit it.
+
+**Fix:** accept only the pattern `^\$[A-Za-z_][A-Za-z0-9_]*$`, and support `$$` → `$` as an
+escape.
+
+---
+
+### 🟡 P2-10 — The WebSocket disables the Origin check entirely
 
 `internal/bridge.go:52`: `InsecureSkipVerify: true`.
 
-Kết hợp với `bridge.go:64-70` (connection mới **thay thế** connection cũ), một trang web bất kỳ user đang mở có thể:
-1. `new WebSocket("ws://127.0.0.1:1994/ws")` — không bị CORS chặn với WS
-2. Đá văng plugin thật
-3. Nhận toàn bộ tool request tiếp theo, trả dữ liệu giả
+Combined with `bridge.go:64-70` (a new connection **replaces** the old one), any web page
+the user happens to have open can:
+1. `new WebSocket("ws://127.0.0.1:1994/ws")` — WS is not blocked by CORS
+2. kick the real plugin off
+3. receive every subsequent tool request and return fabricated data
 
-Severity thấp (cần user chạy server + mở trang độc hại), nhưng chi phí fix gần bằng 0.
+Low severity (it needs the user to be running the server and to open a malicious page), but
+the fix costs almost nothing.
 
-**Fix:** `OriginPatterns` allow-list thay vì skip; Figma plugin iframe gửi `Origin: null` hoặc `https://www.figma.com`.
+**Fix:** an `OriginPatterns` allow-list instead of skipping the check; the Figma plugin
+iframe sends `Origin: null` or `https://www.figma.com`.
 
 ---
 
-### 🟡 P2-11..16 — Nhóm nhỏ
+### 🟡 P2-11..16 — Small items
 
-| # | Vấn đề | Vị trí |
+| # | Problem | Location |
 |---|---|---|
-| 11 | Pipeline lỗi → mất `results`, caller không biết step nào đã chạy | `batch-pipeline.ts:120-131` |
-| 12 | `Node.Send` mutate slice/map của caller (side effect) | `node.go:63-71` |
-| 13 | `NormalizeNodeID` chỉ áp `nodeId`/`parentId` top-level — bỏ sót `componentId`, `startNodeId`, `endNodeId`, và **toàn bộ params lồng trong pipeline step** | `node.go:66-71` |
-| 14 | 5 file fail `gofmt`; CI chỉ `test` + `build`, không có `gofmt -l` / `go vet` | `.github/workflows/ci.yml` |
-| 15 | `save_screenshots` dùng `O_EXCL` → không bao giờ ghi đè được, user phải xoá file thủ công mỗi lần chụp lại | `tools.go:223` |
-| 16 | Dead code: `BatchPipelineRequest/Step/Response` khai trong Go nhưng không ai dùng (plugin có bản TS riêng) | `schema.go:1091-1110` |
+| 11 | A failed pipeline loses `results`, so the caller cannot tell which steps ran | `batch-pipeline.ts:120-131` |
+| 12 | `Node.Send` mutates the caller's slice/map (side effect) | `node.go:63-71` |
+| 13 | `NormalizeNodeID` only applies to top-level `nodeId`/`parentId` — missing `componentId`, `startNodeId`, `endNodeId`, and **every param nested inside a pipeline step** | `node.go:66-71` |
+| 14 | 5 files fail `gofmt`; CI runs only `test` + `build`, with no `gofmt -l` / `go vet` | `.github/workflows/ci.yml` |
+| 15 | `save_screenshots` uses `O_EXCL` → it can never overwrite, so the user has to delete the file by hand before every re-capture | `tools.go:223` |
+| 16 | Dead code: `BatchPipelineRequest/Step/Response` are declared in Go but used by nobody (the plugin has its own TS version) | `schema.go:1091-1110` |
 
 ---
 
-## PHẦN B — THU GỌN KIẾN TRÚC
+## PART B — ARCHITECTURAL SIMPLIFICATION
 
-### B1. 84 handler boilerplate → 1 bảng declarative
+### B1. 84 boilerplate handlers → one declarative table
 
-Mọi tool hiện viết tay cùng một pattern ~25-40 dòng:
+Every tool today is hand-written to the same ~25-40 line pattern:
 
 ```go
 s.AddTool(mcp.NewTool("set_strokes",
@@ -308,9 +350,10 @@ s.AddTool(mcp.NewTool("set_strokes",
 })
 ```
 
-Tổng ~1.400 dòng trên 8 file `tools_*.go` mà **không có một dòng logic riêng nào** — chỉ là copy arg vào map.
+That is ~1,400 lines across eight `tools_*.go` files with **not one line of distinct logic**
+in them — just copying arguments into a map.
 
-**Đề xuất:**
+**Proposal:**
 ```go
 type toolSpec struct {
     Name, Desc  string
@@ -318,103 +361,131 @@ type toolSpec struct {
     Params      []paramSpec     // name, type, required, desc, enum
 }
 ```
-Một generic handler đọc `Params`, một loop đăng ký. Ước tính giảm **~70% code Go**, và quan trọng hơn: mở đường cho B2.
+One generic handler reads `Params`, one loop registers them. Estimated **~70% less Go
+code**, and more importantly: it opens the way to B2.
 
-### B2. Một nguồn sự thật cho tool contract
+### B2. One source of truth for a tool's contract
 
-Hiện một tool được mô tả ở **4 nơi độc lập**:
+A tool is currently described in **four independent places**:
 
-| Nơi | File |
+| Place | File |
 |---|---|
 | MCP JSON Schema | `internal/tools_*.go` |
-| Validation runtime | `internal/schema.go` |
+| Runtime validation | `internal/schema.go` |
 | Implementation | `plugin/src/write-*.ts` (switch-case) |
-| Tài liệu | `README.md`, `docs/specs/` |
+| Documentation | `README.md`, `docs/specs/` |
 
-**Bug P1-4, P1-5, P1-7 đều là hệ quả trực tiếp của việc 4 nguồn này lệch nhau.** Không có cơ chế nào phát hiện lệch — `tools_schema_test.go` chỉ đếm số tool và check `items.type`.
+**Bugs P1-4, P1-5 and P1-7 are all direct consequences of these four drifting apart.**
+Nothing detects the drift — `tools_schema_test.go` only counts tools and checks
+`items.type`.
 
-**Đề xuất:** một file `tools.yaml` sinh ra (a) Go registration, (b) Go validator, (c) TS dispatch type. Lệch schema thành lỗi compile thay vì lỗi runtime ở nhà user.
+**Proposal:** a single `tools.yaml` that generates (a) the Go registration, (b) the Go
+validator, (c) the TS dispatch type. Schema drift becomes a compile error instead of a
+runtime error on the user's machine.
 
-### B3. Leader/Follower — cân nhắc bỏ hoặc đảo ngược
+### B3. Leader/Follower — consider removing or inverting
 
-Chi phí hiện tại: `election.go` + `leader.go` + `follower.go` + `node.go` + RPC types ≈ **500 dòng**, và quan trọng hơn là **2 code path song song** — chính là nguồn của P1-5 (validation lệch) và P1-6 (timeout lệch).
+Current cost: `election.go` + `leader.go` + `follower.go` + `node.go` + the RPC types ≈
+**500 lines**, and more importantly **two parallel code paths** — precisely the source of
+P1-5 (divergent validation) and P1-6 (divergent timeouts).
 
-Câu hỏi cần trả lời trước khi động vào: **thực tế có bao nhiêu user chạy nhiều MCP client cùng lúc?** Nếu ít:
+The question to answer before touching it: **how many users actually run several MCP
+clients at once?** If few:
 
-- **Phương án A (bỏ):** một process, một bridge, `EADDRINUSE` → báo lỗi rõ ràng "đã có instance đang chạy". Xoá ~500 dòng + 1 code path.
-- **Phương án B (đảo ngược, khuyến nghị nếu cần multi-client):** tách daemon `figma-mcp-go serve` giữ bridge; mọi process stdio đều là follower thuần. **Chỉ còn một code path** cho tool call → P1-5 và P1-6 biến mất theo cấu trúc, không cần fix thủ công.
+- **Option A (remove):** one process, one bridge, `EADDRINUSE` → a clear "an instance is
+  already running" error. Deletes ~500 lines and one code path.
+- **Option B (invert, recommended if multi-client is needed):** split out a
+  `figma-mcp-go serve` daemon that holds the bridge; every stdio process becomes a pure
+  follower. **Only one code path** for a tool call → P1-5 and P1-6 disappear structurally,
+  with no manual fix.
 
-### B4. Bridge cần keepalive + trần request
+### B4. The bridge needs a keepalive and a request ceiling
 
-Không có ping/pong → connection chết âm thầm, chỉ phát hiện khi request đầu tiên timeout (30s). Thêm `conn.Ping()` mỗi 20s. Và đặt trần tổng thời gian sống cho request để progress update không giữ nó vô hạn (xem P1-6).
+No ping/pong → a connection dies silently and is only noticed when the first request times
+out (30s). Add `conn.Ping()` every 20s. And put an overall ceiling on a request's lifetime
+so progress updates cannot hold it open forever (see P1-6).
 
-### B5. Plugin: dispatch chain 7 tầng → map
+### B5. Plugin: a 7-layer dispatch chain → a map
 
 `plugin/src/main.ts:24`:
 ```ts
 (await handleReadRequest(request)) ?? (await handleWriteRequest(request))
 ```
-Mọi request **write** đều phải đi qua 3 read handler trước. Rồi `write-handlers.ts:12-18` xâu chuỗi tiếp 7 handler nữa, mỗi handler là một `switch` lớn.
+Every **write** request has to pass through three read handlers first. Then
+`write-handlers.ts:12-18` chains seven more, each one a large `switch`.
 
-Thay bằng `Record<string, Handler>` — O(1), và trùng tên tool trở thành lỗi build thay vì "handler nào đứng trước thì thắng".
+Replace with `Record<string, Handler>` — O(1), and a duplicate tool name becomes a build
+error instead of "whichever handler comes first wins".
 
 ---
 
-## PHẦN C — THU GỌN TOOL SURFACE
+## PART C — SHRINKING THE TOOL SURFACE
 
-**Chi phí hiện tại: 58.931 bytes ≈ 14.7k token mỗi session.**
+**Current cost: 58,931 bytes ≈ 14.7k tokens per session.**
 
-Ngoài chi phí context, số tool lớn còn làm giảm độ chính xác chọn tool của model — 84 lựa chọn với nhiều cặp gần trùng nghĩa.
+Beyond the context cost, a large tool count also degrades the model's tool-selection
+accuracy — 84 choices with many near-synonymous pairs.
 
-### Tier 1 — Gộp an toàn (cùng shape, rủi ro thấp): **84 → 72**
+### Tier 1 — Safe merges (same shape, low risk): **84 → 72**
 
-| Gộp | Tool hiện tại | Thành |
+| Merge | Current tools | Becomes |
 |---|---|---|
-| Thuộc tính node (8→1) | `set_visible`, `lock_nodes`, `unlock_nodes`, `rotate_nodes`, `reorder_nodes`, `set_blend_mode`, `set_constraints`, `set_opacity` | `set_node_properties(nodeIds, {visible?, locked?, rotation?, order?, blendMode?, constraints?, opacity?})` |
-| Hình học (2→1) | `move_nodes`, `resize_nodes` | `transform_nodes(nodeIds, {x?, y?, width?, height?})` |
-| Scan (2→1) | `scan_text_nodes` | bỏ — đúng bằng `scan_nodes_by_types(['TEXT'])`, **description hiện tại đã tự thừa nhận là "shorthand"** |
-| Đọc node (2→1) | `get_node` | bỏ — đúng bằng `get_nodes_info([id])`, description đã khuyên dùng cái kia |
-| Reactions (2→1) | `remove_reactions` | bỏ — đúng bằng `set_reactions(mode='replace', reactions=[])` |
-| Annotations (2→1) | `clear_annotations` | bỏ — đúng bằng `set_annotations([])` |
+| Node properties (8→1) | `set_visible`, `lock_nodes`, `unlock_nodes`, `rotate_nodes`, `reorder_nodes`, `set_blend_mode`, `set_constraints`, `set_opacity` | `set_node_properties(nodeIds, {visible?, locked?, rotation?, order?, blendMode?, constraints?, opacity?})` |
+| Geometry (2→1) | `move_nodes`, `resize_nodes` | `transform_nodes(nodeIds, {x?, y?, width?, height?})` |
+| Scan (2→1) | `scan_text_nodes` | drop — exactly `scan_nodes_by_types(['TEXT'])`, and **its own description already admits it is a "shorthand"** |
+| Node read (2→1) | `get_node` | drop — exactly `get_nodes_info([id])`, and the description already recommends the other one |
+| Reactions (2→1) | `remove_reactions` | drop — exactly `set_reactions(mode='replace', reactions=[])` |
+| Annotations (2→1) | `clear_annotations` | drop — exactly `set_annotations([])` |
 
-Cả 8 tool nhóm 1 đều dùng chung shape `nodeIds[] + 1 thuộc tính` → gộp không làm mờ ngữ nghĩa. 4 nhóm còn lại là **xoá tool thừa hoàn toàn**, không mất năng lực nào.
+All eight tools in the first group share the `nodeIds[] + one property` shape, so merging
+does not blur any meaning. The other four groups are **purely redundant tools being
+deleted**, with no capability lost.
 
-Ước tính: **-12 tool, tiết kiệm ~3.5k token.**
+Estimate: **-12 tools, ~3.5k tokens saved.**
 
-### Tier 2 — Gộp mạnh tay (cần cân nhắc): **72 → 58**
+### Tier 2 — Aggressive merges (needs thought): **72 → 58**
 
-| Gộp | Tool | Thành | Rủi ro |
+| Merge | Tools | Becomes | Risk |
 |---|---|---|---|
-| Shape (7→1) | `create_rectangle/ellipse/star/polygon/line/frame/section` | `create_node(type, ...)` | Trung bình — params khác nhau (`radius` vs `width/height` vs `pointCount`), schema thành union lỏng lẻo |
-| Paint (3→1) | `set_fills`, `set_gradient_fills`, `set_strokes` | `set_paint(nodeId, target, paint)` | Trung bình |
-| Style (4→1) | `create_paint/text/effect/grid_style` | `create_style(type, ...)` | Thấp — đã cùng pattern |
-| Page (4→1) | `add/delete/rename/navigate_to_page` | `manage_page(action, ...)` | Thấp |
+| Shapes (7→1) | `create_rectangle/ellipse/star/polygon/line/frame/section` | `create_node(type, ...)` | Medium — the params genuinely differ (`radius` vs `width/height` vs `pointCount`), so the schema becomes a loose union |
+| Paint (3→1) | `set_fills`, `set_gradient_fills`, `set_strokes` | `set_paint(nodeId, target, paint)` | Medium |
+| Styles (4→1) | `create_paint/text/effect/grid_style` | `create_style(type, ...)` | Low — already the same pattern |
+| Pages (4→1) | `add/delete/rename/navigate_to_page` | `manage_page(action, ...)` | Low |
 
-Ước tính thêm: **-14 tool, tiết kiệm ~4k token.** Tổng còn ~7k token schema (giảm 52%).
+Further estimate: **-14 tools, ~4k tokens saved.** That leaves ~7k tokens of schema (a 52%
+reduction).
 
-**Đánh đổi cần biết:** gộp quá tay thì LLM chọn sai param nhiều hơn chọn sai tool. Nhóm shape (7→1) là rủi ro nhất vì params thực sự khác nhau. Khuyến nghị làm Tier 1 trước, đo lại chất lượng, rồi mới quyết Tier 2.
+**The trade-off to be aware of:** merge too hard and the LLM picks the wrong parameter more
+often than it picks the wrong tool. The shape group (7→1) is the riskiest, because the
+params really are different. Recommendation: do Tier 1 first, re-measure quality, then
+decide on Tier 2.
 
-**Breaking change:** cả 2 tier đều phá prompt/workflow của user hiện tại. Nên gói vào một major version, giữ alias deprecated 1-2 release.
+**Breaking change:** both tiers break existing user prompts and workflows. Bundle them into
+one major version and keep deprecated aliases for a release or two.
 
 ---
 
-## PHẦN D — MENU GÓI VIỆC
+## PART D — WORK PACKAGE MENU
 
-| Gói | Nội dung | Ước lượng | Breaking | Ưu tiên |
+| Package | Contents | Estimate | Breaking | Priority |
 |---|---|---|---|---|
-| **G1** | P0-1, P0-2, P0-3 — sửa data-loss + nối `nodeIds` + integration test thật cho pipeline | ~1 ngày | Không | 🔴 Nên làm ngay |
-| **G2** | P1-4, P1-5, P1-6, P1-7 — schema `steps`, đưa validation vào `Node.Send`, hợp nhất timeout, validate hex | ~1 ngày | Không | 🟠 Cao |
-| **G3** | P2-8 → P2-16 — dọn bug nhỏ + thêm `gofmt`/`go vet` vào CI + xoá dead code | ~0.5 ngày | Không | 🟡 Trung bình |
-| **G4** | Thu gọn tool Tier 1 (84→72) | ~1-2 ngày | **Có** | 🟡 Trung bình |
-| **G5** | Thu gọn tool Tier 2 (72→58) | ~2-3 ngày | **Có** | ⚪ Thấp |
-| **G6** | B1 + B2 — bảng tool declarative + single source of truth | ~3-4 ngày | Không (nội bộ) | 🟠 Cao (ngăn bug tái phát) |
-| **G7** | B3 — đơn giản hoá leader/follower | ~2 ngày | Có thể (CLI flag) | 🟡 Trung bình |
-| **G8** | B4 + B5 — keepalive bridge + dispatch map plugin | ~0.5 ngày | Không | 🟡 Trung bình |
+| **G1** | P0-1, P0-2, P0-3 — fix the data loss, wire `nodeIds`, add a real integration test for the pipeline | ~1 day | No | 🔴 Do now |
+| **G2** | P1-4, P1-5, P1-6, P1-7 — the `steps` schema, validation into `Node.Send`, unified timeouts, hex validation | ~1 day | No | 🟠 High |
+| **G3** | P2-8 → P2-16 — clear the small bugs, add `gofmt`/`go vet` to CI, delete dead code | ~0.5 day | No | 🟡 Medium |
+| **G4** | Tool surface Tier 1 (84→72) | ~1-2 days | **Yes** | 🟡 Medium |
+| **G5** | Tool surface Tier 2 (72→58) | ~2-3 days | **Yes** | ⚪ Low |
+| **G6** | B1 + B2 — declarative tool table plus a single source of truth | ~3-4 days | No (internal) | 🟠 High (stops the bugs recurring) |
+| **G7** | B3 — simplify leader/follower | ~2 days | Possibly (CLI flag) | 🟡 Medium |
+| **G8** | B4 + B5 — bridge keepalive plus plugin dispatch map | ~0.5 day | No | 🟡 Medium |
 
-### Gợi ý thứ tự
+### Suggested order
 
-**Nếu muốn giá trị/công sức cao nhất:** G1 → G2 → G3 (2.5 ngày, không breaking, xử lý hết mọi lỗi đã xác minh).
+**For the best value per unit of effort:** G1 → G2 → G3 (2.5 days, nothing breaking, every
+verified bug handled).
 
-**Nếu muốn giải quyết gốc rễ:** G1 → G6 → G4. G6 làm trước G4 khiến việc gộp tool chỉ là sửa một file config thay vì viết lại 8 file Go — và ngăn lớp bug "4 nguồn lệch nhau" tái diễn.
+**To fix the root cause:** G1 → G6 → G4. Doing G6 before G4 turns tool merging into a
+config-file edit rather than a rewrite of eight Go files — and stops the "four sources
+drifting apart" class of bug from recurring.
 
-**Nếu ưu tiên chi phí context:** G4 trước (thấy ngay -3.5k token/session), nhưng sẽ phải làm lại phần lớn khi G6 vào sau.
+**If context cost is the priority:** G4 first (an immediate -3.5k tokens/session), but most
+of it will have to be redone once G6 lands.

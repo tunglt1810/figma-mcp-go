@@ -1,75 +1,86 @@
 # G4 — Tool Consolidation Tier 1 (TDD Plan)
 
-**Ngày:** 2026-08-15
-**Quyết định đã chốt:** handler plugin mới + fallback fanout ở Go; xoá hẳn tên tool cũ khỏi MCP schema (giữ wire handler ở plugin).
-**Tiền đề:** [Architecture & Bug Review](./2026-08-15-architecture-and-bug-review.md)
+**Date:** 2026-08-15
+**Decision taken:** a new plugin handler plus a fanout fallback in Go; the old tool names are removed from the MCP schema entirely (their wire handlers stay in the plugin).
+**Prerequisite:** [Architecture & Bug Review](./2026-08-15-architecture-and-bug-review.md)
 
 ---
 
-## 0. ĐÍNH CHÍNH report trước
+## 0. CORRECTIONS to the earlier report
 
-Khi verify code để lên plan, **4 tool tao xếp vào nhóm "xoá thừa hoàn toàn, không mất năng lực" đều sai.** Chi tiết:
+While verifying the code to write this plan, **all four tools I filed under "purely
+redundant, nothing lost" turned out to be wrong.** In detail:
 
-| Tool | Report cũ nói | Sự thật (đã verify) |
+| Tool | What the old report said | The truth (verified) |
 |---|---|---|
-| `scan_text_nodes` | = `scan_nodes_by_types(['TEXT'])` | ❌ **Sai hoàn toàn.** `scan_nodes_by_types` trả `{id,name,type,bbox}` — **không có `characters`**. Nó còn `if (!n.visible) return` bỏ qua node ẩn, `scan_text_nodes` thì không. Hai tool trả dữ liệu khác hẳn nhau. |
-| `get_node` | = `get_nodes_info([id])` | ⚠️ Cùng `serializeNode`, nhưng `get_node` **throw** khi không thấy node, `get_nodes_info` **âm thầm filter mất** (`read-document.ts:76`). Xoá đi là mất khả năng chẩn đoán. |
-| `remove_reactions` | = `set_reactions(replace, [])` | ⚠️ Chỉ đúng khi xoá tất cả. Với `indices: [1,3]` (xoá reaction cụ thể) thì **không có cách thay thế** ngoài get→filter→set 2 vòng. |
-| `clear_annotations` | = `set_annotations([])` | ⚠️ `clear_annotations` nhận **`nodeIds[]` nhiều node**, `set_annotations` chỉ nhận **1 `nodeId`**. Xoá 10 node thành 10 call. |
+| `scan_text_nodes` | = `scan_nodes_by_types(['TEXT'])` | ❌ **Flatly wrong.** `scan_nodes_by_types` returns `{id,name,type,bbox}` — **no `characters`**. It also has `if (!n.visible) return`, skipping hidden nodes, which `scan_text_nodes` does not. The two return completely different data. |
+| `get_node` | = `get_nodes_info([id])` | ⚠️ Same `serializeNode`, but `get_node` **throws** when the node is missing while `get_nodes_info` **silently filters it out** (`read-document.ts:76`). Deleting it loses a diagnostic. |
+| `remove_reactions` | = `set_reactions(replace, [])` | ⚠️ Only true when removing everything. With `indices: [1,3]` (removing specific reactions) there is **no replacement** short of a get→filter→set round trip. |
+| `clear_annotations` | = `set_annotations([])` | ⚠️ `clear_annotations` takes **`nodeIds[]`, many nodes**; `set_annotations` takes only **one `nodeId`**. Clearing 10 nodes becomes 10 calls. |
 
-Nguồn gốc sai: tao tin vào description của chính tool (`scan_text_nodes` tự mô tả là *"Shorthand for scan_nodes_by_types with ['TEXT']"*) thay vì đọc implementation. Description đó **sai** và cần sửa luôn trong plan này.
+Root cause of the mistake: I trusted the tools' own descriptions (`scan_text_nodes`
+describes itself as *"Shorthand for scan_nodes_by_types with ['TEXT']"*) instead of reading
+the implementation. That description is **wrong** and gets fixed as part of this plan.
 
-### Con số token cũng sai
+### The token numbers were wrong too
 
-Đo chính xác từng tool (`tools/list` = 58.802 bytes):
+Measured per tool (`tools/list` = 58,802 bytes):
 
-| Nhóm | Bytes hiện tại | Sau khi gộp (ước tính) | Tiết kiệm |
+| Group | Bytes today | After merging (estimate) | Saved |
 |---|---|---|---|
-| 8 tool node-property | 4.070 | ~1.100 (`set_node_properties`) | **2.970** |
-| `move_nodes` + `resize_nodes` | 1.176 | ~700 (`transform_nodes`) | **476** |
-| `remove_reactions` | 636 | 0 (+150 vào `set_reactions`) | **486** |
-| `clear_annotations` | 376 | 0 (+120 vào `set_annotations`) | **256** |
-| `get_node` | 495 | 0 (+80 vào `get_nodes_info`) | **415** |
-| `scan_text_nodes` | 487 | **giữ nguyên** | 0 |
-| | | **Tổng** | **~4.600 bytes ≈ 1.150 token** |
+| 8 node-property tools | 4,070 | ~1,100 (`set_node_properties`) | **2,970** |
+| `move_nodes` + `resize_nodes` | 1,176 | ~700 (`transform_nodes`) | **476** |
+| `remove_reactions` | 636 | 0 (+150 into `set_reactions`) | **486** |
+| `clear_annotations` | 376 | 0 (+120 into `set_annotations`) | **256** |
+| `get_node` | 495 | 0 (+80 into `get_nodes_info`) | **415** |
+| `scan_text_nodes` | 487 | **kept as-is** | 0 |
+| | | **Total** | **~4,600 bytes ≈ 1,150 tokens** |
 
-**Report cũ tao ghi "-12 tool, ~3.5k token" — thực tế là -11 tool, ~1.15k token** (7,8% schema, ~0,6% cửa sổ 200k). Lý do: nhóm tool này nhỏ hơn trung bình (~500 vs 700 bytes/tool), và 3 tool sống sót phải phình ra để giữ năng lực.
+**The old report claimed "-12 tools, ~3.5k tokens" — the reality is -11 tools, ~1.15k
+tokens** (7.8% of the schema, ~0.6% of a 200k window). Why: this group of tools is smaller
+than average (~500 vs 700 bytes/tool), and the three survivors have to grow to keep their
+capabilities.
 
-### Nên cân nhắc lại trước khi làm
+### Worth reconsidering before starting
 
-Nếu động lực chính của mày là **cắt token**, G4 không đáng 2-3 ngày cho 1,15k token. Phần lớn tiết kiệm nằm ở đúng **một** hạng mục: gộp 8 tool node-property (2.970 bytes = 65% tổng lợi ích, và là phần sạch nhất về kỹ thuật).
+If your main motivation is **cutting tokens**, G4 is not worth 2-3 days for 1.15k tokens.
+Most of the saving sits in exactly **one** item: merging the eight node-property tools
+(2,970 bytes = 65% of the total benefit, and technically the cleanest part).
 
-Ba đường đi:
+Three routes:
 
-- **G4-mini** — chỉ làm Phase 1+2 (node properties + transform). -8 tool, ~3.4k bytes, ~1 ngày, không có regression nào. **Tỷ lệ lợi ích/công sức tốt nhất.**
-- **G4 đầy đủ** — như plan dưới đây. -11 tool, ~4.6k bytes, 2-3 ngày.
-- **Đổi sang Tier 2** — các tool to hơn nhiều (`create_*` 7 tool, `create_*_style` 4 tool). Tiết kiệm lớn hơn hẳn nhưng rủi ro LLM chọn sai param cao hơn.
+- **G4-mini** — Phase 1+2 only (node properties + transform). -8 tools, ~3.4k bytes, ~1 day, no regressions at all. **The best benefit-to-effort ratio.**
+- **Full G4** — the plan below. -11 tools, ~4.6k bytes, 2-3 days.
+- **Switch to Tier 2** — those tools are much larger (`create_*`, 7 tools; `create_*_style`, 4 tools). The saving is considerably bigger, but the risk of the LLM picking the wrong parameter is higher.
 
-Plan dưới viết cho **G4 đầy đủ**; Phase 1-2 tách rời được nên cắt xuống G4-mini chỉ là dừng sau Phase 2.
+The plan below is written for **full G4**; phases 1-2 stand alone, so cutting down to
+G4-mini just means stopping after Phase 2.
 
 ---
 
-## 1. Phạm vi chốt lại
+## 1. Scope, settled
 
-| Phase | Thay đổi | Δ tool |
+| Phase | Change | Δ tools |
 |---|---|---|
 | 1 | `set_visible`, `lock_nodes`, `unlock_nodes`, `rotate_nodes`, `reorder_nodes`, `set_blend_mode`, `set_constraints`, `set_opacity` → **`set_node_properties`** | −7 |
 | 2 | `move_nodes`, `resize_nodes` → **`transform_nodes`** | −1 |
-| 3 | `remove_reactions` → gộp vào `set_reactions` qua `removeIndices` | −1 |
-| 4 | `clear_annotations` → `set_annotations` nhận `nodeIds[]` | −1 |
-| 5 | `get_node` → `get_nodes_info` báo id thiếu tường minh | −1 |
-| 6 | `scan_text_nodes` **giữ nguyên**, chỉ sửa description đang nói sai | 0 |
+| 3 | `remove_reactions` → folded into `set_reactions` via `removeIndices` | −1 |
+| 4 | `clear_annotations` → `set_annotations` accepts `nodeIds[]` | −1 |
+| 5 | `get_node` → `get_nodes_info` reports missing ids explicitly | −1 |
+| 6 | `scan_text_nodes` **kept**, only its incorrect description fixed | 0 |
 | | **84 → 73** | **−11** |
 
-**Nguyên tắc xuyên suốt:** không phase nào được làm mất năng lực. Mọi thao tác làm được trước đây phải làm được sau đây, bằng đúng **một** tool call.
+**Principle running through all of it:** no phase may lose a capability. Everything that
+was possible before must remain possible after, in exactly **one** tool call.
 
 ---
 
-## 2. Tiền đề kỹ thuật — test seam cho fanout
+## 2. Technical prerequisite — a test seam for the fanout
 
-Fallback fanout không test được nếu không tách được lớp gửi. Hiện `Node.Send` gọi thẳng `*Bridge` / `*Follower` (`node.go:75-78`).
+The fanout fallback cannot be tested without a separable send layer. Today `Node.Send`
+calls `*Bridge` / `*Follower` directly (`node.go:75-78`).
 
-**Phase 0 phải làm trước tiên:**
+**Phase 0 has to come first:**
 
 ```go
 type sender interface {
@@ -77,15 +88,18 @@ type sender interface {
 }
 ```
 
-`Node` giữ `sender`, test inject fake. `*Bridge` và `*Follower` đã có đúng signature này → không cần sửa gì ở hai bên.
+`Node` holds a `sender`, and tests inject a fake. `*Bridge` and `*Follower` already have
+exactly this signature → nothing on either side needs changing.
 
-Bonus: seam này cũng là thứ cần cho **P1-5** (đưa `ValidateRPC` vào `Node.Send`) ở gói G2 sau này.
+Bonus: this seam is also what **P1-5** needs (moving `ValidateRPC` into `Node.Send`) in the
+later G2 package.
 
 ---
 
-## 3. Cơ chế fallback
+## 3. The fallback mechanism
 
-Plugin cũ không biết `set_node_properties` → `main.ts:26` throw `Unknown request type: set_node_properties` → về Go thành `resp.Error`.
+An old plugin does not know `set_node_properties` → `main.ts:26` throws
+`Unknown request type: set_node_properties` → which arrives back in Go as `resp.Error`.
 
 ```go
 const unknownTypePrefix = "Unknown request type"
@@ -94,45 +108,55 @@ func sendWithFanout(ctx, s sender, modern string, nodeIDs []string,
                     params map[string]any, legacy []legacyCall) (BridgeResponse, error) {
     resp, err := s.Send(ctx, modern, nodeIDs, params)
     if err != nil || !strings.HasPrefix(resp.Error, unknownTypePrefix) {
-        return resp, err          // plugin mới, hoặc lỗi thật → trả thẳng
+        return resp, err          // new plugin, or a real error → pass it straight back
     }
-    return fanout(ctx, s, nodeIDs, legacy)  // plugin cũ
+    return fanout(ctx, s, nodeIDs, legacy)  // old plugin
 }
 ```
 
-**Đánh đổi phải ghi vào doc cho user biết:** đường fanout gọi N lệnh riêng → **N undo entry** (Ctrl+Z phải bấm N lần) và không atomic (lệnh thứ 2 lỗi thì lệnh thứ 1 đã áp dụng rồi). Plugin mới không bị. → thêm một dòng vào README khuyên update plugin.
+**A trade-off that has to be documented for users:** the fanout path issues N separate
+commands → **N undo entries** (Ctrl+Z has to be pressed N times) and it is not atomic (if
+the second command fails, the first has already been applied). A new plugin does not have
+this problem. → add a line to the README recommending a plugin update.
 
-Match theo prefix string là mong manh. Chấp nhận được vì chuỗi đó do **chính repo này** sinh ra (`main.ts:26`), không phải từ Figma API. Thêm test khoá chuỗi đó ở cả hai phía để không ai đổi lệch.
+Matching on a string prefix is fragile. It is acceptable here because that string is
+produced by **this repository itself** (`main.ts:26`), not by the Figma API. Add a test that
+pins the string on both sides so nobody changes one without the other.
 
 ---
 
-## 4. TDD — Phase 0: golden tool set
+## 4. TDD — Phase 0: a golden tool set
 
-Thay `TestToolSchemas_AllToolsRegistered` (đang assert `const want = 84`) bằng assertion theo **danh sách tên**, để mỗi phase có tín hiệu RED→GREEN chính xác thay vì chỉ đếm số.
+Replace `TestToolSchemas_AllToolsRegistered` (which asserts `const want = 84`) with an
+assertion on the **list of names**, so each phase gets a precise RED→GREEN signal instead of
+just a count.
 
-**RED** — viết test với 84 tên hiện tại → phải GREEN ngay (đây là baseline, chưa đổi gì):
+**RED** — write the test with the current 84 names → it must go GREEN immediately (this is
+the baseline, nothing has changed yet):
 
 ```go
 // internal/tools_schema_test.go
-var expectedTools = []string{ /* 84 tên, sort sẵn */ }
+var expectedTools = []string{ /* 84 names, pre-sorted */ }
 
 func TestToolSchemas_ExpectedToolSet(t *testing.T) {
     got := toolNames(listTools(t))   // sorted
     if diff := cmp.Diff(expectedTools, got); diff != "" {
-        t.Errorf("tool set thay đổi ngoài dự kiến (-want +got):\n%s", diff)
+        t.Errorf("tool set changed unexpectedly (-want +got):\n%s", diff)
     }
 }
 ```
 
-Mỗi phase sau: sửa `expectedTools` **trước** → RED → implement → GREEN.
+Every subsequent phase: edit `expectedTools` **first** → RED → implement → GREEN.
 
-Giữ luôn `TestToolSchemas_ArrayItemsHaveType` (đang bảo vệ khỏi lỗi Copilot validation) — tool mới có `nodeIds` array nên test này phải phủ được.
+Keep `TestToolSchemas_ArrayItemsHaveType` as well (it guards against the Copilot validation
+bug) — the new tool has a `nodeIds` array, so this test has to cover it.
 
 ---
 
 ## 5. Phase 1 — `set_node_properties` (8 → 1)
 
-Đây là phase to nhất và là 65% lợi ích. Tám handler plugin hiện có **skeleton giống hệt nhau** (đã verify `write-modify.ts:157-320`):
+This is the largest phase and 65% of the benefit. The eight existing plugin handlers have
+**identical skeletons** (verified at `write-modify.ts:157-320`):
 
 ```
 for nid of nodeIds:
@@ -144,9 +168,10 @@ for nid of nodeIds:
 commitUndo()
 ```
 
-→ gộp thành một vòng lặp áp nhiều thuộc tính là biến đổi thuần tuý, không có logic nào bị mất.
+→ merging them into one loop that applies several properties is a pure transformation, with
+no logic lost.
 
-### Shape chốt
+### Settled shape
 
 ```jsonc
 // request
@@ -155,7 +180,7 @@ commitUndo()
   "order": "bringToFront", "blendMode": "MULTIPLY",
   "constraints": { "horizontal": "STRETCH", "vertical": "MIN" } }
 
-// response — lỗi ở mức từng thuộc tính, không phải cả node
+// response — errors are per-property, not per-node
 { "results": [
     { "nodeId": "1:1", "applied": { "opacity": 0.5, "visible": true } },
     { "nodeId": "2:2", "applied": { "opacity": 0.5 },
@@ -164,41 +189,43 @@ commitUndo()
 ] }
 ```
 
-Lý do lỗi ở mức thuộc tính: một node có thể hỗ trợ `opacity` nhưng không hỗ trợ `rotation`. Gộp mà báo lỗi cả node sẽ **mất thông tin** so với 8 tool cũ.
+Why errors are per-property: a node may support `opacity` but not `rotation`. Merging and
+then reporting the error at node level would **lose information** compared with the eight
+old tools.
 
 ### RED — Go
 
 ```
 internal/tools_schema_test.go
-  ✎ expectedTools: bỏ 8 tên, thêm "set_node_properties"
+  ✎ expectedTools: drop 8 names, add "set_node_properties"
 
 internal/tools_handler_test.go
   + TestSetNodeProperties_Schema
       - nodeIds required, type array, items.type == "string"
-      - có đủ 7 optional: visible/locked/opacity/rotation/order/blendMode/constraints
-      - constraints là object có horizontal + vertical
+      - all 7 optionals present: visible/locked/opacity/rotation/order/blendMode/constraints
+      - constraints is an object with horizontal + vertical
 
 internal/schema_test.go
   + TestValidateRPC_SetNodeProperties  (table-driven)
-      - nodeIds rỗng                          → "nodeIds is required"
-      - không truyền thuộc tính nào           → "at least one property is required"
+      - empty nodeIds                         → "nodeIds is required"
+      - no property passed at all             → "at least one property is required"
       - opacity = 5                           → "opacity must be between 0 and 1"
-      - opacity = 0 và 1                      → hợp lệ (biên)
+      - opacity = 0 and 1                     → valid (boundaries)
       - blendMode = "NEON"                    → invalid
       - order = "bringToMiddle"               → invalid
       - constraints.horizontal = "MIDDLE"     → invalid
-      - nodeId sai format                     → invalid
-      - hợp lệ đầy đủ 7 thuộc tính            → ""
+      - malformed nodeId                      → invalid
+      - all 7 properties, valid               → ""
 
-internal/fanout_test.go            (mới — cần seam Phase 0)
+internal/fanout_test.go            (new — needs the Phase 0 seam)
   + TestFanout_ModernPluginSingleCall
-      fake sender trả OK → đúng 1 call, tool == "set_node_properties"
+      fake sender returns OK → exactly 1 call, tool == "set_node_properties"
   + TestFanout_LegacyPluginFansOut
-      fake trả Error "Unknown request type: set_node_properties"
-      → 3 call kế tiếp: set_visible / set_opacity / set_blend_mode
-      → results gộp lại giống shape đường modern
+      fake returns Error "Unknown request type: set_node_properties"
+      → 3 follow-up calls: set_visible / set_opacity / set_blend_mode
+      → results merged into the same shape as the modern path
   + TestFanout_RealErrorNotRetried
-      fake trả Error "Node not found" → KHÔNG fanout, trả thẳng (chống retry bão)
+      fake returns Error "Node not found" → NO fanout, returned directly (no retry storm)
   + TestFanout_PreservesNodeIDs
 ```
 
@@ -207,33 +234,37 @@ internal/fanout_test.go            (mới — cần seam Phase 0)
 ```
 plugin/src/write-modify.test.ts
   + describe("set_node_properties")
-      - áp nhiều thuộc tính trong 1 call, đúng 1 lần commitUndo
-      - node không hỗ trợ rotation → errors.rotation, opacity vẫn áp
-      - node không tồn tại        → results[].error == "Node not found"
-      - nodeIds rỗng              → throw "nodeIds is required"
-      - order = "bringToFront" đổi đúng index (mock parent.children)
-      - constraints merge với giá trị cũ, không ghi đè trục không truyền
-      - không truyền thuộc tính nào → throw
+      - several properties in one call, exactly one commitUndo
+      - node without rotation support → errors.rotation, opacity still applied
+      - missing node                  → results[].error == "Node not found"
+      - empty nodeIds                 → throws "nodeIds is required"
+      - order = "bringToFront" moves to the right index (mock parent.children)
+      - constraints merge with the previous value, leaving the untouched axis alone
+      - no property passed → throws
 ```
 
-Test `constraints` merge quan trọng: handler cũ (`write-modify.ts:310-313`) làm `{...n.constraints}` rồi chỉ ghi đè trục được truyền. Phải giữ đúng hành vi đó.
+The `constraints` merge test matters: the old handler (`write-modify.ts:310-313`) does
+`{...n.constraints}` and then overwrites only the axis that was passed. That behavior has to
+be preserved exactly.
 
 ### GREEN
-- `plugin/src/write-modify.ts`: thêm `case "set_node_properties"`, **giữ nguyên 8 case cũ** (fanout cần).
-- `internal/tools_write_nodeprops.go` (mới): đăng ký tool + bảng `legacyCall`.
-- `internal/fanout.go` (mới): `sendWithFanout` + `fanout`.
-- `internal/schema.go`: thêm case `set_node_properties`.
+- `plugin/src/write-modify.ts`: add `case "set_node_properties"`, **keeping all 8 old cases** (the fanout needs them).
+- `internal/tools_write_nodeprops.go` (new): tool registration plus the `legacyCall` table.
+- `internal/fanout.go` (new): `sendWithFanout` and `fanout`.
+- `internal/schema.go`: add the `set_node_properties` case.
 
 ### REFACTOR
-- Xoá 8 đăng ký ở `tools_write_modify.go` + 8 case ở `schema.go`.
-- **Không** xoá 8 case ở plugin.
-- Chạy `gofmt -w` (5 file đang lỗi format sẵn — xem P2-14).
+- Delete the 8 registrations in `tools_write_modify.go` and the 8 cases in `schema.go`.
+- Do **not** delete the 8 plugin cases.
+- Run `gofmt -w` (5 files are already misformatted — see P2-14).
 
 ---
 
 ## 6. Phase 2 — `transform_nodes` (2 → 1)
 
-Cùng khuôn Phase 1, nhỏ hơn. Giữ **nguyên semantic tuyệt đối** của `move_nodes` (description hiện tại nói rõ *"not a relative offset"*) — không thêm chế độ relative, đó là scope khác.
+Same mould as Phase 1, smaller. Preserve the **exact semantics** of `move_nodes` (its
+current description says explicitly *"not a relative offset"*) — do not add a relative mode,
+that is a different scope.
 
 ```jsonc
 { "nodeIds": ["1:1"], "x": 100, "y": 200, "width": 300, "height": 400 }
@@ -243,28 +274,30 @@ Cùng khuôn Phase 1, nhỏ hơn. Giữ **nguyên semantic tuyệt đối** củ
 ```
 Go   ✎ expectedTools: −move_nodes −resize_nodes +transform_nodes
 Go   + TestValidateRPC_TransformNodes
-        - không có x/y/width/height nào  → "at least one of x, y, width, or height is required"
+        - none of x/y/width/height given → "at least one of x, y, width, or height is required"
         - width <= 0                     → invalid
         - height <= 0                    → invalid
-        - chỉ x                          → hợp lệ
-Go   + TestFanout_TransformNodes → legacy fanout ra move_nodes + resize_nodes
+        - x only                         → valid
+Go   + TestFanout_TransformNodes → legacy fanout produces move_nodes + resize_nodes
 TS   + describe("transform_nodes")
-        - chỉ x/y  → không gọi resize()
-        - chỉ width → resize(w, n.height) giữ nguyên chiều cao
-        - node không có "resize" → errors.resize, x/y vẫn áp
-        - đúng 1 commitUndo cho cả move + resize   ← đường cũ tốn 2
+        - x/y only    → resize() is not called
+        - width only  → resize(w, n.height), height preserved
+        - node without "resize" → errors.resize, x/y still applied
+        - exactly one commitUndo for move + resize together   ← the old path cost two
 ```
 
-Test cuối là lợi ích thật nhìn thấy được: đặt lại vị trí + kích thước giờ là **một** undo entry thay vì hai.
+That last test is the visible, real benefit: repositioning and resizing is now **one** undo
+entry instead of two.
 
 ---
 
-## 7. Phase 3 — `set_reactions` hấp thụ `remove_reactions`
+## 7. Phase 3 — `set_reactions` absorbs `remove_reactions`
 
-Thêm `removeIndices` để giữ năng lực xoá theo index (thứ mà `set_reactions(replace, [])` **không** làm được).
+Add `removeIndices` to keep the ability to remove by index — something
+`set_reactions(replace, [])` **cannot** do.
 
 ```jsonc
-{ "nodeId": "1:1", "removeIndices": [1, 3] }   // xoá reaction #1 và #3
+{ "nodeId": "1:1", "removeIndices": [1, 3] }   // remove reactions #1 and #3
 { "nodeId": "1:1", "reactions": [...], "mode": "append" }
 ```
 
@@ -272,113 +305,121 @@ Thêm `removeIndices` để giữ năng lực xoá theo index (thứ mà `set_re
 ```
 Go  ✎ expectedTools: −remove_reactions
 Go  + TestValidateRPC_SetReactions_RemoveIndices
-       - có cả reactions lẫn removeIndices     → "reactions and removeIndices are mutually exclusive"
-       - không có cả hai                        → "reactions or removeIndices is required"
-       - removeIndices chứa phần tử không số   → invalid
-       - removeIndices số âm                    → invalid   (ràng buộc mới, cũ không check)
-       - removeIndices: []                      → hợp lệ, nghĩa là xoá tất cả  ← giữ đúng hành vi cũ
-TS  + set_reactions với removeIndices [1,3] → còn lại index 0,2
-    + removeIndices: [] → xoá sạch          (khớp write-prototype.ts:69-73)
-    + removeIndices ngoài range → bỏ qua, không throw
-    + reactions vẫn hoạt động như cũ (regression)
+       - both reactions and removeIndices    → "reactions and removeIndices are mutually exclusive"
+       - neither one                         → "reactions or removeIndices is required"
+       - removeIndices with a non-number     → invalid
+       - negative removeIndices              → invalid   (new constraint; the old code did not check)
+       - removeIndices: []                   → valid, meaning remove everything  ← preserves old behavior
+TS  + set_reactions with removeIndices [1,3] → indices 0 and 2 remain
+    + removeIndices: [] → removes everything (matches write-prototype.ts:69-73)
+    + out-of-range removeIndices → ignored, no throw
+    + reactions still behaves as before (regression)
 ```
 
-Chú ý giữ đúng quirk cũ: `indices` **rỗng** nghĩa là *xoá tất cả*, không phải *không xoá gì* (`write-prototype.ts:70-73`). Dễ làm hỏng nếu viết lại từ đầu.
+Note the old quirk that has to be preserved: an **empty** `indices` means *remove
+everything*, not *remove nothing* (`write-prototype.ts:70-73`). Easy to break in a rewrite.
 
 ---
 
-## 8. Phase 4 — `set_annotations` nhận nhiều node
+## 8. Phase 4 — `set_annotations` takes several nodes
 
-`nodeId` (1 node) → `nodeIds[]` (nhiều node). `annotations: []` thay cho `clear_annotations`.
+`nodeId` (one node) → `nodeIds[]` (many). `annotations: []` replaces `clear_annotations`.
 
-**Breaking response shape:** `set_annotations` đang trả `{id, success}`, sau đổi thành `{results:[...]}` giống mọi tool multi-node khác. Phải ghi vào migration note.
+**Breaking response shape:** `set_annotations` currently returns `{id, success}`; it becomes
+`{results:[...]}` like every other multi-node tool. This must go in the migration note.
 
 ### RED
 ```
 Go  ✎ expectedTools: −clear_annotations
 Go  + TestValidateRPC_SetAnnotations
-       - nodeIds rỗng          → invalid
-       - annotations thiếu     → "annotations array is required"
-       - annotations: []       → hợp lệ (đường clear)
-       - 1 trong 3 id sai format → invalid, báo đúng id nào
-TS  + set_annotations nhiều node → results[] mỗi node
-    + annotations: [] xoá sạch trên nhiều node
-    + node không hỗ trợ annotations → results[].error, node khác vẫn chạy
+       - empty nodeIds            → invalid
+       - annotations missing      → "annotations array is required"
+       - annotations: []          → valid (the clear path)
+       - 1 of 3 ids malformed     → invalid, naming which id
+TS  + set_annotations across several nodes → one results[] entry per node
+    + annotations: [] clears across several nodes
+    + node without annotation support → results[].error, the others still run
 ```
 
-Lưu ý: `tools_schema_test.go:67` đang **exclude** `set_annotations` khỏi check `items.type`. Sửa schema xong thì bỏ exclusion đó — coi như dọn luôn một khoản nợ.
+Note: `tools_schema_test.go:67` currently **excludes** `set_annotations` from the
+`items.type` check. Once the schema is fixed, drop that exclusion — treat it as paying off a
+small debt.
 
 ---
 
-## 9. Phase 5 — `get_nodes_info` báo id thiếu
+## 9. Phase 5 — `get_nodes_info` reports missing ids
 
-Xoá `get_node`, đồng thời **sửa bug im lặng**: `read-document.ts:76` filter mất node không tồn tại mà không nói gì.
+Delete `get_node`, and at the same time **fix a silent bug**: `read-document.ts:76` filters
+out nonexistent nodes without saying anything.
 
 ```jsonc
-// trước: [ {...}, {...} ]          ← id sai biến mất không dấu vết
-// sau:   { "nodes": [...], "missing": ["9:9"] }
+// before: [ {...}, {...} ]          ← a wrong id vanishes without trace
+// after:  { "nodes": [...], "missing": ["9:9"] }
 ```
 
-**Breaking response shape** — đây là đổi lớn nhất của G4 với user hiện tại. Ghi rõ vào migration note.
+**Breaking response shape** — this is G4's biggest change for existing users. State it
+clearly in the migration note.
 
 ### RED
 ```
 Go  ✎ expectedTools: −get_node
-Go  + TestValidateRPC_GetNodesInfo: 1 id hợp lệ vẫn pass (thay get_node)
-TS  + get_nodes_info trả { nodes, missing }
-    + id không tồn tại → vào missing, KHÔNG biến mất
-    + node DOCUMENT    → lọc ra (giữ hành vi cũ)
-    + 1 id             → nodes có đúng 1 phần tử
-    + tất cả id sai    → { nodes: [], missing: [tất cả] }
+Go  + TestValidateRPC_GetNodesInfo: one valid id still passes (replacing get_node)
+TS  + get_nodes_info returns { nodes, missing }
+    + a nonexistent id → lands in missing, does NOT vanish
+    + a DOCUMENT node  → filtered out (preserving old behavior)
+    + one id           → nodes has exactly one element
+    + all ids wrong    → { nodes: [], missing: [all of them] }
 ```
 
 ---
 
 ## 10. Phase 6 — Docs & release
 
-1. `README.md` — bảng tool (14 dòng ở L124-212), thêm mục **Migration** ánh xạ tên cũ → mới.
-2. `README.md` — thêm cảnh báo: plugin cũ vẫn chạy qua fanout nhưng tốn nhiều undo entry, nên tải lại zip.
-3. `glama.json` — 85 entry, phải khớp schema thật.
-4. **Sửa description sai của `scan_text_nodes`** — bỏ chữ *"Shorthand for scan_nodes_by_types with ['TEXT']"*, thay bằng nội dung đúng: nó trả `characters`/`fontSize`/`fontName` và **quét cả node ẩn**, còn `scan_nodes_by_types` thì không trả text và bỏ qua node ẩn. Đây chính là câu description đã lừa tao ở report trước.
-5. Bump **major** version (`version.go`, `server.json`, `plugin/package.json`).
-6. CI: thêm `gofmt -l` + `go vet` (P2-14) để phase này không đẻ thêm file lệch format.
+1. `README.md` — the tool tables (14 rows at L124-212), plus a **Migration** section mapping old names to new.
+2. `README.md` — add a warning: an old plugin still works via the fanout but costs several undo entries, so re-download the zip.
+3. `glama.json` — 85 entries, must match the real schema.
+4. **Fix `scan_text_nodes`'s incorrect description** — drop *"Shorthand for scan_nodes_by_types with ['TEXT']"* and replace it with the truth: it returns `characters`/`fontSize`/`fontName` and **scans hidden nodes too**, whereas `scan_nodes_by_types` returns no text and skips hidden nodes. This is the exact sentence that misled me in the earlier report.
+5. Bump the **major** version (`version.go`, `server.json`, `plugin/package.json`).
+6. CI: add `gofmt -l` and `go vet` (P2-14) so this phase does not produce more misformatted files.
 
 ---
 
-## 11. Thứ tự & ước lượng
+## 11. Order & estimates
 
-| Phase | Nội dung | Est. | Cắt được? |
+| Phase | Contents | Est. | Cuttable? |
 |---|---|---|---|
-| 0 | Golden tool set + `sender` seam | 0.5d | Không (nền) |
-| 1 | `set_node_properties` + fanout | 1.0d | Không (65% lợi ích) |
-| 2 | `transform_nodes` | 0.5d | Không |
+| 0 | Golden tool set + the `sender` seam | 0.5d | No (foundation) |
+| 1 | `set_node_properties` + fanout | 1.0d | No (65% of the benefit) |
+| 2 | `transform_nodes` | 0.5d | No |
 | 3 | `set_reactions` + `removeIndices` | 0.25d | ✓ |
-| 4 | `set_annotations` đa node | 0.25d | ✓ |
+| 4 | multi-node `set_annotations` | 0.25d | ✓ |
 | 5 | `get_nodes_info` + missing | 0.25d | ✓ |
-| 6 | Docs, glama, version, CI | 0.5d | Không |
-| | **Tổng** | **~3.25d** | **G4-mini = Phase 0+1+2+6 ≈ 2.5d** |
+| 6 | Docs, glama, version, CI | 0.5d | No |
+| | **Total** | **~3.25d** | **G4-mini = Phase 0+1+2+6 ≈ 2.5d** |
 
-Nhích lên so với ước lượng 1-2 ngày ở report trước, vì (a) 3 tool sống sót phải sửa để giữ năng lực, (b) fallback fanout cần test seam.
+Up from the 1-2 day estimate in the earlier report, because (a) the three surviving tools
+have to be modified to keep their capabilities, and (b) the fanout fallback needs a test
+seam.
 
 ---
 
-## 12. Điều kiện hoàn thành
+## 12. Definition of done
 
-- [ ] `go test ./...` xanh; `make test-ts` xanh
-- [ ] `gofmt -l .` không ra file nào; `go vet ./...` sạch
-- [ ] `TestToolSchemas_ExpectedToolSet` khớp đúng 73 tên
-- [ ] `TestToolSchemas_ArrayItemsHaveType` xanh **không còn exclusion** cho `set_annotations`
-- [ ] Test fanout phủ cả 3 nhánh: plugin mới / plugin cũ / lỗi thật
-- [ ] Đo lại `tools/list`, xác nhận ~54.200 bytes (từ 58.802)
-- [ ] Smoke tay trên Figma thật: plugin mới 1 undo entry; plugin cũ (zip release trước) vẫn chạy qua fanout
-- [ ] Không tool nào mất năng lực — đối chiếu từng dòng bảng ở §1
+- [ ] `go test ./...` green; `make test-ts` green
+- [ ] `gofmt -l .` lists nothing; `go vet ./...` clean
+- [ ] `TestToolSchemas_ExpectedToolSet` matches exactly 73 names
+- [ ] `TestToolSchemas_ArrayItemsHaveType` green **with no remaining exclusion** for `set_annotations`
+- [ ] Fanout tests cover all three branches: new plugin / old plugin / real error
+- [ ] `tools/list` re-measured, confirmed at ~54,200 bytes (down from 58,802)
+- [ ] Manual smoke test in real Figma: new plugin gives 1 undo entry; the old plugin (previous release zip) still works via the fanout
+- [ ] No tool lost a capability — check the §1 table row by row
 
-## 13. Rủi ro
+## 13. Risks
 
-| Rủi ro | Giảm thiểu |
+| Risk | Mitigation |
 |---|---|
-| Match `"Unknown request type"` theo prefix bị lệch khi ai đó sửa `main.ts` | Test khoá chuỗi ở cả hai phía; đặt hằng số kèm comment trỏ chéo |
-| Fanout đẻ N undo entry gây khó chịu | Ghi rõ trong README + nhắc update plugin; đường modern không bị |
-| Đổi shape `get_nodes_info` phá workflow user | Bump major + migration note; đây là phase cắt được nếu muốn hoãn |
-| LLM chọn sai param trong tool gộp | Description ghi rõ từng thuộc tính là optional và độc lập; giữ enum trong schema để client tự validate |
-| Gộp làm mất lỗi từng thuộc tính | Shape `applied` + `errors` ở §5 giữ nguyên độ chi tiết của 8 tool cũ |
+| The `"Unknown request type"` prefix match drifts when someone edits `main.ts` | Pin the string in tests on both sides; declare a constant with a cross-referencing comment |
+| N undo entries from the fanout are annoying | State it in the README and prompt a plugin update; the modern path is unaffected |
+| Changing `get_nodes_info`'s shape breaks user workflows | Major version bump plus a migration note; this phase is cuttable if it should wait |
+| The LLM picks the wrong parameter in a merged tool | Say clearly in the description that each property is optional and independent; keep enums in the schema so the client can validate |
+| Merging loses per-property errors | The `applied` + `errors` shape in §5 preserves the granularity of the eight old tools |
