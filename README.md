@@ -13,7 +13,7 @@ Open-source Figma MCP server with full read/write access via plugin. Turn text i
 **Highlights**
 - Operates locally via the Figma Plugin API (no REST API token required)
 - Real-time execution directly on your local machine
-- **Read and Write** live Figma data via plugin bridge — 77 tools total
+- **Read and Write** live Figma data via plugin bridge — 63 tools total
 - Full design automation — styles, variables, components, prototypes, content, and transactional batch pipelines
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
 
@@ -116,6 +116,40 @@ single property, and they are now combinations of `set_node_properties`:
 Properties can be combined, so what used to take several calls and several undo
 entries now takes one of each.
 
+Eighteen more tools were merged into four, each selecting between the old tools
+with one argument. An argument belonging to a different variant is rejected with
+a message naming it, rather than being ignored:
+
+| Removed | Replacement |
+| ------- | ----------- |
+| `create_frame` | `create_node({ type: "FRAME", … })` |
+| `create_rectangle` | `create_node({ type: "RECTANGLE", … })` |
+| `create_ellipse` | `create_node({ type: "ELLIPSE", … })` |
+| `create_star` | `create_node({ type: "STAR", … })` |
+| `create_polygon` | `create_node({ type: "POLYGON", … })` |
+| `create_line` | `create_node({ type: "LINE", … })` |
+| `create_section` | `create_node({ type: "SECTION", … })` |
+| `set_fills` | `set_paint({ type: "SOLID", color })` |
+| `set_strokes` | `set_paint({ type: "SOLID", target: "stroke", color, strokeWeight })` |
+| `set_gradient_fills` | `set_paint({ type: "GRADIENT_LINEAR" \| "GRADIENT_RADIAL", stops, geometry })` |
+| `create_paint_style` | `create_style({ type: "PAINT", name, color })` |
+| `create_text_style` | `create_style({ type: "TEXT", name, … })` |
+| `create_effect_style` | `create_style({ type: "EFFECT", name, effectType, … })` |
+| `create_grid_style` | `create_style({ type: "GRID", name, … })` |
+| `add_page` | `manage_page({ action: "add", name, index })` |
+| `delete_page` | `manage_page({ action: "delete", pageId \| pageName })` |
+| `rename_page` | `manage_page({ action: "rename", pageId \| pageName, newName })` |
+| `navigate_to_page` | `manage_page({ action: "navigate", pageId \| pageName })` |
+
+Two things changed behaviour rather than just name. `create_node({type:"ELLIPSE"})`
+honours `startAngle`, `endAngle` and `innerRadiusRatio`, which `create_ellipse`
+declared but ignored — arcs and rings came out as plain ellipses. And `name` now
+works on stars, polygons and lines, which read it but never declared it.
+
+`create_effect_style`'s `type` argument is `effectType` under `create_style`,
+because `type` names the kind of style. Gradients can only target a fill;
+`set_paint` says so rather than accepting `target: "stroke"` and doing nothing.
+
 ---
 
 ## Available Tools
@@ -130,14 +164,11 @@ entries now takes one of each.
 
 | Tool                        | Description                                                |
 | --------------------------- | ---------------------------------------------------------- |
-| `create_frame`              | Create a frame with optional auto-layout, fill, and parent |
-| `create_rectangle`          | Create a rectangle with optional fill and corner radius    |
-| `create_ellipse`            | Create an ellipse or circle                                |
+| `create_node`               | Create a FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION |
 | `create_text`               | Create a text node (font loaded automatically)             |
 | `import_image`              | Decode base64 image and place it as a rectangle fill       |
 | `create_component`          | Convert an existing FRAME node into a reusable component   |
 | `create_component_instance` | Create an instance of a component (local or library)       |
-| `create_section`            | Create a Figma Section node to organise frames on a page   |
 | `create_connector`          | Create a Connector line between nodes (FigJam only)        |
 
 ### Write — Modify
@@ -145,9 +176,7 @@ entries now takes one of each.
 | Tool                     | Description                                                                      |
 | ------------------------ | -------------------------------------------------------------------------------- |
 | `set_text`               | Update text content of an existing TEXT node                                     |
-| `set_fills`              | Set solid fill color (hex) on a node                                             |
-| `set_gradient_fills`     | Set linear or radial gradient fills on a node using geometry properties          |
-| `set_strokes`            | Set solid stroke color and weight on a node                                      |
+| `set_paint`              | Paint a node's fill or stroke — solid, linear gradient, or radial gradient       |
 | `set_corner_radius`      | Set corner radius — uniform or per-corner                                        |
 | `set_auto_layout`        | Set or update auto-layout (flex) properties on a frame                           |
 | `set_node_properties`    | Set any combination of visibility, lock, opacity, rotation, blend mode, constraints, and z-order on one or more nodes |
@@ -180,10 +209,7 @@ entries now takes one of each.
 | Tool                  | Description                                                             |
 | --------------------- | ----------------------------------------------------------------------- |
 | `set_effects`         | Apply drop shadow / blur effects directly on a node (no style required) |
-| `create_paint_style`  | Create a named paint style with a solid color                           |
-| `create_text_style`   | Create a named text style with font, size, and spacing                  |
-| `create_effect_style` | Create a named effect style (drop shadow, inner shadow, blur)           |
-| `create_grid_style`   | Create a named layout grid style (columns, rows, or grid)               |
+| `create_style`        | Create a named PAINT, TEXT, EFFECT, or GRID style                       |
 | `update_paint_style`  | Rename or recolor an existing paint style                               |
 | `apply_style_to_node` | Apply an existing local style to a node, linking it to that style       |
 | `delete_style`        | Delete any style (paint, text, effect, or grid) by ID                   |
@@ -201,17 +227,14 @@ entries now takes one of each.
 
 ### Write — Pages
 
-| Tool          | Description                                               |
-| ------------- | --------------------------------------------------------- |
-| `add_page`    | Add a new page to the document (optional name and index)  |
-| `delete_page` | Delete a page by ID or name (cannot delete the only page) |
-| `rename_page` | Rename a page by ID or current name                       |
+| Tool          | Description                                                         |
+| ------------- | ------------------------------------------------------------------- |
+| `manage_page` | Add, delete, rename, or navigate to a page (`action` selects which) |
 
 ### Write — Components & Navigation
 
 | Tool               | Description                                                 |
 | ------------------ | ----------------------------------------------------------- |
-| `navigate_to_page` | Switch the active Figma page by ID or name                  |
 | `group_nodes`      | Group two or more nodes into a GROUP                        |
 | `ungroup_nodes`    | Ungroup GROUP nodes, moving children to the parent          |
 | `swap_component`   | Swap the main component of an INSTANCE node                 |

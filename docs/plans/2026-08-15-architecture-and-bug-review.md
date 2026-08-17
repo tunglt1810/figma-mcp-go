@@ -15,6 +15,7 @@
 | **G6** | Bảng tool declarative — cả 77 tool khai báo trong `toolSpec`; `ValidateRPC` chỉ còn tra bảng. P1-4 (`steps` sai kiểu) hết theo |
 
 | **G8** — B4 | Bridge ping mỗi 20s, drop connection không pong |
+| **G5** | Thu gọn tool Tier 2: 4 nhóm gộp lại (shape 7→1, paint 3→1, style 4→1, page 4→1). 77 → 63 tool |
 
 Không còn bug nào trong danh sách này để mở.
 
@@ -25,8 +26,15 @@ so bảng tool Go với `case` trong plugin (`tools_plugin_test.go`), rẻ hơn 
 với viết lại 10 `switch` lớn. Nếu vẫn muốn map thì đó là quyết định về style, không
 phải sửa bug.
 
-Chưa làm: **G5** (thu gọn tool Tier 2 — breaking), **G7** (đơn giản hoá
-leader/follower — cần biết thực tế bao nhiêu user chạy nhiều MCP client).
+**Về cảnh báo trong mục Tier 2** ("gộp quá tay thì LLM chọn sai param nhiều hơn
+chọn sai tool"): cảnh báo đúng, nên mỗi tool gộp có `requireVariant` — param
+thuộc variant khác bị **báo lỗi kèm tên param và tên variant**, không bị bỏ qua
+âm thầm. Đổi một lỗi khó thấy lấy một lỗi nói thẳng.
+
+Chưa làm: **G7** (đơn giản hoá leader/follower). Lưu ý lý do trong B3 đã yếu đi
+nhiều: hai nguồn bug được nêu ở đó (P1-5 validation lệch, P1-6 timeout lệch) đều
+đã sửa, nên phần còn lại chỉ là ~500 dòng code đang chạy tốt. Vẫn cần biết thực
+tế bao nhiêu user chạy nhiều MCP client trước khi xoá.
 
 ---
 
