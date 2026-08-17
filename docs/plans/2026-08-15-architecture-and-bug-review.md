@@ -2,7 +2,18 @@
 
 **Ngày:** 2026-08-15
 **Phạm vi:** toàn bộ Go server (`internal/`, `cmd/`) + Figma plugin (`plugin/src/`)
-**Trạng thái:** research only — chưa sửa gì. Tài liệu này để chọn hạng mục triển khai.
+**Trạng thái:** research only — tài liệu này để chọn hạng mục triển khai. Phần thân giữ nguyên nội dung ngày khảo sát; xem bảng dưới để biết mục nào đã làm.
+
+### Đã triển khai từ báo cáo này
+
+| Hạng mục | Kết quả |
+|---|---|
+| **G1** — P0-1, P0-2, P0-3 | Rollback pipeline snapshot đúng node đích, khôi phục thuộc tính, trả `results` khi lỗi |
+| **G3** (một phần) | `gofmt`/`go vet` vào CI; P2-16 — xoá `BatchPipeline*` dead code |
+| **G4** | Thu gọn tool Tier 1: 8 tool node-property gộp thành `set_node_properties` (breaking, cần cài lại plugin) |
+| **G6** | Bảng tool declarative — cả 77 tool khai báo trong `toolSpec`; `ValidateRPC` chỉ còn tra bảng. P1-4 (`steps` sai kiểu) và P1-5 (validation lệch leader/follower) hết theo |
+
+Bug còn mở: P1-6 (timeout ladder), P1-7 (hex color), P2-8 → P2-15.
 
 ---
 
