@@ -110,6 +110,120 @@ describe("set_effects", () => {
     }))).rejects.toThrow("Unknown effect type");
   });
 
+  // Figma's Effect union covers more than shadows and blurs, and get_node reports all
+  // of it, so set_effects has to accept the whole set back.
+
+  it("tags a plain blur with blurType NORMAL", async () => {
+    mockNodes["1:1"] = { id: "1:1", effects: [] };
+    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{ type: "LAYER_BLUR", radius: 6 }],
+    }));
+    // blurType is part of the BlurEffect union; leaving it out underspecifies the effect.
+    expect(mockNodes["1:1"].effects[0].blurType).toBe("NORMAL");
+  });
+
+  it("sets a progressive blur with its start and end points", async () => {
+    mockNodes["1:1"] = { id: "1:1", effects: [] };
+    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{
+        type: "LAYER_BLUR", blurType: "PROGRESSIVE", radius: 12, startRadius: 2,
+        startOffset: { x: 0, y: 0.2 }, endOffset: { x: 0, y: 0.9 },
+      }],
+    }));
+    const blur = mockNodes["1:1"].effects[0];
+    expect(blur.blurType).toBe("PROGRESSIVE");
+    expect(blur.startRadius).toBe(2);
+    expect(blur.startOffset).toEqual({ x: 0, y: 0.2 });
+    expect(blur.endOffset).toEqual({ x: 0, y: 0.9 });
+  });
+
+  it("sets a glass effect", async () => {
+    mockNodes["1:1"] = { id: "1:1", effects: [] };
+    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{
+        type: "GLASS", radius: 4, depth: 20, dispersion: 0.5,
+        lightAngle: -45, lightIntensity: 0.8, refraction: 0.8,
+      }],
+    }));
+    expect(mockNodes["1:1"].effects[0]).toEqual({
+      type: "GLASS", radius: 4, depth: 20, dispersion: 0.5,
+      lightAngle: -45, lightIntensity: 0.8, refraction: 0.8, visible: true,
+    });
+  });
+
+  it("sets a monotone noise effect", async () => {
+    mockNodes["1:1"] = { id: "1:1", effects: [] };
+    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{ type: "NOISE", color: "#ff0000", opacity: 0.4, noiseSize: 3, density: 0.7 }],
+    }));
+    const noise = mockNodes["1:1"].effects[0];
+    expect(noise.noiseType).toBe("MONOTONE");
+    expect(noise.color).toEqual({ r: 1, g: 0, b: 0, a: 0.4 });
+    expect(noise.noiseSize).toBe(3);
+    expect(noise.density).toBe(0.7);
+  });
+
+  // NoiseEffectBase declares blendMode, but the Figma runtime rejects the key outright:
+  // "Unrecognized key(s) in object: 'blendMode'". Sending a default would make every
+  // noise effect unwritable, so it only goes out when a caller asks for it.
+  it("leaves blendMode off a noise effect unless asked", async () => {
+    mockNodes["1:1"] = { id: "1:1", effects: [] };
+    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{ type: "NOISE" }],
+    }));
+    expect(mockNodes["1:1"].effects[0]).not.toHaveProperty("blendMode");
+
+    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{ type: "NOISE", blendMode: "MULTIPLY" }],
+    }));
+    expect(mockNodes["1:1"].effects[0].blendMode).toBe("MULTIPLY");
+  });
+
+  it("sets a duotone noise effect with its second colour", async () => {
+    mockNodes["1:1"] = { id: "1:1", effects: [] };
+    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{ type: "NOISE", noiseType: "DUOTONE", color: "#000000", secondaryColor: "#00ff00" }],
+    }));
+    expect(mockNodes["1:1"].effects[0].secondaryColor).toEqual({ r: 0, g: 1, b: 0, a: 1 });
+  });
+
+  // NOISE MULTITONE has an effect-level opacity that is not the colour's alpha, so the
+  // two travel under different names.
+  it("keeps multitone noise opacity separate from colour alpha", async () => {
+    mockNodes["1:1"] = { id: "1:1", effects: [] };
+    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{ type: "NOISE", noiseType: "MULTITONE", opacity: 0.25, noiseOpacity: 0.8 }],
+    }));
+    const noise = mockNodes["1:1"].effects[0];
+    expect(noise.color.a).toBe(0.25);
+    expect(noise.opacity).toBe(0.8);
+  });
+
+  it("sets a texture effect", async () => {
+    mockNodes["1:1"] = { id: "1:1", effects: [] };
+    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{ type: "TEXTURE", noiseSize: 5, radius: 3, clipToShape: true }],
+    }));
+    expect(mockNodes["1:1"].effects[0]).toEqual({
+      type: "TEXTURE", noiseSize: 5, radius: 3, clipToShape: true, visible: true,
+    });
+  });
+
+  it("carries showShadowBehindNode through on a drop shadow", async () => {
+    mockNodes["1:1"] = { id: "1:1", effects: [] };
+    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{ type: "DROP_SHADOW", showShadowBehindNode: true }],
+    }));
+    expect(mockNodes["1:1"].effects[0].showShadowBehindNode).toBe(true);
+  });
+
+  it("explains that a SHADER effect needs an imported shader", async () => {
+    mockNodes["1:1"] = { id: "1:1", effects: [] };
+    await expect(handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+      effects: [{ type: "SHADER", id: "s1" }],
+    }))).rejects.toThrow("importShaderById");
+  });
+
   it("throws if nodeId is missing", async () => {
     await expect(handleWriteStyleRequest(makeRequest("set_effects", [], {
       effects: [{ type: "DROP_SHADOW" }],

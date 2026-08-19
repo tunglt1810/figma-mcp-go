@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Embed the MCP server version from `server.json` using `//go:embed` and display it in the Figma plugin UI status badge (`Connected (v0.1.0)`) via a backward-compatible WebSocket handshake (`get_server_info`).
+**Goal:** Embed the MCP server version from `server.json` using `//go:embed` and display it in the Figma plugin UI status badge (`Connected (v0.1.1)`) via a backward-compatible WebSocket handshake (`get_server_info`).
 
 **Architecture:** 
 1. `version.go` at repository root embeds `server.json` and exports `GetVersion()`.
@@ -13,7 +13,7 @@
 
 ## Global Constraints
 
-- Single Source of Truth for version: `server.json` (`"version": "0.1.0"`).
+- Single Source of Truth for version: `server.json` (`"version": "0.1.1"`).
 - Backward Compatibility: Old UI connecting to New Server or New UI connecting to Old Server MUST NOT crash or show error banners.
 - Shell Commands: EVERY shell command line MUST start with a leading space character ` `.
 
@@ -29,7 +29,7 @@
 - Modify: `internal/bridge.go:30-43`
 
 **Interfaces:**
-- Produces: `figmamcpgo.GetVersion() string` returning `"0.1.0"` (or `"dev"` if unparseable).
+- Produces: `figmamcpgo.GetVersion() string` returning `"0.1.1"` (or `"dev"` if unparseable).
 - Produces: `internal.NewBridge(version string) *Bridge` storing `b.version`.
 
 - [ ] **Step 1: Write failing test for `version.go`**
@@ -47,8 +47,8 @@ func TestGetVersion(t *testing.T) {
 	if v == "" || v == "dev" {
 		t.Errorf("expected valid version from server.json, got %q", v)
 	}
-	if v != "0.1.0" {
-		t.Errorf("expected 0.1.0, got %q", v)
+	if v != "0.1.1" {
+		t.Errorf("expected 0.1.1, got %q", v)
 	}
 }
 ```
@@ -192,7 +192,7 @@ Expected: PASS
 
 **Interfaces:**
 - Consumes: `{ "type": "server-info", "version": string }` frame from WebSocket.
-- Produces: `serverVersion` state rendered in UI badge as `Connected (v0.1.0)`.
+- Produces: `serverVersion` state rendered in UI badge as `Connected (v0.1.1)`.
 
 - [ ] **Step 1: Update `plugin/src/ui/App.svelte` state & WS handlers**
 

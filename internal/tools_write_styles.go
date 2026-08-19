@@ -2,11 +2,21 @@ package internal
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// effectTypes are the kinds create_style can build a reusable effect style from.
 var effectTypes = []string{"DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"}
+
+// nodeEffectTypes covers Figma's whole Effect union apart from SHADER, which needs a
+// shader imported by id before it can be applied and so cannot come from parameters.
+// get_node reports all of these, so set_effects has to accept them back.
+var nodeEffectTypes = []string{
+	"DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR",
+	"NOISE", "TEXTURE", "GLASS",
+}
 
 // styleDescriptionParam is the optional blurb shown in Figma's style panel.
 func styleDescriptionParam(desc string) paramSpec {
@@ -115,21 +125,28 @@ var writeStyleSpecs = []toolSpec{
 	},
 	{
 		Name:       "set_effects",
-		Desc:       "Apply one or more effects (drop shadow, inner shadow, layer blur, background blur) directly to a node. Replaces all existing effects. Pass an empty array to clear all effects.",
+		Desc:       "Apply one or more effects directly to a node. Replaces all existing effects. Pass an empty array to clear all effects. The shape matches what get_node reports under styles.effects, so effects can be read off one node and written to another unchanged.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Target node ID in colon format e.g. 4029:12345",
 		Params: []paramSpec{
 			{Name: "effects", Kind: kindObjectArray, Required: true,
-				Desc: "Array of effect objects. Each has: type (DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR), radius, color (hex, shadows only), opacity (0–1, shadows only), offsetX, offsetY (shadows only), spread (shadows only), visible (default true)"},
+				Desc: "Array of effect objects, each keyed by `type`. " +
+					"DROP_SHADOW / INNER_SHADOW: color (hex), opacity (0–1 colour alpha), offsetX, offsetY, radius, spread, blendMode; showShadowBehindNode on drop shadows. " +
+					"LAYER_BLUR / BACKGROUND_BLUR: radius; blurType PROGRESSIVE adds startRadius, startOffset, endOffset as {x, y}. " +
+					"NOISE: noiseType (MONOTONE default | DUOTONE | MULTITONE), color, opacity, blendMode, noiseSize, density; secondaryColor for DUOTONE, noiseOpacity for MULTITONE. " +
+					"TEXTURE: noiseSize, radius, clipToShape. " +
+					"GLASS: radius, depth, lightIntensity, lightAngle, refraction, dispersion. " +
+					"visible defaults to true on every type."},
 		},
 		Validate: func(_ []string, params map[string]interface{}) string {
 			effects, _ := params["effects"].([]interface{})
 			for i, e := range effects {
 				em, _ := e.(map[string]interface{})
 				t, _ := em["type"].(string)
-				if !containsString(effectTypes, t) {
-					return fmt.Sprintf("effects[%d].type must be DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, or BACKGROUND_BLUR, got: %s", i, t)
+				if !containsString(nodeEffectTypes, t) {
+					return fmt.Sprintf("effects[%d].type must be one of %s, got: %s",
+						i, strings.Join(nodeEffectTypes, ", "), t)
 				}
 			}
 			return ""

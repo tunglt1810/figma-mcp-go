@@ -2,30 +2,30 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Hỗ trợ đầy đủ các thuộc tính hình học (geometry) của các loại shape (Star, Polygon, Ellipse, Rectangle, Line) ở cả hai chiều đọc (serialization) và ghi (creation tools) trong Figma MCP Server.
+**Goal:** Fully support the geometric properties of shape types (Star, Polygon, Ellipse, Rectangle, and Line) in both directions: reading (serialization) and writing (creation tools) in the Figma MCP Server.
 
-**Architecture:** Mở rộng `serializers.ts` để bóc tách object `geometry` từ Node. Mở rộng `tools_write_create.go` và `write-create.ts` để thêm các tool `create_star`, `create_polygon`, `create_line` và cập nhật `create_ellipse`. Các thuộc tính pixel (như radius) sẽ được tự động quy đổi ra `width`/`height` và tỷ lệ (ratio) để tương thích với Figma API.
+**Architecture:** Extend `serializers.ts` to extract a `geometry` object from a Node. Extend `tools_write_create.go` and `write-create.ts` with the `create_star`, `create_polygon`, and `create_line` tools, and update `create_ellipse`. Pixel properties such as radius are automatically converted into `width`/`height` and ratios for compatibility with the Figma API.
 
 **Tech Stack:** Go (MCP Server), TypeScript (Figma Plugin)
 
 ## Global Constraints
 
-- Mọi thay đổi trong Go phải tuân thủ chuẩn thư viện `mark3labs/mcp-go`.
-- Không xoá thuộc tính `cornerRadius` khỏi `styles` hiện tại, copy nó sang `geometry` để đảm bảo backward compatibility.
+- All Go changes must follow the `mark3labs/mcp-go` library conventions.
+- Do not remove `cornerRadius` from `styles`; copy it into `geometry` to preserve backward compatibility.
 
 ---
 
-### Task 1: Nâng cấp hàm Serialize (Đọc thuộc tính Geometry)
+### Task 1: Upgrade Serialization (Read Geometry Properties)
 
 **Files:**
 - Modify: `plugin/src/serializers.ts`
 
 **Interfaces:**
-- Produces: Hàm `serializeNode` giờ sẽ trả về thêm property `geometry` chứa các thuộc tính hình học (`rotation`, `cornerRadius`, `pointCount`, `innerRadiusPixel`, `outerRadiusPixel`, `arcData`...).
+- Produces: `serializeNode` now returns an additional `geometry` property containing geometric attributes (`rotation`, `cornerRadius`, `pointCount`, `innerRadiusPixel`, `outerRadiusPixel`, `arcData`, and so on).
 
-- [ ] **Step 1: Viết logic lấy Geometry**
+- [ ] **Step 1: Add Geometry Extraction Logic**
 
-Mở file `plugin/src/serializers.ts` và thêm logic vào trước hoặc bên trong hàm `serializeNode`:
+Open `plugin/src/serializers.ts` and add the following logic before or inside `serializeNode`:
 
 ```typescript
 const getGeometry = (node: any) => {
@@ -67,9 +67,9 @@ const getGeometry = (node: any) => {
 };
 ```
 
-- [ ] **Step 2: Cập nhật hàm `serializeNode`**
+- [ ] **Step 2: Update `serializeNode`**
 
-Bổ sung trường `geometry` vào `base` object trong `serializeNode`:
+Add the `geometry` field to the `base` object in `serializeNode`:
 
 ```typescript
 export const serializeNode = async (node: any): Promise<any> => {
@@ -82,30 +82,32 @@ export const serializeNode = async (node: any): Promise<any> => {
     styles,
     geometry: getGeometry(node),
   };
-  // ... (giữ nguyên phần còn lại)
+  // ... (keep the remaining code unchanged)
 ```
 
-- [ ] **Step 3: Build và test compile**
-Chạy `npm run build` trong thư mục `plugin/` để đảm bảo không lỗi cú pháp.
+- [ ] **Step 3: Build and Test Compilation**
+
+Run ` npm run build` in the `plugin/` directory to ensure there are no syntax errors.
 
 - [ ] **Step 4: Commit**
+
 ```bash
-git commit -am "feat: add geometry extraction to serializers"
+ git commit -am "feat: add geometry extraction to serializers"
 ```
 
 ---
 
-### Task 2: Đăng ký các Tools mới (Go Server)
+### Task 2: Register the New Tools (Go Server)
 
 **Files:**
 - Modify: `internal/tools_write_create.go`
 
 **Interfaces:**
-- Produces: MCP tools mới được register (`create_star`, `create_polygon`, `create_line`).
+- Produces: New MCP tools are registered (`create_star`, `create_polygon`, and `create_line`).
 
-- [ ] **Step 1: Khai báo `create_star`**
+- [ ] **Step 1: Declare `create_star`**
 
-Thêm vào `registerWriteCreateTools`:
+Add the following to `registerWriteCreateTools`:
 
 ```go
 	s.AddTool(mcp.NewTool("create_star",
@@ -125,7 +127,7 @@ Thêm vào `registerWriteCreateTools`:
 	})
 ```
 
-- [ ] **Step 2: Khai báo `create_polygon` và `create_line`**
+- [ ] **Step 2: Declare `create_polygon` and `create_line`**
 
 ```go
 	s.AddTool(mcp.NewTool("create_polygon",
@@ -159,31 +161,34 @@ Thêm vào `registerWriteCreateTools`:
 	})
 ```
 
-- [ ] **Step 3: Cập nhật `create_ellipse`**
-Cập nhật tool `create_ellipse` để hỗ trợ arcData. (Thêm `startAngle`, `endAngle`, `innerRadiusRatio`).
+- [ ] **Step 3: Update `create_ellipse`**
 
-- [ ] **Step 4: Build Go server**
-Chạy `go build ./cmd/figma-mcp-go` để test compile.
+Update `create_ellipse` to support `arcData` by adding `startAngle`, `endAngle`, and `innerRadiusRatio`.
+
+- [ ] **Step 4: Build the Go Server**
+
+Run ` go build ./cmd/figma-mcp-go` to test compilation.
 
 - [ ] **Step 5: Commit**
+
 ```bash
-git commit -am "feat: register new creation tools for shapes in MCP server"
+ git commit -am "feat: register new creation tools for shapes in MCP server"
 ```
 
 ---
 
-### Task 3: Bổ sung Handlers trên Figma Plugin
+### Task 3: Add Handlers to the Figma Plugin
 
 **Files:**
 - Modify: `plugin/src/write-create.ts`
 
 **Interfaces:**
-- Consumes: Request type `create_star`, `create_polygon`, `create_line` và tham số từ Go.
-- Produces: Gọi Figma API sinh ra shape và trả về JSON node.
+- Consumes: Requests of type `create_star`, `create_polygon`, and `create_line`, along with their parameters.
+- Produces: Calls the Figma API to create the shape and returns the node as JSON.
 
-- [ ] **Step 1: Xử lý `create_star`**
+- [ ] **Step 1: Handle `create_star`**
 
-Thêm case trong `switch (request.type)`:
+Add the following case to `switch (request.type)`:
 
 ```typescript
     case "create_star": {
@@ -216,7 +221,7 @@ Thêm case trong `switch (request.type)`:
     }
 ```
 
-- [ ] **Step 2: Xử lý `create_polygon` và `create_line`**
+- [ ] **Step 2: Handle `create_polygon` and `create_line`**
 
 ```typescript
     case "create_polygon": {
@@ -269,11 +274,14 @@ Thêm case trong `switch (request.type)`:
     }
 ```
 
-- [ ] **Step 3: Cập nhật `create_ellipse`**
-Cập nhật block xử lý `create_ellipse` để set `ellipse.arcData` nếu param được truyền vào.
+- [ ] **Step 3: Update `create_ellipse`**
 
-- [ ] **Step 4: Build và Commit**
-Chạy `npm run build` trong `plugin/` và commit:
+Update the `create_ellipse` handler block to set `ellipse.arcData` when the parameter is provided.
+
+- [ ] **Step 4: Build and Commit**
+
+Run ` npm run build` in `plugin/` and commit:
+
 ```bash
-git commit -am "feat: handle create_star, create_polygon, create_line in plugin"
+ git commit -am "feat: handle create_star, create_polygon, create_line in plugin"
 ```

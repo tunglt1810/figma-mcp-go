@@ -22,8 +22,8 @@ var nodePropertyKeys = []string{
 // arguments of the other kinds would be accepted and silently dropped.
 var paintVariants = map[string]variantSpec{
 	"SOLID":           {Allowed: []string{"color", "opacity"}, Required: []string{"color"}},
-	"GRADIENT_LINEAR": {Allowed: []string{"stops", "geometry"}, Required: []string{"stops", "geometry"}},
-	"GRADIENT_RADIAL": {Allowed: []string{"stops", "geometry"}, Required: []string{"stops", "geometry"}},
+	"GRADIENT_LINEAR": {Allowed: []string{"stops", "geometry", "opacity"}, Required: []string{"stops", "geometry"}},
+	"GRADIENT_RADIAL": {Allowed: []string{"stops", "geometry", "opacity"}, Required: []string{"stops", "geometry"}},
 }
 
 var validNodeOrders = []string{"bringToFront", "sendToBack", "bringForward", "sendBackward"}
@@ -44,7 +44,7 @@ var writeModifySpecs = []toolSpec{
 		Name: "set_paint",
 		Desc: "Paint a node's fill or stroke. `type` selects the kind of paint and each takes its own arguments — " +
 			"SOLID: color, opacity. " +
-			"GRADIENT_LINEAR / GRADIENT_RADIAL: stops, geometry. " +
+			"GRADIENT_LINEAR / GRADIENT_RADIAL: stops, geometry, opacity. " +
 			"`target` chooses fill (default) or stroke; gradients can only target fill. " +
 			"An argument belonging to a different kind is rejected rather than ignored.",
 		NodeIDs:    nodeIDsSingle,
@@ -58,7 +58,7 @@ var writeModifySpecs = []toolSpec{
 			{Name: "color", Kind: kindString, IsHexColor: true,
 				Desc: "SOLID: color as hex — #RRGGBB e.g. #FF5733, or #RRGGBBAA e.g. #FF573380 for 50% alpha (required)"},
 			{Name: "opacity", Kind: kindNumber,
-				Desc: "SOLID: paint opacity 0–1 (default 1). Combines multiplicatively with any alpha in the color hex."},
+				Desc: "Paint opacity 0–1 (default 1). For SOLID it combines multiplicatively with any alpha in the color hex; for gradients it scales the whole gradient."},
 			{Name: "stops", Kind: kindAny,
 				Desc: "GRADIENT: array of color stops e.g. [{position: 0, color: '#ff0000'}, {position: 1, color: '#00ff00'}] (required)"},
 			{Name: "geometry", Kind: kindAny,

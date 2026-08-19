@@ -1,16 +1,21 @@
-# Specs: Hỗ trợ Gradient cho Figma MCP Plugin
+# Specs: Gradient Support for the Figma MCP Plugin
 
-## 1. Giới thiệu
-Figma sử dụng ma trận Transform 2x3 (`gradientTransform`) để biểu diễn vị trí, góc xoay và kích thước của các loại gradient (Linear, Radial, Angular, Diamond). Tuy nhiên, ma trận này không thân thiện với các Frontend Developers và LLMs khi cần xuất CSS hoặc React Native component (cần các tham số như `center`, `radius`, `start`, `end`, `angle`).
-Tính năng này sẽ tự động phân tích và quy đổi qua lại giữa `gradientTransform` và hệ tọa độ `geometry`.
+## 1. Introduction
 
-## 2. Quá trình Đọc (Serialization - `serializePaints`)
+Figma uses a 2x3 Transform matrix (`gradientTransform`) to represent the position, rotation, and size of gradient types (Linear, Radial, Angular, and Diamond). However, this matrix is not friendly to frontend developers or LLMs when they need to export CSS or a React Native component, which requires parameters such as `center`, `radius`, `start`, `end`, and `angle`.
 
-Khi gọi đọc Figma Node, `serializePaints` sẽ tính toán và trả về mảng `fills`/`strokes`.
-Với Solid màu trơn: trả về chuỗi Hex `"#RRGGBB"` (hoặc `"#RRGGBBAA"`).
-Với Gradient, trả về JSON Object:
+This feature automatically converts between `gradientTransform` and a geometry coordinate system in both directions.
+
+## 2. Read Process (Serialization — `serializePaints`)
+
+When reading a Figma Node, `serializePaints` calculates and returns the `fills`/`strokes` arrays.
+
+For a solid color, it returns a Hex string `"#RRGGBB"` (or `"#RRGGBBAA"`).
+
+For a gradient, it returns a JSON object:
 
 ### Radial Gradient Output
+
 ```json
 {
   "type": "GRADIENT_RADIAL",
@@ -27,6 +32,7 @@ Với Gradient, trả về JSON Object:
 ```
 
 ### Linear Gradient Output
+
 ```json
 {
   "type": "GRADIENT_LINEAR",
@@ -39,11 +45,14 @@ Với Gradient, trả về JSON Object:
 }
 ```
 
-### 2.1. Công thức Toán: Transform Matrix -> Geometry
-Figma lưu `gradientTransform` là ma trận $M$. Ma trận này map từ Normalize Node Space $N$ `([0..1], [0..1])` sang Gradient Local Space $L$.
+### 2.1. Mathematical Formula: Transform Matrix → Geometry
+
+Figma stores `gradientTransform` as matrix $M$. The matrix maps from Normalized Node Space $N$ (`[0..1], [0..1]`) to Gradient Local Space $L$.
+
 $$ M \times N = L \implies N = M^{-1} \times L $$
 
-Hàm nghịch đảo ma trận 2x3:
+Inverse of a 2x3 matrix:
+
 ```typescript
 function invertTransform(t: Transform): Transform {
   const [[a, b, c], [d, e, f]] = t;
@@ -58,11 +67,12 @@ function invertTransform(t: Transform): Transform {
 
 **Radial Gradient Local Handles:**
 - Center: `(0.5, 0.5)`
-- Rx (Radius X handle): `(1, 0.5)`
-- Ry (Radius Y handle): `(0.5, 1)`
+- Rx (radius-X handle): `(1, 0.5)`
+- Ry (radius-Y handle): `(0.5, 1)`
 
-Nhân $M^{-1}$ với 3 điểm trên để lấy `centerNorm`, `rxNorm`, `ryNorm` (tọa độ trên không gian `[0, 1]`).
-Sau đó tính phần trăm:
+Multiply $M^{-1}$ by the three points to obtain `centerNorm`, `rxNorm`, and `ryNorm` (coordinates in `[0, 1]` space).
+
+Then calculate percentages:
 - `center.percentX = centerNorm.x * 100`
 - `radius.percentX = length(rxNorm - centerNorm) * 100`
 - `rotation = atan2(rxNorm.y - centerNorm.y, rxNorm.x - centerNorm.x) * 180 / Math.PI`
@@ -71,13 +81,14 @@ Sau đó tính phần trăm:
 - Start: `(0, 0.5)`
 - End: `(1, 0.5)`
 
-Tương tự, nhân $M^{-1}$ để lấy `startNorm` và `endNorm`.
-Tính `angle` bằng `atan2` giữa `start` và `end`.
+Similarly, multiply by $M^{-1}$ to obtain `startNorm` and `endNorm`. Calculate `angle` with `atan2` between `start` and `end`.
 
-## 3. Quá trình Ghi (Mutation - `set_gradient_fills`)
+## 3. Write Process (Mutation — `set_gradient_fills`)
 
 ### Input Payload
-Sử dụng schema từ MCP tool `set_gradient_fills`:
+
+Use the schema from the `set_gradient_fills` MCP tool:
+
 ```json
 {
   "nodeId": "1:1",
@@ -91,27 +102,33 @@ Sử dụng schema từ MCP tool `set_gradient_fills`:
 }
 ```
 
-### 3.1. Công thức Toán: Geometry -> Transform Matrix
-Từ Input Geometry (tính theo `%`), chia 100 để có được Normalize Coordinates ($N$).
-Tiếp tục tìm ma trận $T_{inv}$ (chính là $M^{-1}$) sao cho $T_{inv}$ map Local Handles sang $N$.
+### 3.1. Mathematical Formula: Geometry → Transform Matrix
+
+Convert the input geometry (expressed in `%`) by dividing by 100 to obtain Normalized Coordinates ($N$).
+
+Then find the matrix $T_{inv}$ (which is $M^{-1}$) that maps Local Handles to $N$.
 
 **Radial:**
-Gọi $cx, cy$ là tọa độ center, $rx, ry$ là độ lớn radius theo X và Y, $\theta$ là rotation.
-Ta có điểm `centerNorm`, `rxHandleNorm`, `ryHandleNorm`:
+
+Let $cx, cy$ be the center coordinates, $rx, ry$ the radius magnitudes along X and Y, and $\theta$ the rotation.
+
+The `centerNorm`, `rxHandleNorm`, and `ryHandleNorm` points are:
+
 ```typescript
 rxHandleNorm.x = cx + rx * cos(theta)
 rxHandleNorm.y = cy + rx * sin(theta)
-// Giả định ryHandle vuông góc:
+// Assume the ry handle is perpendicular:
 ryHandleNorm.x = cx - ry * sin(theta)
 ryHandleNorm.y = cy + ry * cos(theta)
 ```
 
-Map $T_{inv}$:
+Map $T_{inv}$ as follows:
 `(0.5, 0.5) -> centerNorm`
 `(1, 0.5) -> rxHandleNorm`
 `(0.5, 1) -> ryHandleNorm`
 
-Giải hệ 3 điểm để tìm được $T_{inv} = [[A,B,C], [D,E,F]]$:
+Solve the three-point system to find $T_{inv} = [[A,B,C], [D,E,F]]$:
+
 ```typescript
 A = 2 * (rxHandleNorm.x - centerNorm.x)
 B = 2 * (ryHandleNorm.x - centerNorm.x)
@@ -121,15 +138,18 @@ D = 2 * (rxHandleNorm.y - centerNorm.y)
 E = 2 * (ryHandleNorm.y - centerNorm.y)
 F = 3 * centerNorm.y - rxHandleNorm.y - ryHandleNorm.y
 ```
-Cuối cùng: `gradientTransform = invertTransform(T_inv)`
+
+Finally, `gradientTransform = invertTransform(T_inv)`.
 
 **Linear:**
-Map $T_{inv}$:
+
+Map $T_{inv}$ as follows:
 `(0, 0.5) -> startNorm`
 `(1, 0.5) -> endNorm`
-`(0, 1) -> perpNorm` (điểm vuông góc để tạo bề dày ảo, `perpNorm = startNorm + [-dy, dx]`)
+`(0, 1) -> perpNorm` (a perpendicular point used to create a virtual width, `perpNorm = startNorm + [-dy, dx]`)
 
-Giải hệ:
+Solve the system:
+
 ```typescript
 A = endNorm.x - startNorm.x
 B = 2 * (perpNorm.x - startNorm.x)
@@ -139,11 +159,13 @@ D = endNorm.y - startNorm.y
 E = 2 * (perpNorm.y - startNorm.y)
 F = 2 * startNorm.y - perpNorm.y
 ```
+
 `gradientTransform = invertTransform(T_inv)`
 
-## 4. MCP Schema cho tool `set_gradient_fills`
-Định nghĩa tool nhận argument dạng Object như sau:
+## 4. MCP Schema for the `set_gradient_fills` Tool
+
+Define the tool to accept an object with these arguments:
 - `nodeId`: string
-- `type`: string (GRADIENT_LINEAR, GRADIENT_RADIAL)
+- `type`: string (`GRADIENT_LINEAR`, `GRADIENT_RADIAL`)
 - `stops`: Array<{ color: string, position: number }>
-- `geometry`: Object (chứa center, radius, rotation cho RADIAL; start, end cho LINEAR). Các toạ độ này tính bằng `percentX`, `percentY`.
+- `geometry`: Object containing `center`, `radius`, and `rotation` for RADIAL; `start` and `end` for LINEAR. Coordinates are expressed as `percentX` and `percentY`.

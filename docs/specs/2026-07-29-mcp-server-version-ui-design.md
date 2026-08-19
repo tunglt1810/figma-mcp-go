@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-This feature displays the running Go MCP Server version on the Figma Plugin UI status badge (e.g., `Connected (v0.1.0)`), using `server.json` as the Single Source of Truth for versioning, while ensuring 100% backward compatibility between old and new plugin client / server versions.
+This feature displays the running Go MCP Server version on the Figma Plugin UI status badge (e.g., `Connected (v0.1.1)`), using `server.json` as the Single Source of Truth for versioning, while ensuring 100% backward compatibility between old and new plugin client / server versions.
 
 ---
 
@@ -43,7 +43,7 @@ This feature displays the running Go MCP Server version on the Figma Plugin UI s
 
 | Plugin UI Version | Go Server Version | Behavior |
 | :--- | :--- | :--- |
-| **New UI** | **New Server** | UI requests `get_server_info` → Server responds with `server-info` → Badge displays **`Connected (v0.1.0)`**. |
+| **New UI** | **New Server** | UI requests `get_server_info` → Server responds with `server-info` → Badge displays **`Connected (v0.1.1)`**. |
 | **New UI** | **Old Server** | UI requests `get_server_info` → Old Server ignores empty `requestId` → `serverVersion` remains empty → Badge displays **`Connected`**. |
 | **Old UI** | **New Server** | Old UI does not request `get_server_info` → Server never sends unsolicited frames → Old UI works normally with **`Connected`**. |
 

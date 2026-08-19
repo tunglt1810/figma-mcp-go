@@ -6,6 +6,16 @@ export const isMixed = (value: any) => typeof value === "symbol";
 // Figma sometimes returns values like 123.99999999999999 instead of 124.
 const pixelRound = (v: number) => Math.round(v * 100) / 100;
 
+// Round a 0–1 ratio (gradient stop position, paint opacity) to 4 decimals.
+// Figma returns 32-bit floats, so an exact 40% arrives as 0.4000000059604645.
+const ratioRound = (v: number) => Math.round(v * 10000) / 10000;
+
+// Append a two-digit alpha to a #rrggbb hex, leaving fully opaque colours bare.
+const withAlpha = (hex: string, alpha: number) =>
+  alpha >= 1
+    ? hex
+    : hex + Math.round(Math.max(0, alpha) * 255).toString(16).padStart(2, "0");
+
 export const toHex = (color: any) => {
   const clamp = (v: any) => Math.min(255, Math.max(0, Math.round(v * 255)));
   const [r, g, b] = [clamp(color.r), clamp(color.g), clamp(color.b)];
@@ -28,33 +38,41 @@ export const serializePaints = (paints: any, node?: any) => {
   if (!paints || !Array.isArray(paints)) return undefined;
 
   const result = paints
+    // A paint with the eye toggled off contributes nothing to the render, so drop it
+    // rather than reporting a colour the node does not actually show.
+    .filter((paint: any) => paint.visible !== false)
     .filter((paint: any) => {
       return (paint.type === "SOLID" && "color" in paint) || 
              paint.type === "GRADIENT_LINEAR" || 
              paint.type === "GRADIENT_RADIAL";
     })
     .map((paint: any) => {
+      const paintOpacity = paint.opacity != null ? paint.opacity : 1;
+
       if (paint.type === "SOLID") {
-        const hex = toHex(paint.color);
-        const opacity = paint.opacity != null ? paint.opacity : 1;
-        if (opacity === 1) return hex;
-        return (
-          hex +
-          Math.round(opacity * 255)
-            .toString(16)
-            .padStart(2, "0")
-        );
+        return withAlpha(toHex(paint.color), paintOpacity);
       }
 
       // GRADIENT
       const inv = invertTransform(paint.gradientTransform);
-      // Keep raw position (0–1 float) for precision; cssString rounds to integer %
-      const stops = paint.gradientStops.map((stop: any) => {
-        const colorHex = toHex(stop.color);
-        const a = stop.color.a != null ? stop.color.a : 1;
-        const colorStr = a === 1 ? colorHex : colorHex + Math.round(a * 255).toString(16).padStart(2, "0");
-        return { position: stop.position, color: colorStr };
-      });
+      // Keep position as a 0–1 float for precision, but strip float noise:
+      // Figma reports a 40% stop as 0.4000000059604645. cssString rounds to integer %.
+      const rawStops = paint.gradientStops.map((stop: any) => ({
+        position: ratioRound(stop.position),
+        hex: toHex(stop.color),
+        alpha: stop.color.a != null ? stop.color.a : 1,
+      }));
+      // stops[] stays raw — it is what set_paint accepts back, so folding the
+      // paint-level opacity in here would corrupt a read-then-write round trip.
+      const stops = rawStops.map((s: any) => ({ position: s.position, color: withAlpha(s.hex, s.alpha) }));
+      // Paint-level opacity is what Figma shows next to the fill type ("Radial 100 %").
+      // A gradient has no single colour to carry it, so it gets its own field.
+      const gradientOpacity = paintOpacity !== 1 ? { opacity: ratioRound(paintOpacity) } : {};
+      // cssString is the ready-to-render form, so it does fold paint opacity into each
+      // stop's alpha. Without this a half-transparent gradient would render solid.
+      const stopStrings = rawStops
+        .map((s: any) => `${withAlpha(s.hex, s.alpha * paintOpacity)} ${Math.round(s.position * 100)}%`)
+        .join(", ");
 
       if (paint.type === "GRADIENT_RADIAL") {
         // Center: mapped from (0.5, 0.5)
@@ -86,7 +104,6 @@ export const serializePaints = (paints: any, node?: any) => {
 
         const rotation = theta * 180 / Math.PI;
 
-        const stopStrings = stops.map((s: any) => `${s.color} ${Math.round(s.position * 100)}%`).join(', ');
         const rxPercent = Math.round(rx * 100);
         const ryPercent = Math.round(ry * 100);
         const cxPercent = Math.round(cx * 100);
@@ -98,6 +115,7 @@ export const serializePaints = (paints: any, node?: any) => {
 
         return {
           type: "GRADIENT_RADIAL",
+          ...gradientOpacity,
           stops,
           geometry: {
             center: { percentX: cxPercent, percentY: cyPercent },
@@ -117,7 +135,6 @@ export const serializePaints = (paints: any, node?: any) => {
 
         const angle = Math.atan2(ey - sy, ex - sx) * 180 / Math.PI;
 
-        const stopStrings = stops.map((s: any) => `${s.color} ${Math.round(s.position * 100)}%`).join(', ');
         let cssAngle = Math.round(angle + 90);
         if (cssAngle < 0) cssAngle += 360;
         cssAngle = cssAngle % 360;
@@ -125,6 +142,7 @@ export const serializePaints = (paints: any, node?: any) => {
 
         return {
           type: "GRADIENT_LINEAR",
+          ...gradientOpacity,
           stops,
           geometry: {
             start: { percentX: Math.round(sx * 100), percentY: Math.round(sy * 100) },
@@ -152,6 +170,101 @@ export const getBounds = (node: any) => {
   return undefined;
 };
 
+// Keys serializeEffects renames or handles itself, plus plugin-internal bookkeeping
+// that carries no design meaning.
+//
+// `opacity` is in here because NoiseEffectMultitone has an effect-level opacity of its
+// own. Letting the generic pass-through copy it would clobber the alpha we lift out of
+// `color`, so it is surfaced as noiseOpacity instead.
+const effectKeysHandledElsewhere = new Set([
+  "type", "color", "secondaryColor", "offset", "opacity", "visible", "boundVariables",
+]);
+
+// Values Figma reports at these keys are already the type's default, so reporting them
+// is noise. A missing blurType means NORMAL, which is what serializeEffects omits here.
+const effectDefaults: Record<string, unknown> = { blendMode: "NORMAL", blurType: "NORMAL" };
+
+const isVector = (v: any) => v && typeof v.x === "number" && typeof v.y === "number";
+
+// Serialize node.effects into the shape set_effects accepts, so a read result can be
+// fed straight back into a write without translation.
+//
+// Colour and offset are normalised into hex and offsetX/offsetY. Everything else is
+// passed through: Figma keeps adding effect types (GLASS, NOISE, TEXTURE, SHADER) with
+// parameters of their own, and listing only the ones we recognise would drop them.
+export const serializeEffects = (effects: any) => {
+  if (isMixed(effects)) return "mixed";
+  if (!effects || !Array.isArray(effects)) return undefined;
+
+  const result = effects
+    .filter((effect: any) => effect.visible !== false)
+    .map((effect: any) => {
+      const out: any = { type: effect.type };
+
+      if (effect.color) {
+        out.color = toHex(effect.color);
+        const a = effect.color.a != null ? effect.color.a : 1;
+        if (a !== 1) out.opacity = ratioRound(a);
+      }
+      // The second tone of a DUOTONE noise effect.
+      if (effect.secondaryColor) out.secondaryColor = toHex(effect.secondaryColor);
+      if (effect.offset) {
+        out.offsetX = pixelRound(effect.offset.x);
+        out.offsetY = pixelRound(effect.offset.y);
+      }
+      // NOISE MULTITONE carries an opacity that is not the colour's alpha.
+      if (effect.type === "NOISE" && typeof effect.opacity === "number") {
+        out.noiseOpacity = ratioRound(effect.opacity);
+      }
+
+      for (const key of Object.keys(effect)) {
+        if (effectKeysHandledElsewhere.has(key)) continue;
+        const value = effect[key];
+        if (effectDefaults[key] === value) continue;
+        if (typeof value === "number") {
+          // Zero is the identity for these parameters (spread, dispersion, density …),
+          // so it is a default worth omitting. Radius always applies: a zero-radius
+          // shadow is a hard edge, which is not the same as no shadow.
+          if (value === 0 && key !== "radius") continue;
+          out[key] = pixelRound(value);
+        } else if (typeof value === "string") {
+          out[key] = value;
+        } else if (typeof value === "boolean") {
+          // false is the off state for every boolean effect field Figma exposes
+          // (showShadowBehindNode, clipToShape), so it is the default.
+          if (value) out[key] = true;
+        } else if (isVector(value)) {
+          // Progressive blur start/end points and the noise size vector.
+          out[key] = { x: pixelRound(value.x), y: pixelRound(value.y) };
+        }
+      }
+
+      return out;
+    });
+
+  return result.length > 0 ? result : undefined;
+};
+
+// Auto-layout settings, mirroring the arguments create_node accepts.
+// Only emitted for frames that actually use auto-layout.
+export const serializeLayout = (node: any) => {
+  if (!("layoutMode" in node) || node.layoutMode === "NONE") return undefined;
+
+  const layout: any = { mode: node.layoutMode };
+  if (node.itemSpacing) layout.itemSpacing = node.itemSpacing;
+  if (node.primaryAxisAlignItems && node.primaryAxisAlignItems !== "MIN")
+    layout.primaryAxisAlignItems = node.primaryAxisAlignItems;
+  if (node.counterAxisAlignItems && node.counterAxisAlignItems !== "MIN")
+    layout.counterAxisAlignItems = node.counterAxisAlignItems;
+  if (node.primaryAxisSizingMode) layout.primaryAxisSizingMode = node.primaryAxisSizingMode;
+  if (node.counterAxisSizingMode) layout.counterAxisSizingMode = node.counterAxisSizingMode;
+  if (node.layoutWrap && node.layoutWrap !== "NO_WRAP") {
+    layout.layoutWrap = node.layoutWrap;
+    if (node.counterAxisSpacing) layout.counterAxisSpacing = node.counterAxisSpacing;
+  }
+  return layout;
+};
+
 export const serializeStyles = async (node: any) => {
   const styles: any = {};
 
@@ -171,21 +284,39 @@ export const serializeStyles = async (node: any) => {
       if (style) styles.strokeStyle = style.name;
     }
     const strokes = serializePaints(node.strokes);
-    if (strokes !== undefined) styles.strokes = strokes;
+    if (strokes !== undefined) {
+      styles.strokes = strokes;
+      // Weight and alignment only mean something when there is a stroke to draw.
+      if ("strokeWeight" in node)
+        styles.strokeWeight = isMixed(node.strokeWeight) ? "mixed" : node.strokeWeight;
+      if (node.strokeAlign) styles.strokeAlign = node.strokeAlign;
+      if (Array.isArray(node.dashPattern) && node.dashPattern.length > 0)
+        styles.dashPattern = node.dashPattern;
+    }
   }
 
-  if ("cornerRadius" in node) {
-    const cr = isMixed(node.cornerRadius) ? "mixed" : node.cornerRadius;
-    if (cr !== 0) styles.cornerRadius = cr;
+  if ("effects" in node) {
+    if (node.effectStyleId && typeof node.effectStyleId === "string") {
+      const style = await figma.getStyleByIdAsync(node.effectStyleId);
+      if (style) styles.effectStyle = style.name;
+    }
+    const effects = serializeEffects(node.effects);
+    if (effects !== undefined) styles.effects = effects;
   }
 
+  const layout = serializeLayout(node);
+  if (layout) styles.layout = layout;
+
+  // Padding only matters under auto-layout, and only when something is non-zero.
   if ("paddingLeft" in node) {
-    styles.padding = {
+    const padding = {
       top: node.paddingTop,
       right: node.paddingRight,
       bottom: node.paddingBottom,
       left: node.paddingLeft,
     };
+    if (padding.top || padding.right || padding.bottom || padding.left)
+      styles.padding = padding;
   }
 
   return styles;
@@ -249,14 +380,27 @@ export const serializeText = async (node: any, base: any) => {
   });
 };
 
+// Per-corner radii, but only when they actually differ from the uniform cornerRadius.
+// Figma reports all four on every rectangle and frame; repeating them when they all
+// match is pure noise.
+const getCornerRadii = (node: any) => {
+  const corners = ["topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius"];
+  if (!corners.every((c) => c in node)) return undefined;
+  const values = corners.map((c) => node[c]);
+  if (values.every((v) => v === values[0])) return undefined;
+  return { topLeftRadius: values[0], topRightRadius: values[1], bottomLeftRadius: values[2], bottomRightRadius: values[3] };
+};
+
 const getGeometry = (node: any) => {
   const geom: any = {};
-  
-  if ("rotation" in node) {
-    geom.rotation = node.rotation;
+
+  // Omit defaults: an unrotated node with square corners has nothing to report.
+  if ("rotation" in node && node.rotation !== 0) {
+    geom.rotation = pixelRound(node.rotation);
   }
   if ("cornerRadius" in node) {
-    geom.cornerRadius = isMixed(node.cornerRadius) ? "mixed" : node.cornerRadius;
+    const cr = isMixed(node.cornerRadius) ? "mixed" : node.cornerRadius;
+    if (cr !== 0) geom.cornerRadius = cr;
   }
 
   switch (node.type) {
@@ -277,28 +421,46 @@ const getGeometry = (node: any) => {
     case "RECTANGLE":
     case "FRAME":
     case "COMPONENT":
-      if ("topLeftRadius" in node) geom.topLeftRadius = node.topLeftRadius;
-      if ("topRightRadius" in node) geom.topRightRadius = node.topRightRadius;
-      if ("bottomLeftRadius" in node) geom.bottomLeftRadius = node.bottomLeftRadius;
-      if ("bottomRightRadius" in node) geom.bottomRightRadius = node.bottomRightRadius;
+      Object.assign(geom, getCornerRadii(node));
       break;
   }
   
   return Object.keys(geom).length > 0 ? geom : undefined;
 };
 
+// Node-level properties, mirroring what set_node_properties can write so that reads
+// and writes cover the same ground. Rotation is left to getGeometry, which already
+// reports it. Every field is omitted at its default value to keep output small.
+export const serializeNodeProperties = (node: any) => {
+  const props: any = {};
+
+  if ("opacity" in node && node.opacity !== 1) props.opacity = ratioRound(node.opacity);
+  if ("visible" in node && !node.visible) props.visible = false;
+  if ("locked" in node && node.locked) props.locked = true;
+  // Frames and groups default to PASS_THROUGH, leaf nodes to NORMAL.
+  if (node.blendMode && node.blendMode !== "NORMAL" && node.blendMode !== "PASS_THROUGH")
+    props.blendMode = node.blendMode;
+  if (node.constraints && (node.constraints.horizontal !== "MIN" || node.constraints.vertical !== "MIN"))
+    props.constraints = { horizontal: node.constraints.horizontal, vertical: node.constraints.vertical };
+
+  return props;
+};
+
 export const serializeNode = async (node: any): Promise<any> => {
   const styles = await serializeStyles(node);
-  const base = {
+  const base: any = {
     id: node.id,
     name: node.name,
     type: node.type,
     bounds: getBounds(node),
-    styles,
     geometry: getGeometry(node),
+    ...serializeNodeProperties(node),
   };
+  if (Object.keys(styles).length > 0) base.styles = styles;
   if (node.type === "TEXT") return serializeText(node, base);
-  if ("children" in node) {
+  // An empty children array says nothing a reader cannot infer from the node type,
+  // so only containers that actually hold something report children.
+  if ("children" in node && node.children.length > 0) {
     return Object.assign({}, base, {
       children: await Promise.all(node.children.map((child: any) => serializeNode(child))),
     });

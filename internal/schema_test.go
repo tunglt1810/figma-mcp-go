@@ -930,6 +930,21 @@ func TestValidateRPC_SetEffects(t *testing.T) {
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
+	// get_node reports GLASS, NOISE and TEXTURE effects, so set_effects has to take
+	// them back or effects cannot be copied from one node to another.
+	for _, kind := range []string{"NOISE", "TEXTURE", "GLASS"} {
+		if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]interface{}{
+			"effects": []interface{}{map[string]interface{}{"type": kind}},
+		}); msg != "" {
+			t.Errorf("expected %s to be accepted, got: %s", kind, msg)
+		}
+	}
+	// SHADER needs figma.importShaderById, so it cannot be built from parameters.
+	if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]interface{}{
+		"effects": []interface{}{map[string]interface{}{"type": "SHADER"}},
+	}); msg == "" {
+		t.Error("expected SHADER to be rejected")
+	}
 }
 
 func TestValidateRPC_CreateComponentInstance(t *testing.T) {
@@ -1256,6 +1271,11 @@ func TestValidateRPC_SetPaint(t *testing.T) {
 		{"appended", map[string]interface{}{"type": "SOLID", "color": "#ff0000", "mode": "append"}, ""},
 		{"linear gradient", map[string]interface{}{
 			"type": "GRADIENT_LINEAR", "stops": linearStops, "geometry": geometry,
+		}, ""},
+		// get_node reports a gradient's paint-level opacity, so set_paint has to
+		// accept it back or the read cannot be written again.
+		{"gradient with opacity", map[string]interface{}{
+			"type": "GRADIENT_RADIAL", "stops": linearStops, "geometry": geometry, "opacity": 0.6,
 		}, ""},
 
 		{"missing type", map[string]interface{}{"color": "#ff0000"}, "type is required"},

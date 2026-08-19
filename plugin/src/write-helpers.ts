@@ -84,7 +84,7 @@ export const base64ToBytes = (b64: string) => {
   return bytes;
 };
 
-export const makeGradientPaint = (type: string, stops: any[], geometry: any): GradientPaint => {
+export const makeGradientPaint = (type: string, stops: any[], geometry: any, opacity?: number): GradientPaint => {
   const gradientStops: ReadonlyArray<ColorStop> = stops.map((stop: any) => {
     const { r, g, b, a } = typeof stop.color === "string" ? hexToRgb(stop.color) : stop.color;
     return {
@@ -163,6 +163,127 @@ export const makeGradientPaint = (type: string, stops: any[], geometry: any): Gr
   return {
     type: type as any,
     gradientStops,
-    gradientTransform
+    gradientTransform,
+    ...(opacity != null ? { opacity } : {})
   };
+};
+
+// Every effect type Figma's Effect union covers except SHADER, which needs a shader
+// imported through figma.importShaderById first and so cannot be built from params.
+export const supportedEffectTypes = [
+  "DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR",
+  "NOISE", "TEXTURE", "GLASS",
+];
+
+const num = (value: any, fallback: number) => (value != null ? Number(value) : fallback);
+
+// Read a {x, y} pair, which is how serializeEffects reports Figma's Vector fields.
+const vec = (value: any, fallback: { x: number; y: number }) =>
+  value && value.x != null && value.y != null
+    ? { x: Number(value.x), y: Number(value.y) }
+    : fallback;
+
+// Build one Figma Effect from the flat parameter object set_effects accepts.
+//
+// The shape mirrors what serializeEffects produces, so a node's effects can be read
+// and written back unchanged. Colour alpha travels as `opacity`; NOISE MULTITONE's own
+// effect opacity is `noiseOpacity`, because the two are different values.
+export const makeEffect = (e: any): Effect => {
+  const visible = e.visible ?? true;
+
+  switch (e.type) {
+    case "DROP_SHADOW":
+    case "INNER_SHADOW": {
+      const { r, g, b } = hexToRgb(e.color || "#000000");
+      const shadow: any = {
+        type: e.type,
+        color: { r, g, b, a: num(e.opacity, 0.25) },
+        offset: { x: num(e.offsetX, 0), y: num(e.offsetY, 4) },
+        radius: num(e.radius, 4),
+        spread: num(e.spread, 0),
+        visible,
+        blendMode: (e.blendMode || "NORMAL") as BlendMode,
+      };
+      if (e.type === "DROP_SHADOW" && e.showShadowBehindNode != null) {
+        shadow.showShadowBehindNode = !!e.showShadowBehindNode;
+      }
+      return shadow as DropShadowEffect;
+    }
+
+    case "LAYER_BLUR":
+    case "BACKGROUND_BLUR": {
+      // blurType is part of the BlurEffect union; omitting it leaves the effect
+      // underspecified, so it defaults to NORMAL here rather than being left out.
+      if (e.blurType === "PROGRESSIVE") {
+        return {
+          type: e.type,
+          blurType: "PROGRESSIVE",
+          radius: num(e.radius, 4),
+          startRadius: num(e.startRadius, 0),
+          startOffset: vec(e.startOffset, { x: 0, y: 0 }),
+          endOffset: vec(e.endOffset, { x: 0, y: 1 }),
+          visible,
+        } as BlurEffect;
+      }
+      return {
+        type: e.type,
+        blurType: "NORMAL",
+        radius: num(e.radius, 4),
+        visible,
+      } as BlurEffect;
+    }
+
+    case "NOISE": {
+      const { r, g, b } = hexToRgb(e.color || "#000000");
+      const noise: any = {
+        type: "NOISE",
+        noiseType: e.noiseType || "MONOTONE",
+        color: { r, g, b, a: num(e.opacity, 1) },
+        noiseSize: num(e.noiseSize, 2),
+        density: num(e.density, 0.5),
+        visible,
+      };
+      // NoiseEffectBase declares blendMode, but the Figma runtime rejects the key on
+      // noise effects ("Unrecognized key(s) in object: 'blendMode'"). Only forward it
+      // when a caller asks for it, so the common path stays writable.
+      if (e.blendMode) noise.blendMode = e.blendMode as BlendMode;
+      if (noise.noiseType === "DUOTONE") {
+        const s = hexToRgb(e.secondaryColor || "#ffffff");
+        noise.secondaryColor = { r: s.r, g: s.g, b: s.b, a: s.a };
+      }
+      if (noise.noiseType === "MULTITONE") noise.opacity = num(e.noiseOpacity, 1);
+      return noise as NoiseEffect;
+    }
+
+    case "TEXTURE":
+      return {
+        type: "TEXTURE",
+        noiseSize: num(e.noiseSize, 2),
+        radius: num(e.radius, 4),
+        clipToShape: !!e.clipToShape,
+        visible,
+      } as TextureEffect;
+
+    case "GLASS":
+      return {
+        type: "GLASS",
+        lightIntensity: num(e.lightIntensity, 0.5),
+        lightAngle: num(e.lightAngle, -45),
+        refraction: num(e.refraction, 0.5),
+        depth: num(e.depth, 20),
+        dispersion: num(e.dispersion, 0),
+        radius: num(e.radius, 4),
+        visible,
+      } as GlassEffect;
+
+    case "SHADER":
+      throw new Error(
+        "SHADER effects cannot be created from parameters: the shader has to be imported with figma.importShaderById first",
+      );
+
+    default:
+      throw new Error(
+        `Unknown effect type: ${e.type}. Must be one of ${supportedEffectTypes.join(", ")}`,
+      );
+  }
 };

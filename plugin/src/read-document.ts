@@ -1,4 +1,4 @@
-import { serializeNode, getBounds, serializeStyles, isMixed, deduplicateStyles } from "./serializers";
+import { serializeNode, getBounds, serializeStyles, serializeNodeProperties, isMixed, deduplicateStyles } from "./serializers";
 import { HandlerMap } from "./dispatch";
 
 export const readDocumentHandlers: HandlerMap = {
@@ -93,13 +93,14 @@ export const readDocumentHandlers: HandlerMap = {
     const serializeForDetail = async (n: any) => {
       const base = { id: n.id, name: n.name, type: n.type, bounds: getBounds(n) };
       if (detail === "minimal") return base;
+      // "full" reports the same node properties plus geometry and children, and runs
+      // its own style lookups. Building styles here first would double every
+      // getStyleByIdAsync round trip on the way to throwing the result away.
+      if (detail !== "compact") return await serializeNode(n);
       const styles = await serializeStyles(n);
-      const result: any = Object.assign({}, base);
+      const result: any = Object.assign({}, base, serializeNodeProperties(n));
       if (Object.keys(styles).length > 0) result.styles = styles;
-      if ("opacity" in n && n.opacity !== 1) result.opacity = n.opacity;
-      if ("visible" in n && !n.visible) result.visible = false;
-      if (detail === "compact") return result;
-      return await serializeNode(n);
+      return result;
     };
 
     const extractInstanceOverrides = async (

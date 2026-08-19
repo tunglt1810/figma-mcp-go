@@ -1,11 +1,13 @@
-# Specs: Quản lý Components & Instances cho Figma MCP Plugin
+# Specs: Components & Instances Management for the Figma MCP Plugin
 
-## 1. Giới thiệu
-Figma sử dụng hệ thống Component và Instance để tái sử dụng UI. Mỗi Component có thể là độc lập (`COMPONENT`) hoặc nằm trong một bộ (`COMPONENT_SET`). MCP Plugin hỗ trợ khả năng tạo Component Instance từ ID hoặc Component Key, cũng như đọc/ghi các thuộc tính ghi đè (overrides).
+## 1. Introduction
 
-## 2. Tạo Component Instance (`create_component_instance`)
+Figma uses Components and Instances to make UI reusable. A Component can be standalone (`COMPONENT`) or part of a set (`COMPONENT_SET`). The MCP Plugin supports creating a Component Instance from an ID or Component Key, as well as reading and writing override properties.
+
+## 2. Create a Component Instance (`create_component_instance`)
 
 ### Input Payload
+
 ```json
 {
   "componentId": "1:2",
@@ -16,36 +18,40 @@ Figma sử dụng hệ thống Component và Instance để tái sử dụng UI.
 }
 ```
 
-### Logic khởi tạo
-1. **Tìm kiếm base component**: 
-   - Nếu cung cấp `componentId`, dùng `figma.getNodeByIdAsync`.
-   - Nếu cung cấp `componentKey`, dùng `figma.importComponentByKeyAsync`.
-2. **Xử lý Component Set**:
-   - Nếu node tìm được là `COMPONENT_SET`, tự động chọn `defaultVariant` để làm base component.
-   - Nếu không có `defaultVariant`, chọn variant đầu tiên trong mảng `children`.
-3. **Tạo Instance**: Gọi `baseComponent.createInstance()`.
-4. **Định vị & Gắn vào cây (Parent)**:
-   - Nếu có `parentId`, gán instance vào parent đó.
-   - Nếu không, gán vào `figma.currentPage`.
-   - Cập nhật toạ độ `x, y` nếu có truyền. Nếu không truyền và parent là `PAGE`, tự động căn giữa viewport:
+### Initialization Logic
+
+1. **Find the base component**:
+   - If `componentId` is provided, use `figma.getNodeByIdAsync`.
+   - If `componentKey` is provided, use `figma.importComponentByKeyAsync`.
+2. **Handle a Component Set**:
+   - If the found node is a `COMPONENT_SET`, automatically select its `defaultVariant` as the base component.
+   - If there is no `defaultVariant`, select the first variant in the `children` array.
+3. **Create the instance**: Call `baseComponent.createInstance()`.
+4. **Position and attach it to the tree (Parent)**:
+   - If `parentId` is provided, attach the instance to that parent.
+   - Otherwise, attach it to `figma.currentPage`.
+   - Update `x` and `y` when provided. If they are not provided and the parent is a `PAGE`, automatically center the instance in the viewport:
      ```typescript
      instance.x = figma.viewport.center.x - instance.width / 2;
      instance.y = figma.viewport.center.y - instance.height / 2;
      ```
 
-## 3. Đọc Instance Overrides (`get_instance_overrides`)
+## 3. Read Instance Overrides (`get_instance_overrides`)
 
-### Mục đích
-Đọc danh sách các Component Properties (tương đương với overrides ở panel bên phải trong Figma) đang được gán cho một instance.
+### Purpose
+
+Read the list of Component Properties (equivalent to the overrides in Figma's right-hand panel) currently assigned to an instance.
 
 ### Logic
-- Tìm Node bằng `nodeId`. 
-- Đảm bảo type là `INSTANCE`.
-- Gọi `instance.componentProperties`. Trả về mapping từ Tên Property sang object chứa `type` và `value`.
 
-## 4. Ghi Instance Overrides (`set_instance_overrides`)
+- Find the node by `nodeId`.
+- Ensure that its type is `INSTANCE`.
+- Read `instance.componentProperties`. Return a mapping from each property name to an object containing its `type` and `value`.
+
+## 4. Write Instance Overrides (`set_instance_overrides`)
 
 ### Input Payload
+
 ```json
 {
   "nodeId": "1:1",
@@ -57,6 +63,7 @@ Figma sử dụng hệ thống Component và Instance để tái sử dụng UI.
 ```
 
 ### Logic
-- Tìm Node bằng `nodeId` (phải là `INSTANCE`).
-- Dùng `instance.setProperties(properties)` để truyền nguyên mapping object `{ [propertyName: string]: value }` vào.
-- Phương pháp tiếp cận "Fail-fast": Nếu properties truyền vào không hợp lệ (sai tên, sai kiểu), API của Figma sẽ throw Error, MCP sẽ bắt lỗi và trả về cho client.
+
+- Find the node by `nodeId` (it must be an `INSTANCE`).
+- Use `instance.setProperties(properties)` to pass the complete mapping object `{ [propertyName: string]: value }`.
+- Use a **fail-fast** approach: if the properties are invalid (wrong name or type), the Figma API throws an error; MCP catches the error and returns it to the client.

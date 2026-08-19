@@ -1,15 +1,19 @@
-# Specs: FigJam Connectors cho Figma MCP Plugin
+# Specs: FigJam Connectors for the Figma MCP Plugin
 
-## 1. Giới thiệu
-Connectors (Đường nối) là một tính năng đặc trưng của FigJam, cho phép người dùng nối các điểm hoặc các Node (như sticky notes, shapes) lại với nhau để tạo thành sơ đồ (flowchart, mindmap). MCP Plugin cung cấp công cụ `create_connector` để thao tác trực tiếp với các đường nối này.
+## 1. Introduction
 
-## 2. Ràng buộc Môi trường (FigJam Only)
-API của Figma yêu cầu các thao tác liên quan tới Connector chỉ có thể chạy trong một file FigJam (`figma.editorType === "figjam"`). Nếu người dùng cố gắng gọi từ Figma Design thông thường, MCP Plugin sẽ kiểm tra và trả về lỗi: 
+Connectors are a FigJam-specific feature that lets users connect points or Nodes (such as sticky notes and shapes) to create diagrams, flowcharts, and mind maps. The MCP Plugin provides the `create_connector` tool for manipulating these connectors directly.
+
+## 2. Environment Constraints (FigJam Only)
+
+The Figma API requires Connector operations to run only in a FigJam file (`figma.editorType === "figjam"`). If a user attempts to call the tool from a regular Figma Design file, the MCP Plugin checks the editor type and returns the error:
+
 > "create_connector is only supported in FigJam files"
 
-## 3. Tạo Connector (`create_connector`)
+## 3. Create a Connector (`create_connector`)
 
 ### Input Payload
+
 ```json
 {
   "startNodeId": "1:1",
@@ -19,21 +23,22 @@ API của Figma yêu cầu các thao tác liên quan tới Connector chỉ có t
   "lineType": "ELBOW"
 }
 ```
-*Ghi chú*: Cần cung cấp ít nhất một điểm bắt đầu và một điểm kết thúc (có thể là bằng ID của Node hoặc bằng Toạ độ).
 
-### Logic khởi tạo & Toán học
+*Note*: At least one start point and one end point must be provided. Each can be specified either by Node ID or by coordinates.
 
-1. **Khởi tạo**: Gọi `const connector = figma.createConnector()`.
-2. **Cấu hình điểm bắt đầu (`connectorStart`)**:
-   - Nếu có `startNodeId`, gán `endpointNodeId` và dùng nam châm từ tính `magnet = "AUTO"` để Figma tự động chọn điểm bám dính tốt nhất trên viền của Node:
+### Initialization and Geometry Logic
+
+1. **Initialize**: Call `const connector = figma.createConnector()`.
+2. **Configure the start point (`connectorStart`)**:
+   - If `startNodeId` is provided, set `endpointNodeId` and use the magnetic anchor `magnet = "AUTO"` so Figma automatically selects the best attachment point on the Node's edge:
      ```typescript
      connector.connectorStart = { endpointNodeId: startNode.id, magnet: "AUTO" };
      ```
-   - Nếu dùng toạ độ `startPosition`, gán thẳng toạ độ `{x, y}` lên canvas:
+   - If `startPosition` is provided, assign the coordinates directly on the canvas:
      ```typescript
      connector.connectorStart = { position: p.startPosition };
      ```
-3. **Cấu hình điểm kết thúc (`connectorEnd`)**:
-   - Tương tự như điểm bắt đầu, hỗ trợ cả `endNodeId` hoặc `endPosition`.
-4. **Định hình (`connectorLineType`)**:
-   - Connector có thể vẽ theo kiểu đường thẳng (`STRAIGHT`) hoặc gấp khúc (`ELBOW`). Nếu được cung cấp `lineType`, gán `connector.connectorLineType = p.lineType`.
+3. **Configure the end point (`connectorEnd`)**:
+   - As with the start point, support either `endNodeId` or `endPosition`.
+4. **Set the line shape (`connectorLineType`)**:
+   - A Connector can use a straight (`STRAIGHT`) or elbow (`ELBOW`) line. If `lineType` is provided, assign `connector.connectorLineType = p.lineType`.

@@ -5,12 +5,13 @@
   "scripts": {
     "dev": "concurrently \"vite build --watch\" \"vite build --watch -c vite.config.main.ts\"",
     "build": "vite build && vite build -c vite.config.main.ts",
-    "test": "vitest run --dir src",
-    "test:coverage": "vitest run --dir src --coverage"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1",
     "@sveltejs/vite-plugin-svelte": "^5",
+    "@vitest/coverage-v8": "^4",
     "concurrently": "^9",
     "svelte": "^5",
     "typescript": "^5",

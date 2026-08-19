@@ -17,7 +17,7 @@ import (
 // Returns the bridge and the client-side connection (already cleaned up on t.Cleanup).
 func setupBridgeWithClient(t *testing.T) (*Bridge, *websocket.Conn) {
 	t.Helper()
-	bridge := NewBridge("0.1.0")
+	bridge := NewBridge("0.1.1")
 
 	srv := httptest.NewServer(http.HandlerFunc(bridge.HandleUpgrade))
 	t.Cleanup(srv.Close)
@@ -47,7 +47,7 @@ func setupBridgeWithClient(t *testing.T) (*Bridge, *websocket.Conn) {
 // ── NewBridge ─────────────────────────────────────────────────────────────────
 
 func TestNewBridge(t *testing.T) {
-	b := NewBridge("0.1.0")
+	b := NewBridge("0.1.1")
 	if b == nil {
 		t.Fatal("NewBridge returned nil")
 	}
@@ -59,7 +59,7 @@ func TestNewBridge(t *testing.T) {
 // ── nextID ────────────────────────────────────────────────────────────────────
 
 func TestBridgeNextID(t *testing.T) {
-	b := NewBridge("0.1.0")
+	b := NewBridge("0.1.1")
 	id1 := b.nextID()
 	id2 := b.nextID()
 
@@ -79,7 +79,7 @@ func TestBridgeNextID(t *testing.T) {
 // ── MarshalJSON ───────────────────────────────────────────────────────────────
 
 func TestBridgeMarshalJSON_Disconnected(t *testing.T) {
-	b := NewBridge("0.1.0")
+	b := NewBridge("0.1.1")
 	data, err := b.MarshalJSON()
 	if err != nil {
 		t.Fatalf("MarshalJSON: %v", err)
@@ -110,7 +110,7 @@ func TestBridgeMarshalJSON_Connected(t *testing.T) {
 // ── Close ─────────────────────────────────────────────────────────────────────
 
 func TestBridgeClose_NoPanic(t *testing.T) {
-	b := NewBridge("0.1.0")
+	b := NewBridge("0.1.1")
 	// Close on an unconnected bridge should not panic.
 	b.Close()
 }
@@ -143,7 +143,7 @@ func TestBridgeClose_DrainsPending(t *testing.T) {
 // ── Send ─────────────────────────────────────────────────────────────────────
 
 func TestBridgeSend_NotConnected(t *testing.T) {
-	b := NewBridge("0.1.0")
+	b := NewBridge("0.1.1")
 	_, err := b.Send(context.Background(), "get_node", []string{"1:1"}, nil)
 	if err == nil {
 		t.Error("expected error when not connected")
@@ -230,7 +230,7 @@ func TestBridgeSend_Timeout(t *testing.T) {
 // ── IsConnected ───────────────────────────────────────────────────────────────
 
 func TestBridgeIsConnected(t *testing.T) {
-	b := NewBridge("0.1.0")
+	b := NewBridge("0.1.1")
 	if b.IsConnected() {
 		t.Error("should not be connected before any upgrade")
 	}
@@ -276,7 +276,7 @@ func TestAllowedOrigin(t *testing.T) {
 // used to look alive until the next tool call timed out 30 seconds later. The
 // keepalive notices instead: a client that has stopped reading never pongs.
 func TestKeepalive_DropsAConnectionThatStopsAnswering(t *testing.T) {
-	bridge := NewBridge("0.1.0")
+	bridge := NewBridge("0.1.1")
 	bridge.pingInterval = 20 * time.Millisecond
 	bridge.pingTimeout = 60 * time.Millisecond
 
@@ -301,7 +301,7 @@ func TestKeepalive_DropsAConnectionThatStopsAnswering(t *testing.T) {
 
 // A client that is reading normally answers pings, and the connection stays up.
 func TestKeepalive_LeavesAHealthyConnectionAlone(t *testing.T) {
-	bridge := NewBridge("0.1.0")
+	bridge := NewBridge("0.1.1")
 	bridge.pingInterval = 20 * time.Millisecond
 	bridge.pingTimeout = 200 * time.Millisecond
 

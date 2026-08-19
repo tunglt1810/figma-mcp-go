@@ -1780,11 +1780,11 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Apply one or more effects (drop shadow, inner shadow, layer blur, background blur) directly to a node. Replaces all existing effects. Pass an empty array to clear all effects.",
+    "description": "Apply one or more effects directly to a node. Replaces all existing effects. Pass an empty array to clear all effects. The shape matches what get_node reports under styles.effects, so effects can be read off one node and written to another unchanged.",
     "inputSchema": {
       "properties": {
         "effects": {
-          "description": "Array of effect objects. Each has: type (DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR), radius, color (hex, shadows only), opacity (0–1, shadows only), offsetX, offsetY (shadows only), spread (shadows only), visible (default true)",
+          "description": "Array of effect objects, each keyed by `type`. DROP_SHADOW / INNER_SHADOW: color (hex), opacity (0–1 colour alpha), offsetX, offsetY, radius, spread, blendMode; showShadowBehindNode on drop shadows. LAYER_BLUR / BACKGROUND_BLUR: radius; blurType PROGRESSIVE adds startRadius, startOffset, endOffset as {x, y}. NOISE: noiseType (MONOTONE default | DUOTONE | MULTITONE), color, opacity, blendMode, noiseSize, density; secondaryColor for DUOTONE, noiseOpacity for MULTITONE. TEXTURE: noiseSize, radius, clipToShape. GLASS: radius, depth, lightIntensity, lightAngle, refraction, dispersion. visible defaults to true on every type.",
           "items": {
             "type": "object"
           },
@@ -1892,7 +1892,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Paint a node's fill or stroke. `type` selects the kind of paint and each takes its own arguments — SOLID: color, opacity. GRADIENT_LINEAR / GRADIENT_RADIAL: stops, geometry. `target` chooses fill (default) or stroke; gradients can only target fill. An argument belonging to a different kind is rejected rather than ignored.",
+    "description": "Paint a node's fill or stroke. `type` selects the kind of paint and each takes its own arguments — SOLID: color, opacity. GRADIENT_LINEAR / GRADIENT_RADIAL: stops, geometry, opacity. `target` chooses fill (default) or stroke; gradients can only target fill. An argument belonging to a different kind is rejected rather than ignored.",
     "inputSchema": {
       "properties": {
         "color": {
@@ -1911,7 +1911,7 @@
           "type": "string"
         },
         "opacity": {
-          "description": "SOLID: paint opacity 0–1 (default 1). Combines multiplicatively with any alpha in the color hex.",
+          "description": "Paint opacity 0–1 (default 1). For SOLID it combines multiplicatively with any alpha in the color hex; for gradients it scales the whole gradient.",
           "type": "number"
         },
         "stops": {

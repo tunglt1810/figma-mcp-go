@@ -1,4 +1,4 @@
-import { makeSolidPaint, hexToRgb } from "./write-helpers";
+import { makeSolidPaint, hexToRgb, makeEffect } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
 
 // create_style replaced four create_*_style tools on the MCP surface. The four
@@ -240,32 +240,7 @@ export const writeStylesHandlers: HandlerMap = {
     const node = await figma.getNodeByIdAsync(nodeId) as any;
     if (!node) throw new Error(`Node not found: ${nodeId}`);
     if (!("effects" in node)) throw new Error(`Node ${nodeId} does not support effects`);
-    const effects: Effect[] = p.effects.map((e: any) => {
-      switch (e.type) {
-        case "DROP_SHADOW":
-        case "INNER_SHADOW": {
-          const { r, g, b } = hexToRgb(e.color || "#000000");
-          return {
-            type: e.type as "DROP_SHADOW" | "INNER_SHADOW",
-            color: { r, g, b, a: e.opacity != null ? Number(e.opacity) : 0.25 },
-            offset: { x: Number(e.offsetX ?? 0), y: Number(e.offsetY ?? 4) },
-            radius: Number(e.radius ?? 4),
-            spread: Number(e.spread ?? 0),
-            visible: e.visible ?? true,
-            blendMode: (e.blendMode || "NORMAL") as BlendMode,
-          } as DropShadowEffect;
-        }
-        case "LAYER_BLUR":
-        case "BACKGROUND_BLUR":
-          return {
-            type: e.type as "LAYER_BLUR" | "BACKGROUND_BLUR",
-            radius: Number(e.radius ?? 4),
-            visible: e.visible ?? true,
-          } as BlurEffect;
-        default:
-          throw new Error(`Unknown effect type: ${e.type}. Must be DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, or BACKGROUND_BLUR`);
-      }
-    });
+    const effects: Effect[] = p.effects.map((e: any) => makeEffect(e));
     node.effects = effects;
     figma.commitUndo();
     return {

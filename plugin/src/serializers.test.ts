@@ -11,9 +11,11 @@ import {
   serializeStyles,
   serializeText,
   serializeNode,
+  serializeEffects,
+  serializeNodeProperties,
   invertTransform,
 } from "./serializers";
-import { makeGradientPaint } from "./write-helpers";
+import { makeGradientPaint, makeEffect } from "./write-helpers";
 
 // ── Figma global mock ─────────────────────────────────────────────────────────
 
@@ -81,6 +83,17 @@ describe("serializePaints", () => {
     const paints = [{ type: "IMAGE" }];
     expect(serializePaints(paints)).toBeUndefined();
   });
+  it("drops paints whose eye is toggled off", () => {
+    const paints = [
+      { type: "SOLID", color: { r: 1, g: 0, b: 0 }, visible: false },
+      { type: "SOLID", color: { r: 0, g: 1, b: 0 } },
+    ];
+    expect(serializePaints(paints)).toEqual(["#00ff00"]);
+  });
+  it("returns undefined when every paint is toggled off", () => {
+    const paints = [{ type: "SOLID", color: { r: 1, g: 0, b: 0 }, visible: false }];
+    expect(serializePaints(paints)).toBeUndefined();
+  });
   it("serializes GRADIENT_RADIAL to geometry", () => {
     const node = { width: 100, height: 100 };
     // M = identity transform for simplicity
@@ -100,6 +113,66 @@ describe("serializePaints", () => {
     expect(result[0].geometry.radius.percentY).toBe(50);
     expect(result[0].stops[0].color).toBe("#ff8000");
     expect(result[0].cssString).toBe("radial-gradient(50% 50% at 50% 50%, #ff8000 0%, #000000 100%)");
+  });
+  it("strips 32-bit float noise from stop positions", () => {
+    // Figma reports an exact 40% stop as 0.4000000059604645
+    const paints = [{
+      type: "GRADIENT_RADIAL",
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [
+        { position: 0.4000000059604645, color: { r: 0.973, g: 0.784, b: 0.863, a: 1 } },
+        { position: 1, color: { r: 1, g: 0.953, b: 0.953, a: 1 } }
+      ]
+    }];
+    const result = serializePaints(paints) as any[];
+    expect(result[0].stops[0].position).toBe(0.4);
+    expect(result[0].stops[1].position).toBe(1);
+  });
+  it("reports paint-level opacity on a gradient when it is not 1", () => {
+    const paints = [{
+      type: "GRADIENT_RADIAL",
+      opacity: 0.5,
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [{ position: 0, color: { r: 1, g: 0, b: 0, a: 1 } }]
+    }];
+    const result = serializePaints(paints) as any[];
+    expect(result[0].opacity).toBe(0.5);
+  });
+  it("folds paint opacity into cssString but leaves stops[] raw", () => {
+    const paints = [{
+      type: "GRADIENT_LINEAR",
+      opacity: 0.5,
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [
+        { position: 0, color: { r: 1, g: 0, b: 0, a: 1 } },
+        { position: 1, color: { r: 0, g: 0, b: 1, a: 0.5 } },
+      ]
+    }];
+    const result = serializePaints(paints) as any[];
+    // stops[] must stay writable back through set_paint, which takes opacity separately.
+    expect(result[0].stops[0].color).toBe("#ff0000");
+    expect(result[0].stops[1].color).toBe("#0000ff80");
+    // cssString renders, so it carries the opacity: 1*0.5 = 0x80, 0.5*0.5 = 0x40.
+    expect(result[0].cssString).toBe("linear-gradient(90deg, #ff000080 0%, #0000ff40 100%)");
+  });
+  it("leaves cssString unchanged for a fully opaque gradient", () => {
+    const paints = [{
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [{ position: 0, color: { r: 1, g: 0, b: 0, a: 1 } }]
+    }];
+    const result = serializePaints(paints) as any[];
+    expect(result[0].cssString).toBe("linear-gradient(90deg, #ff0000 0%)");
+  });
+  it("omits gradient opacity when the fill is fully opaque", () => {
+    const paints = [{
+      type: "GRADIENT_LINEAR",
+      opacity: 1,
+      gradientTransform: [[1, 0, 0], [0, 1, 0]],
+      gradientStops: [{ position: 0, color: { r: 1, g: 0, b: 0, a: 1 } }]
+    }];
+    const result = serializePaints(paints) as any[];
+    expect(result[0]).not.toHaveProperty("opacity");
   });
   it("serializes GRADIENT_RADIAL ellipse (rx != ry)", () => {
     // T_inv maps gradient space → node-normalized space.
@@ -440,25 +513,247 @@ describe("serializeStyles", () => {
     expect(result.strokes).toEqual(["#000000"]);
   });
 
-  it("omits cornerRadius when value is 0", async () => {
-    const result = await serializeStyles({ cornerRadius: 0 });
+  // cornerRadius now lives only under geometry, which already owns the per-corner
+  // variants. Reporting it in both places was duplication.
+  it("does not report cornerRadius, which belongs to geometry", async () => {
+    const result = await serializeStyles({ cornerRadius: 8 });
     expect(result.cornerRadius).toBeUndefined();
   });
 
-  it("includes cornerRadius when non-zero", async () => {
-    const result = await serializeStyles({ cornerRadius: 8 });
-    expect(result.cornerRadius).toBe(8);
+  it("reports stroke weight and alignment alongside the stroke colour", async () => {
+    const node = {
+      strokes: [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }],
+      strokeWeight: 2,
+      strokeAlign: "INSIDE",
+      dashPattern: [4, 2],
+    };
+    const result = await serializeStyles(node);
+    expect(result.strokeWeight).toBe(2);
+    expect(result.strokeAlign).toBe("INSIDE");
+    expect(result.dashPattern).toEqual([4, 2]);
   });
 
-  it("sets cornerRadius to 'mixed' for symbol", async () => {
-    const result = await serializeStyles({ cornerRadius: Symbol() });
-    expect(result.cornerRadius).toBe("mixed");
+  it("omits stroke weight when there is no stroke to draw", async () => {
+    const result = await serializeStyles({ strokes: [], strokeWeight: 2, strokeAlign: "INSIDE" });
+    expect(result.strokeWeight).toBeUndefined();
+    expect(result.strokeAlign).toBeUndefined();
   });
 
   it("includes padding when paddingLeft is present", async () => {
     const node = { paddingLeft: 10, paddingRight: 20, paddingTop: 5, paddingBottom: 15 };
     const result = await serializeStyles(node);
     expect(result.padding).toEqual({ top: 5, right: 20, bottom: 15, left: 10 });
+  });
+
+  it("omits padding when every side is zero", async () => {
+    const node = { paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 };
+    const result = await serializeStyles(node);
+    expect(result.padding).toBeUndefined();
+  });
+
+  it("includes effects and effectStyle", async () => {
+    mockGetStyleByIdAsync = async (id) => (id === "e-1" ? { name: "Card shadow" } : null);
+    const node = {
+      effects: [{ type: "DROP_SHADOW", color: { r: 0, g: 0, b: 0, a: 0.25 }, radius: 8, offset: { x: 0, y: 4 }, spread: 0 }],
+      effectStyleId: "e-1",
+    };
+    const result = await serializeStyles(node);
+    expect(result.effectStyle).toBe("Card shadow");
+    expect(result.effects).toEqual([
+      { type: "DROP_SHADOW", radius: 8, color: "#000000", opacity: 0.25, offsetX: 0, offsetY: 4 },
+    ]);
+  });
+
+  it("omits effects when the node has none", async () => {
+    const result = await serializeStyles({ effects: [] });
+    expect(result.effects).toBeUndefined();
+  });
+
+  it("reports auto-layout settings", async () => {
+    const node = {
+      layoutMode: "HORIZONTAL",
+      itemSpacing: 12,
+      primaryAxisAlignItems: "CENTER",
+      counterAxisAlignItems: "MIN",
+      primaryAxisSizingMode: "AUTO",
+      counterAxisSizingMode: "FIXED",
+    };
+    const result = await serializeStyles(node);
+    expect(result.layout).toEqual({
+      mode: "HORIZONTAL",
+      itemSpacing: 12,
+      primaryAxisAlignItems: "CENTER",
+      primaryAxisSizingMode: "AUTO",
+      counterAxisSizingMode: "FIXED",
+    });
+  });
+
+  it("omits layout for a frame that does not use auto-layout", async () => {
+    const result = await serializeStyles({ layoutMode: "NONE", itemSpacing: 0 });
+    expect(result.layout).toBeUndefined();
+  });
+});
+
+// ── serializeEffects ──────────────────────────────────────────────────────────
+
+describe("serializeEffects", () => {
+  it("returns 'mixed' for symbol input", () => {
+    expect(serializeEffects(Symbol())).toBe("mixed");
+  });
+
+  it("returns undefined for a node with no effects", () => {
+    expect(serializeEffects([])).toBeUndefined();
+    expect(serializeEffects(undefined)).toBeUndefined();
+  });
+
+  it("reports a blur as type and radius only", () => {
+    expect(serializeEffects([{ type: "LAYER_BLUR", radius: 10 }])).toEqual([
+      { type: "LAYER_BLUR", radius: 10 },
+    ]);
+  });
+
+  // This file's "Cosun Glass" style is a GLASS effect. Listing only the parameters of
+  // shadows and blurs would report it as a bare radius and lose the whole effect.
+  it("keeps the parameters of effect types beyond shadows and blurs", () => {
+    const glass = {
+      type: "GLASS", radius: 4, depth: 20, dispersion: 0.5, lightAngle: -45,
+      lightIntensity: 0.800000011920929, refraction: 0.800000011920929, splay: 0,
+      visible: true, boundVariables: {},
+    };
+    // splay is 0, the identity for that parameter, so it is omitted like any default.
+    expect(serializeEffects([glass])).toEqual([{
+      type: "GLASS", radius: 4, depth: 20, dispersion: 0.5, lightAngle: -45,
+      lightIntensity: 0.8, refraction: 0.8,
+    }]);
+  });
+
+  it("keeps a zero radius, which is a hard-edged shadow rather than no shadow", () => {
+    expect(serializeEffects([{ type: "DROP_SHADOW", radius: 0, spread: 0 }])).toEqual([
+      { type: "DROP_SHADOW", radius: 0 },
+    ]);
+  });
+
+  // NoiseEffectMultitone has an effect-level opacity of its own. Reporting it as
+  // `opacity` would overwrite the alpha lifted out of `color`.
+  it("keeps multitone noise opacity apart from the colour's alpha", () => {
+    const noise = {
+      type: "NOISE", noiseType: "MULTITONE", radius: 0, density: 0.5, noiseSize: 2,
+      color: { r: 0, g: 0, b: 0, a: 0.25 }, opacity: 0.8, blendMode: "NORMAL",
+    };
+    const result = serializeEffects([noise]) as any[];
+    expect(result[0].opacity).toBe(0.25);
+    expect(result[0].noiseOpacity).toBe(0.8);
+  });
+
+  it("converts the second tone of a duotone noise effect to hex", () => {
+    const noise = {
+      type: "NOISE", noiseType: "DUOTONE", noiseSize: 2, density: 0.5,
+      color: { r: 0, g: 0, b: 0, a: 1 }, secondaryColor: { r: 0, g: 1, b: 0, a: 1 },
+    };
+    const result = serializeEffects([noise]) as any[];
+    expect(result[0].secondaryColor).toBe("#00ff00");
+  });
+
+  // Vector-valued fields are objects, so a scalar-only pass-through would drop them.
+  it("keeps the start and end points of a progressive blur", () => {
+    const blur = {
+      type: "LAYER_BLUR", blurType: "PROGRESSIVE", radius: 12, startRadius: 2,
+      startOffset: { x: 0, y: 0.2 }, endOffset: { x: 0, y: 0.9 },
+    };
+    expect(serializeEffects([blur])).toEqual([{
+      type: "LAYER_BLUR", blurType: "PROGRESSIVE", radius: 12, startRadius: 2,
+      startOffset: { x: 0, y: 0.2 }, endOffset: { x: 0, y: 0.9 },
+    }]);
+  });
+
+  it("omits blurType NORMAL, which is what an untagged blur means", () => {
+    expect(serializeEffects([{ type: "LAYER_BLUR", blurType: "NORMAL", radius: 4 }])).toEqual([
+      { type: "LAYER_BLUR", radius: 4 },
+    ]);
+  });
+
+  it("round-trips every writable effect type through makeEffect", () => {
+    const figmaEffects = [
+      { type: "DROP_SHADOW", color: { r: 0, g: 0, b: 0, a: 0.3 }, offset: { x: 2, y: 4 },
+        radius: 8, spread: 1, visible: true, blendMode: "MULTIPLY", showShadowBehindNode: true },
+      { type: "LAYER_BLUR", blurType: "PROGRESSIVE", radius: 12, startRadius: 2,
+        startOffset: { x: 0, y: 0.2 }, endOffset: { x: 0, y: 0.9 }, visible: true },
+      { type: "GLASS", radius: 4, depth: 20, dispersion: 0.5, lightAngle: -45,
+        lightIntensity: 0.8, refraction: 0.8, visible: true },
+      { type: "NOISE", noiseType: "MULTITONE", color: { r: 1, g: 0, b: 0, a: 0.25 },
+        opacity: 0.8, blendMode: "NORMAL", noiseSize: 3, density: 0.7, visible: true },
+      { type: "TEXTURE", noiseSize: 5, radius: 3, clipToShape: true, visible: true },
+    ];
+
+    const first = serializeEffects(figmaEffects) as any[];
+    // Feeding a read result back through the write path and reading it again must
+    // land on the same thing, or effects cannot be copied between nodes.
+    const second = serializeEffects(first.map((e: any) => makeEffect(e)));
+    expect(second).toEqual(first);
+  });
+
+  it("drops plugin bookkeeping and a default blend mode", () => {
+    const effect = {
+      type: "DROP_SHADOW", radius: 4, blendMode: "NORMAL",
+      visible: true, boundVariables: { radius: "v1" },
+    };
+    expect(serializeEffects([effect])).toEqual([{ type: "DROP_SHADOW", radius: 4 }]);
+  });
+
+  it("keeps a blend mode that is not the default", () => {
+    const effect = { type: "DROP_SHADOW", radius: 4, blendMode: "MULTIPLY" };
+    expect(serializeEffects([effect])).toEqual([
+      { type: "DROP_SHADOW", radius: 4, blendMode: "MULTIPLY" },
+    ]);
+  });
+
+  it("drops effects that are toggled off", () => {
+    const effects = [
+      { type: "DROP_SHADOW", radius: 4, visible: false },
+      { type: "LAYER_BLUR", radius: 2 },
+    ];
+    expect(serializeEffects(effects)).toEqual([{ type: "LAYER_BLUR", radius: 2 }]);
+  });
+
+  it("round-trips into the shape set_effects accepts", () => {
+    const serialized = serializeEffects([
+      { type: "INNER_SHADOW", color: { r: 1, g: 0, b: 0, a: 1 }, radius: 6, offset: { x: 2, y: 3 }, spread: 1 },
+    ]) as any[];
+    // These are exactly the keys set_effects reads off its params.
+    expect(serialized[0]).toEqual({
+      type: "INNER_SHADOW", color: "#ff0000", radius: 6, offsetX: 2, offsetY: 3, spread: 1,
+    });
+  });
+});
+
+// ── serializeNodeProperties ───────────────────────────────────────────────────
+
+describe("serializeNodeProperties", () => {
+  it("reports nothing for a node at every default", () => {
+    const node = { opacity: 1, visible: true, locked: false, blendMode: "PASS_THROUGH",
+      constraints: { horizontal: "MIN", vertical: "MIN" } };
+    expect(serializeNodeProperties(node)).toEqual({});
+  });
+
+  it("reports opacity, visibility, lock and blend mode when they differ", () => {
+    const node = { opacity: 0.5, visible: false, locked: true, blendMode: "MULTIPLY" };
+    expect(serializeNodeProperties(node)).toEqual({
+      opacity: 0.5, visible: false, locked: true, blendMode: "MULTIPLY",
+    });
+  });
+
+  it("strips float noise from opacity", () => {
+    expect(serializeNodeProperties({ opacity: 0.4000000059604645 }).opacity).toBe(0.4);
+  });
+
+  it("treats NORMAL blend mode as the default for leaf nodes", () => {
+    expect(serializeNodeProperties({ blendMode: "NORMAL" })).toEqual({});
+  });
+
+  it("reports constraints only when they are not top-left", () => {
+    expect(serializeNodeProperties({ constraints: { horizontal: "STRETCH", vertical: "MIN" } })).toEqual({
+      constraints: { horizontal: "STRETCH", vertical: "MIN" },
+    });
   });
 });
 
@@ -708,6 +1003,49 @@ describe("serializeNode", () => {
       const node = { id: "8", type: "FRAME" };
       const result = await serializeNode(node);
       expect(result.geometry).toBeUndefined();
+    });
+
+    it("collapses uniform corner radii to cornerRadius alone", async () => {
+      const node = { id: "9", type: "RECTANGLE", cornerRadius: 16,
+        topLeftRadius: 16, topRightRadius: 16, bottomLeftRadius: 16, bottomRightRadius: 16 };
+      const result = await serializeNode(node);
+      expect(result.geometry).toEqual({ cornerRadius: 16 });
+    });
+
+    it("omits rotation and radii entirely for an unrotated square-cornered frame", async () => {
+      const node = { id: "10", type: "FRAME", rotation: 0, cornerRadius: 0,
+        topLeftRadius: 0, topRightRadius: 0, bottomLeftRadius: 0, bottomRightRadius: 0 };
+      const result = await serializeNode(node);
+      expect(result.geometry).toBeUndefined();
+    });
+  });
+
+  describe("node properties", () => {
+    it("reports opacity and visibility on the node itself", async () => {
+      const node = { id: "1", type: "RECTANGLE", opacity: 0.5, visible: false };
+      const result = await serializeNode(node);
+      expect(result.opacity).toBe(0.5);
+      expect(result.visible).toBe(false);
+    });
+
+    it("stays silent for a node at every default", async () => {
+      const node = { id: "1", type: "RECTANGLE", opacity: 1, visible: true, locked: false };
+      const result = await serializeNode(node);
+      expect(result).not.toHaveProperty("opacity");
+      expect(result).not.toHaveProperty("visible");
+      expect(result).not.toHaveProperty("locked");
+    });
+
+    it("omits styles entirely when there is nothing to report", async () => {
+      const node = { id: "1", name: "Group", type: "GROUP" };
+      const result = await serializeNode(node);
+      expect(result).not.toHaveProperty("styles");
+    });
+
+    it("omits children for an empty container", async () => {
+      const node = { id: "1", name: "Empty frame", type: "FRAME", children: [] };
+      const result = await serializeNode(node);
+      expect(result).not.toHaveProperty("children");
     });
   });
 });

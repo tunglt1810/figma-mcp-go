@@ -1,18 +1,21 @@
-# Specs: Dev Mode Annotations cho Figma MCP Plugin
+# Specs: Dev Mode Annotations for the Figma MCP Plugin
 
-## 1. Giới thiệu
-Dev Mode Annotations là một tính năng đặc biệt của Figma dành cho quá trình chuyển giao (Handoff) từ thiết kế sang lập trình. Người dùng (có Dev Mode seat) có thể gắn các "ghi chú" lên bề mặt thiết kế chứa các thuộc tính (properties) như kích thước, màu sắc, border radius, v.v.
+## 1. Introduction
 
-MCP Plugin hỗ trợ thao tác Ghi (Gán mới / Ghi đè) và Xoá Annotations.
-*(API đọc `get_annotations` đã được triển khai độc lập)*
+Dev Mode Annotations are a special Figma feature for handoff from design to development. Users with a Dev Mode seat can attach annotations to the design surface containing properties such as dimensions, colors, and border radius.
 
-## 2. Ràng buộc Môi trường (Paid Users / Dev Mode Seat)
-- **Hiển thị trên giao diện**: Chỉ người dùng có giấy phép (license) trả phí với quyền Dev Mode mới có thể nhìn thấy Annotations trên màn hình giao diện.
-- **Tầng API (Mức kỹ thuật)**: API của plugin (`node.annotations`) vẫn cho phép đọc và ghi data nội bộ vào Node ngay cả khi người dùng không có quyền hiển thị. MCP lợi dụng đặc điểm này để LLMs có thể hỗ trợ chuẩn bị sẵn tài liệu kỹ thuật trên thiết kế mà không gặp lỗi.
+The MCP Plugin supports writing (creating or replacing) and deleting annotations.
+*(The `get_annotations` read API has been implemented independently.)*
 
-## 3. Ghi Annotations (`set_annotations`)
+## 2. Environment Constraints (Paid Users / Dev Mode Seat)
+
+- **UI visibility**: Only users with a paid license and Dev Mode access can see Annotations in the interface.
+- **API layer (technical behavior)**: The Figma Plugin API (`node.annotations`) still allows reading and writing internal data on a Node even when the user does not have permission to display it. MCP uses this behavior so LLMs can prepare technical documentation on a design without encountering an error.
+
+## 3. Write Annotations (`set_annotations`)
 
 ### Input Payload
+
 ```json
 {
   "nodeId": "1:1",
@@ -29,19 +32,24 @@ MCP Plugin hỗ trợ thao tác Ghi (Gán mới / Ghi đè) và Xoá Annotations
 }
 ```
 
-### Logic Ghi đè
-Figma API định nghĩa thuộc tính `annotations` của một Node dưới dạng `ReadonlyArray<Annotation>`. Việc thêm mới yêu cầu phải gán lại toàn bộ mảng thay vì phương thức `.push()`:
+### Replacement Logic
+
+The Figma API defines a Node's `annotations` property as a `ReadonlyArray<Annotation>`. Adding annotations requires assigning the complete array rather than calling `.push()`:
+
 ```typescript
 (node as any).annotations = p.annotations;
 ```
-*Lưu ý:* Việc gán này sẽ thay thế toàn bộ Annotations cũ đang có trên Node đó.
 
-## 4. Xoá Annotations (`clear_annotations`)
+*Note:* This assignment replaces all existing Annotations on the Node.
 
-### Mục đích
-Làm sạch (clear) toàn bộ các ghi chú kỹ thuật hiện có trên một hoặc nhiều node cùng lúc.
+## 4. Delete Annotations (`clear_annotations`)
+
+### Purpose
+
+Clear all existing technical annotations from one or more nodes at the same time.
 
 ### Input Payload
+
 ```json
 {
   "nodeIds": ["1:1", "1:2"]
@@ -49,7 +57,9 @@ Làm sạch (clear) toàn bộ các ghi chú kỹ thuật hiện có trên một
 ```
 
 ### Logic
-Lặp qua danh sách các ID, kiểm tra node có hỗ trợ thuộc tính `annotations` hay không (`"annotations" in node`), sau đó gán mảng rỗng:
+
+Iterate over the list of IDs, check whether each node supports the `annotations` property (`"annotations" in node`), and then assign an empty array:
+
 ```typescript
 (node as any).annotations = [];
 ```

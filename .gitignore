@@ -14,6 +14,7 @@ CLAUDE.md
 # Plugin
 node_modules/
 plugin/dist/
+plugin/coverage/
 
 # OS
 .DS_Store
