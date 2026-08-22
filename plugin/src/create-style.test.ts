@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { handleWriteStyleRequest } from "./write-styles";
 
 // create_style replaced four create_*_style tools on the MCP surface. These

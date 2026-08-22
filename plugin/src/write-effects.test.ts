@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { handleWriteStyleRequest } from "./write-styles";
 
 // ── Figma global mock ─────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { executeRollback, isCreateStep, resolveParams, SymbolTable, WALStack } from './batch-pipeline';
 import { handleWriteRequest } from './write-handlers';
 

@@ -57,19 +57,13 @@ jobs:
             done
           done
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 9
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: plugin/pnpm-lock.yaml
+          bun-version: 1.4.0
 
       - name: Build plugin
         working-directory: plugin
-        run: pnpm install && pnpm run build
+        run: bun install --frozen-lockfile && bun run build
 
       - name: Package plugin
         run: zip -r plugin.zip plugin/manifest.json plugin/dist/

@@ -39,7 +39,7 @@ This project takes a different approach by running as a local **Figma Plugin**. 
 
 ## Installation & Setup
 
-Install via `npx` — no build step required. Watch the setup video or follow the steps below.
+Install via `npx` or `bunx` — no build step required. Watch the setup video or follow the steps below.
 
 [![Watch the video](https://img.youtube.com/vi/DjqyU0GKv9k/sddefault.jpg)](https://youtu.be/DjqyU0GKv9k)
 
@@ -47,12 +47,20 @@ Install via `npx` — no build step required. Watch the setup video or follow th
 
 **Claude Code CLI**
 ```bash
+# via npx
 claude mcp add -s project figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
+
+# or via bunx
+claude mcp add -s project figma-mcp-go -- bunx @tunglt1810/figma-mcp-go@latest
 ```
 
 **Codex CLI**
 ```bash
+# via npx
 codex mcp add figma-mcp-go -- npx -y @tunglt1810/figma-mcp-go@latest
+
+# or via bunx
+codex mcp add figma-mcp-go -- bunx @tunglt1810/figma-mcp-go@latest
 ```
 
 **.mcp.json** (Claude and other MCP-compatible tools)
@@ -326,6 +334,12 @@ because `type` names the kind of style. Gradients can only target a fill;
 | `reaction_to_connector_strategy` | Map prototype reactions into interaction flow diagrams |
 
 ---
+
+## Development
+
+- **Go Server**: Go 1.22+ (`make test-go`, `make build-go`)
+- **Plugin UI**: Bun 1.4+ (`cd plugin && bun install && bun run build`)
+- **Testing**: `make test` (runs Go tests + `bun test` in plugin)
 
 ## Contributing
 
