@@ -43,7 +43,7 @@ func ValidHexColor(s string) bool {
 // ValidateRPC validates an incoming RPC request against the tool's expected
 // input shape. Returns an error string on failure, empty string if valid.
 // Every tool declares its rules in the spec table; this is the lookup.
-func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) string {
+func ValidateRPC(tool string, nodeIDs []string, params map[string]any) string {
 	spec, ok := specRegistry[tool]
 	if !ok {
 		return ""
@@ -120,7 +120,7 @@ var blendModeNames = []string{
 
 // validateConstraintAxes checks the horizontal/vertical values of a constraints
 // object, which set_node_properties carries nested under "constraints".
-func validateConstraintAxes(c map[string]interface{}) string {
+func validateConstraintAxes(c map[string]any) string {
 	for _, axis := range []string{"horizontal", "vertical"} {
 		v, ok := c[axis].(string)
 		if !ok || v == "" {
@@ -133,12 +133,4 @@ func validateConstraintAxes(c map[string]interface{}) string {
 		}
 	}
 	return ""
-}
-
-func validExportFormat(f string) bool {
-	switch f {
-	case "PNG", "SVG", "JPG", "PDF":
-		return true
-	}
-	return false
 }

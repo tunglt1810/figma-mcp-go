@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -101,7 +102,7 @@ type toolSpec struct {
 
 	// Validate expresses rules a paramSpec cannot: "at least one of x or y",
 	// mutually exclusive arguments, nested shapes.
-	Validate func(nodeIDs []string, params map[string]interface{}) string
+	Validate func(nodeIDs []string, params map[string]any) string
 }
 
 func (s toolSpec) nodeIDsArg() string {
@@ -191,7 +192,7 @@ func specHandler(node *Node, spec toolSpec) func(context.Context, mcp.CallToolRe
 // specArgs splits a request's arguments into node IDs and plugin params.
 // Arguments the caller omitted are left out entirely so the plugin can apply
 // its own defaults.
-func specArgs(spec toolSpec, args map[string]interface{}) ([]string, map[string]interface{}) {
+func specArgs(spec toolSpec, args map[string]any) ([]string, map[string]any) {
 	var nodeIDs []string
 	switch spec.NodeIDs {
 	case nodeIDsSingle:
@@ -199,11 +200,11 @@ func specArgs(spec toolSpec, args map[string]interface{}) ([]string, map[string]
 			nodeIDs = []string{id}
 		}
 	case nodeIDsMulti:
-		raw, _ := args[spec.nodeIDsArg()].([]interface{})
+		raw, _ := args[spec.nodeIDsArg()].([]any)
 		nodeIDs = toStringSlice(raw)
 	}
 
-	params := map[string]interface{}{}
+	params := map[string]any{}
 	for _, p := range spec.Params {
 		v, ok := args[p.Name]
 		if !ok || v == nil {
@@ -216,7 +217,7 @@ func specArgs(spec toolSpec, args map[string]interface{}) ([]string, map[string]
 				continue
 			}
 		case kindStringArray:
-			raw, ok := v.([]interface{})
+			raw, ok := v.([]any)
 			if !ok || len(raw) == 0 {
 				continue
 			}
@@ -231,7 +232,7 @@ func specArgs(spec toolSpec, args map[string]interface{}) ([]string, map[string]
 
 // validateSpec applies the rules the spec states directly. Cross-field rules
 // live in spec.Validate.
-func validateSpec(spec toolSpec, nodeIDs []string, params map[string]interface{}) string {
+func validateSpec(spec toolSpec, nodeIDs []string, params map[string]any) string {
 	if spec.NodeIDs != nodeIDsNone {
 		if spec.NodeIDsReq && len(nodeIDs) == 0 {
 			return fmt.Sprintf("%s is required", spec.nodeIDsArg())
@@ -289,7 +290,7 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]interface{}
 				return fmt.Sprintf("%s must be a boolean", p.Name)
 			}
 		case kindObject:
-			if _, ok := v.(map[string]interface{}); !ok {
+			if _, ok := v.(map[string]any); !ok {
 				return fmt.Sprintf("%s must be an object", p.Name)
 			}
 		case kindStringArray, kindNumberArray, kindObjectArray, kindArray:
@@ -307,8 +308,8 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]interface{}
 
 // validateArrayParam checks an array argument and, where the spec states an
 // element type, each of its elements.
-func validateArrayParam(p paramSpec, v interface{}) string {
-	items, ok := v.([]interface{})
+func validateArrayParam(p paramSpec, v any) string {
+	items, ok := v.([]any)
 	if !ok {
 		return fmt.Sprintf("%s must be an array", p.Name)
 	}
@@ -323,7 +324,7 @@ func validateArrayParam(p paramSpec, v interface{}) string {
 			_, good := item.(float64)
 			wrong, want = !good, "a number"
 		case kindObjectArray:
-			_, good := item.(map[string]interface{})
+			_, good := item.(map[string]any)
 			wrong, want = !good, "an object"
 		}
 		if wrong {
@@ -348,8 +349,8 @@ type variantSpec struct {
 // making if the wrong argument is reported rather than quietly ignored, so an
 // argument belonging to a different variant is an error here, named and
 // attributed to the variant it belongs to.
-func requireVariant(discriminator string, variants map[string]variantSpec, common ...string) func([]string, map[string]interface{}) string {
-	return func(_ []string, params map[string]interface{}) string {
+func requireVariant(discriminator string, variants map[string]variantSpec, common ...string) func([]string, map[string]any) string {
+	return func(_ []string, params map[string]any) string {
 		kind, _ := params[discriminator].(string)
 		variant, known := variants[kind]
 		if !known {
@@ -399,8 +400,8 @@ func variantKinds(variants map[string]variantSpec) []string {
 
 // requireAnyOf builds a Validate rejecting a request that supplies none of the
 // listed arguments. Several tools accept a choice of fields but need one.
-func requireAnyOf(msg string, keys ...string) func([]string, map[string]interface{}) string {
-	return func(_ []string, params map[string]interface{}) string {
+func requireAnyOf(msg string, keys ...string) func([]string, map[string]any) string {
+	return func(_ []string, params map[string]any) string {
 		for _, k := range keys {
 			if _, ok := params[k]; ok {
 				return ""
@@ -411,12 +412,7 @@ func requireAnyOf(msg string, keys ...string) func([]string, map[string]interfac
 }
 
 func containsString(haystack []string, needle string) bool {
-	for _, s := range haystack {
-		if s == needle {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(haystack, needle)
 }
 
 // ── Registry ─────────────────────────────────────────────────────────────────
@@ -467,7 +463,7 @@ func registerSpecs(s *server.MCPServer, node *Node, specs []toolSpec) {
 // customHandler is the handler of a tool that does work in Go — writing files,
 // merging PDFs — around its call to the plugin. It is handed arguments already
 // split, normalized and checked against the spec.
-type customHandler func(ctx context.Context, nodeIDs []string, params map[string]interface{}) (*mcp.CallToolResult, error)
+type customHandler func(ctx context.Context, nodeIDs []string, params map[string]any) (*mcp.CallToolResult, error)
 
 // registerCustom adds a table-declared tool whose handler is not a plain
 // forwarder. The schema and the validation still come from the spec; only the
@@ -482,4 +478,4 @@ func registerCustom(s *server.MCPServer, spec toolSpec, h customHandler) {
 	})
 }
 
-func floatPtr(f float64) *float64 { return &f }
+func floatPtr(f float64) *float64 { return new(f) }

@@ -2,7 +2,7 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"log"
@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 )
 
 var bridgeLogger = log.New(os.Stderr, "[bridge] ", 0)
@@ -182,7 +181,7 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 	ctx := context.Background()
 	for {
 		var resp BridgeResponse
-		if err := wsjson.Read(ctx, conn, &resp); err != nil {
+		if err := readJSON(ctx, conn, &resp); err != nil {
 			if !errors.Is(err, context.Canceled) {
 				bridgeLogger.Printf("read error: %v", err)
 			}
@@ -218,7 +217,7 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 				"version": b.version,
 			}
 			b.wmu.Lock()
-			if err := wsjson.Write(ctx, conn, infoMsg); err != nil {
+			if err := writeJSON(ctx, conn, infoMsg); err != nil {
 				bridgeLogger.Printf("failed to write server-info: %v", err)
 			}
 			b.wmu.Unlock()
@@ -264,7 +263,7 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 }
 
 // Send sends a request to the plugin and waits for the response.
-func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string, params map[string]interface{}) (BridgeResponse, error) {
+func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string, params map[string]any) (BridgeResponse, error) {
 	b.mu.RLock()
 	conn := b.conn
 	b.mu.RUnlock()
@@ -308,7 +307,7 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 	start := time.Now()
 
 	b.wmu.Lock()
-	writeErr := wsjson.Write(ctx, conn, req)
+	writeErr := writeJSON(ctx, conn, req)
 	b.wmu.Unlock()
 	if writeErr != nil {
 		entry.timer.Stop()
@@ -370,14 +369,40 @@ func (b *Bridge) IsConnected() bool {
 	return b.conn != nil
 }
 
+// readJSON reads one WebSocket message and decodes it into v. It stands in for
+// wsjson.Read, which is hardwired to encoding/json v1. Like wsjson, a payload
+// that fails to decode closes the connection: a peer that cannot frame valid
+// JSON will not do better on the next message.
+func readJSON(ctx context.Context, conn *websocket.Conn, v any) error {
+	_, data, err := conn.Read(ctx)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, v); err != nil {
+		conn.Close(websocket.StatusInvalidFramePayloadData, "failed to unmarshal JSON") //nolint:errcheck
+		return fmt.Errorf("failed to unmarshal JSON: %w", err)
+	}
+	return nil
+}
+
+// writeJSON encodes v and sends it as a single text message, standing in for
+// wsjson.Write for the same reason as readJSON.
+func writeJSON(ctx context.Context, conn *websocket.Conn, v any) error {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+	return conn.Write(ctx, websocket.MessageText, data)
+}
+
 // MarshalJSON is used when logging — avoid printing full conn object.
 func (b *Bridge) MarshalJSON() ([]byte, error) {
 	b.mu.RLock()
 	connected := b.conn != nil
 	pending := len(b.pending)
 	b.mu.RUnlock()
-	return json.Marshal(map[string]interface{}{
+	return json.Marshal(map[string]any{
 		"connected": connected,
 		"pending":   pending,
-	})
+	}, json.Deterministic(true))
 }

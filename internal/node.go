@@ -13,7 +13,7 @@ var nodeLogger = log.New(os.Stderr, "[node] ", 0)
 // sender is anything that can carry a tool call to the plugin — the Leader's
 // Bridge (direct WebSocket) or a Follower (HTTP proxy to the leader).
 type sender interface {
-	Send(ctx context.Context, tool string, nodeIDs []string, params map[string]interface{}) (BridgeResponse, error)
+	Send(ctx context.Context, tool string, nodeIDs []string, params map[string]any) (BridgeResponse, error)
 }
 
 // Node dynamically routes MCP tool calls to either the Leader bridge
@@ -40,7 +40,7 @@ var nodeIDParams = map[string]bool{
 
 // normalizeArgs returns copies of the arguments with node IDs normalized.
 // Copies, not in-place edits: the caller's slice and map belong to the caller.
-func normalizeArgs(nodeIDs []string, params map[string]interface{}) ([]string, map[string]interface{}) {
+func normalizeArgs(nodeIDs []string, params map[string]any) ([]string, map[string]any) {
 	var ids []string
 	if nodeIDs != nil {
 		ids = make([]string, len(nodeIDs))
@@ -49,9 +49,9 @@ func normalizeArgs(nodeIDs []string, params map[string]interface{}) ([]string, m
 		}
 	}
 
-	var p map[string]interface{}
+	var p map[string]any
 	if params != nil {
-		p, _ = normalizeValue(params).(map[string]interface{})
+		p, _ = normalizeValue(params).(map[string]any)
 	}
 
 	return ids, p
@@ -60,10 +60,10 @@ func normalizeArgs(nodeIDs []string, params map[string]interface{}) ([]string, m
 // normalizeValue rebuilds v with every node ID it can find normalized. Maps and
 // slices are rebuilt rather than edited, so nothing the caller passed in
 // changes underfoot.
-func normalizeValue(v interface{}) interface{} {
+func normalizeValue(v any) any {
 	switch t := v.(type) {
-	case map[string]interface{}:
-		out := make(map[string]interface{}, len(t))
+	case map[string]any:
+		out := make(map[string]any, len(t))
 		for k, val := range t {
 			switch {
 			case nodeIDParams[k]:
@@ -79,8 +79,8 @@ func normalizeValue(v interface{}) interface{} {
 			}
 		}
 		return out
-	case []interface{}:
-		out := make([]interface{}, len(t))
+	case []any:
+		out := make([]any, len(t))
 		for i, item := range t {
 			out[i] = normalizeValue(item)
 		}
@@ -92,12 +92,12 @@ func normalizeValue(v interface{}) interface{} {
 
 // normalizeIDList handles a "nodeIds" value, which is a list of ids rather than
 // a nested structure.
-func normalizeIDList(v interface{}) interface{} {
-	list, ok := v.([]interface{})
+func normalizeIDList(v any) any {
+	list, ok := v.([]any)
 	if !ok {
 		return normalizeValue(v)
 	}
-	out := make([]interface{}, len(list))
+	out := make([]any, len(list))
 	for i, item := range list {
 		if s, ok := item.(string); ok {
 			out[i] = NormalizeNodeID(s)
@@ -144,7 +144,7 @@ func (n *Node) RoleName() string {
 // it applies to every tool call. A leader process talks to its own Bridge
 // directly and never crosses /rpc, so validation placed there alone would be
 // skipped for the common single-client setup.
-func (n *Node) Send(ctx context.Context, tool string, nodeIDs []string, params map[string]interface{}) (BridgeResponse, error) {
+func (n *Node) Send(ctx context.Context, tool string, nodeIDs []string, params map[string]any) (BridgeResponse, error) {
 	// Normalize first: the hyphen format LLMs emit must be accepted, not
 	// rejected by the validation that exists to tolerate it.
 	nodeIDs, params = normalizeArgs(nodeIDs, params)

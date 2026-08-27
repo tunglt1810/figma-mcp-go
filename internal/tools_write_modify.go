@@ -67,7 +67,7 @@ var writeModifySpecs = []toolSpec{
 				Desc: "Stroke weight in pixels (default 1). Only when target is stroke."},
 			fillModeParam("'replace' (default) overwrites the existing paints; 'append' stacks this one on top"),
 		},
-		Validate: func(nodeIDs []string, params map[string]interface{}) string {
+		Validate: func(nodeIDs []string, params map[string]any) string {
 			if msg := requireVariant("type", paintVariants, "target", "mode", "strokeWeight")(nodeIDs, params); msg != "" {
 				return msg
 			}
@@ -82,9 +82,9 @@ var writeModifySpecs = []toolSpec{
 			// The stops carry colors of their own, one level down from anything
 			// a paramSpec can reach.
 			if kind != "SOLID" {
-				stops, _ := params["stops"].([]interface{})
+				stops, _ := params["stops"].([]any)
 				for i, raw := range stops {
-					stop, ok := raw.(map[string]interface{})
+					stop, ok := raw.(map[string]any)
 					if !ok {
 						return fmt.Sprintf("stops[%d] must be an object", i)
 					}
@@ -187,7 +187,7 @@ var writeModifySpecs = []toolSpec{
 			{Name: "order", Kind: kindString, Enum: validNodeOrders,
 				Desc: "Change z-order: bringToFront, sendToBack, bringForward, or sendBackward"},
 		},
-		Validate: func(_ []string, params map[string]interface{}) string {
+		Validate: func(_ []string, params map[string]any) string {
 			supplied := false
 			for _, key := range nodePropertyKeys {
 				if _, ok := params[key]; ok {
@@ -198,7 +198,7 @@ var writeModifySpecs = []toolSpec{
 			if !supplied {
 				return "at least one of visible, locked, opacity, rotation, blendMode, constraints, or order is required"
 			}
-			if c, ok := params["constraints"].(map[string]interface{}); ok {
+			if c, ok := params["constraints"].(map[string]any); ok {
 				return validateConstraintAxes(c)
 			}
 			return ""
@@ -238,7 +238,7 @@ var writeModifySpecs = []toolSpec{
 			{Name: "prefix", Kind: kindString, Desc: "String to prepend to the node name"},
 			{Name: "suffix", Kind: kindString, Desc: "String to append to the node name"},
 		},
-		Validate: func(_ []string, params map[string]interface{}) string {
+		Validate: func(_ []string, params map[string]any) string {
 			_, hasFind := params["find"]
 			_, hasReplace := params["replace"]
 			_, hasPrefix := params["prefix"]

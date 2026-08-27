@@ -2,7 +2,8 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"sort"
 	"testing"
@@ -22,8 +23,8 @@ type toolsListResponse struct {
 }
 
 type propertySchema struct {
-	Type  string          `json:"type"`
-	Items json.RawMessage `json:"items"`
+	Type  string         `json:"type"`
+	Items jsontext.Value `json:"items"`
 }
 
 // listTools calls tools/list through the server's HandleMessage path and returns

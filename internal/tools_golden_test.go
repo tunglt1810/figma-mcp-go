@@ -2,7 +2,8 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"os"
 	"path/filepath"
@@ -16,8 +17,8 @@ var updateGolden = flag.Bool("update", false, "rewrite the tools/list golden sna
 
 const goldenPath = "testdata/tools_schema.json"
 
-// toolsListJSON returns the tools/list result as indented JSON. Map keys are
-// sorted by encoding/json, so the output is stable across runs.
+// toolsListJSON returns the tools/list result as indented JSON. Deterministic
+// sorts map keys, so the output is stable across runs.
 func toolsListJSON(t *testing.T) []byte {
 	t.Helper()
 	s, _ := newTestServer(t)
@@ -28,7 +29,7 @@ func toolsListJSON(t *testing.T) []byte {
 
 	var envelope struct {
 		Result struct {
-			Tools []json.RawMessage `json:"tools"`
+			Tools []jsontext.Value `json:"tools"`
 		} `json:"result"`
 	}
 	b, err := json.Marshal(raw)
@@ -40,7 +41,7 @@ func toolsListJSON(t *testing.T) []byte {
 	}
 
 	// Key by name so a reordering of registration calls is not a diff.
-	byName := map[string]json.RawMessage{}
+	byName := map[string]jsontext.Value{}
 	for _, tool := range envelope.Result.Tools {
 		var nm struct {
 			Name string `json:"name"`
@@ -51,7 +52,7 @@ func toolsListJSON(t *testing.T) []byte {
 		byName[nm.Name] = tool
 	}
 
-	out, err := json.MarshalIndent(byName, "", "  ")
+	out, err := json.Marshal(byName, jsontext.WithIndent("  "), json.Deterministic(true))
 	if err != nil {
 		t.Fatalf("marshal golden: %v", err)
 	}

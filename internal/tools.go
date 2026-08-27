@@ -3,7 +3,7 @@ package internal
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -29,7 +29,7 @@ func RegisterPrompts(s *server.MCPServer) {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 // makeHandler creates a simple tool handler with no parameters.
-func makeHandler(node *Node, command string, nodeIDs []string, params map[string]interface{}) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func makeHandler(node *Node, command string, nodeIDs []string, params map[string]any) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		resp, err := node.Send(ctx, command, nodeIDs, params)
 		return renderResponse(resp, err)
@@ -44,15 +44,18 @@ func renderResponse(resp BridgeResponse, err error) (*mcp.CallToolResult, error)
 	if resp.Error != "" {
 		return mcp.NewToolResultError(resp.Error), nil
 	}
-	text, err := json.Marshal(resp.Data)
+	// Deterministic keeps map keys sorted. encoding/json v1 sorted them for
+	// free; v2 does not, and plugin data is mostly maps, so without this the
+	// same tool call would come back with its keys shuffled every time.
+	text, err := json.Marshal(resp.Data, json.Deterministic(true))
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshal response: %v", err)), nil
 	}
 	return mcp.NewToolResultText(string(text)), nil
 }
 
-// toStringSlice converts []interface{} to []string.
-func toStringSlice(raw []interface{}) []string {
+// toStringSlice converts []any to []string.
+func toStringSlice(raw []any) []string {
 	out := make([]string, 0, len(raw))
 	for _, v := range raw {
 		if s, ok := v.(string); ok {
@@ -68,7 +71,7 @@ type saveItem struct {
 	NodeID     string  `json:"nodeId"`
 	OutputPath string  `json:"outputPath"`
 	Format     string  `json:"format,omitempty"`
-	Scale      float64 `json:"scale,omitempty"`
+	Scale      float64 `json:"scale,omitzero"`
 }
 
 type saveResult struct {
@@ -77,15 +80,15 @@ type saveResult struct {
 	NodeName     string  `json:"nodeName,omitempty"`
 	OutputPath   string  `json:"outputPath"`
 	Format       string  `json:"format,omitempty"`
-	Width        float64 `json:"width,omitempty"`
-	Height       float64 `json:"height,omitempty"`
-	BytesWritten int     `json:"bytesWritten,omitempty"`
+	Width        float64 `json:"width,omitzero"`
+	Height       float64 `json:"height,omitzero"`
+	BytesWritten int     `json:"bytesWritten,omitzero"`
 	Success      bool    `json:"success"`
 	Error        string  `json:"error,omitempty"`
 }
 
-func executeSaveScreenshots(ctx context.Context, node *Node, params map[string]interface{}) (*mcp.CallToolResult, error) {
-	rawItems, _ := params["items"].([]interface{})
+func executeSaveScreenshots(ctx context.Context, node *Node, params map[string]any) (*mcp.CallToolResult, error) {
+	rawItems, _ := params["items"].([]any)
 	defaultFormat, _ := params["format"].(string)
 	defaultScale, _ := params["scale"].(float64)
 
@@ -114,13 +117,13 @@ func executeSaveScreenshots(ctx context.Context, node *Node, params map[string]i
 		}
 	}
 
-	out, err := json.Marshal(map[string]interface{}{
+	out, err := json.Marshal(map[string]any{
 		"total":     len(results),
 		"succeeded": succeeded,
 		"failed":    failed,
 		"hasErrors": failed > 0,
 		"results":   results,
-	})
+	}, json.Deterministic(true))
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
 	}
@@ -151,7 +154,7 @@ func saveScreenshotItem(ctx context.Context, node *Node, item saveItem, index in
 		scale = defaultScale
 	}
 
-	params := map[string]interface{}{"format": format}
+	params := map[string]any{"format": format}
 	if scale > 0 {
 		params["scale"] = scale
 	}
@@ -195,7 +198,7 @@ type screenshotExport struct {
 	Height   float64 `json:"height"`
 }
 
-func extractScreenshotExport(data interface{}) (screenshotExport, error) {
+func extractScreenshotExport(data any) (screenshotExport, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return screenshotExport{}, err
@@ -263,7 +266,7 @@ func inferFormat(path string) string {
 	return ""
 }
 
-func parseSaveItem(raw interface{}) (saveItem, error) {
+func parseSaveItem(raw any) (saveItem, error) {
 	b, err := json.Marshal(raw)
 	if err != nil {
 		return saveItem{}, err

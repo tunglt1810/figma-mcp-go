@@ -337,9 +337,12 @@ because `type` names the kind of style. Gradients can only target a fill;
 
 ## Development
 
-- **Go Server**: Go 1.22+ (`make test-go`, `make build-go`)
+- **Go Server**: Go 1.27+ (`make test-go`, `make build-go`)
 - **Plugin UI**: Bun 1.4+ (`cd plugin && bun install && bun run build`)
 - **Testing**: `make test` (runs Go tests + `bun test` in plugin)
+
+On macOS the published binaries require macOS 13 Ventura or later — Go 1.27
+dropped support for earlier versions.
 
 ## Contributing
 

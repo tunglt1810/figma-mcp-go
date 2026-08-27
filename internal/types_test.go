@@ -1,7 +1,7 @@
 package internal
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"strings"
 	"testing"
 )
@@ -11,7 +11,7 @@ func TestBridgeRequestJSONRoundTrip(t *testing.T) {
 		Type:      "get_node",
 		RequestID: "req-120000-1",
 		NodeIDs:   []string{"1:1", "2:2"},
-		Params:    map[string]interface{}{"depth": float64(2)},
+		Params:    map[string]any{"depth": float64(2)},
 	}
 	b, err := json.Marshal(req)
 	if err != nil {
@@ -72,7 +72,7 @@ func TestRPCRequestJSONRoundTrip(t *testing.T) {
 	req := RPCRequest{
 		Tool:    "move_nodes",
 		NodeIDs: []string{"1:1"},
-		Params:  map[string]interface{}{"x": float64(10)},
+		Params:  map[string]any{"x": float64(10)},
 	}
 	b, _ := json.Marshal(req)
 	var got RPCRequest
@@ -83,7 +83,7 @@ func TestRPCRequestJSONRoundTrip(t *testing.T) {
 }
 
 func TestRPCResponseJSONRoundTrip(t *testing.T) {
-	resp := RPCResponse{Data: map[string]interface{}{"id": "1:1"}, Error: ""}
+	resp := RPCResponse{Data: map[string]any{"id": "1:1"}, Error: ""}
 	b, _ := json.Marshal(resp)
 	var got RPCResponse
 	json.Unmarshal(b, &got)

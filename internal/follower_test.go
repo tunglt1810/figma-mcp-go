@@ -2,7 +2,7 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -58,14 +58,14 @@ func TestFollowerSend_Success(t *testing.T) {
 		}
 		// Decode request to verify it was marshaled correctly.
 		var req RPCRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		json.UnmarshalRead(r.Body, &req)
 		if req.Tool == "" {
 			http.Error(w, "missing tool", http.StatusBadRequest)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(RPCResponse{Data: wantData})
+		json.MarshalWrite(w, RPCResponse{Data: wantData})
 	}))
 	t.Cleanup(srv.Close)
 
@@ -85,7 +85,7 @@ func TestFollowerSend_Success(t *testing.T) {
 func TestFollowerSend_LeaderReturnsError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(RPCResponse{Error: "plugin not connected"})
+		json.MarshalWrite(w, RPCResponse{Error: "plugin not connected"})
 	}))
 	t.Cleanup(srv.Close)
 
@@ -124,9 +124,9 @@ func TestFollowerSend_ForwardsParams(t *testing.T) {
 	var capturedReq RPCRequest
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&capturedReq)
+		json.UnmarshalRead(r.Body, &capturedReq)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(RPCResponse{Data: "ok"})
+		json.MarshalWrite(w, RPCResponse{Data: "ok"})
 	}))
 	t.Cleanup(srv.Close)
 

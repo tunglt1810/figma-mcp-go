@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -65,13 +65,13 @@ var saveScreenshotsSpec = toolSpec{
 		{Name: "scale", Kind: kindNumber, Positive: true,
 			Desc: "Default export scale for raster formats (default 2)"},
 	},
-	Validate: func(_ []string, params map[string]interface{}) string {
-		items, _ := params["items"].([]interface{})
+	Validate: func(_ []string, params map[string]any) string {
+		items, _ := params["items"].([]any)
 		if len(items) == 0 {
 			return "items must be a non-empty array"
 		}
 		for i, item := range items {
-			m, _ := item.(map[string]interface{})
+			m, _ := item.(map[string]any)
 			if nodeID, _ := m["nodeId"].(string); !ValidNodeID(nodeID) {
 				return fmt.Sprintf("items[%d].nodeId must use colon format e.g. 4029:12345", i)
 			}
@@ -90,12 +90,12 @@ var exportSpecs = []toolSpec{getScreenshotSpec, exportFramesToPDFSpec, saveScree
 func registerReadExportTools(s *server.MCPServer, node *Node) {
 	registerSpecs(s, node, []toolSpec{getScreenshotSpec})
 
-	registerCustom(s, exportFramesToPDFSpec, func(ctx context.Context, nodeIDs []string, params map[string]interface{}) (*mcp.CallToolResult, error) {
+	registerCustom(s, exportFramesToPDFSpec, func(ctx context.Context, nodeIDs []string, params map[string]any) (*mcp.CallToolResult, error) {
 		outputPath, _ := params["outputPath"].(string)
 		return executeExportFramesToPDF(ctx, node, nodeIDs, outputPath)
 	})
 
-	registerCustom(s, saveScreenshotsSpec, func(ctx context.Context, _ []string, params map[string]interface{}) (*mcp.CallToolResult, error) {
+	registerCustom(s, saveScreenshotsSpec, func(ctx context.Context, _ []string, params map[string]any) (*mcp.CallToolResult, error) {
 		return executeSaveScreenshots(ctx, node, params)
 	})
 }
@@ -142,19 +142,19 @@ func executeExportFramesToPDF(ctx context.Context, node *Node, nodeIDs []string,
 		return mcp.NewToolResultError(fmt.Sprintf("write file: %v", err)), nil
 	}
 
-	out, _ := json.Marshal(map[string]interface{}{
+	out, _ := json.Marshal(map[string]any{
 		"outputPath":   resolvedPath,
 		"bytesWritten": len(merged),
 		"pageCount":    len(pages),
 		"replaced":     replaced,
 		"success":      true,
-	})
+	}, json.Deterministic(true))
 	return mcp.NewToolResultText(string(out)), nil
 }
 
 // extractFramePDFs parses the plugin response `{frames:[{base64:...},...]}` and
 // returns raw PDF bytes for each frame.
-func extractFramePDFs(data interface{}) ([][]byte, error) {
+func extractFramePDFs(data any) ([][]byte, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return nil, err

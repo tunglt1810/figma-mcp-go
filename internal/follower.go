@@ -3,7 +3,7 @@ package internal
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"log"
@@ -31,7 +31,7 @@ func NewFollower(leaderURL string) *Follower {
 }
 
 // Send proxies a tool call to the leader.
-func (f *Follower) Send(ctx context.Context, tool string, nodeIDs []string, params map[string]interface{}) (BridgeResponse, error) {
+func (f *Follower) Send(ctx context.Context, tool string, nodeIDs []string, params map[string]any) (BridgeResponse, error) {
 	followerLogger.Printf("proxy %s nodeIDs=%v params=%v → %s/rpc", tool, nodeIDs, params, f.leaderURL)
 	start := time.Now()
 

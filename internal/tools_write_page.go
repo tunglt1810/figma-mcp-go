@@ -13,7 +13,7 @@ var pageVariants = map[string]variantSpec{
 }
 
 // requirePageTarget accepts either a page id or an exact page name.
-func requirePageTarget(_ []string, params map[string]interface{}) string {
+func requirePageTarget(_ []string, params map[string]any) string {
 	pageID, _ := params["pageId"].(string)
 	pageName, _ := params["pageName"].(string)
 	if pageID == "" && pageName == "" {
@@ -44,7 +44,7 @@ var writePageSpecs = []toolSpec{
 				Desc: "add: position to insert at (0 = first). Defaults to last."},
 			{Name: "newName", Kind: kindString, Desc: "rename: the page's new name"},
 		},
-		Validate: func(nodeIDs []string, params map[string]interface{}) string {
+		Validate: func(nodeIDs []string, params map[string]any) string {
 			if msg := requireVariant("action", pageVariants)(nodeIDs, params); msg != "" {
 				return msg
 			}

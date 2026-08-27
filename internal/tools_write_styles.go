@@ -139,10 +139,10 @@ var writeStyleSpecs = []toolSpec{
 					"GLASS: radius, depth, lightIntensity, lightAngle, refraction, dispersion. " +
 					"visible defaults to true on every type."},
 		},
-		Validate: func(_ []string, params map[string]interface{}) string {
-			effects, _ := params["effects"].([]interface{})
+		Validate: func(_ []string, params map[string]any) string {
+			effects, _ := params["effects"].([]any)
 			for i, e := range effects {
-				em, _ := e.(map[string]interface{})
+				em, _ := e.(map[string]any)
 				t, _ := em["type"].(string)
 				if !containsString(nodeEffectTypes, t) {
 					return fmt.Sprintf("effects[%d].type must be one of %s, got: %s",

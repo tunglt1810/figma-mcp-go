@@ -2,7 +2,7 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 )
 
 // setupBridgeWithClient creates a Bridge with an active WebSocket client connected to it.
@@ -169,7 +168,7 @@ func TestBridgeSend_Success(t *testing.T) {
 	// Goroutine: echo request back as a successful response.
 	go func() {
 		var req BridgeRequest
-		if err := wsjson.Read(ctx, clientConn, &req); err != nil {
+		if err := readJSON(ctx, clientConn, &req); err != nil {
 			return
 		}
 		resp := BridgeResponse{
@@ -177,7 +176,7 @@ func TestBridgeSend_Success(t *testing.T) {
 			Type:      req.Type,
 			Data:      map[string]any{"id": "1:1", "name": "Frame 1"},
 		}
-		wsjson.Write(ctx, clientConn, resp) //nolint:errcheck
+		writeJSON(ctx, clientConn, resp) //nolint:errcheck
 	}()
 
 	got, err := b.Send(ctx, "get_node", []string{"1:1"}, nil)
@@ -195,14 +194,14 @@ func TestBridgeSend_PluginError(t *testing.T) {
 
 	go func() {
 		var req BridgeRequest
-		if err := wsjson.Read(ctx, clientConn, &req); err != nil {
+		if err := readJSON(ctx, clientConn, &req); err != nil {
 			return
 		}
 		resp := BridgeResponse{
 			RequestID: req.RequestID,
 			Error:     "node not found",
 		}
-		wsjson.Write(ctx, clientConn, resp) //nolint:errcheck
+		writeJSON(ctx, clientConn, resp) //nolint:errcheck
 	}()
 
 	got, err := b.Send(ctx, "get_node", []string{"9:9"}, nil)
@@ -316,12 +315,11 @@ func TestKeepalive_LeavesAHealthyConnectionAlone(t *testing.T) {
 	t.Cleanup(func() { clientConn.Close(websocket.StatusNormalClosure, "") })
 
 	// Reading is what lets the library answer pings.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go func() {
 		for {
-			var msg map[string]interface{}
-			if err := wsjson.Read(ctx, clientConn, &msg); err != nil {
+			var msg map[string]any
+			if err := readJSON(ctx, clientConn, &msg); err != nil {
 				return
 			}
 		}

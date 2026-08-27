@@ -42,11 +42,11 @@ var writePrototypeSpecs = []toolSpec{
 			{Name: "mode", Kind: kindString, Enum: []string{"replace", "append"},
 				Desc: `"replace" (default) overwrites all existing reactions; "append" adds to them`},
 		},
-		Validate: func(_ []string, params map[string]interface{}) string {
-			reactions, _ := params["reactions"].([]interface{})
+		Validate: func(_ []string, params map[string]any) string {
+			reactions, _ := params["reactions"].([]any)
 			for i, raw := range reactions {
 				// The element type is already checked; only the contents remain.
-				r, _ := raw.(map[string]interface{})
+				r, _ := raw.(map[string]any)
 				if msg := validateReaction(i, r); msg != "" {
 					return msg
 				}

@@ -2,7 +2,7 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -89,7 +89,7 @@ func (l *Leader) handlePing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(map[string]string{
+	err := json.MarshalWrite(w, map[string]string{
 		"status":  "ok",
 		"version": l.version,
 	})
@@ -149,7 +149,7 @@ func (l *Leader) handleRPC(w http.ResponseWriter, r *http.Request) {
 func (l *Leader) sendJSON(w http.ResponseWriter, status int, body RPCResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	if err := json.MarshalWrite(w, body); err != nil {
 		leaderLogger.Printf("encode response error: %v", err)
 	}
 }

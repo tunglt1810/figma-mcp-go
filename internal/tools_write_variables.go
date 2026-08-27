@@ -59,7 +59,7 @@ var writeVariableSpecs = []toolSpec{
 			{Name: "variableId", Kind: kindString, Desc: "Variable ID to delete"},
 			{Name: "collectionId", Kind: kindString, Desc: "Collection ID to delete (removes all variables in the collection)"},
 		},
-		Validate: func(_ []string, params map[string]interface{}) string {
+		Validate: func(_ []string, params map[string]any) string {
 			variableID, _ := params["variableId"].(string)
 			collectionID, _ := params["collectionId"].(string)
 			if variableID == "" && collectionID == "" {

@@ -2,7 +2,7 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"reflect"
 	"testing"
@@ -46,36 +46,36 @@ func TestToolWireShape(t *testing.T) {
 		tool        string
 		args        map[string]any
 		wantNodeIDs []string
-		wantParams  map[string]interface{}
+		wantParams  map[string]any
 	}{
 		{
 			name: "no arguments",
 			tool: "get_styles", args: map[string]any{},
-			wantNodeIDs: nil, wantParams: map[string]interface{}{},
+			wantNodeIDs: nil, wantParams: map[string]any{},
 		},
 		{
 			// The node id belongs in params here; the plugin reads
 			// request.params.nodeId and ignores request.nodeIds.
 			name: "node id stays in params",
 			tool: "get_annotations", args: map[string]any{"nodeId": "4029:12345"},
-			wantNodeIDs: nil, wantParams: map[string]interface{}{"nodeId": "4029:12345"},
+			wantNodeIDs: nil, wantParams: map[string]any{"nodeId": "4029:12345"},
 		},
 		{
 			name: "no node id",
 			tool: "get_annotations", args: map[string]any{},
-			wantNodeIDs: nil, wantParams: map[string]interface{}{},
+			wantNodeIDs: nil, wantParams: map[string]any{},
 		},
 		{
 			name: "format forwarded",
 			tool: "export_tokens", args: map[string]any{"format": "css"},
-			wantNodeIDs: nil, wantParams: map[string]interface{}{"format": "css"},
+			wantNodeIDs: nil, wantParams: map[string]any{"format": "css"},
 		},
 		{
 			// An omitted argument must stay omitted so the plugin's own default
 			// applies, rather than being sent as a zero value.
 			name: "omitted argument stays omitted",
 			tool: "export_tokens", args: map[string]any{},
-			wantNodeIDs: nil, wantParams: map[string]interface{}{},
+			wantNodeIDs: nil, wantParams: map[string]any{},
 		},
 		{
 			// The plugin reads request.nodeIds[0] as the search root, so the
@@ -84,7 +84,7 @@ func TestToolWireShape(t *testing.T) {
 			tool:        "find_replace_text",
 			args:        map[string]any{"nodeId": "4029:12345", "find": "a", "replace": "b"},
 			wantNodeIDs: []string{"4029:12345"},
-			wantParams:  map[string]interface{}{"find": "a", "replace": "b"},
+			wantParams:  map[string]any{"find": "a", "replace": "b"},
 		},
 		{
 			name: "whole page",
@@ -92,19 +92,19 @@ func TestToolWireShape(t *testing.T) {
 			wantNodeIDs: nil,
 			// An empty replacement deletes matches, so it must reach the plugin
 			// rather than being dropped as an absent argument.
-			wantParams: map[string]interface{}{"find": "a", "replace": ""},
+			wantParams: map[string]any{"find": "a", "replace": ""},
 		},
 		{
 			name: "empty text clears the node",
 			tool: "set_text", args: map[string]any{"nodeId": "1:1", "text": ""},
-			wantNodeIDs: []string{"1:1"}, wantParams: map[string]interface{}{"text": ""},
+			wantNodeIDs: []string{"1:1"}, wantParams: map[string]any{"text": ""},
 		},
 		{
 			name:        "empty replacement strips the found text",
 			tool:        "batch_rename_nodes",
 			args:        map[string]any{"nodeIds": []any{"1:1"}, "find": "old", "replace": ""},
 			wantNodeIDs: []string{"1:1"},
-			wantParams:  map[string]interface{}{"find": "old", "replace": ""},
+			wantParams:  map[string]any{"find": "old", "replace": ""},
 		},
 		{
 			// The old handler forwarded every argument it was given, node id
@@ -113,7 +113,7 @@ func TestToolWireShape(t *testing.T) {
 			tool:        "set_auto_layout",
 			args:        map[string]any{"nodeId": "1:1", "layoutMode": "VERTICAL", "itemSpacing": 8},
 			wantNodeIDs: []string{"1:1"},
-			wantParams:  map[string]interface{}{"layoutMode": "VERTICAL", "itemSpacing": float64(8)},
+			wantParams:  map[string]any{"layoutMode": "VERTICAL", "itemSpacing": float64(8)},
 		},
 		{
 			// An empty array means "remove them all" and is not the same as
@@ -122,7 +122,7 @@ func TestToolWireShape(t *testing.T) {
 			tool:        "remove_reactions",
 			args:        map[string]any{"nodeId": "1:1", "indices": []any{}},
 			wantNodeIDs: []string{"1:1"},
-			wantParams:  map[string]interface{}{"indices": []interface{}{}},
+			wantParams:  map[string]any{"indices": []any{}},
 		},
 		{
 			// Empty clears every effect on the node, so the array has to be
@@ -131,7 +131,7 @@ func TestToolWireShape(t *testing.T) {
 			tool:        "set_effects",
 			args:        map[string]any{"nodeId": "1:1", "effects": []any{}},
 			wantNodeIDs: []string{"1:1"},
-			wantParams:  map[string]interface{}{"effects": []interface{}{}},
+			wantParams:  map[string]any{"effects": []any{}},
 		},
 		{
 			// This tool takes no node ids at all; both ends live in params.
@@ -139,14 +139,14 @@ func TestToolWireShape(t *testing.T) {
 			tool:        "create_connector",
 			args:        map[string]any{"startNodeId": "1:1", "endNodeId": "2:2"},
 			wantNodeIDs: nil,
-			wantParams:  map[string]interface{}{"startNodeId": "1:1", "endNodeId": "2:2"},
+			wantParams:  map[string]any{"startNodeId": "1:1", "endNodeId": "2:2"},
 		},
 		{
 			name:        "false is a value, not an omission",
 			tool:        "set_node_properties",
 			args:        map[string]any{"nodeIds": []any{"1:1"}, "visible": false},
 			wantNodeIDs: []string{"1:1"},
-			wantParams:  map[string]interface{}{"visible": false},
+			wantParams:  map[string]any{"visible": false},
 		},
 	}
 

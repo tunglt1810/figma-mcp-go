@@ -2,7 +2,7 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -155,9 +155,9 @@ func TestNodeSend_NormalizesIDs(t *testing.T) {
 
 	// Fake leader that records what the follower sends.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&capturedReq)
+		json.UnmarshalRead(r.Body, &capturedReq)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(RPCResponse{Data: "ok"})
+		json.MarshalWrite(w, RPCResponse{Data: "ok"})
 	}))
 	t.Cleanup(srv.Close)
 
@@ -201,17 +201,17 @@ type fakeSender struct {
 	calls []struct {
 		tool    string
 		nodeIDs []string
-		params  map[string]interface{}
+		params  map[string]any
 	}
 	resp BridgeResponse
 	err  error
 }
 
-func (f *fakeSender) Send(_ context.Context, tool string, nodeIDs []string, params map[string]interface{}) (BridgeResponse, error) {
+func (f *fakeSender) Send(_ context.Context, tool string, nodeIDs []string, params map[string]any) (BridgeResponse, error) {
 	f.calls = append(f.calls, struct {
 		tool    string
 		nodeIDs []string
-		params  map[string]interface{}
+		params  map[string]any
 	}{tool, nodeIDs, params})
 	return f.resp, f.err
 }
@@ -227,13 +227,13 @@ func TestNodeSend_RejectsInvalidArgsBeforeReachingPlugin(t *testing.T) {
 		name    string
 		tool    string
 		nodeIDs []string
-		params  map[string]interface{}
+		params  map[string]any
 		wantMsg string
 	}{
-		{"opacity out of range", "set_node_properties", []string{"1:1"}, map[string]interface{}{"opacity": 5.0}, "opacity must be at most 1"},
-		{"invalid blend mode", "set_node_properties", []string{"1:1"}, map[string]interface{}{"blendMode": "NEON"}, "blendMode must be one of"},
+		{"opacity out of range", "set_node_properties", []string{"1:1"}, map[string]any{"opacity": 5.0}, "opacity must be at most 1"},
+		{"invalid blend mode", "set_node_properties", []string{"1:1"}, map[string]any{"blendMode": "NEON"}, "blendMode must be one of"},
 		{"missing node id", "get_node", nil, nil, "nodeId is required"},
-		{"bad node id format", "rename_node", []string{"nope"}, map[string]interface{}{"name": "x"}, "colon format"},
+		{"bad node id format", "rename_node", []string{"nope"}, map[string]any{"name": "x"}, "colon format"},
 	}
 
 	for _, c := range cases {
@@ -262,7 +262,7 @@ func TestNodeSend_PassesValidArgsThrough(t *testing.T) {
 	fake := &fakeSender{resp: BridgeResponse{Data: map[string]any{"ok": true}}}
 	n := newNodeWithSender(fake)
 
-	if _, err := n.Send(context.Background(), "set_node_properties", []string{"1:1"}, map[string]interface{}{"opacity": 0.5}); err != nil {
+	if _, err := n.Send(context.Background(), "set_node_properties", []string{"1:1"}, map[string]any{"opacity": 0.5}); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
 	if len(fake.calls) != 1 {
@@ -297,7 +297,7 @@ func TestNodeSend_DoesNotMutateCallerArgs(t *testing.T) {
 	n := newNodeWithSender(fake)
 
 	nodeIDs := []string{"4029-12345"}
-	params := map[string]interface{}{"nodeId": "4029-12345"}
+	params := map[string]any{"nodeId": "4029-12345"}
 
 	if _, err := n.Send(context.Background(), "get_node", nodeIDs, params); err != nil {
 		t.Fatalf("Send: %v", err)
@@ -317,34 +317,34 @@ func TestNodeSend_NormalizesIDsInsidePipelineSteps(t *testing.T) {
 	fake := &fakeSender{}
 	n := newNodeWithSender(fake)
 
-	steps := []interface{}{
-		map[string]interface{}{
+	steps := []any{
+		map[string]any{
 			"action": "clone_node",
-			"params": map[string]interface{}{
+			"params": map[string]any{
 				"nodeId":   "100-200",
 				"parentId": "300-400",
 			},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"action": "delete_nodes",
-			"params": map[string]interface{}{
-				"nodeIds": []interface{}{"1-1", "2-2"},
+			"params": map[string]any{
+				"nodeIds": []any{"1-1", "2-2"},
 			},
 		},
 	}
-	if _, err := n.Send(context.Background(), "batch_execute_pipeline", nil, map[string]interface{}{"steps": steps}); err != nil {
+	if _, err := n.Send(context.Background(), "batch_execute_pipeline", nil, map[string]any{"steps": steps}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(fake.calls) != 1 {
 		t.Fatalf("expected 1 call, got %d", len(fake.calls))
 	}
 
-	sent, _ := fake.calls[0].params["steps"].([]interface{})
+	sent, _ := fake.calls[0].params["steps"].([]any)
 	if len(sent) != 2 {
 		t.Fatalf("expected 2 steps, got %d", len(sent))
 	}
 
-	first, _ := sent[0].(map[string]interface{})["params"].(map[string]interface{})
+	first, _ := sent[0].(map[string]any)["params"].(map[string]any)
 	if first["nodeId"] != "100:200" {
 		t.Errorf("steps[0].params.nodeId = %v, want 100:200", first["nodeId"])
 	}
@@ -352,8 +352,8 @@ func TestNodeSend_NormalizesIDsInsidePipelineSteps(t *testing.T) {
 		t.Errorf("steps[0].params.parentId = %v, want 300:400", first["parentId"])
 	}
 
-	second, _ := sent[1].(map[string]interface{})["params"].(map[string]interface{})
-	ids, _ := second["nodeIds"].([]interface{})
+	second, _ := sent[1].(map[string]any)["params"].(map[string]any)
+	ids, _ := second["nodeIds"].([]any)
 	if len(ids) != 2 || ids[0] != "1:1" || ids[1] != "2:2" {
 		t.Errorf("steps[1].params.nodeIds = %v, want [1:1 2:2]", ids)
 	}
@@ -365,9 +365,9 @@ func TestNodeSend_DoesNotMutateNestedCallerArgs(t *testing.T) {
 	fake := &fakeSender{}
 	n := newNodeWithSender(fake)
 
-	inner := map[string]interface{}{"nodeId": "100-200"}
-	steps := []interface{}{map[string]interface{}{"action": "clone_node", "params": inner}}
-	if _, err := n.Send(context.Background(), "batch_execute_pipeline", nil, map[string]interface{}{"steps": steps}); err != nil {
+	inner := map[string]any{"nodeId": "100-200"}
+	steps := []any{map[string]any{"action": "clone_node", "params": inner}}
+	if _, err := n.Send(context.Background(), "batch_execute_pipeline", nil, map[string]any{"steps": steps}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if inner["nodeId"] != "100-200" {
