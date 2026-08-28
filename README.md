@@ -143,6 +143,27 @@ through `npx`, but the Figma plugin is installed by hand, so the two can drift
 apart. A plugin older than the server will reject commands it does not know with
 `Unknown request type`.
 
+### Behaviour changes in 0.3.0
+
+No tool changed its name or its arguments. Five things behave differently:
+
+- **Log format.** Server logs are now structured
+  (`time=… level=INFO msg=… component=bridge …`) rather than prefixed
+  (`[bridge] …`). Anything grepping for `[bridge]` needs updating. Logs still go
+  to stderr; stdout still carries only the MCP protocol.
+- **Log level.** Set `FIGMA_MCP_LOG` to `debug`, `info`, `warn` or `error`. The
+  default is `info`, and tool parameters — your text, colours and names — now
+  appear only at `debug`.
+- **Starting up.** A call made before the server has settled on a leader now
+  says so, instead of failing with `connection refused`. A call made while the
+  plugin is reconnecting after a leader handover waits for it rather than
+  reporting the plugin as absent.
+- **Large requests.** Sending a large payload — an image, a long pipeline — no
+  longer risks the plugin being disconnected mid-transfer, and no longer blocks
+  other calls that have a shorter deadline of their own.
+- **`/ping`** returns `role`, `connected`, `pending` and `uptimeSeconds`
+  alongside `status` and `version`.
+
 ### Breaking changes in 0.1.0
 
 Eight single-purpose tools were replaced by one. Each took `nodeIds` plus a
@@ -340,6 +361,12 @@ because `type` names the kind of style. Gradients can only target a fill;
 - **Go Server**: Go 1.27+ (`make test-go`, `make build-go`)
 - **Plugin UI**: Bun 1.4+ (`cd plugin && bun install && bun run build`)
 - **Testing**: `make test` (runs Go tests + `bun test` in plugin)
+- **Logs**: stderr, structured. `FIGMA_MCP_LOG=debug` to see tool parameters and wire traffic
+- **Layering**: `make deps-check` fails the build on an import that crosses the
+  package boundaries the wrong way. `internal/` is four packages — `bridge` (the
+  plugin WebSocket), `cluster` (leader election and routing), `figma` (domain
+  rules) and `tools` (the tool table) — and the arrows only point one way:
+  `tools → figma`, `cluster → bridge`
 
 On macOS the published binaries require macOS 13 Ventura or later — Go 1.27
 dropped support for earlier versions.

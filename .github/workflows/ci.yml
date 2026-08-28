@@ -24,6 +24,9 @@ jobs:
       - name: Vet Go code
         run: go vet ./...
 
+      - name: Check package layering
+        run: make deps-check
+
       - name: Test Go code
         run: make test-go
 
