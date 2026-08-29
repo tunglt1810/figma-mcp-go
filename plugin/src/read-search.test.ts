@@ -103,11 +103,13 @@ describe("search_nodes", () => {
     expect(single.data.nodes[0].pageName).toBeUndefined();
   });
 
+  // The last page reports 99, not 100: 100 reads as "done", and the response
+  // itself is what says the work finished. See clampProgress.
   it("reports progress per page on a document search", async () => {
     await search({ query: "button", scope: "document" });
     const updates = progressMessages.filter((m) => m.type === "progress_update");
     expect(updates.length).toBe(2);
-    expect(updates[updates.length - 1].progress).toBe(100);
+    expect(updates[updates.length - 1].progress).toBe(99);
   });
 
   it("stays silent about progress on a single-page search", async () => {
@@ -184,11 +186,12 @@ describe("get_document", () => {
     expect(result.data.truncated).toBe(true);
   });
 
+  // 99 rather than 100 — see the note on the search_nodes case above.
   it("reports progress per page", async () => {
     await getDocument({ scope: "document" });
     const updates = progressMessages.filter((m) => m.type === "progress_update");
     expect(updates.length).toBe(2);
-    expect(updates[updates.length - 1].progress).toBe(100);
+    expect(updates[updates.length - 1].progress).toBe(99);
   });
 });
 

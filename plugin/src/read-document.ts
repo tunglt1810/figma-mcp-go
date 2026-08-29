@@ -2,6 +2,7 @@ import { serializeNode, getBounds, serializeStyles, serializeNodeProperties, isM
 import { HandlerMap } from "./dispatch";
 import { throwIfCancelled } from "./cancellation";
 import { getPinned } from "./pinned";
+import { reportProgress, stepProgress } from "./progress";
 
 export const readDocumentHandlers: HandlerMap = {
   "get_document": async (request) => {
@@ -24,13 +25,11 @@ export const readDocumentHandlers: HandlerMap = {
         await page.loadAsync();
         pages.push(await serializeNode(page, budget, 0));
         if (figma.root.children.length > 1) {
-          figma.ui.postMessage({
-            type: "progress_update",
-            requestId: request.requestId,
-            progress: Math.round((pages.length / figma.root.children.length) * 99) + 1,
-            message: `Serialized ${page.name} (${pages.length}/${figma.root.children.length})`,
-          });
-          await new Promise((r) => setTimeout(r, 0));
+          await reportProgress(
+            request.requestId,
+            stepProgress(pages.length, figma.root.children.length),
+            `Serialized ${page.name} (${pages.length}/${figma.root.children.length})`,
+          );
         }
         if (budget.remaining <= 0) break;
       }
@@ -465,13 +464,11 @@ export const readDocumentHandlers: HandlerMap = {
       if (root.type === "PAGE") await root.loadAsync();
       await search(root, root, searchingPages ? root : null);
       if (searchingPages && roots.length > 1) {
-        figma.ui.postMessage({
-          type: "progress_update",
-          requestId: request.requestId,
-          progress: Math.round(((i + 1) / roots.length) * 99) + 1,
-          message: `Searched ${root.name}: ${results.length} match(es) so far`,
-        });
-        await new Promise((r) => setTimeout(r, 0));
+        await reportProgress(
+          request.requestId,
+          stepProgress(i + 1, roots.length),
+          `Searched ${root.name}: ${results.length} match(es) so far`,
+        );
       }
     }
 
@@ -522,13 +519,7 @@ export const readDocumentHandlers: HandlerMap = {
       if ("children" in n)
         for (const child of n.children) await findText(child);
     };
-    figma.ui.postMessage({
-      type: "progress_update",
-      requestId: request.requestId,
-      progress: 10,
-      message: "Scanning text nodes...",
-    });
-    await new Promise((r) => setTimeout(r, 0));
+    await reportProgress(request.requestId, 10, "Scanning text nodes...");
     await findText(root);
     return {
       type: request.type,
@@ -567,13 +558,7 @@ export const readDocumentHandlers: HandlerMap = {
       if ("children" in n)
         for (const child of n.children) await findByTypes(child);
     };
-    figma.ui.postMessage({
-      type: "progress_update",
-      requestId: request.requestId,
-      progress: 10,
-      message: `Scanning for types: ${types.join(", ")}...`,
-    });
-    await new Promise((r) => setTimeout(r, 0));
+    await reportProgress(request.requestId, 10, `Scanning for types: ${types.join(", ")}...`);
     await findByTypes(root);
     return {
       type: request.type,
