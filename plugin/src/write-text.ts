@@ -1,5 +1,6 @@
 import { HandlerMap } from "./dispatch";
 import { makeSolidPaint } from "./write-helpers";
+import { FontName, loadFonts } from "./fonts";
 
 // Rich text.
 //
@@ -72,11 +73,11 @@ export function sortRanges(ranges: TextRange[]): TextRange[] {
 const applyRange = async (node: any, range: TextRange) => {
   const [start, end] = resolveRange(range, node.characters.length);
 
+  // The font is already loaded: rangeFonts collected it before the first range
+  // was touched, so a missing one failed the call rather than leaving the text
+  // half-rewritten.
   const font = resolveRangeFont(range, node.getRangeFontName(start, end));
-  if (font) {
-    await figma.loadFontAsync(font);
-    node.setRangeFontName(start, end, font);
-  }
+  if (font) node.setRangeFontName(start, end, font);
 
   if (range.fontSize != null) node.setRangeFontSize(start, end, Number(range.fontSize));
   if (range.color != null) {
@@ -118,8 +119,26 @@ const applyRange = async (node: any, range: TextRange) => {
  * and Figma refuses to touch a text node while any font in it is unloaded.
  */
 export const loadNodeFonts = async (node: any) => {
-  const fonts = node.getRangeAllFontNames(0, node.characters.length);
-  await Promise.all(fonts.map((font: any) => figma.loadFontAsync(font)));
+  await loadFonts(node.getRangeAllFontNames(0, node.characters.length));
+};
+
+/**
+ * The fonts the ranges themselves ask for, on top of the ones already in the
+ * node.
+ *
+ * Collected before anything is written. A range asking for a font the file does
+ * not have used to fail on that range, after the ranges before it had already
+ * been applied — so the node was left in a state nobody asked for and the
+ * caller learned about one missing font at a time.
+ */
+export const rangeFonts = (node: any, ranges: TextRange[]): FontName[] => {
+  const fonts: FontName[] = [];
+  for (const range of ranges) {
+    const [start, end] = resolveRange(range, node.characters.length);
+    const font = resolveRangeFont(range, node.getRangeFontName(start, end));
+    if (font) fonts.push(font);
+  }
+  return fonts;
 };
 
 const getTextNode = async (nodeId: string | undefined) => {
@@ -140,8 +159,14 @@ export const writeTextHandlers: HandlerMap = {
       throw new Error(`Node ${node.id} has no text — use set_text first`);
     }
 
-    await loadNodeFonts(node);
-    for (const range of sortRanges(ranges)) {
+    const sorted = sortRanges(ranges);
+    // One load for the node's existing fonts and every font the ranges ask for.
+    // Nothing is written until they are all in.
+    await loadFonts([
+      ...node.getRangeAllFontNames(0, node.characters.length),
+      ...rangeFonts(node, sorted),
+    ]);
+    for (const range of sorted) {
       await applyRange(node, range);
     }
 

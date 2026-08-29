@@ -1,6 +1,7 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
+import { loadFonts } from "./fonts";
 
 // create_node replaced seven create_* tools on the MCP surface. The seven
 // implementations stay separate below, because these shapes genuinely differ;
@@ -211,7 +212,7 @@ export const writeCreateHandlers: HandlerMap = {
     const parent = await getParentNode(p.parentId);
     const fontFamily = p.fontFamily || "Inter";
     const fontStyle = p.fontStyle || "Regular";
-    await figma.loadFontAsync({ family: fontFamily, style: fontStyle });
+    await loadFonts([{ family: fontFamily, style: fontStyle }]);
     const textNode = figma.createText();
     textNode.fontName = { family: fontFamily, style: fontStyle };
     if (p.fontSize != null) textNode.fontSize = Number(p.fontSize);

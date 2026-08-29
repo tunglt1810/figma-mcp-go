@@ -210,3 +210,48 @@ describe("set_text_ranges", () => {
     expect(call({ ranges: [{ start: 0, end: 1 }] }, ["9:9"])).rejects.toThrow(/Node not found/);
   });
 });
+
+describe("set_text_ranges with a font the file lacks", () => {
+  beforeEach(() => {
+    (globalThis as any).figma.loadFontAsync = async (font: any) => {
+      loadedFonts.push(font);
+      if (font.family !== "Inter") throw new Error("unavailable");
+    };
+  });
+
+  // A range asking for a missing font used to fail on that range, after the
+  // ranges before it had already been applied.
+  it("applies no range at all when a later one asks for a missing font", async () => {
+    await expect(
+      call({
+        ranges: [
+          { start: 0, end: 5, fontStyle: "Bold" },
+          { start: 6, end: 11, fontFamily: "Phantom", fontStyle: "Regular" },
+        ],
+      }),
+    ).rejects.toThrow("Font not available in this file: Phantom Regular");
+    expect(callsNamed("setRangeFontName")).toEqual([]);
+    expect(callsNamed("setRangeFills")).toEqual([]);
+  });
+
+  it("names every missing font in one error", async () => {
+    await expect(
+      call({
+        ranges: [
+          { start: 0, end: 5, fontFamily: "Phantom", fontStyle: "Regular" },
+          { start: 6, end: 11, fontFamily: "Ghost Sans", fontStyle: "Bold" },
+        ],
+      }),
+    ).rejects.toThrow("Phantom Regular, Ghost Sans Bold");
+  });
+
+  it("asks Figma for each font once, however many ranges want it", async () => {
+    await call({
+      ranges: [
+        { start: 0, end: 5, fontStyle: "Regular" },
+        { start: 6, end: 11, fontStyle: "Regular" },
+      ],
+    });
+    expect(loadedFonts).toEqual([{ family: "Inter", style: "Regular" }]);
+  });
+});

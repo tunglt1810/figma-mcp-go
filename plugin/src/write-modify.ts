@@ -2,6 +2,10 @@ import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
 import { reportProgress, stepProgress } from "./progress";
+import { loadFonts } from "./fonts";
+
+// What Figma itself falls back to when a node's font is mixed.
+const FALLBACK_FONT = { family: "Inter", style: "Regular" };
 
 const REORDER_ORDERS = ["bringToFront", "sendToBack", "bringForward", "sendBackward"];
 
@@ -178,7 +182,7 @@ export const writeModifyHandlers: HandlerMap = {
     const fontName = typeof node.fontName === "symbol"
       ? { family: "Inter", style: "Regular" }
       : node.fontName;
-    await figma.loadFontAsync(fontName);
+    await loadFonts([fontName]);
     // text is optional now that this tool also carries paragraph settings — a
     // call that only changes the wrap mode should not blank the node.
     if (p.text != null) node.characters = p.text;
@@ -549,6 +553,8 @@ export const writeModifyHandlers: HandlerMap = {
     };
     collect(root);
     const results: any[] = [];
+    // Collected first, written after every font has loaded.
+    const pending: Array<{ node: any; originalText: string; newText: string }> = [];
     // A find-and-replace over a whole page is the write that most often runs
     // past the server's timeout, and it is the one write where the caller
     // cannot guess how much there is to do.
@@ -576,13 +582,21 @@ export const writeModifyHandlers: HandlerMap = {
         newText = originalText.split(p.find).join(p.replace);
       }
       if (newText !== originalText) {
-        const fontName = typeof tn.fontName === "symbol"
-          ? { family: "Inter", style: "Regular" }
-          : tn.fontName;
-        await figma.loadFontAsync(fontName);
-        tn.characters = newText;
-        results.push({ nodeId: tn.id, nodeName: tn.name, oldText: originalText, newText });
+        pending.push({ node: tn, originalText, newText });
       }
+    }
+
+    // Every font first, then every write. Loading inside the loop meant one node
+    // in a font the file lacks aborted the run after the nodes before it had
+    // already been rewritten — and reported one missing font per attempt.
+    await loadFonts(
+      pending.map(({ node }) =>
+        typeof node.fontName === "symbol" ? FALLBACK_FONT : node.fontName,
+      ),
+    );
+    for (const { node, originalText, newText } of pending) {
+      node.characters = newText;
+      results.push({ nodeId: node.id, nodeName: node.name, oldText: originalText, newText });
     }
     figma.commitUndo();
     const successCount = results.filter((r: any) => !r.error).length;

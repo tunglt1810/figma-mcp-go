@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { executeBatchPipeline, executeRollback, isCreateStep, resolveParams, SymbolTable, WALStack, withSingleUndoCheckpoint } from './batch-pipeline';
+import { CREATE_ACTIONS, executeBatchPipeline, executeRollback, isCreateStep, resolveParams, SymbolTable, WALStack, withSingleUndoCheckpoint } from './batch-pipeline';
+import { writeHandlers } from './write-handlers';
 import { handleWriteRequest } from './write-handlers';
 
 describe('SymbolTable & resolveParams', () => {
@@ -643,5 +644,112 @@ describe('batch pipeline progress through handleWriteRequest', () => {
       params: { steps: [{ action: 'rename_node', params: { nodeId: '1:1', name: 'a' } }] },
     });
     expect(progressMessages.filter((m) => m.type === 'progress_update')).toEqual([]);
+  });
+});
+
+// ── CREATE_ACTIONS must keep up with the write handlers ──────────────────────
+//
+// The comment above CREATE_ACTIONS warns that a create-style handler added
+// without a matching entry rolls back wrongly — but nothing enforced it, and
+// `rename_page` is the cautionary example in the other direction: it returns an
+// id the user already had, so removing it destroys their page.
+//
+// So every write handler is listed here as CREATE or KEEPS. Adding a handler
+// fails this test until it is classified, which is the point: the decision is
+// cheap to make now and expensive to discover after a rollback removed
+// somebody's work.
+
+const KEEPS_EXISTING_NODES = [
+  'batch_rename_nodes',
+  'bind_variable_to_node',
+  'boolean_operation',
+  'clear_annotations',
+  'combine_as_variants',
+  'create_style',
+  'create_variable',
+  'create_variable_collection',
+  'add_variable_mode',
+  'apply_style_to_node',
+  'delete_nodes',
+  'delete_style',
+  'delete_variable',
+  'detach_instance',
+  'find_replace_text',
+  'flatten_nodes',
+  'group_nodes',
+  'manage_component_properties',
+  'manage_page',
+  'manage_plugin_data',
+  'move_nodes',
+  'outline_stroke',
+  'remove_reactions',
+  'rename_node',
+  'reparent_nodes',
+  'resize_nodes',
+  'save_version_checkpoint',
+  'set_annotations',
+  'set_auto_layout',
+  'set_codegen_result',
+  'set_corner_radius',
+  'set_effects',
+  'set_export_settings',
+  'set_instance_overrides',
+  'set_layout_grids',
+  'set_layout_sizing',
+  'set_node_properties',
+  'set_paint',
+  'set_reactions',
+  'set_selection',
+  'set_text',
+  'set_text_ranges',
+  'set_variable_value',
+  'swap_component',
+  'ungroup_nodes',
+  'update_paint_style',
+  'create_vector',
+  // Internal delegation targets — the names the merged tools dispatch to. They
+  // are real entries in the write handler map, so they need classifying too.
+  'set_fills',
+  'set_gradient_fills',
+  'set_strokes',
+  'delete_page',
+  'navigate_to_page',
+  'rename_page',
+  // These create a style, not a node. Rollback removes by node id, so a style
+  // is not something it can take back — which is why they are not creates here.
+  'create_paint_style',
+  'create_text_style',
+  'create_effect_style',
+  'create_grid_style',
+];
+
+describe('CREATE_ACTIONS', () => {
+  it('classifies every write handler as creating or not', () => {
+    const classified = new Set([...CREATE_ACTIONS, ...KEEPS_EXISTING_NODES]);
+    const unclassified = Object.keys(writeHandlers).filter((name) => !classified.has(name));
+    expect(unclassified).toEqual([]);
+  });
+
+  it('lists nothing that is not a write handler', () => {
+    const handlers = new Set(Object.keys(writeHandlers));
+    // The internal names the merged tools delegate to are not in the map, and
+    // are the ones CREATE_ACTIONS legitimately names (create_frame and friends
+    // behind create_node), so only the KEEPS side is checked here.
+    for (const name of KEEPS_EXISTING_NODES) {
+      expect(handlers.has(name), `${name} is not a write handler`).toBe(true);
+    }
+  });
+
+  // These two are why the list exists at all.
+  it('does not treat a merged action as a create by its name alone', () => {
+    expect(isCreateStep('manage_page', { action: 'add' })).toBe(true);
+    expect(isCreateStep('manage_page', { action: 'rename' })).toBe(false);
+    expect(isCreateStep('manage_page', { action: 'delete' })).toBe(false);
+  });
+
+  it('treats a node-returning modify as something to keep', () => {
+    for (const name of KEEPS_EXISTING_NODES) {
+      expect(isCreateStep(name, {}), `${name} would be removed on rollback`).toBe(false);
+    }
   });
 });

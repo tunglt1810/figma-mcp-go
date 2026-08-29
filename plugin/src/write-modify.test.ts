@@ -619,3 +619,59 @@ describe("find_replace_text progress", () => {
     expect(progressPosts.filter((m) => m.type === "progress_update")).toEqual([]);
   });
 });
+
+// ── missing fonts ─────────────────────────────────────────────────────────────
+
+describe("find_replace_text with a font the file lacks", () => {
+  const textNode = (id: string, family: string) => ({
+    id,
+    name: id,
+    type: "TEXT",
+    characters: "before",
+    fontName: { family, style: "Regular" },
+  });
+
+  const setup = (available: string[]) => {
+    mockNodes["0:1"] = {
+      id: "0:1",
+      name: "Page 1",
+      type: "PAGE",
+      children: [textNode("t:1", "Inter"), textNode("t:2", "Ghost Sans"), textNode("t:3", "Phantom")],
+    };
+    (globalThis as any).figma = {
+      getNodeByIdAsync: async (id: string) => mockNodes[id] ?? null,
+      commitUndo: () => { commitUndoCalled = true; },
+      ui: { postMessage: () => {} },
+      loadFontAsync: async (font: any) => {
+        if (!available.includes(font.family)) throw new Error("unavailable");
+      },
+    };
+  };
+
+  const run = () =>
+    handleWriteModifyRequest(
+      makeRequest("find_replace_text", ["0:1"], { find: "before", replace: "after" }),
+    );
+
+  // The point of loading every font before writing any: a run that cannot
+  // finish must not leave half the page rewritten.
+  it("rewrites nothing when one node's font is missing", async () => {
+    setup(["Inter"]);
+    await expect(run()).rejects.toThrow(/not available in this file/);
+    expect(mockNodes["0:1"].children.map((n: any) => n.characters)).toEqual([
+      "before", "before", "before",
+    ]);
+  });
+
+  it("names every missing font, so they are fixed in one round trip", async () => {
+    setup(["Inter"]);
+    await expect(run()).rejects.toThrow("Ghost Sans Regular, Phantom Regular");
+  });
+
+  it("rewrites everything when the fonts are all there", async () => {
+    setup(["Inter", "Ghost Sans", "Phantom"]);
+    const res = await run();
+    expect(res?.data.replaced).toBe(3);
+    expect(mockNodes["0:1"].children.every((n: any) => n.characters === "after")).toBe(true);
+  });
+});
