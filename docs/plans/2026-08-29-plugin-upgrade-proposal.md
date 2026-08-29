@@ -1,5 +1,11 @@
 # Đề xuất nâng cấp & tính năng mới cho Figma plugin
 
+> **Đây là bản khảo sát gốc.** Thiết kế đã chốt và phần việc còn lại được ghi ở
+> `docs/specs/2026-08-29-plugin-upgrade-design.md` và
+> `docs/plans/2026-08-29-plugin-upgrade-plan.md` — hai tài liệu đó theo đúng quy
+> ước của repo và là nguồn nên đọc trước. Giữ bản này lại vì nó liệt kê chi tiết
+> từng API còn thiếu, đầy đủ hơn phần tóm tắt trong spec.
+
 Ngày: 2026-08-29 · Phạm vi: `plugin/` (và phần giao thức chạm tới `internal/bridge`)
 
 Tài liệu này là **đề xuất**. Mỗi mục ghi rõ vấn đề hiện tại, đề xuất, file liên
