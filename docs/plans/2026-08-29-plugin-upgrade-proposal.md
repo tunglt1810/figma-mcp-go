@@ -1,351 +1,431 @@
-# Đề xuất nâng cấp & tính năng mới cho Figma plugin
+# Proposed upgrades and new features for the Figma plugin
 
-> **Đây là bản khảo sát gốc.** Thiết kế đã chốt và phần việc còn lại được ghi ở
-> `docs/specs/2026-08-29-plugin-upgrade-design.md` và
-> `docs/plans/2026-08-29-plugin-upgrade-plan.md` — hai tài liệu đó theo đúng quy
-> ước của repo và là nguồn nên đọc trước. Giữ bản này lại vì nó liệt kê chi tiết
-> từng API còn thiếu, đầy đủ hơn phần tóm tắt trong spec.
+> **This is the original survey.** The settled design and the remaining work are
+> written up in `docs/specs/2026-08-29-plugin-upgrade-design.md` and
+> `docs/plans/2026-08-29-plugin-upgrade-plan.md` — those two follow the repo's
+> conventions and are what to read first. This one is kept because it lists the
+> missing APIs one by one, in more detail than the spec's summary.
 
-Ngày: 2026-08-29 · Phạm vi: `plugin/` (và phần giao thức chạm tới `internal/bridge`)
+Date: 2026-08-29 · Scope: `plugin/` (and the protocol surface it touches in
+`internal/bridge`)
 
-Tài liệu này là **đề xuất**. Mỗi mục ghi rõ vấn đề hiện tại, đề xuất, file liên
-quan và ước lượng công sức (S/M/L).
+This document is a **proposal**. Each item states the problem as it stands, what
+is proposed, the files involved, and an effort estimate (S/M/L).
 
-> **Trạng thái 2026-08-29** — cả bốn đợt đã làm xong, đánh dấu ✅ ở bảng dưới và
-> ở từng mục. Hai quyết định lệch khỏi đề xuất ban đầu, ghi rõ ở 3.2 và 2:
-> pairing token bị loại vì phá trải nghiệm kết nối liền mạch, và Dev Mode
-> codegen được làm theo hướng không cần MCP sampling.
+> **Status, 2026-08-29** — all four waves shipped, marked ✅ in the table below
+> and against each item. Two decisions departed from the original proposal and
+> are recorded in 3.2 and 2: the pairing token was dropped because it costs the
+> smooth-connect experience, and Dev Mode codegen was built along a path that
+> does not need MCP sampling.
 >
-> Phần còn lại — những mục nhỏ chưa làm — gom ở mục 7 cuối tài liệu.
+> **Follow-up, later the same day** — every item that section 7 listed as
+> remaining has since been built. Section 7 now says what each of them became.
 
 ---
 
-## 0. Tóm tắt ưu tiên
+## 0. Priority summary
 
-| # | Hạng mục | Vì sao | Công sức | Trạng thái |
-|---|----------|--------|----------|------------|
-| 1 | Auto-layout sizing (`HUG`/`FILL`), absolute positioning, min/max | Chặn mọi layout responsive — đau nhất hiện nay | S | ✅ |
-| 2 | Cảnh báo lệch version plugin ↔ server | Plugin cũ + server mới = "Unknown request type" khó hiểu | S | ✅ |
-| 3 | `set_selection` | Human-in-the-loop: "cho tôi xem cái vừa tạo" | S | ✅ |
-| 4 | Activity log + chế độ duyệt (approve) trong UI | Quan sát được và an toàn khi AI ghi | M | ✅ |
-| 5 | Rich text theo range | Không tạo được text nhiều style / link | M | ✅ |
-| 6 | Vector & boolean ops | Không dựng được icon | M | ✅ |
-| 7 | Component set / variants / component properties | Không dựng được design system hoàn chỉnh | M | ✅ |
-| 8 | Tìm kiếm toàn document | Sai âm thầm với `documentAccess: dynamic-page` | S | ✅ |
-| 9 | Dev Mode codegen provider | Khác biệt lớn so với các Figma MCP khác | L | ✅ (xem 2) |
-| 10 | Huỷ request + phân trang phản hồi lớn | Ổn định trên file lớn | M | ✅ |
-| 11 | Gộp undo cho pipeline + checkpoint version history | Hoàn tác một pipeline không còn là 20 lần Ctrl+Z | S | ✅ |
-| 12 | Auto-copy node id bật sẵn | Việc mọi phiên đều bắt đầu bằng | S | ✅ |
+| # | Item | Why | Effort | Status |
+|---|------|-----|--------|--------|
+| 1 | Auto-layout sizing (`HUG`/`FILL`), absolute positioning, min/max | Blocks every responsive layout — the sorest point today | S | ✅ |
+| 2 | Plugin ↔ server version-skew warning | An old plugin against a new server gives an unreadable "Unknown request type" | S | ✅ |
+| 3 | `set_selection` | Human-in-the-loop: "show me what you just made" | S | ✅ |
+| 4 | Activity log and an approval mode in the panel | Makes an AI write observable, and safe | M | ✅ |
+| 5 | Range-level rich text | No way to make multi-style text or a link | M | ✅ |
+| 6 | Vector and boolean ops | No way to build an icon | M | ✅ |
+| 7 | Component sets, variants, component properties | No way to build a complete design system | M | ✅ |
+| 8 | Document-wide search | Silently wrong under `documentAccess: dynamic-page` | S | ✅ |
+| 9 | Dev Mode codegen provider | The big differentiator against other Figma MCP servers | L | ✅ (see 2) |
+| 10 | Request cancellation and paging of large responses | Stability on large files | M | ✅ |
+| 11 | One undo step per pipeline, plus a version-history checkpoint | Undoing a pipeline stops being twenty Ctrl+Z presses | S | ✅ |
+| 12 | Auto-copy node id on by default | The thing every session starts with | S | ✅ |
 
 ---
 
-## 1. Bổ sung độ phủ Figma Plugin API (tool mới)
+## 1. Filling in the Figma Plugin API (new tools)
 
-### 1.1 Auto-layout còn thiếu phần quan trọng nhất — ✅ **đã làm**
-`applyAutoLayout` (`plugin/src/write-helpers.ts`) chỉ set `layoutMode`, padding,
-`itemSpacing`, align, sizing mode, wrap. Thiếu:
+### 1.1 Auto layout is missing the part that matters most — ✅ **done**
+`applyAutoLayout` (`plugin/src/write-helpers.ts`) sets only `layoutMode`,
+padding, `itemSpacing`, alignment, sizing mode, and wrap. Missing:
 
 - `layoutSizingHorizontal` / `layoutSizingVertical` (`FIXED` | `HUG` | `FILL`) —
-  đây mới là API mà designer thực sự dùng; `primaryAxisSizingMode` là API cũ và
-  không diễn tả được "fill container" của child.
-- `layoutPositioning: "ABSOLUTE"` + `constraints` cho phần tử nổi trong auto layout.
+  this is the API designers actually use; `primaryAxisSizingMode` is the older
+  one and cannot express a child's "fill container".
+- `layoutPositioning: "ABSOLUTE"` plus `constraints`, for an element floating
+  inside an auto layout.
 - `minWidth` / `maxWidth` / `minHeight` / `maxHeight` (responsive).
-- `layoutGrow`, `layoutAlign` cho từng child.
+- `layoutGrow`, `layoutAlign` for each child.
 - `itemReverseZIndex`, `strokesIncludedInLayout`, `clipsContent`.
 
-Ngoài ra `set_auto_layout` (`plugin/src/write-modify.ts`) chặn cứng
-`node.type !== "FRAME"`, trong khi `COMPONENT`, `COMPONENT_SET` và `INSTANCE`
-đều hỗ trợ auto layout → nên nới thành kiểm tra `"layoutMode" in node`.
+`set_auto_layout` (`plugin/src/write-modify.ts`) also hard-refuses anything
+where `node.type !== "FRAME"`, while `COMPONENT`, `COMPONENT_SET` and `INSTANCE`
+all carry auto layout — it should ask for `"layoutMode" in node` instead.
 
-**Đã làm**: mở rộng `applyAutoLayout` với `layoutSizingHorizontal/Vertical`,
-`minWidth/maxWidth/minHeight/maxHeight` (null để xoá), `layoutPositioning`,
-`layoutAlign`, `layoutGrow`, `itemReverseZIndex`, `strokesIncludedInLayout`,
-`clipsContent`; bỏ ràng buộc `type !== FRAME`. Thêm cờ `Nullable` ở `paramSpec`
-phía Go để null đi được tới plugin thay vì bị loại như tham số vắng mặt.
-Chưa làm: tool `set_layout_sizing` áp cho nhiều node cùng lúc.
+**Done**: `applyAutoLayout` extended with `layoutSizingHorizontal/Vertical`,
+`minWidth/maxWidth/minHeight/maxHeight` (null clears one), `layoutPositioning`,
+`layoutAlign`, `layoutGrow`, `itemReverseZIndex`, `strokesIncludedInLayout`, and
+`clipsContent`; the `type !== FRAME` gate is gone. A `Nullable` flag was added to
+`paramSpec` on the Go side so an explicit null reaches the plugin instead of
+being dropped like an absent argument.
 
-### 1.2 Rich text theo range
-`set_text` chỉ ghi toàn bộ `characters` với một font/màu. Thiếu:
+**Follow-up**: `set_layout_sizing` now applies the sizing half of this across
+several nodes at once.
 
-- Đọc: `getStyledTextSegments([...])` → serializer hiện trả text như một khối phẳng,
-  nên "design → code" mất bold/link/màu inline.
-- Ghi: `setRangeFontName`, `setRangeFills`, `setRangeFontSize`,
+### 1.2 Range-level rich text — ✅ **done**
+`set_text` writes the whole of `characters` in one font and one colour. Missing:
+
+- Reading: `getStyledTextSegments([...])` — the serializer returns text as one
+  flat block, so "design → code" loses inline bold, links, and colour.
+- Writing: `setRangeFontName`, `setRangeFills`, `setRangeFontSize`,
   `setRangeTextDecoration`, `setRangeHyperlink`, `setRangeListOptions`,
   `setRangeTextStyleId`.
-- Thuộc tính đoạn: `paragraphSpacing`, `paragraphIndent`, `textAutoResize`,
+- Paragraph properties: `paragraphSpacing`, `paragraphIndent`, `textAutoResize`,
   `textTruncation`, `maxLines`, `leadingTrim`.
 
-**Đề xuất**: tool `set_text_ranges` nhận mảng `{start, end, style}` và mở rộng
-`serializeNode` trả `styledSegments`. Công sức: M.
+**Proposed**: a `set_text_ranges` tool taking an array of `{start, end, style}`,
+and `serializeNode` extended to return `styledSegments`. Effort: M.
 
-### 1.3 Vector & boolean operations — hiện **hoàn toàn chưa có**
-Không có `booleanOperation`, `flatten`, `outlineStroke`, `vectorPaths`,
-`setVectorNetworkAsync`. Hệ quả: AI không dựng được icon, không đơn giản hoá
-hình, không import SVG path.
+### 1.3 Vector and boolean operations — **entirely absent** — ✅ **done**
+No `booleanOperation`, `flatten`, `outlineStroke`, `vectorPaths`, or
+`setVectorNetworkAsync`. So the AI cannot build an icon, simplify a shape, or
+import an SVG path.
 
-**Đề xuất**: `boolean_operation` (union/subtract/intersect/exclude),
-`flatten_nodes`, `outline_stroke`, `create_vector` (nhận SVG path data —
-`figma.createNodeFromSvg` là đường ngắn nhất). Công sức: M.
+**Proposed**: `boolean_operation` (union/subtract/intersect/exclude),
+`flatten_nodes`, `outline_stroke`, and `create_vector` taking SVG path data —
+`figma.createNodeFromSvg` is the shortest route. Effort: M.
 
-### 1.4 Component set, variants, component properties
-Hiện có `create_component`, `swap_component`, `detach_instance`,
-`set_instance_overrides`. Thiếu:
+### 1.4 Component sets, variants, component properties — ✅ **done**
+There is `create_component`, `swap_component`, `detach_instance`, and
+`set_instance_overrides`. Missing:
 
-- `figma.combineAsVariants` → tạo `COMPONENT_SET`.
-- `componentPropertyDefinitions`: add / edit / delete property
+- `figma.combineAsVariants`, to make a `COMPONENT_SET`.
+- `componentPropertyDefinitions`: add, edit, and delete a property
   (`BOOLEAN`, `TEXT`, `INSTANCE_SWAP`, `VARIANT`).
-- Gắn property vào node (`componentPropertyReferences`).
-- Đổi variant của instance theo `{Size: "Large", State: "Hover"}`
-  thay vì phải biết id của component con.
+- Binding a property to a node (`componentPropertyReferences`).
+- Switching an instance's variant by `{Size: "Large", State: "Hover"}` rather
+  than by knowing the child component's id.
 
-**Đề xuất**: nhóm tool `manage_component_properties` + `set_variant`. Đây là mảnh
-còn thiếu để nói "full design-system automation". Công sức: M.
+**Proposed**: a `manage_component_properties` group plus `set_variant`. This is
+the missing piece behind any claim of full design-system automation. Effort: M.
 
-### 1.5 Selection & viewport (ghi) — ✅ **đã làm**
-Plugin chỉ **đọc** selection. Không có cách nào để AI nói "đây, nhìn cái này".
+### 1.5 Selection and viewport, on the write side — ✅ **done**
+The plugin only **reads** the selection. There is no way for the AI to say
+"here, look at this".
 
-**Đã làm**: một tool `set_selection` với hai cờ `select`/`zoom` thay vì hai tool —
-`select:false, zoom:true` là "focus mà không đụng selection của người dùng".
-Tự `setCurrentPageAsync` khi node ở page khác; từ chối danh sách trải nhiều page
-vì selection của Figma thuộc về đúng một page.
+**Done**: one `set_selection` tool with `select` and `zoom` flags rather than two
+tools — `select: false, zoom: true` is "focus without touching the user's
+selection". It calls `setCurrentPageAsync` when the node is on another page, and
+refuses a list spanning pages, because a Figma selection belongs to exactly one.
 
-### 1.6 Duyệt toàn document với `dynamic-page` — ✅ **đã làm**
-`manifest.json` khai `documentAccess: "dynamic-page"`, nhưng không nơi nào gọi
-`figma.loadAllPagesAsync()`. `search_nodes` chỉ đi từ `figma.currentPage`, còn
-`get_document` cũng chỉ serialize page hiện tại. Với file nhiều page, kết quả
-"không tìm thấy" là **sai âm thầm**, không phải lỗi.
+### 1.6 Walking the document under `dynamic-page` — ✅ **done**
+`manifest.json` declares `documentAccess: "dynamic-page"`, but nothing calls
+`figma.loadAllPagesAsync()`. `search_nodes` walks only from `figma.currentPage`,
+and `get_document` serializes only the current page. On a file with several
+pages, "not found" is **silently wrong** rather than an error.
 
-**Đã làm**: `search_nodes` nhận `scope: "page" | "document"`. Dùng
-`page.loadAsync()` từng page thay vì `loadAllPagesAsync()` để file lớn trả tiền
-theo từng page, phát `progress_update` mỗi page nên không cần timeout riêng, và
-trả thêm `truncated` để phân biệt câu trả lời đầy đủ với câu trả lời bị cắt.
-Còn lại: `get_document` vẫn chỉ serialize page hiện tại.
+**Done**: `search_nodes` takes `scope: "page" | "document"`. It loads one page at
+a time with `page.loadAsync()` rather than `loadAllPagesAsync()`, so a large file
+pays per page; it emits a `progress_update` per page, so no per-tool timeout
+entry is needed; and it returns `truncated`, so a complete answer is
+distinguishable from a capped one.
 
-### 1.7 Mask, layout grid, và các thuộc tính node còn thiếu
-- `isMask` / `maskType` — không tạo được mask.
-- `layoutGrids` trên frame (đang chỉ có *grid style*, không có grid trực tiếp).
-- `effects` trên từng node so với effect style — cần kiểm tra lại độ phủ.
-- `strokeCap`, `strokeJoin`, `dashPattern`, `strokeMiterLimit` (serializer có đọc
-  `dashPattern` nhưng phía ghi thì chưa).
-- `exportSettings` trên node (đặt sẵn cấu hình export cho designer).
+**Follow-up**: `get_document` now takes the same `scope`.
 
-### 1.8 Hình ảnh
-- `figma.createImageAsync(url)` — import ảnh theo URL, khỏi phải nhồi base64 qua
-  WebSocket (hiện `import_image` bắt buộc `imageData` base64, rất tốn băng thông).
-- Đọc ảnh ngược lại: `getImageByHash(hash).getBytesAsync()` — cần cho luồng
-  "design → code" khi phải xuất asset.
-- `imageTransform` (crop), `filters` (exposure/contrast/saturation).
+### 1.7 Masks, layout grids, and the node properties still missing
+- ✅ `isMask` / `maskType` — no way to make a mask. **Done** on
+  `set_node_properties`.
+- ✅ `layoutGrids` on a frame (there was a *grid style*, but no direct grid).
+  **Done** as `set_layout_grids`.
+- `effects` per node versus an effect style — coverage worth re-checking.
+- ✅ `strokeCap`, `strokeJoin`, `dashPattern`, `strokeMiterLimit` — the
+  serializer read `dashPattern` but nothing could write it. **Done** on
+  `set_node_properties`, which also gained `strokeWeight` and `strokeAlign`.
+- ✅ `exportSettings` on a node, so the export presets are set up for the
+  designer. **Done** as `set_export_settings`.
 
-### 1.9 Metadata gắn vào file
-- `setPluginData` / `setSharedPluginData`: lưu liên kết component ↔ file code,
-  đánh dấu node do AI sinh, lưu design-token binding. Sau này chạy lại có ngữ cảnh
-  bền vững thay vì hỏi lại từ đầu.
-- `setRelaunchData`: hiện nút "Sửa bằng AI" ngay trên node trong Figma.
-- ✅ `figma.saveVersionHistoryAsync(title)`: **đã làm** — tool
-  `save_version_checkpoint`. Rollback trong WAL của `batch-pipeline.ts` chết cùng
-  plugin, nên một version đặt tên là đường lui duy nhất sống lâu hơn phiên.
+### 1.8 Images
+- ✅ `figma.createImageAsync(url)` — import by URL rather than pushing base64
+  through the WebSocket. **Done**; `import_image` no longer requires base64.
+- ✅ Reading back: `getImageByHash(hash).getBytesAsync()`, needed by
+  "design → code" when assets have to be exported. **Done** as `get_image_bytes`.
+- ✅ `imageTransform` (crop) and `filters` (exposure/contrast/saturation).
+  **Done**; the crop is expressed as a rectangle in fractions of the image, and
+  `cropToTransform` is the one place that knows Figma's 2x3 matrix.
 
-### 1.10 Mở rộng editor type
-`manifest.json` khai `["figma", "dev"]`. Có thể thêm `"figjam"` và `"slides"` —
-đã có `create_connector` (FigJam) rồi mà editor lại không bật FigJam.
+### 1.9 Metadata attached to the file
+- ✅ `setPluginData` / `setSharedPluginData`: store the link between a component
+  and a code file, mark a node as AI-generated, record a design-token binding —
+  so a later run has durable context instead of asking again from scratch.
+  **Done** as `manage_plugin_data`.
+- ✅ `setRelaunchData`: put an "Edit with AI" button on the node in Figma.
+  **Done**, attached by `set_codegen_result`.
+- ✅ `figma.saveVersionHistoryAsync(title)`: **done** as
+  `save_version_checkpoint`. The write-ahead rollback in `batch-pipeline.ts` dies
+  with the plugin, so a named version is the only way back that outlives the
+  session.
 
----
-
-## 2. Dev Mode codegen provider — ✅ **đã làm, theo hướng khác**
-
-Manifest đã có `capabilities: ["inspect"]` nhưng plugin **không** đăng ký
-`figma.codegen.on("generate", ...)`. Nếu đăng ký, panel Code của Dev Mode sẽ hiển
-thị code do chính MCP server sinh ra cho node đang chọn — designer chọn node,
-thấy ngay React/SwiftUI/Compose theo codebase thật của họ.
-
-**Luồng ban đầu đề xuất** — `codegen.on("generate")` → WebSocket → server Go →
-hỏi AI client → trả code về — đòi hai thứ: một chiều request mới
-(plugin khởi xướng) qua bridge, và **MCP sampling** để server hỏi ngược client
-một completion. Sampling là tuỳ chọn trong giao thức MCP và không có ở các
-client mà server này nhắm tới, nên xây cả một chiều giao thức cho một tính năng
-không client nào chạy được là không đáng.
-
-**Đã làm — lật ngược luồng.** Client sinh code với cả repository trước mặt rồi
-gắn lên node bằng `set_codegen_result`; codegen provider phục vụ lại thứ đã
-gắn. Code viết vào **shared plugin data** nên nó đi theo file: Dev Mode của cả
-nhóm thấy, không chỉ máy đã sinh ra nó. Tra ngược từ node đang chọn → component
-mà instance sinh ra → các tổ tiên, nên gắn code lên một COMPONENT là phủ mọi
-instance của nó.
-
-Đổi lại, code không tự cập nhật khi design đổi — phải gọi lại tool. Chấp nhận
-được, và bù lại code sinh ra tốt hơn vì client nhìn thấy codebase thật.
-
-**Còn lại**: `figma.codegen.on("preferenceschange")` cho chọn ngôn ngữ/framework.
+### 1.10 Wider editor types — ✅ **done**
+`manifest.json` declared `["figma", "dev"]`. `"figjam"` and `"slides"` can be
+added — `create_connector` (a FigJam tool) already existed while the editor list
+left FigJam out.
 
 ---
 
-## 3. UI plugin (`plugin/src/ui/App.svelte`)
+## 2. Dev Mode codegen provider — ✅ **done, along a different path**
 
-Hiện UI 320×230 chỉ hiện: file/page/selection, danh sách node + copy id, banner
-"AI is working…", địa chỉ server, badge kết nối.
+The manifest already had `capabilities: ["inspect"]`, but the plugin never
+registered `figma.codegen.on("generate", ...)`. Registering it makes Dev Mode's
+Code panel show code the MCP server produced for the selected node — the
+designer clicks a node and sees React, SwiftUI, or Compose written against their
+real codebase.
 
-### 3.1 Activity log — ✅ **đã làm**
-"AI is working…" không cho biết AI đang làm gì. Payload gửi qua UI **đã có**
-`payload.type` và `requestId` — chỉ cần hiển thị.
+**The flow first proposed** — `codegen.on("generate")` → WebSocket → the Go
+server → ask the AI client → return the code — needs two things: a
+plugin-initiated request direction through the bridge, which does not exist, and
+**MCP sampling**, so the server can ask the client for a completion. Sampling is
+optional in the MCP protocol and absent from the clients this server targets, so
+building a whole second protocol direction for a feature no client can run is not
+worth it.
 
-**Đã làm**: 20 request gần nhất với tên tool, thời lượng, ✓/✗, lỗi, và nút copy
-để dán vào bug report. Trạng thái "đang chạy" đọc từ chính log thay vì một Set
-riêng, nên banner và log không thể mâu thuẫn. Panel tự cao lên khi mở log.
+**Done — the flow inverted.** The client generates the code with the whole
+repository in front of it and attaches it to the node with `set_codegen_result`;
+the provider serves what is stored. It is written to **shared plugin data**, so
+it travels with the file: the whole team's Dev Mode shows it, not only the
+machine that generated it. Lookup walks from the selected node to the component
+its instance came from and then up its ancestors, so attaching code to a
+COMPONENT covers every instance of it.
 
-### 3.2 Chế độ an toàn / duyệt thao tác — pairing đã loại
-`networkAccess.allowedDomains: ["*"]` và không có xác thực: **bất kỳ tiến trình
-nào trên máy mở được WebSocket đều điều khiển được file Figma đang mở**.
+The cost is that the code does not update when the design changes — the tool has
+to be called again. That is acceptable, and in exchange the code is better,
+because the client can see the real codebase.
 
-**Đã làm** (1) và (2), gộp thành một nút Guard ba trạng thái off / confirm /
-read-only, mặc định off để giữ nguyên hành vi mọi người dùng hiện có:
-1. **read-only** — chặn mọi tool ghi ở phía UI.
-2. **confirm** — hộp xác nhận cho các tool phá huỷ (`delete_nodes`,
-   `delete_page`, `delete_style`, `delete_variable`, `detach_instance`,
-   `find_replace_text`, `batch_rename_nodes`, `boolean_operation`,
-   `flatten_nodes`, và pipeline chứa bất kỳ bước nào trong số đó).
-3. ~~**Pairing token**~~ — **đã loại khỏi lộ trình**: nó đánh đổi bằng trải
-   nghiệm kết nối liền mạch hiện tại, mà đó lại là điểm mạnh của plugin so với
-   các Figma MCP dùng REST API. Rủi ro vẫn còn và được ghi lại ở đây; nếu quay
-   lại chủ đề này thì hướng ít phá UX nhất là chỉ yêu cầu ghép mã cho các tool
-   phá huỷ, không phải cho toàn bộ kết nối.
-
-Công sức: S cho (1), M cho (2).
-
-### 3.3 Hoàn tác từ UI — ✅ **đã làm**
-**Đã làm**: nút Undo dùng `figma.triggerUndo()`. Kết hợp với việc pipeline gộp
-thành một mốc undo, một lần bấm hoàn tác trọn một pipeline.
-
-### 3.4 Những cải thiện UI nhỏ nhưng đáng
-- `figma.ui.resize` + nhớ kích thước (hiện cố định 320×230, activity log sẽ chật).
-- Theo theme sáng/tối của Figma thay vì hard-code nền `#1e1e1e`.
-- Nút "Gửi selection cho AI" — pin một tập context ổn định thay vì copy id thủ công.
-- `figma.notify` khi có lỗi ghi, kèm nút nhảy tới node lỗi.
-- i18n VI/EN.
-- Hiện tiến độ % khi có `progress_update` (bridge đã hỗ trợ, UI thì bỏ qua).
+**Follow-up**: `figma.codegen.on("preferenceschange")` and a Language selector
+are now in place.
 
 ---
 
-## 4. Giao thức & hiệu năng
+## 3. The plugin panel (`plugin/src/ui/App.svelte`)
 
-### 4.1 Handshake plugin → server — ✅ **phần version đã làm**
-Server gửi `get_server_info` → plugin trả version. Chiều ngược lại thì không:
-server không biết plugin có handler nào. Plugin cũ gặp tool mới sẽ báo
-"Unknown request type: X" — người dùng không hiểu là do plugin cũ.
+The 320×230 panel shows the file, page, and selection; the node list with copy
+buttons; an "AI is working…" banner; the server address; and a connection badge.
 
-**Đề xuất**: plugin trả `{pluginVersion, protocolVersion, handlers: [...]}` ngay
-khi kết nối. Server có `Object.keys(readHandlers)` + `writeHandlers` sẵn, gần như
-không tốn gì. Từ đó:
-- Báo lỗi rõ: "tool cần plugin ≥ v1.4, bạn đang chạy v1.2".
-- Ẩn tool client không dùng được (`tools/list_changed` của MCP).
-- Test contract: mọi tool trong `internal/tools/toolspec.go` phải có handler tương
-  ứng trong plugin. `toolspec_wire_test.go` đã pin wire shape; còn thiếu đúng
-  phần đối chiếu tên handler.
+### 3.1 Activity log — ✅ **done**
+"AI is working…" does not say what the AI is doing. The payload the UI already
+receives carries `payload.type` and `requestId` — it only needs displaying.
 
-**Đã làm**: plugin gửi frame `plugin-info` kèm version ngay khi kết nối; bridge
-ghi nhận và log cảnh báo, UI hiện banner chỉ đúng bên đang cũ kèm cách khắc
-phục. So sánh theo `major.minor` — plugin cài tay từ release zip còn server tự
-cập nhật qua `npx @latest`, nên lệch patch là chuyện thường; version không đọc
-được (bản dev) thì im lặng.
+**Done**: the last 20 requests with tool name, duration, ✓/✗, the error, and a
+copy button for pasting into a bug report. The running state is read off the log
+rather than a separate Set, so the banner and the log cannot disagree. The panel
+grows when the log opens.
 
-**Còn lại**: plugin chưa gửi danh sách handler, nên server vẫn chưa ẩn được tool
-mà plugin không có, và chưa có test đối chiếu tên handler với `toolspec.go`.
+### 3.2 Safe mode and approvals — the pairing token was dropped
+`networkAccess.allowedDomains: ["*"]` with no authentication means **any process
+on the machine that can open a WebSocket can drive the open Figma file**.
 
-### 4.2 Huỷ request — ✅ **đã làm**
-Không có cách huỷ. Một `get_document` trên file lớn sẽ chạy tới khi hết timeout,
-UI đứng "AI is working…". **Đã làm**: bridge gửi `cancel_request` khi caller huỷ context hoặc request hết
-ngân sách. Cancel là advisory — handler không kiểm tra thì cứ chạy hết và phản
-hồi bị bỏ, nên một vòng lặp mới quên kiểm tra chỉ chậm chứ không hỏng. Đã cắm
-kiểm tra ở `search_nodes`, `get_local_components`, `scan_text_nodes`,
-`scan_nodes_by_types`, và giữa các bước pipeline.
+**Done**, (1) and (2), as one three-state Guard button — off / confirm /
+read-only — defaulting to off so every existing user's behaviour is unchanged:
+1. **read-only** — blocks every write tool at the panel.
+2. **confirm** — a confirmation dialog for the destructive tools
+   (`delete_nodes`, `delete_page`, `delete_style`, `delete_variable`,
+   `detach_instance`, `find_replace_text`, `batch_rename_nodes`,
+   `boolean_operation`, `flatten_nodes`, and a pipeline containing any of them).
+3. ~~**Pairing token**~~ — **dropped from the roadmap**: it is paid for in the
+   smooth-connect experience, which is the plugin's advantage over the Figma MCP
+   servers built on the REST API. The risk is recorded here rather than closed;
+   if it is revisited, the least disruptive shape is a code required for the
+   destructive tools only, not for the connection.
 
-### 4.3 Payload lớn — ✅ **phần get_document đã làm**
-- `get_document` serialize toàn bộ page trong một lần → file lớn dễ vỡ ở
-  `postMessage` giữa UI và core, hoặc làm nghẽn context của AI client.
-- **Đã làm**: `get_document` nhận `depth` và `maxNodes`. Ngân sách dùng chung
-  cho cả lượt duyệt, tiêu theo thứ tự cây nên kết quả cắt ngắn là tái lập được;
-  node bị cắt con báo `childCount`/`childrenOmitted` và cả cây có cờ `truncated`.
-- **Còn lại**: `deduplicateStyles`/`globalVars` mới chỉ áp cho `get_document`;
-  nên áp cả cho `get_nodes_info` và `get_design_context`.
+Effort: S for (1), M for (2).
 
-### 4.4 Hàng đợi ghi & gộp undo — ✅ **phần undo đã làm**
-`figma.ui.onmessage` xử lý async, nhiều request ghi có thể xen kẽ. Mỗi handler ghi
-tự gọi `figma.commitUndo()` → một pipeline 20 bước tạo 20 mốc undo.
+**Follow-up**: the risk is no longer silent. The server warns when `--ip` moves
+the listener off loopback, the `server-info` frame carries an `exposed` flag, and
+the panel raises its confirm guard once when it hears one — which is exactly the
+shape named above. Pairing itself is still rejected.
 
-**Đã làm**: `withSingleUndoCheckpoint` nuốt `commitUndo` của từng handler trong
-pipeline rồi gọi đúng một lần ở cuối. Rollback nằm trong phạm vi checkpoint nên
-pipeline lỗi và tự đảo ngược trả undo stack về nguyên trạng.
+### 3.3 Undo from the panel — ✅ **done**
+**Done**: an Undo button on `figma.triggerUndo()`. With a pipeline collapsed into
+one undo step, one press undoes a whole pipeline.
 
-**Cũng đã làm**: hàng đợi tuần tự cho request ghi — và nó vá một lỗi mà chính
-việc gộp undo tạo ra: một lệnh ghi thường rơi vào lúc pipeline đang chạy sẽ bị
-nuốt mốc undo cùng, rồi dính vào bước undo của pipeline. Đọc không xếp hàng.
-
-### 4.5 Progress phủ rộng hơn
-Chỉ 3 handler phát `progress_update` (`read-document.ts` ×2, `read-styles.ts` ×1).
-Nên phủ: từng bước batch pipeline, export nhiều node, `find_replace_text`,
-`scan_text_nodes`.
+### 3.4 Small panel improvements worth having — ✅ **all done**
+- ✅ `figma.ui.resize` and remembering the size (it was fixed at 320×230, which
+  the activity log outgrows). The panel now draws its own resize grip, since
+  Figma gives a plugin window none, and stores the dragged size.
+- ✅ Follow Figma's light and dark themes rather than hard-coding a `#1e1e1e`
+  background. The colours are now tokens with a light and a dark set, keyed off
+  the `figma-dark` class Figma puts on the document element.
+- ✅ A "send selection to the AI" button — pinning a stable context set instead
+  of copying ids by hand. Read with `get_selection(source: "pinned")`.
+- `figma.notify` on a write error, with a button that jumps to the node. Still
+  open.
+- ✅ Vietnamese and English strings.
+- ✅ Show a percentage when a `progress_update` arrives (the bridge supported it
+  and the panel ignored it).
 
 ---
 
-## 5. Chất lượng & kiểm thử
+## 4. Protocol and performance
 
-- ✅ Test contract tên handler ↔ toolspec Go: chạy phía plugin, đọc chính golden
-  schema của server. Mọi tool server chào phải có handler, và mọi handler phải
-  tới được — hoặc là một tool, hoặc nằm trong danh sách đích uỷ nhiệm có ghi chú.
-- `mergeHandlers` đã bắt trùng tên lúc load — tốt. Nên thêm test khẳng định mọi
-  handler ghi mới đều được cân nhắc cho `CREATE_ACTIONS` trong `batch-pipeline.ts`
-  (comment trong file đã cảnh báo đúng rủi ro này, nhưng chưa có test canh).
-- Test cho luồng `dynamic-page`: giả lập file nhiều page để bắt lỗi thiếu
-  `loadAllPagesAsync`.
-- Kiểm tra font: báo cáo font thiếu thay vì để `loadFontAsync` ném lỗi giữa chừng.
+### 4.1 A plugin → server handshake — ✅ **done**
+The server sends `get_server_info` and the plugin answers with its version.
+Nothing goes the other way: the server does not know which handlers the plugin
+has. An old plugin meeting a new tool reports "Unknown request type: X", and the
+user has no way to tell that the plugin is the old half.
+
+**Proposed**: the plugin sends `{pluginVersion, protocolVersion, handlers: [...]}`
+on connect. It already has `Object.keys(readHandlers)` and `writeHandlers`, so it
+costs almost nothing. That buys:
+- A clear error: "this tool needs plugin ≥ v1.4, you are running v1.2".
+- Hiding tools the client cannot use (MCP's `tools/list_changed`).
+- A contract test: every tool in `internal/tools/toolspec.go` must have a
+  matching handler in the plugin. `toolspec_wire_test.go` already pins the wire
+  shape; the handler-name comparison is what is missing.
+
+**Done**: the plugin sends a `plugin-info` frame with its version on connect; the
+bridge records it and logs a warning, and the panel shows a banner naming only
+the half that is behind, with the remedy. The comparison is on `major.minor`,
+because the plugin is installed by hand from a release zip while the server
+updates itself through `npx @latest`, so patch drift is normal; an unreadable
+version (a dev build) stays silent. The handler list is sent too, so a tool the
+plugin does not have is reported as "update the plugin" rather than as "Unknown
+request type" at call time, and a contract test compares the two sides.
+
+### 4.2 Cancelling a request — ✅ **done**
+There is no way to cancel. A `get_document` on a large file runs until it times
+out with the panel stuck on "AI is working…".
+
+**Done**: the bridge sends `cancel_request` when the caller cancels its context
+or the request runs out of budget. Cancellation is advisory — a handler that does
+not check simply runs to the end and has its answer discarded, so a new loop that
+forgets to check is slow rather than broken. Checks are in `search_nodes`,
+`get_local_components`, `scan_text_nodes`, `scan_nodes_by_types`, and between
+pipeline steps.
+
+### 4.3 Large payloads — ✅ **done**
+- `get_document` serialized the whole page in one go, so a large file could break
+  the `postMessage` between the panel and the core, or swamp the AI client's
+  context.
+- **Done**: `get_document` takes `depth` and `maxNodes`. One budget is shared
+  across the walk and spent in tree order, so a capped result is reproducible; a
+  node whose children were withheld reports `childCount`/`childrenOmitted`, and
+  the tree carries `truncated`.
+- **Follow-up**: `deduplicateStyles`/`globalVars` applied to `get_document` only.
+  It now applies to `get_nodes_info` as well, which moved that tool's answer from
+  a bare array to `{nodes, globalVars?}`; `get_design_context` already had it.
+
+### 4.4 A write queue and one undo step — ✅ **done**
+`figma.ui.onmessage` is async, so writes can interleave. Each write handler calls
+`figma.commitUndo()` itself, so a 20-step pipeline made 20 undo steps.
+
+**Done**: `withSingleUndoCheckpoint` swallows each handler's `commitUndo` inside a
+pipeline and makes one at the end. Rollback runs inside the checkpoint, so a
+pipeline that fails and reverses itself leaves the undo stack as it found it.
+
+**Also done**: a serial queue for write requests — which fixes a bug the undo
+collapsing itself introduced. A plain write landing while a pipeline was running
+had its checkpoint swallowed too, and became part of the pipeline's undo step.
+Reads do not queue.
+
+### 4.5 Wider progress coverage — ✅ **done**
+Only three handlers emitted `progress_update` (`read-document.ts` ×2,
+`read-styles.ts` ×1). It should cover each batch-pipeline step, a multi-node
+export, `find_replace_text`, and `scan_text_nodes`.
+
+**Follow-up**: progress moved into one module, and now covers the pipeline per
+step, `find_replace_text`, `get_screenshot`, and `export_frames_to_pdf`.
 
 ---
 
-## 6. Đề xuất lộ trình
+## 5. Quality and testing
 
-**Đợt 1 — rẻ, tác động lớn (S) — ✅ xong**
-Auto-layout sizing · cảnh báo lệch version · `set_selection` · tìm kiếm toàn
-document · gộp undo cho pipeline · checkpoint version history · auto-copy bật sẵn.
-
-**Đợt 2 — trải nghiệm & an toàn (M) — ✅ xong**
-Activity log · read-only + confirm phá huỷ · huỷ request · nút hoàn tác trên UI.
-(Pairing token đã loại — xem 3.2.)
-
-**Đợt 3 — độ phủ API (M) — ✅ xong**
-Rich text theo range · vector/boolean · component set & properties · mask &
-layout grid · ảnh theo URL · đọc lại bytes ảnh gốc.
-
-**Đợt 4 — khác biệt hoá (L) — ✅ xong**
-Dev Mode codegen provider (xem 2) · giới hạn kích thước `get_document` ·
-FigJam/Slides · handshake danh sách handler · hàng đợi ghi.
+- ✅ A contract test between handler names and the Go toolspec: it runs on the
+  plugin side and reads the server's own golden schema. Every tool the server
+  offers must have a handler, and every handler must be reachable — either as a
+  tool, or through a documented delegation target.
+- `mergeHandlers` already catches a duplicate name at load, which is good. There
+  should also be a test asserting that every new write handler was considered for
+  `CREATE_ACTIONS` in `batch-pipeline.ts` — the comment there warns about exactly
+  this risk, but nothing watches it. **Follow-up**: done; every write handler is
+  now listed as creating or keeping, and adding one fails the test until it is
+  classified.
+- A test for the `dynamic-page` path: a fixture with several pages, to catch a
+  missing load. **Follow-up**: done, with a fixture whose pages report no children
+  until `loadAsync` is called — verified by removing a load and watching the
+  suite go red.
+- Fonts: report the missing ones rather than letting `loadFontAsync` throw
+  part-way through. **Follow-up**: done; `set_text_ranges` and `find_replace_text`
+  collect every font they need, load them together, and raise one error naming
+  all the missing ones before anything is written.
 
 ---
 
-## 7. Còn lại
+## 6. Proposed roadmap
 
-Không mục nào trong số này chặn việc gì; gom lại đây để lần sau khỏi phải đọc
-lại cả tài liệu.
+**Wave 1 — cheap, high impact (S) — ✅ done**
+Auto-layout sizing · version-skew warning · `set_selection` · document-wide
+search · one undo step per pipeline · version-history checkpoint · auto-copy on
+by default.
 
-**Độ phủ API**
-- `set_layout_sizing` áp cho nhiều node cùng lúc (1.1).
-- `get_document` vẫn chỉ serialize page hiện tại — chưa có `scope: "document"`
-  như `search_nodes` (1.6).
-- `strokeCap`, `strokeJoin`, `dashPattern`, `strokeMiterLimit` phía ghi (1.7).
-- `exportSettings` đặt sẵn trên node (1.7).
-- `imageTransform` (crop) và `filters` cho ảnh (1.8).
-- `figma.codegen.on("preferenceschange")` cho chọn ngôn ngữ/framework (2).
+**Wave 2 — experience and safety (M) — ✅ done**
+Activity log · read-only and destructive-confirm · request cancellation · an undo
+button in the panel. (The pairing token was dropped — see 3.2.)
 
-**Hiệu năng**
-- `deduplicateStyles` cho `get_nodes_info` và `get_design_context` (4.3).
-- Phủ `progress_update` rộng hơn: từng bước pipeline, export nhiều node,
-  `find_replace_text` (4.5).
+**Wave 3 — API coverage (M) — ✅ done**
+Range-level rich text · vector and boolean ops · component sets and properties ·
+masks and layout grids · images by URL · reading original image bytes back.
 
-**UI**
-- Nhớ kích thước panel người dùng tự kéo (3.4).
-- Theo theme sáng/tối của Figma thay vì hard-code nền tối (3.4).
-- Nút "Gửi selection cho AI" — pin một tập context ổn định (3.4).
-- i18n VI/EN (3.4).
+**Wave 4 — differentiation (L) — ✅ done**
+Dev Mode codegen provider (see 2) · a size limit on `get_document` ·
+FigJam and Slides · the handler-list handshake · the write queue.
 
-**Kiểm thử**
-- Test cho luồng `dynamic-page` với file nhiều page (5).
-- Test canh việc thêm handler ghi mới phải cân nhắc `CREATE_ACTIONS` (5).
-- Báo cáo font thiếu thay vì để `loadFontAsync` ném giữa chừng (5).
+---
+
+## 7. What was left, and what it became
+
+Nothing here blocked anything, which is why it was collected rather than done at
+the time. All of it has since been built; each line says what it turned into.
+
+**API coverage**
+- `set_layout_sizing` across several nodes (1.1) → a new tool, with its
+  parameters derived from `autoLayoutParams()` by name rather than retyped.
+- `get_document` serialized only the current page, with no `scope: "document"`
+  like `search_nodes` (1.6) → it takes the same `scope` now, sharing one budget
+  across the pages and deduping styles file-wide.
+- `strokeCap`, `strokeJoin`, `dashPattern`, `strokeMiterLimit` on the write side
+  (1.7) → on `set_node_properties`, along with `strokeWeight` and `strokeAlign`.
+- `exportSettings` presets on a node (1.7) → `set_export_settings`.
+- `imageTransform` (crop) and `filters` (1.8) → on `import_image`, with the crop
+  given as a rectangle in fractions of the image.
+- `figma.codegen.on("preferenceschange")` for picking a language (2) → a Language
+  selector in the manifest, refreshed on the event because Figma does not
+  re-render the Code panel by itself.
+
+**Performance**
+- `deduplicateStyles` for `get_nodes_info` and `get_design_context` (4.3) →
+  `get_design_context` already had it; `get_nodes_info` gained it, which moved
+  its answer to `{nodes, globalVars?}`.
+- Wider `progress_update` coverage (4.5) → one module, covering the pipeline per
+  step, `find_replace_text`, `get_screenshot`, and `export_frames_to_pdf`.
+
+**Panel**
+- Remember a panel size the user dragged (3.4) → the panel draws its own resize
+  grip and stores the size with the other preferences.
+- Follow Figma's light/dark theme (3.4) → colour tokens with a light and a dark
+  set, keyed off the `figma-dark` class.
+- A "send selection to the AI" pin (3.4) → `get_selection(source: "pinned")`,
+  with the set held in the plugin core's memory.
+- Vietnamese and English strings (3.4) → one table per locale; only the panel is
+  translated.
+
+**Testing**
+- A `dynamic-page` test with several pages (5) → a fixture whose pages report no
+  children until loaded.
+- A test forcing a new write handler to be considered for `CREATE_ACTIONS` (5) →
+  every write handler is classified as creating or keeping.
+- Report missing fonts rather than letting `loadFontAsync` throw part-way (5) →
+  every font is loaded before anything is written, in one error naming all the
+  missing ones.
+
+**Security**
+- The unauthenticated port (3.2) → reported rather than closed: a startup warning
+  on `--ip` off loopback, an `exposed` flag on the `server-info` frame, and the
+  panel raising its confirm guard once. Pairing itself stays rejected.
