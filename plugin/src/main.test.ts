@@ -65,3 +65,24 @@ describe("handleRequest", () => {
     expect(response.error).not.toBe("Request cancelled");
   });
 });
+
+describe("plugin-capabilities", () => {
+  const capabilityMessages = () => posted.filter(m => m.type === "plugin-capabilities");
+
+  it("lists the batch pipeline alongside the handlers", () => {
+    expect(capabilityMessages()[0].handlers).toContain("batch_execute_pipeline");
+    expect(capabilityMessages()[0].handlers).toContain("get_document");
+  });
+
+  // The panel's message listener is not installed yet when showUI returns, so
+  // the first post can land in the gap. sendStatus is already sent twice for
+  // that reason; the capability list needs the same second chance, or the server
+  // is left thinking the plugin announced nothing — which it reads as "old
+  // plugin, allow everything".
+  it("is re-sent when the panel says it is ready", async () => {
+    const before = capabilityMessages().length;
+    expect(before).toBe(1);
+    await uiHandler!({ type: "ui-ready" });
+    expect(capabilityMessages().length).toBe(before + 1);
+  });
+});

@@ -25,6 +25,27 @@ const sendStatus = () => {
   });
 };
 
+// What this build can actually do. The UI passes it to the server on connect,
+// so a tool the server has and this plugin does not is reported as "update the
+// plugin" rather than as "Unknown request type" at call time. The maps live here
+// because importing them into the UI would pull the entire write surface into a
+// bundle that only needs the names.
+//
+// Sent at startup and again on ui-ready, like sendStatus: the panel's listener
+// is not installed when showUI returns, and a capability list that lands in that
+// gap leaves the server believing the plugin announced nothing — which it reads
+// as "old plugin, allow everything".
+const sendCapabilities = () => {
+  figma.ui.postMessage({
+    type: "plugin-capabilities",
+    handlers: [
+      ...Object.keys(readHandlerMap),
+      ...Object.keys(writeHandlerMap),
+      "batch_execute_pipeline",
+    ],
+  });
+};
+
 const runRequest = async (request: any) => {
   // Reads answer from one merged map; writes go through their own entry point
   // because the pipeline has to intercept before dispatch.
@@ -72,20 +93,7 @@ const startPanel = () => {
     title: `Figma MCP Go [v${__APP_VERSION__}]`,
   });
   sendStatus();
-
-  // What this build can actually do. The UI passes it to the server on connect,
-  // so a tool the server has and this plugin does not is reported as "update
-  // the plugin" rather than as "Unknown request type" at call time. The maps
-  // live here because importing them into the UI would pull the entire write
-  // surface into a bundle that only needs the names.
-  figma.ui.postMessage({
-    type: "plugin-capabilities",
-    handlers: [
-      ...Object.keys(readHandlerMap),
-      ...Object.keys(writeHandlerMap),
-      "batch_execute_pipeline",
-    ],
-  });
+  sendCapabilities();
 
   figma.on("selectionchange", () => {
     sendStatus();
@@ -98,6 +106,7 @@ const startPanel = () => {
   figma.ui.onmessage = async (message) => {
     if (message.type === "ui-ready") {
       sendStatus();
+      sendCapabilities();
       return;
     }
     if (message.type === "get_ws_config") {
