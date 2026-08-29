@@ -1,5 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeStoredPrefs, sanitizeGuardMode, sanitizeHost, sanitizePort } from "./prefs";
+import {
+  DEFAULT_PANEL_HEIGHT,
+  DEFAULT_PANEL_WIDTH,
+  MAX_PANEL_HEIGHT,
+  MAX_PANEL_WIDTH,
+  MIN_PANEL_HEIGHT,
+  MIN_PANEL_WIDTH,
+  normalizeStoredPrefs,
+  sanitizeGuardMode,
+  sanitizeHost,
+  sanitizePanelHeight,
+  sanitizePanelWidth,
+  sanitizePort,
+} from "./prefs";
 
 describe("sanitizeHost", () => {
   test("keeps a real host and trims it", () => {
@@ -43,6 +56,8 @@ describe("normalizeStoredPrefs", () => {
       autoCopy: true,
       guardMode: "off",
       showLog: false,
+      panelWidth: 320,
+      panelHeight: 230,
     });
   });
 
@@ -61,6 +76,8 @@ describe("normalizeStoredPrefs", () => {
       autoCopy: true,
       guardMode: "off",
       showLog: false,
+      panelWidth: 320,
+      panelHeight: 230,
     });
   });
 
@@ -87,5 +104,32 @@ describe("sanitizeGuardMode", () => {
     expect(sanitizeGuardMode("paranoid")).toBe("off");
     expect(sanitizeGuardMode(undefined)).toBe("off");
     expect(sanitizeGuardMode(7)).toBe("off");
+  });
+});
+
+describe("panel size", () => {
+  test("falls back to the default when nothing is stored", () => {
+    expect(normalizeStoredPrefs({}).panelWidth).toBe(DEFAULT_PANEL_WIDTH);
+    expect(normalizeStoredPrefs({}).panelHeight).toBe(DEFAULT_PANEL_HEIGHT);
+  });
+
+  test("remembers a size the user dragged", () => {
+    const prefs = normalizeStoredPrefs({ panelWidth: 500, panelHeight: 400 });
+    expect(prefs.panelWidth).toBe(500);
+    expect(prefs.panelHeight).toBe(400);
+  });
+
+  // A slip of the mouse must not leave a window too small to find again, or one
+  // larger than the screen it is on.
+  test("clamps a stored size to something usable", () => {
+    expect(sanitizePanelWidth(10)).toBe(MIN_PANEL_WIDTH);
+    expect(sanitizePanelWidth(5000)).toBe(MAX_PANEL_WIDTH);
+    expect(sanitizePanelHeight(0)).toBe(MIN_PANEL_HEIGHT);
+    expect(sanitizePanelHeight(5000)).toBe(MAX_PANEL_HEIGHT);
+  });
+
+  test("falls back rather than storing NaN", () => {
+    expect(sanitizePanelWidth("wide")).toBe(DEFAULT_PANEL_WIDTH);
+    expect(sanitizePanelHeight(undefined)).toBe(DEFAULT_PANEL_HEIGHT);
   });
 });

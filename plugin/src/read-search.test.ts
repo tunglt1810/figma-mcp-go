@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from "bun:test";
 import { readDocumentHandlers } from "./read-document";
+import { clearPinned, setPinned } from "./pinned";
 
 // ── Figma mock ────────────────────────────────────────────────────────────────
 
@@ -217,5 +218,45 @@ describe("get_nodes_info", () => {
     });
     expect(result.data.globalVars).toBeDefined();
     expect(result.data.nodes[0].styles.fills).toBe(result.data.nodes[1].styles.fills);
+  });
+});
+
+// ── get_selection ─────────────────────────────────────────────────────────────
+
+describe("get_selection", () => {
+  const getSelection = (params?: any) =>
+    readDocumentHandlers["get_selection"]({
+      type: "get_selection",
+      requestId: "r5",
+      params,
+    });
+
+  beforeEach(() => {
+    clearPinned();
+    currentPage.selection = [nodes["1:1"]];
+  });
+
+  it("follows the live selection by default", async () => {
+    const result = await getSelection();
+    expect(result.data.map((n: any) => n.id)).toEqual(["1:1"]);
+  });
+
+  // The whole point of a pin: it holds still while the selection moves.
+  it("reads the pinned set instead when asked for it", async () => {
+    setPinned(["1:2"]);
+    currentPage.selection = [nodes["1:1"]];
+    const result = await getSelection({ source: "pinned" });
+    expect(result.data.map((n: any) => n.id)).toEqual(["1:2"]);
+  });
+
+  it("answers empty rather than failing when nothing is pinned", async () => {
+    expect((await getSelection({ source: "pinned" })).data).toEqual([]);
+  });
+
+  // A pinned node the user has since deleted must not fail every later call.
+  it("skips a pinned node that is no longer in the file", async () => {
+    setPinned(["1:2", "9:9"]);
+    const result = await getSelection({ source: "pinned" });
+    expect(result.data.map((n: any) => n.id)).toEqual(["1:2"]);
   });
 });

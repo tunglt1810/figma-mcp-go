@@ -1,6 +1,7 @@
 import { serializeNode, getBounds, serializeStyles, serializeNodeProperties, isMixed, deduplicateStyles, makeBudget } from "./serializers";
 import { HandlerMap } from "./dispatch";
 import { throwIfCancelled } from "./cancellation";
+import { getPinned } from "./pinned";
 
 export const readDocumentHandlers: HandlerMap = {
   "get_document": async (request) => {
@@ -62,6 +63,19 @@ export const readDocumentHandlers: HandlerMap = {
   },
 
   "get_selection": async (request) => {
+    // source "pinned" reads the set the designer pinned in the panel instead of
+    // whatever happens to be selected now. Same answer shape either way, so a
+    // caller that never asks for a pin is unaffected.
+    if (request.params && request.params.source === "pinned") {
+      const ids = getPinned();
+      const nodes = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
+      const live = nodes.filter((n) => n !== null && n.type !== "DOCUMENT");
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: await Promise.all(live.map((node) => serializeNode(node as any))),
+      };
+    }
     return {
       type: request.type,
       requestId: request.requestId,

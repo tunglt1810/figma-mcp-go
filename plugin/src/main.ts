@@ -6,6 +6,7 @@ import { clearCancelled, markCancelled } from "./cancellation";
 import { enqueueWrite } from "./write-queue";
 import { isMutating } from "./tool-classes";
 import { registerCodegen } from "./codegen";
+import { getPinned, setPinned } from "./pinned";
 import { readHandlers as readHandlerMap } from "./read-handlers";
 import { writeHandlers as writeHandlerMap } from "./write-handlers";
 
@@ -98,6 +99,22 @@ const startPanel = () => {
     }
     if (message.type === "save_ws_config") {
       await figma.clientStorage.setAsync("ws_config", message.config);
+      return;
+    }
+    if (message.type === "set_pinned_nodes") {
+      const pinned = setPinned(message.nodeIds);
+      // Echoed back so the panel shows what the core actually holds rather than
+      // what it hoped it sent — the core drops blanks and duplicates.
+      figma.ui.postMessage({ type: "pinned_nodes", nodeIds: pinned });
+      figma.notify(
+        pinned.length > 0
+          ? `Pinned ${pinned.length} node(s) for your AI tool`
+          : "Pin cleared",
+      );
+      return;
+    }
+    if (message.type === "get_pinned_nodes") {
+      figma.ui.postMessage({ type: "pinned_nodes", nodeIds: getPinned() });
       return;
     }
     if (message.type === "cancel-request") {

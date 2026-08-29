@@ -10,6 +10,24 @@ export const DEFAULT_HOST = "127.0.0.1";
 export const DEFAULT_PORT = "1994";
 
 /**
+ * Panel size limits, matching the clamp the plugin core applies to a resize
+ * message. Figma windows are not resizable by themselves — the panel draws its
+ * own grip — so these bounds are the only thing between a slip of the mouse and
+ * a window too small to find again.
+ */
+export const MIN_PANEL_WIDTH = 240;
+export const MAX_PANEL_WIDTH = 800;
+export const MIN_PANEL_HEIGHT = 160;
+export const MAX_PANEL_HEIGHT = 900;
+
+/** The panel's size with the activity log closed, before the user drags it. */
+export const DEFAULT_PANEL_WIDTH = 320;
+export const DEFAULT_PANEL_HEIGHT = 230;
+
+/** How much taller the panel gets when the activity log is open. */
+export const LOG_EXTRA_HEIGHT = 230;
+
+/**
  * How much the panel gets in the way of a write.
  *
  * "off" is the default and preserves the behaviour every existing user has.
@@ -26,6 +44,9 @@ export interface Prefs {
   autoCopy: boolean;
   guardMode: GuardMode;
   showLog: boolean;
+  /** The panel's size with the log closed; the log's extra height is added on top. */
+  panelWidth: number;
+  panelHeight: number;
 }
 
 /** Clamp a host string to something connectable, falling back to the default. */
@@ -57,8 +78,24 @@ export function normalizeStoredPrefs(stored: unknown): Prefs {
     autoCopy: config.autoCopy === undefined ? true : config.autoCopy !== false,
     guardMode: sanitizeGuardMode(config.guardMode),
     showLog: config.showLog === true,
+    panelWidth: sanitizePanelWidth(config.panelWidth),
+    panelHeight: sanitizePanelHeight(config.panelHeight),
   };
 }
+
+/** Clamp a stored size, falling back to the default rather than to a window the
+ * user cannot see or cannot fit on screen. */
+const sanitizeSize = (value: unknown, min: number, max: number, fallback: number): number => {
+  const parsed = Math.round(Number(value));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+};
+
+export const sanitizePanelWidth = (value: unknown): number =>
+  sanitizeSize(value, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH, DEFAULT_PANEL_WIDTH);
+
+export const sanitizePanelHeight = (value: unknown): number =>
+  sanitizeSize(value, MIN_PANEL_HEIGHT, MAX_PANEL_HEIGHT, DEFAULT_PANEL_HEIGHT);
 
 /** An unrecognised stored mode falls back to off rather than to a guard the
  * user never chose and cannot see the reason for. */

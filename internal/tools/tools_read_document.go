@@ -25,7 +25,11 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "get_selection",
-		Desc: "Get the nodes currently selected in Figma. Returns an empty array if nothing is selected. Use get_design_context or get_node to retrieve deeper detail about a specific node by ID.",
+		Desc: "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_design_context or get_node to retrieve deeper detail about a specific node by ID.",
+		Params: []paramSpec{
+			{Name: "source", Kind: kindString, Enum: []string{"selection", "pinned"},
+				Desc: "'selection' (default) follows what is selected right now, which moves the moment the user clicks elsewhere. 'pinned' reads the set they pinned in the panel, which holds still across a conversation — prefer it when you need the same nodes over several calls."},
+		},
 	},
 	{
 		Name:       "get_node",

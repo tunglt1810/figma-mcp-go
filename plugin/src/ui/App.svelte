@@ -2,11 +2,34 @@
   import { onMount } from "svelte";
   import { copyTextToClipboard } from "./copy-helper";
   import { versionWarning, versionWarningSummary } from "./version-check";
-  import { DEFAULT_HOST, DEFAULT_PORT, GUARD_MODES, normalizeStoredPrefs, sanitizeHost, sanitizePort } from "./prefs";
+  import {
+    DEFAULT_HOST,
+    DEFAULT_PANEL_HEIGHT,
+    DEFAULT_PANEL_WIDTH,
+    DEFAULT_PORT,
+    GUARD_MODES,
+    LOG_EXTRA_HEIGHT,
+    MAX_PANEL_HEIGHT,
+    MAX_PANEL_WIDTH,
+    MIN_PANEL_HEIGHT,
+    MIN_PANEL_WIDTH,
+    normalizeStoredPrefs,
+    sanitizeHost,
+    sanitizePanelHeight,
+    sanitizePanelWidth,
+    sanitizePort,
+  } from "./prefs";
   import type { GuardMode } from "./prefs";
   import { finishEntry, formatDuration, formatLog, progressEntry, startEntry } from "./activity";
   import type { ActivityEntry } from "./activity";
   import { destructiveReason, isDestructive, isMutating } from "../tool-classes";
+  import { pickLocale, strings } from "./i18n";
+
+  // The panel is translated; nothing that leaves it is. Refusal text the server
+  // receives and the activity log a user pastes into a bug report stay English —
+  // they are read by the MCP client and by whoever the report goes to.
+  const locale = pickLocale(typeof navigator !== "undefined" ? navigator.languages : undefined);
+  const t = strings(locale);
 
   let connected = false;
   let fileName = "—";
@@ -41,9 +64,10 @@
   let pendingApprovals: { payload: any; reason: string }[] = [];
   $: pendingApproval = pendingApprovals.length > 0 ? pendingApprovals[0] : null;
 
-  const PANEL_WIDTH = 320;
-  const PANEL_HEIGHT = 230;
-  const PANEL_HEIGHT_WITH_LOG = 460;
+  // The size with the log closed. The log's extra height is added on top, so a
+  // panel the user widened stays that width whether the log is open or not.
+  let panelWidth = DEFAULT_PANEL_WIDTH;
+  let panelHeight = DEFAULT_PANEL_HEIGHT;
   
   // Defaults to on; the stored value replaces it once the core answers.
   let autoCopyEnabled = true;
@@ -65,6 +89,15 @@
   // disconnected, or when the two versions are close enough not to matter.
   $: versionMismatch = connected ? versionWarningSummary(pluginVersion, serverVersion) : null;
   $: versionMismatchDetail = connected ? versionWarning(pluginVersion, serverVersion) : null;
+
+  // The pinned context set. Held by the plugin core; the panel shows what the
+  // core echoes back, never what it hoped it sent.
+  let pinnedNodes: { id: string, name: string }[] = [];
+  $: pinnedIds = pinnedNodes.map(node => node.id);
+  $: selectionIsPinned =
+    selectedNodes.length > 0 &&
+    selectedNodes.length === pinnedNodes.length &&
+    selectedNodes.every(node => pinnedIds.includes(node.id));
 
   let showSettings = false;
   let editHost = serverHost;
@@ -161,7 +194,11 @@
       serverPort = prefs.port;
       autoCopyEnabled = prefs.autoCopy;
       guardMode = prefs.guardMode;
-      if (prefs.showLog !== showLog) {
+      const sizeChanged =
+        prefs.panelWidth !== panelWidth || prefs.panelHeight !== panelHeight;
+      panelWidth = sanitizePanelWidth(prefs.panelWidth);
+      panelHeight = sanitizePanelHeight(prefs.panelHeight);
+      if (prefs.showLog !== showLog || sizeChanged) {
         showLog = prefs.showLog;
         resizePanel();
       }
@@ -169,6 +206,18 @@
         configLoaded = true;
         connect();
       }
+      return;
+    }
+
+    if (msg.type === "pinned_nodes") {
+      const ids: string[] = msg.nodeIds ?? [];
+      // Names come from whatever the panel last saw. A pinned node the user has
+      // since deselected keeps the name it was pinned under; one the panel never
+      // saw shows its id, which is still enough to identify it.
+      const known = new Map(
+        [...selectedNodes, ...pinnedNodes].map(node => [node.id, node.name]),
+      );
+      pinnedNodes = ids.map(id => ({ id, name: known.get(id) ?? id }));
       return;
     }
 
@@ -287,12 +336,44 @@
       {
         pluginMessage: {
           type: "resize_ui",
-          width: PANEL_WIDTH,
-          height: showLog ? PANEL_HEIGHT_WITH_LOG : PANEL_HEIGHT,
+          width: panelWidth,
+          height: showLog ? panelHeight + LOG_EXTRA_HEIGHT : panelHeight,
         },
       },
       "*",
     );
+  }
+
+  // Figma plugin windows have no resize handle of their own, so the panel draws
+  // one and asks the core to resize. The drag is tracked from the pointer's
+  // position on screen rather than from a delta, so a fast drag that outruns the
+  // resize cannot make the grip drift away from the cursor.
+  let resizing = false;
+
+  function startResize(event: PointerEvent) {
+    resizing = true;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }
+
+  function trackResize(event: PointerEvent) {
+    if (!resizing) return;
+    const width = Math.min(Math.max(event.clientX + 4, MIN_PANEL_WIDTH), MAX_PANEL_WIDTH);
+    const height = Math.min(Math.max(event.clientY + 4, MIN_PANEL_HEIGHT), MAX_PANEL_HEIGHT);
+    panelWidth = width;
+    // What is stored is the closed-log size, so reopening the log does not
+    // stack its extra height on a panel that already includes it.
+    panelHeight = showLog ? Math.max(height - LOG_EXTRA_HEIGHT, MIN_PANEL_HEIGHT) : height;
+    resizePanel();
+  }
+
+  function endResize(event: PointerEvent) {
+    if (!resizing) return;
+    resizing = false;
+    (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+    // Written once at the end of the drag rather than on every pointer move —
+    // clientStorage is a round trip through the plugin core.
+    savePrefs();
   }
 
   function toggleLog() {
@@ -349,6 +430,8 @@
             autoCopy: autoCopyEnabled,
             guardMode,
             showLog,
+            panelWidth,
+            panelHeight,
           },
         },
       },
@@ -412,6 +495,23 @@
     savePrefs();
   }
 
+  // ── Pinned context ─────────────────────────────────────────────────────────
+
+  function pinSelection() {
+    parent.postMessage(
+      { pluginMessage: { type: "set_pinned_nodes", nodeIds: selectedNodes.map(n => n.id) } },
+      "*",
+    );
+  }
+
+  function clearPin() {
+    parent.postMessage({ pluginMessage: { type: "set_pinned_nodes", nodeIds: [] } }, "*");
+  }
+
+  function copyPinned() {
+    copyToClipboard(pinnedIds.join(", "));
+  }
+
   function onAutoCopyToggle() {
     // Turning it back on clears the sticky break, so the next selection retries.
     if (autoCopyEnabled) autoCopyBroken = false;
@@ -423,6 +523,8 @@
 
     // Request stored configs from plugin core
     parent.postMessage({ pluginMessage: { type: "get_ws_config" } }, "*");
+    // The pin outlives a panel reload, so ask what the core is already holding.
+    parent.postMessage({ pluginMessage: { type: "get_pinned_nodes" } }, "*");
 
     // Fallback: if the plugin core doesn't respond within 500 ms (e.g. during
     // dev / hot-reload without a running core), connect with defaults.
@@ -446,16 +548,16 @@
 <div class="container">
   <div class="info-section">
     <div class="info-row">
-      <span class="info-label">File</span>
+      <span class="info-label">{t.file}</span>
       <span class="info-value" title={fileName}>{fileName}</span>
     </div>
     <div class="info-row">
-      <span class="info-label">Page</span>
+      <span class="info-label">{t.page}</span>
       <span class="info-value" title={pageName}>{pageName}</span>
     </div>
     <div class="info-row">
-      <span class="info-label">Selection</span>
-      <span class="info-value">{selectionCount} node(s)</span>
+      <span class="info-label">{t.selection}</span>
+      <span class="info-value">{t.nodeCount(selectionCount)}</span>
     </div>
     {#if selectedNodes.length > 0}
       <div class="node-list">
@@ -466,34 +568,45 @@
               bind:checked={autoCopyEnabled}
               on:change={onAutoCopyToggle}
             />
-            Auto-copy ID
+            {t.autoCopyId}
           </label>
           {#if selectedNodes.length > 1}
-            <button class="copy-btn" on:click={() => copyAllNodes()} title="Copy all IDs">Copy All</button>
+            <button class="copy-btn" on:click={() => copyAllNodes()} title={t.copyAllTitle}>{t.copyAll}</button>
           {/if}
+          <button
+            class="copy-btn"
+            class:pinned={selectionIsPinned}
+            on:click={pinSelection}
+            title={t.pinTitle}
+          >{selectionIsPinned ? t.pinned : t.pin}</button>
         </div>
         <div class="node-items">
           {#each selectedNodes as node}
             <div class="node-item">
               <span class="node-name" title="{node.name}">{node.name} <span class="node-id">({node.id})</span></span>
-              <button class="copy-btn" on:click={() => copyToClipboard(node.id)} title="Copy ID">Copy</button>
+              <button class="copy-btn" on:click={() => copyToClipboard(node.id)} title={t.copyIdTitle}>{t.copy}</button>
             </div>
           {/each}
         </div>
       </div>
     {/if}
+    {#if pinnedNodes.length > 0}
+      <div class="info-row pinned-row">
+        <span class="info-label" title={t.pinnedTitle}>{t.pinnedCount(pinnedNodes.length)}</span>
+        <span class="pinned-actions">
+          <button class="copy-btn" on:click={copyPinned} title={pinnedNodes.map(n => `${n.name} (${n.id})`).join("\n")}>{t.copy}</button>
+          <button class="copy-btn" on:click={clearPin} title={t.clearPinTitle}>{t.clear}</button>
+        </span>
+      </div>
+    {/if}
     {#if autoCopyBroken}
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
-      <div class="error-banner" on:click={reArmAutoCopy} title="Your browser's clipboard security policy blocks automatic copies without user clicks; connect Go MCP Server for native auto-copy, or click to retry">
-        ⚠️ Auto-copy disabled (browser policy). Connect Go MCP Server for native auto-copy, or click to retry.
-      </div>
+      <div class="error-banner" on:click={reArmAutoCopy} title={t.autoCopyBrokenTitle}>{t.autoCopyBroken}</div>
     {:else if copyError}
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
-      <div class="error-banner" on:click={retryCopy} title="Browsers require you to click here once after a reload to allow clipboard access">
-        ⚠️ Copy failed. Click here to retry.
-      </div>
+      <div class="error-banner" on:click={retryCopy} title={t.copyFailedTitle}>{t.copyFailed}</div>
     {/if}
   </div>
   {#if versionMismatch}
@@ -504,14 +617,14 @@
   {#if pendingApproval}
     <div class="confirm-banner">
       <div class="confirm-text">
-        Allow <strong>{pendingApproval.reason}</strong>?
+        {t.allowQuestion} <strong>{pendingApproval.reason}</strong>?
         {#if pendingApprovals.length > 1}
-          <span class="confirm-queue">+{pendingApprovals.length - 1} waiting</span>
+          <span class="confirm-queue">{t.waiting(pendingApprovals.length - 1)}</span>
         {/if}
       </div>
       <div class="confirm-actions">
-        <button class="allow-btn" on:click={approvePending}>Allow</button>
-        <button class="deny-btn" on:click={denyPending}>Decline</button>
+        <button class="allow-btn" on:click={approvePending}>{t.allow}</button>
+        <button class="deny-btn" on:click={denyPending}>{t.decline}</button>
       </div>
     </div>
   {/if}
@@ -528,11 +641,11 @@
   {#if showLog}
     <div class="log-panel">
       <div class="log-header">
-        <span>Activity</span>
-        <button class="copy-btn" on:click={copyLog} title="Copy the log for a bug report">Copy</button>
+        <span>{t.activity}</span>
+        <button class="copy-btn" on:click={copyLog} title={t.copyLogTitle}>{t.copy}</button>
       </div>
       {#if activityLog.length === 0}
-        <div class="log-empty">Nothing yet.</div>
+        <div class="log-empty">{t.logEmpty}</div>
       {:else}
         <div class="log-items">
           {#each activityLog as entry (entry.requestId)}
@@ -559,14 +672,14 @@
         class:confirm={guardMode === "confirm"}
         class:readonly={guardMode === "readonly"}
         on:click={cycleGuardMode}
-        title="Click to change: off runs everything, confirm asks before deletes and bulk rewrites, read-only blocks every change"
+        title={t.guardTitle}
       >
-        {guardMode === "off" ? "Guard: off" : guardMode === "confirm" ? "Guard: confirm" : "Guard: read-only"}
+        {guardMode === "off" ? t.guardOff : guardMode === "confirm" ? t.guardConfirm : t.guardReadonly}
       </button>
       <div class="links">
-        <button class="mini-btn" on:click={undoLast} title="Undo the last change in Figma">Undo</button>
-        <button class="mini-btn" class:active={showLog} on:click={toggleLog} title="Show the activity log">
-          Log {showLog ? "▴" : "▾"}
+        <button class="mini-btn" on:click={undoLast} title={t.undoTitle}>{t.undo}</button>
+        <button class="mini-btn" class:active={showLog} on:click={toggleLog} title={t.activityTitle}>
+          {t.activity} {showLog ? "▴" : "▾"}
         </button>
       </div>
     </div>
@@ -587,19 +700,19 @@
             placeholder="1994"
             on:keydown={handleKeydown}
           />
-          <button class="apply-btn" on:click={applySettings} title="Apply">✓</button>
-          <button class="cancel-btn" on:click={() => showSettings = false} title="Cancel">✕</button>
+          <button class="apply-btn" on:click={applySettings} title={t.apply}>✓</button>
+          <button class="cancel-btn" on:click={() => showSettings = false} title={t.dismiss}>✕</button>
         </div>
       {:else}
         <button
           class="server-addr"
           on:click={openSettings}
-          title="Click to configure server address"
+          title={t.serverAddressTitle}
         >{serverHost}:{serverPort}</button>
       {/if}
       <div class="badge" class:connected class:disconnected={!connected}>
         <span class="dot" class:connected></span>
-        <span>{connected ? (serverVersion ? `Connected (v${serverVersion})` : "Connected") : "Disconnected"}</span>
+        <span>{connected ? (serverVersion ? t.connectedVersion(serverVersion) : t.connected) : t.disconnected}</span>
       </div>
     </div>
     <!-- Row 2: author (left) + bug report + feature suggestion (right) -->
@@ -620,7 +733,7 @@
           class="footer-link"
           href="https://github.com/tunglt1810/figma-mcp-go/issues/new?labels=bug"
           target="_blank"
-          title="Report a bug"
+          title={t.reportBug}
         >
           <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm7-3.25v2.992l2.028.812.772-1.932-2.8-1.872ZM6.272 3.937 3.5 5.808l.772 1.932L6.3 6.928V3.873a.75.75 0 0 0-.028.064ZM8.75 9.75H7.25V11h1.5V9.75Zm0-5.5H7.25v4h1.5v-4Z"/>
@@ -631,7 +744,7 @@
           class="footer-link"
           href="https://github.com/tunglt1810/figma-mcp-go/issues/new?labels=enhancement&title=Feature+request%3A+"
           target="_blank"
-          title="Suggest a feature"
+          title={t.suggestFeature}
         >
           <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 14.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"/>
@@ -643,7 +756,99 @@
   </div>
 </div>
 
+<!-- Figma gives a plugin window no resize handle of its own, so the panel draws
+     one. svelte-ignore: the grip is a pointer affordance with no keyboard role;
+     the panel is fully usable at any size without it. -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<div
+  class="resize-grip"
+  class:resizing
+  title={t.resizeTitle}
+  on:pointerdown={startResize}
+  on:pointermove={trackResize}
+  on:pointerup={endResize}
+  on:pointercancel={endResize}
+></div>
+
 <style>
+  /*
+   * Figma puts a `figma-dark` class on the document element in dark mode and
+   * removes it in light mode, so the theme is a CSS question and the panel needs
+   * no script for it. Light is the base and dark is the override — the panel was
+   * dark-only before this, so the dark block is the palette it already had.
+   */
+  :global(:root) {
+    --bg: #ffffff;
+    --bg-raised: #f5f5f5;
+    --bg-sunken: #e8e8e8;
+    --text: #333333;
+    --text-muted: #6b6b6b;
+    --text-faint: #949494;
+    --border: #d5d5d5;
+    --border-strong: #bcbcbc;
+
+    --ok: #15803d;
+    --ok-ring: #15803d55;
+    --ok-bg: #dcfce7;
+    --ok-bg-strong: #bbf7d0;
+    --ok-bg-soft: #ecfdf3;
+
+    --danger: #b91c1c;
+    --danger-ring: #b91c1c55;
+    --danger-ring-soft: #b91c1c33;
+    --danger-bg: #fee2e2;
+    --danger-bg-strong: #fecaca;
+
+    --warn: #a16207;
+    --warn-ring: #a1620766;
+    --warn-ring-soft: #a1620744;
+    --warn-ring-faint: #a1620733;
+    --warn-bg: #fef3c7;
+
+    --accent: #1d4ed8;
+    --accent-bright: #1e40af;
+    --accent-ring: #1d4ed855;
+    --accent-ring-soft: #1d4ed844;
+    --accent-ring-faint: #1d4ed833;
+    --accent-bg: #dbeafe;
+  }
+
+  :global(.figma-dark) {
+    --bg: #1e1e1e;
+    --bg-raised: #2a2a2a;
+    --bg-sunken: #333;
+    --text: #e0e0e0;
+    --text-muted: #888;
+    --text-faint: #666;
+    --border: #444;
+    --border-strong: #555;
+
+    --ok: #4ade80;
+    --ok-ring: #4ade8055;
+    --ok-bg: #1a472a;
+    --ok-bg-strong: #1f5733;
+    --ok-bg-soft: #1a3a2a;
+
+    --danger: #f87171;
+    --danger-ring: #f8717155;
+    --danger-ring-soft: #f8717144;
+    --danger-bg: #3a1a1a;
+    --danger-bg-strong: #4a1a1a;
+
+    --warn: #fbbf24;
+    --warn-ring: #fbbf2466;
+    --warn-ring-soft: #fbbf2455;
+    --warn-ring-faint: #fbbf2444;
+    --warn-bg: #3a2f1a;
+
+    --accent: #60a5fa;
+    --accent-bright: #93c5fd;
+    --accent-ring: #60a5fa55;
+    --accent-ring-soft: #60a5fa44;
+    --accent-ring-faint: #2563eb44;
+    --accent-bg: #1a2e3a;
+  }
+
   :global(*) {
     box-sizing: border-box;
     margin: 0;
@@ -653,8 +858,8 @@
   :global(body) {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 12px;
-    background: #1e1e1e;
-    color: #e0e0e0;
+    background: var(--bg);
+    color: var(--text);
     height: 100vh;
   }
 
@@ -664,6 +869,42 @@
     height: 100%;
     padding: 16px;
     gap: 12px;
+  }
+
+  .pinned-row {
+    padding-top: 2px;
+  }
+
+  .pinned-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .copy-btn.pinned {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .resize-grip {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    touch-action: none;
+    /* Two short strokes in the corner, the same shape Figma's own resizable
+       surfaces use, drawn in CSS so there is no image to load. */
+    background:
+      linear-gradient(135deg, transparent 50%, var(--border-strong) 50%, var(--border-strong) 62%, transparent 62%),
+      linear-gradient(135deg, transparent 74%, var(--border-strong) 74%, var(--border-strong) 86%, transparent 86%);
+  }
+
+  .resize-grip:hover,
+  .resize-grip.resizing {
+    background:
+      linear-gradient(135deg, transparent 50%, var(--text-muted) 50%, var(--text-muted) 62%, transparent 62%),
+      linear-gradient(135deg, transparent 74%, var(--text-muted) 74%, var(--text-muted) 86%, transparent 86%);
   }
 
   .info-section {
@@ -680,11 +921,11 @@
   }
 
   .info-label {
-    color: #888;
+    color: var(--text-muted);
   }
 
   .info-value {
-    color: #e0e0e0;
+    color: var(--text);
     font-weight: 500;
     max-width: 180px;
     overflow: hidden;
@@ -697,7 +938,7 @@
     flex-direction: column;
     gap: 4px;
     margin-top: 4px;
-    background: #2a2a2a;
+    background: var(--bg-raised);
     border-radius: 6px;
     padding: 6px 8px;
     max-height: 120px;
@@ -709,10 +950,10 @@
     justify-content: space-between;
     align-items: center;
     font-size: 10px;
-    color: #888;
+    color: var(--text-muted);
     margin-bottom: 2px;
     padding-bottom: 4px;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid var(--border);
   }
 
   .auto-copy-label {
@@ -741,7 +982,7 @@
   }
 
   .node-name {
-    color: #ccc;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -750,15 +991,15 @@
   }
 
   .node-id {
-    color: #888;
+    color: var(--text-muted);
     font-family: monospace;
     font-size: 10px;
   }
 
   .copy-btn {
-    background: #333;
-    border: 1px solid #444;
-    color: #e0e0e0;
+    background: var(--bg-sunken);
+    border: 1px solid var(--border);
+    color: var(--text);
     border-radius: 4px;
     padding: 2px 6px;
     font-size: 10px;
@@ -767,11 +1008,11 @@
   }
 
   .copy-btn:hover {
-    background: #444;
+    background: var(--border);
   }
   
   .copy-btn:active {
-    background: #555;
+    background: var(--border-strong);
   }
   
   .node-list::-webkit-scrollbar {
@@ -783,7 +1024,7 @@
   }
   
   .node-list::-webkit-scrollbar-thumb {
-    background: #555;
+    background: var(--border-strong);
     border-radius: 3px;
   }
 
@@ -792,10 +1033,10 @@
     flex-direction: column;
     gap: 6px;
     padding: 8px 10px;
-    background: #3a2f1a;
-    border: 1px solid #fbbf2466;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-ring);
     border-radius: 8px;
-    color: #fbbf24;
+    color: var(--warn);
     font-size: 11px;
   }
 
@@ -805,7 +1046,7 @@
   }
 
   .confirm-queue {
-    color: #a1a1aa;
+    color: var(--text-muted);
     font-size: 10px;
   }
 
@@ -822,34 +1063,34 @@
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
-    border: 1px solid #444;
+    border: 1px solid var(--border);
   }
 
   .allow-btn {
-    background: #1a472a;
-    border-color: #4ade8055;
-    color: #4ade80;
+    background: var(--ok-bg);
+    border-color: var(--ok-ring);
+    color: var(--ok);
   }
 
   .allow-btn:hover {
-    background: #1f5733;
+    background: var(--ok-bg-strong);
   }
 
   .deny-btn {
-    background: #3a1a1a;
-    border-color: #f8717155;
-    color: #f87171;
+    background: var(--danger-bg);
+    border-color: var(--danger-ring);
+    color: var(--danger);
   }
 
   .deny-btn:hover {
-    background: #4a1a1a;
+    background: var(--danger-bg-strong);
   }
 
   .log-panel {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    background: #2a2a2a;
+    background: var(--bg-raised);
     border-radius: 6px;
     padding: 6px 8px;
     flex: 1;
@@ -862,16 +1103,16 @@
     justify-content: space-between;
     align-items: center;
     font-size: 10px;
-    color: #888;
+    color: var(--text-muted);
     padding-bottom: 4px;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid var(--border);
     position: sticky;
     top: -6px;
-    background: #2a2a2a;
+    background: var(--bg-raised);
   }
 
   .log-empty {
-    color: #666;
+    color: var(--text-faint);
     font-size: 11px;
     padding: 6px 0;
   }
@@ -890,22 +1131,22 @@
   }
 
   .log-mark {
-    color: #60a5fa;
+    color: var(--accent);
     flex-shrink: 0;
     width: 10px;
     text-align: center;
   }
 
   .log-mark.ok {
-    color: #4ade80;
+    color: var(--ok);
   }
 
   .log-mark.err {
-    color: #f87171;
+    color: var(--danger);
   }
 
   .log-tool {
-    color: #ccc;
+    color: var(--text);
     flex: 1;
     white-space: nowrap;
     overflow: hidden;
@@ -915,13 +1156,13 @@
   }
 
   .log-time {
-    color: #777;
+    color: var(--text-faint);
     font-size: 10px;
     flex-shrink: 0;
   }
 
   .log-message {
-    color: #f87171;
+    color: var(--danger);
     font-size: 10px;
     line-height: 1.3;
     padding: 0 0 2px 16px;
@@ -937,14 +1178,14 @@
   }
 
   .log-panel::-webkit-scrollbar-thumb {
-    background: #555;
+    background: var(--border-strong);
     border-radius: 3px;
   }
 
   .mode-btn {
-    background: #2a2a2a;
-    border: 1px solid #444;
-    color: #888;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
     border-radius: 4px;
     padding: 3px 8px;
     font-size: 10px;
@@ -952,23 +1193,23 @@
   }
 
   .mode-btn:hover {
-    color: #e0e0e0;
+    color: var(--text);
   }
 
   .mode-btn.confirm {
-    color: #fbbf24;
-    border-color: #fbbf2455;
+    color: var(--warn);
+    border-color: var(--warn-ring-soft);
   }
 
   .mode-btn.readonly {
-    color: #60a5fa;
-    border-color: #60a5fa55;
+    color: var(--accent);
+    border-color: var(--accent-ring);
   }
 
   .mini-btn {
     background: none;
-    border: 1px solid #444;
-    color: #888;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
     border-radius: 4px;
     padding: 3px 8px;
     font-size: 10px;
@@ -976,13 +1217,13 @@
   }
 
   .mini-btn:hover {
-    color: #e0e0e0;
-    background: #2a2a2a;
+    color: var(--text);
+    background: var(--bg-raised);
   }
 
   .mini-btn.active {
-    color: #e0e0e0;
-    border-color: #666;
+    color: var(--text);
+    border-color: var(--text-faint);
   }
 
   .working-tool {
@@ -996,7 +1237,7 @@
 
   .working-time,
   .working-more {
-    color: #93c5fd;
+    color: var(--accent-bright);
     font-size: 10px;
     flex-shrink: 0;
   }
@@ -1006,10 +1247,10 @@
     align-items: center;
     gap: 8px;
     padding: 6px 10px;
-    background: #1a2e3a;
-    border: 1px solid #2563eb44;
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-ring-faint);
     border-radius: 8px;
-    color: #60a5fa;
+    color: var(--accent);
     font-size: 11px;
     font-weight: 500;
   }
@@ -1019,10 +1260,10 @@
     align-items: flex-start;
     gap: 6px;
     padding: 6px 10px;
-    background: #3a2f1a;
-    border: 1px solid #fbbf2444;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-ring-faint);
     border-radius: 8px;
-    color: #fbbf24;
+    color: var(--warn);
     font-size: 10px;
     line-height: 1.4;
     font-weight: 500;
@@ -1034,10 +1275,10 @@
     justify-content: center;
     gap: 6px;
     padding: 6px 10px;
-    background: #3a1a1a;
-    border: 1px solid #f8717144;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-ring-soft);
     border-radius: 8px;
-    color: #f87171;
+    color: var(--danger);
     font-size: 11px;
     font-weight: 500;
     cursor: pointer;
@@ -1045,14 +1286,14 @@
   }
 
   .error-banner:hover {
-    background: #4a1a1a;
+    background: var(--danger-bg-strong);
   }
 
   .spinner {
     width: 10px;
     height: 10px;
-    border: 2px solid #60a5fa44;
-    border-top-color: #60a5fa;
+    border: 2px solid var(--accent-ring-soft);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
     flex-shrink: 0;
@@ -1086,12 +1327,12 @@
     align-items: center;
     gap: 4px;
     text-decoration: none;
-    color: #888;
+    color: var(--text-muted);
     font-size: 11px;
   }
 
   .footer-link:hover {
-    color: #e0e0e0;
+    color: var(--text);
   }
 
   .author {
@@ -1099,12 +1340,12 @@
     align-items: center;
     gap: 6px;
     text-decoration: none;
-    color: #888;
+    color: var(--text-muted);
     font-size: 11px;
   }
 
   .author:hover {
-    color: #e0e0e0;
+    color: var(--text);
   }
 
   .author img {
@@ -1117,7 +1358,7 @@
   .server-addr {
     background: none;
     border: none;
-    color: #666;
+    color: var(--text-faint);
     font-size: 10px;
     font-family: monospace;
     cursor: pointer;
@@ -1126,8 +1367,8 @@
   }
 
   .server-addr:hover {
-    color: #aaa;
-    background: #2a2a2a;
+    color: var(--text-muted);
+    background: var(--bg-raised);
   }
 
   /* Inline settings panel — takes remaining space so inputs aren't squished */
@@ -1140,10 +1381,10 @@
 
   .addr-input {
     width: 72px;
-    background: #2a2a2a;
-    border: 1px solid #444;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
     border-radius: 4px;
-    color: #e0e0e0;
+    color: var(--text);
     font-size: 10px;
     font-family: monospace;
     padding: 2px 4px;
@@ -1151,15 +1392,15 @@
   }
 
   .addr-input:focus {
-    border-color: #555;
+    border-color: var(--border-strong);
   }
 
   .port-input {
     width: 36px;
-    background: #2a2a2a;
-    border: 1px solid #444;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
     border-radius: 4px;
-    color: #e0e0e0;
+    color: var(--text);
     font-size: 10px;
     font-family: monospace;
     padding: 2px 4px;
@@ -1167,11 +1408,11 @@
   }
 
   .port-input:focus {
-    border-color: #555;
+    border-color: var(--border-strong);
   }
 
   .addr-sep {
-    color: #666;
+    color: var(--text-faint);
     font-size: 10px;
   }
 
@@ -1186,19 +1427,19 @@
   }
 
   .apply-btn {
-    color: #4ade80;
+    color: var(--ok);
   }
 
   .apply-btn:hover {
-    background: #1a3a2a;
+    background: var(--ok-bg-soft);
   }
 
   .cancel-btn {
-    color: #f87171;
+    color: var(--danger);
   }
 
   .cancel-btn:hover {
-    background: #3a1a1a;
+    background: var(--danger-bg);
   }
 
   .badge {
@@ -1212,23 +1453,23 @@
   }
 
   .badge.connected {
-    background: #1a472a;
-    color: #4ade80;
+    background: var(--ok-bg);
+    color: var(--ok);
   }
 
   .badge.disconnected {
-    background: #3a1a1a;
-    color: #f87171;
+    background: var(--danger-bg);
+    color: var(--danger);
   }
 
   .dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #f87171;
+    background: var(--danger);
   }
 
   .dot.connected {
-    background: #4ade80;
+    background: var(--ok);
   }
 </style>
