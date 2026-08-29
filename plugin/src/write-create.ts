@@ -19,22 +19,27 @@ const NODE_ACTIONS: Record<string, string> = {
 /**
  * The size to give a newly placed image.
  *
- * An explicit width and height win. Otherwise the image's own dimensions are
- * used, scaled down to fit a sensible box so a 4000px photo does not land as a
- * 4000px rectangle. getSizeAsync can fail on a malformed image, and a square
- * placeholder is a better outcome there than a failed import.
+ * An explicit width and height win. One of the two is still an instruction —
+ * the schema takes them independently — so the other is derived from the
+ * image's aspect ratio rather than dropped on the floor. With neither, the
+ * image's own dimensions are used, scaled down to fit a sensible box so a
+ * 4000px photo does not land as a 4000px rectangle. getSizeAsync can fail on a
+ * malformed image, and a placeholder is a better outcome there than a failed
+ * import.
  */
 export const imageSize = async (image: any, p: any) => {
-  if (p.width != null && p.height != null) {
-    return { width: Number(p.width), height: Number(p.height) };
-  }
+  const width = p.width != null ? Number(p.width) : null;
+  const height = p.height != null ? Number(p.height) : null;
+  if (width != null && height != null) return { width, height };
   const MAX = 1000;
   try {
     const size = await image.getSizeAsync();
+    if (width != null) return { width, height: Math.round(width * (size.height / size.width)) };
+    if (height != null) return { width: Math.round(height * (size.width / size.height)), height };
     const scale = Math.min(1, MAX / Math.max(size.width, size.height));
     return { width: Math.round(size.width * scale), height: Math.round(size.height * scale) };
   } catch {
-    return { width: Number(p.width ?? 200), height: Number(p.height ?? 200) };
+    return { width: width ?? 200, height: height ?? 200 };
   }
 };
 
@@ -255,7 +260,18 @@ export const writeCreateHandlers: HandlerMap = {
       const target = await figma.getNodeByIdAsync(p.nodeId) as any;
       if (!target) throw new Error(`Node not found: ${p.nodeId}`);
       if (!("fills" in target)) throw new Error(`Node ${p.nodeId} does not support fills`);
-      target.fills = p.mode === "append" ? [...target.fills, fill] : [fill];
+      if (p.mode === "append") {
+        // figma.mixed is a symbol, and spreading it throws "is not iterable" —
+        // an error that names neither the node nor the fix.
+        if (!Array.isArray(target.fills)) {
+          throw new Error(
+            `Node ${p.nodeId} has mixed fills — mode "append" needs a node whose fills are all the same`,
+          );
+        }
+        target.fills = [...target.fills, fill];
+      } else {
+        target.fills = [fill];
+      }
       figma.commitUndo();
       return {
         type: request.type,

@@ -453,3 +453,61 @@ describe("import_image", () => {
     expect(lastCreated("RECTANGLE").fills[0].filters).toEqual({ exposure: 0.3, saturation: -0.5 });
   });
 });
+
+// The mock image is 400x200.
+describe("import_image sizing", () => {
+  const imported = (params: any) =>
+    handleWriteCreateRequest(makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
+  const placed = () => {
+    const rect = lastCreated("RECTANGLE");
+    return { width: rect.width, height: rect.height };
+  };
+
+  it("takes both dimensions when both are given", async () => {
+    await imported({ width: 300, height: 100 });
+    expect(placed()).toEqual({ width: 300, height: 100 });
+  });
+
+  // The schema takes width and height independently, so a caller giving one is
+  // asking for something — dropping it left the image at a size nobody chose.
+  it("keeps the aspect ratio when only a width is given", async () => {
+    await imported({ width: 300 });
+    expect(placed()).toEqual({ width: 300, height: 150 });
+  });
+
+  it("keeps the aspect ratio when only a height is given", async () => {
+    await imported({ height: 100 });
+    expect(placed()).toEqual({ width: 200, height: 100 });
+  });
+
+  it("uses the image's own size when neither is given", async () => {
+    await imported({});
+    expect(placed()).toEqual({ width: 400, height: 200 });
+  });
+});
+
+describe("import_image onto an existing node", () => {
+  const paint = (params: any) =>
+    handleWriteCreateRequest(makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
+
+  it("replaces the node's fills by default", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Card", type: "FRAME", fills: [{ type: "SOLID" }] };
+    await paint({ nodeId: "1:1" });
+    expect(mockNodes["1:1"].fills).toHaveLength(1);
+    expect(mockNodes["1:1"].fills[0].type).toBe("IMAGE");
+  });
+
+  it("appends to the node's fills when asked", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Card", type: "FRAME", fills: [{ type: "SOLID" }] };
+    await paint({ nodeId: "1:1", mode: "append" });
+    expect(mockNodes["1:1"].fills.map((f: any) => f.type)).toEqual(["SOLID", "IMAGE"]);
+  });
+
+  // A node whose parts carry different fills reports figma.mixed, which is a
+  // symbol. Spreading it threw "is not iterable" — an error naming neither the
+  // node nor what to do about it.
+  it("names the problem when appending to mixed fills", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Card", type: "FRAME", fills: (globalThis as any).figma.mixed };
+    await expect(paint({ nodeId: "1:1", mode: "append" })).rejects.toThrow(/mixed fills/);
+  });
+});
