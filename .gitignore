@@ -17,6 +17,8 @@ ai/
 # Go build artifacts
 /bin/
 /dist/
+# Written by the schema golden test when it fails, to diff against the golden.
+*.actual
 
 # Plugin
 node_modules/
