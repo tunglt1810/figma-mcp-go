@@ -5,8 +5,10 @@ package tools
 var readDocumentSpecs = []toolSpec{
 	{
 		Name: "get_document",
-		Desc: "Get the node tree of the current page (not the whole file — only the active page). Unbounded by default and can be very large; pass depth or maxNodes to cap it. A capped result sets `truncated`, and every node whose children were withheld reports `childCount` and `childrenOmitted`, so a short answer is never mistaken for a whole one. Prefer get_design_context for exploration or when token efficiency matters.",
+		Desc: "Get the node tree of the current page, or of every page with scope 'document'. Unbounded by default and can be very large; pass depth or maxNodes to cap it. A capped result sets `truncated`, and every node whose children were withheld reports `childCount` and `childrenOmitted`, so a short answer is never mistaken for a whole one. Prefer get_design_context for exploration or when token efficiency matters.",
 		Params: []paramSpec{
+			{Name: "scope", Kind: kindString, Enum: []string{"page", "document"},
+				Desc: "'page' (default) walks the current page. 'document' walks every page in the file, sharing one depth/maxNodes budget across them and reporting each page as a child of the document."},
 			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
 				Desc: "How many levels below the page to walk. 0 returns the page alone. Omit for no limit."},
 			{Name: "maxNodes", Kind: kindNumber, Min: floatPtr(1),
@@ -34,7 +36,7 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name:       "get_nodes_info",
-		Desc:       "Get full details for multiple nodes by ID in one round-trip. Prefer this over calling get_node repeatedly when you need several nodes.",
+		Desc:       "Get full details for multiple nodes by ID in one round-trip. Prefer this over calling get_node repeatedly when you need several nodes. Answers {nodes: [...]}, plus a globalVars.styles map when a fill or stroke was shared by more than one node and collapsed to a ref.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "List of node IDs in colon format e.g. ['4029:12345', '4029:67890']",

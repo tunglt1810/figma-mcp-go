@@ -9,9 +9,50 @@ export const readDocumentHandlers: HandlerMap = {
     // that knows the page is large asks for a ceiling; one that does not still
     // gets told when an answer came back short.
     const budget = makeBudget(p.maxNodes, p.depth);
+
+    // scope "document" walks every page, as search_nodes does. One budget is
+    // shared across all of them, so maxNodes still means what it says and a
+    // file with a huge first page cannot starve the rest silently — the answer
+    // reports `truncated` either way.
+    if (p.scope === "document") {
+      const pages: any[] = [];
+      for (const page of figma.root.children) {
+        throwIfCancelled(request.requestId);
+        // Under documentAccess "dynamic-page" an unloaded page reports no
+        // children at all, so a walk that skips this returns an empty file.
+        await page.loadAsync();
+        pages.push(await serializeNode(page, budget, 0));
+        if (figma.root.children.length > 1) {
+          figma.ui.postMessage({
+            type: "progress_update",
+            requestId: request.requestId,
+            progress: Math.round((pages.length / figma.root.children.length) * 99) + 1,
+            message: `Serialized ${page.name} (${pages.length}/${figma.root.children.length})`,
+          });
+          await new Promise((r) => setTimeout(r, 0));
+        }
+        if (budget.remaining <= 0) break;
+      }
+      // Deduped across the whole document rather than per page: a colour used
+      // on every page is exactly the one worth collapsing to a single ref.
+      const { tree, globalVars } = deduplicateStyles({ children: pages });
+      const data: any = {
+        id: figma.root.id,
+        name: figma.root.name,
+        type: "DOCUMENT",
+        scope: "document",
+        pageCount: figma.root.children.length,
+        children: tree.children,
+      };
+      if (globalVars) data.globalVars = globalVars;
+      if (budget.truncated || pages.length < figma.root.children.length) data.truncated = true;
+      return { type: request.type, requestId: request.requestId, data };
+    }
+
     const raw = await serializeNode(figma.currentPage, budget);
     const { tree, globalVars } = deduplicateStyles(raw);
     const data: any = globalVars ? { ...tree, globalVars } : tree;
+    data.scope = "page";
     if (budget.truncated) data.truncated = true;
     return {
       type: request.type,
@@ -78,15 +119,21 @@ export const readDocumentHandlers: HandlerMap = {
     const nodes = await Promise.all(
       request.nodeIds.map((id: string) => figma.getNodeByIdAsync(id)),
     );
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: await Promise.all(
-        nodes
-          .filter((n) => n !== null && n.type !== "DOCUMENT")
-          .map((n) => serializeNode(n)),
-      ),
-    };
+    const serialized = await Promise.all(
+      nodes
+        .filter((n) => n !== null && n.type !== "DOCUMENT")
+        .map((n) => serializeNode(n)),
+    );
+    // Fetching several nodes at once is exactly when the same fill repeats, so
+    // the dedupe get_document has always done applies here too.
+    //
+    // The wrapper is unconditional. Returning a bare array when nothing was
+    // deduped and an object when something was would make the caller handle two
+    // shapes for one tool; get_design_context already answers in this shape.
+    const { tree, globalVars } = deduplicateStyles({ children: serialized });
+    const data: any = { nodes: tree.children };
+    if (globalVars) data.globalVars = globalVars;
+    return { type: request.type, requestId: request.requestId, data };
   },
 
   "get_design_context": async (request) => {

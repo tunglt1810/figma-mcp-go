@@ -1,6 +1,7 @@
 # AI agent files
 ai/
-CLAUDE.md
+# CLAUDE.md is tracked: it names the default working style for the repo, which
+# belongs to everyone who clones it — same reasoning as .claude/skills/ below.
 # The contents rather than the directory itself: git cannot re-include anything
 # under an excluded directory, so `.claude` followed by `!.claude/skills/` would
 # silently keep ignoring the skills.

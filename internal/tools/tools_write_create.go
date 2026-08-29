@@ -66,6 +66,35 @@ func autoLayoutParams() []paramSpec {
 
 var layoutSizingValues = []string{"FIXED", "HUG", "FILL"}
 
+// The subset of autoLayoutParams that describes how a node sizes itself and
+// sits inside its parent, with nothing about the node's own layout of its
+// children. set_layout_sizing offers exactly these, over several nodes.
+//
+// Kept in step with autoLayoutParams by TestLayoutSizingParamsComeFromAutoLayout:
+// a name here that autoLayoutParams does not define would reach the plugin with
+// no schema behind it.
+var layoutSizingParamNames = []string{
+	"layoutSizingHorizontal", "layoutSizingVertical",
+	"minWidth", "maxWidth", "minHeight", "maxHeight",
+	"layoutPositioning", "layoutAlign", "layoutGrow",
+}
+
+func layoutSizingParams() []paramSpec {
+	wanted := make(map[string]bool, len(layoutSizingParamNames))
+	for _, name := range layoutSizingParamNames {
+		wanted[name] = true
+	}
+	// Derived rather than retyped, so the descriptions and bounds cannot drift
+	// away from the ones set_auto_layout documents for the same properties.
+	out := make([]paramSpec, 0, len(layoutSizingParamNames))
+	for _, spec := range autoLayoutParams() {
+		if wanted[spec.Name] {
+			out = append(out, spec)
+		}
+	}
+	return out
+}
+
 // nodeVariants say which arguments belong to which shape. Seven create_* tools
 // became one, and these shapes genuinely differ — a star takes pointCount, a
 // line takes length — so an argument from the wrong shape is an error rather

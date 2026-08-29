@@ -250,6 +250,21 @@ var writeModifySpecs = []toolSpec{
 		Params:     autoLayoutParams(),
 	},
 	{
+		Name: "set_layout_sizing",
+		Desc: "Set how nodes size themselves inside auto layout, across several nodes at once. " +
+			"layoutSizingHorizontal/layoutSizingVertical give FIXED, HUG, or FILL; minWidth/maxWidth/minHeight/maxHeight bound them; " +
+			"layoutAlign, layoutGrow, and layoutPositioning describe how the node sits in its PARENT's auto layout. " +
+			"set_auto_layout does the same for one node alongside the frame's own layout — use this one when the same sizing goes on a row of siblings.",
+		NodeIDs:    nodeIDsMulti,
+		NodeIDsReq: true,
+		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345', '4029:67890']",
+		Params:     layoutSizingParams(),
+		Validate: requireAnyOf(
+			"at least one of layoutSizingHorizontal, layoutSizingVertical, minWidth, maxWidth, minHeight, maxHeight, layoutAlign, layoutGrow, or layoutPositioning is required",
+			layoutSizingParamNames...,
+		),
+	},
+	{
 		Name:       "set_node_properties",
 		Desc:       "Set one or more display properties on nodes in a single call: visibility, lock state, opacity, rotation, blend mode, constraints, z-order, and masking. Every property is optional and independent — supply only the ones you want to change. Each node reports which properties were applied; a property the node type does not support is reported against that property alone, leaving the others applied.",
 		NodeIDs:    nodeIDsMulti,

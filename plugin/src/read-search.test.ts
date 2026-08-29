@@ -145,3 +145,77 @@ describe("search_nodes", () => {
     expect(search({ nodeId: "9:9" })).rejects.toThrow(/Node not found/);
   });
 });
+
+// ── get_document ──────────────────────────────────────────────────────────────
+
+const getDocument = (params?: any) =>
+  readDocumentHandlers["get_document"]({
+    type: "get_document",
+    requestId: "r2",
+    params,
+  });
+
+describe("get_document", () => {
+  it("serializes the current page by default", async () => {
+    const result = await getDocument();
+    expect(result.data.id).toBe("1:0");
+    expect(result.data.scope).toBe("page");
+    expect(loadedPages).toEqual([]);
+  });
+
+  it("serializes every page when the scope is the document", async () => {
+    const result = await getDocument({ scope: "document" });
+    expect(result.data.type).toBe("DOCUMENT");
+    expect(result.data.scope).toBe("document");
+    expect(result.data.pageCount).toBe(2);
+    expect(result.data.children.map((p: any) => p.id)).toEqual(["1:0", "2:0"]);
+  });
+
+  // The same trap search_nodes fell into: an unloaded page reports no children,
+  // so a document walk that skips loadAsync answers with empty pages.
+  it("loads every page before serializing it", async () => {
+    await getDocument({ scope: "document" });
+    expect(loadedPages).toEqual(["1:0", "2:0"]);
+  });
+
+  it("shares one maxNodes budget across the pages and says it stopped short", async () => {
+    const result = await getDocument({ scope: "document", maxNodes: 2 });
+    expect(result.data.truncated).toBe(true);
+  });
+
+  it("reports progress per page", async () => {
+    await getDocument({ scope: "document" });
+    const updates = progressMessages.filter((m) => m.type === "progress_update");
+    expect(updates.length).toBe(2);
+    expect(updates[updates.length - 1].progress).toBe(100);
+  });
+});
+
+// ── get_nodes_info ────────────────────────────────────────────────────────────
+
+describe("get_nodes_info", () => {
+  it("answers under a nodes key whether or not anything was deduped", async () => {
+    const result = await readDocumentHandlers["get_nodes_info"]({
+      type: "get_nodes_info",
+      requestId: "r3",
+      params: {},
+      nodeIds: ["1:1", "1:2"],
+    });
+    expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:1", "1:2"]);
+    expect(result.data.globalVars).toBeUndefined();
+  });
+
+  it("collapses a fill shared by several nodes into globalVars", async () => {
+    const shared = [{ type: "SOLID", color: { r: 1, g: 0, b: 0 } }];
+    nodes["1:1"].fills = shared;
+    nodes["1:2"].fills = shared;
+    const result = await readDocumentHandlers["get_nodes_info"]({
+      type: "get_nodes_info",
+      requestId: "r4",
+      params: {},
+      nodeIds: ["1:1", "1:2"],
+    });
+    expect(result.data.globalVars).toBeDefined();
+    expect(result.data.nodes[0].styles.fills).toBe(result.data.nodes[1].styles.fills);
+  });
+});

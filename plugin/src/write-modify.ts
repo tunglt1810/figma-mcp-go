@@ -95,6 +95,14 @@ const applyParagraphProperties = (node: any, p: any) => {
   if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
 };
 
+// The properties set_layout_sizing accepts, mirroring layoutSizingParamNames in
+// internal/tools/tools_write_create.go. The contract test pins the pair.
+const LAYOUT_SIZING_KEYS = [
+  "layoutSizingHorizontal", "layoutSizingVertical",
+  "minWidth", "maxWidth", "minHeight", "maxHeight",
+  "layoutPositioning", "layoutAlign", "layoutGrow",
+];
+
 export const writeModifyHandlers: HandlerMap = {
   "set_paint": async (request) => {
   const { target = "fill", type, ...rest } = request.params || {};
@@ -367,6 +375,46 @@ export const writeModifyHandlers: HandlerMap = {
       requestId: request.requestId,
       data: { id: node.id, name: node.name },
     };
+  },
+
+  // The sizing half of set_auto_layout, over many nodes. A row of siblings that
+  // should all FILL is the case that made this worth its own tool: doing it
+  // through set_auto_layout meant one round trip per sibling.
+  "set_layout_sizing": async (request) => {
+    const p = request.params || {};
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    if (!LAYOUT_SIZING_KEYS.some(key => p[key] !== undefined)) {
+      throw new Error(`at least one property is required: ${LAYOUT_SIZING_KEYS.join(", ")}`);
+    }
+    // Only the keys this tool owns are forwarded. applyAutoLayout reads the
+    // whole auto-layout vocabulary, and passing the params straight through
+    // would let an argument the schema rejects arrive anyway through a batch.
+    const sizing: any = {};
+    for (const key of LAYOUT_SIZING_KEYS) {
+      if (p[key] !== undefined) sizing[key] = p[key];
+    }
+
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const n = await figma.getNodeByIdAsync(nid) as any;
+      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      try {
+        applyAutoLayout(n, sizing);
+        results.push({
+          nodeId: nid,
+          name: n.name,
+          layoutSizingHorizontal: n.layoutSizingHorizontal,
+          layoutSizingVertical: n.layoutSizingVertical,
+        });
+      } catch (e: any) {
+        // One sibling that cannot FILL — because its parent has no auto layout
+        // — must not undo the ones that could.
+        results.push({ nodeId: nid, error: e.message });
+      }
+    }
+    figma.commitUndo();
+    return { type: request.type, requestId: request.requestId, data: { results } };
   },
 
   "reparent_nodes": async (request) => {

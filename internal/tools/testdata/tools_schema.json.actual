@@ -1150,7 +1150,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Get the node tree of the current page, or of every page with scope 'document'. Unbounded by default and can be very large; pass depth or maxNodes to cap it. A capped result sets `truncated`, and every node whose children were withheld reports `childCount` and `childrenOmitted`, so a short answer is never mistaken for a whole one. Prefer get_design_context for exploration or when token efficiency matters.",
+    "description": "Get the node tree of the current page (not the whole file — only the active page). Unbounded by default and can be very large; pass depth or maxNodes to cap it. A capped result sets `truncated`, and every node whose children were withheld reports `childCount` and `childrenOmitted`, so a short answer is never mistaken for a whole one. Prefer get_design_context for exploration or when token efficiency matters.",
     "inputSchema": {
       "properties": {
         "depth": {
@@ -1160,10 +1160,6 @@
         "maxNodes": {
           "description": "Stop after this many nodes, walking in tree order so the result is the same every time. Omit for no limit.",
           "type": "number"
-        },
-        "scope": {
-          "description": "'page' (default) walks the current page. 'document' walks every page in the file, sharing one depth/maxNodes budget across them and reporting each page as a child of the document.",
-          "type": "string"
         }
       },
       "required": [],
@@ -1292,7 +1288,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Get full details for multiple nodes by ID in one round-trip. Prefer this over calling get_node repeatedly when you need several nodes. Answers {nodes: [...]}, plus a globalVars.styles map when a fill or stroke was shared by more than one node and collapsed to a ref.",
+    "description": "Get full details for multiple nodes by ID in one round-trip. Prefer this over calling get_node repeatedly when you need several nodes.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
