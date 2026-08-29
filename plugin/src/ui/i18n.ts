@@ -50,6 +50,8 @@ export interface Strings {
   connected: string;
   connectedVersion: (version: string) => string;
   disconnected: string;
+  exposed: string;
+  exposedTitle: string;
   serverAddressTitle: string;
   apply: string;
   dismiss: string;
@@ -103,6 +105,9 @@ const en: Strings = {
   connected: "Connected",
   connectedVersion: (version) => `Connected (v${version})`,
   disconnected: "Disconnected",
+  exposed: "Server reachable from the network",
+  exposedTitle:
+    "The server is listening on an address other than 127.0.0.1, and the connection is not authenticated — anyone who can reach that port can read and edit this file. The confirm guard has been turned on.",
   serverAddressTitle: "Click to configure server address",
   apply: "Apply",
   dismiss: "Cancel",
@@ -156,6 +161,9 @@ const vi: Strings = {
   connected: "Đã kết nối",
   connectedVersion: (version) => `Đã kết nối (v${version})`,
   disconnected: "Chưa kết nối",
+  exposed: "Máy chủ mở ra mạng ngoài",
+  exposedTitle:
+    "Máy chủ đang lắng nghe ở địa chỉ khác 127.0.0.1, và kết nối không có xác thực — ai vào được cổng đó cũng đọc và sửa được tệp này. Chốt \"hỏi\" đã được bật.",
   serverAddressTitle: "Bấm để đổi địa chỉ máy chủ",
   apply: "Áp dụng",
   dismiss: "Huỷ",

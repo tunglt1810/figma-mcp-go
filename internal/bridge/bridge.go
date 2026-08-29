@@ -60,6 +60,8 @@ type Bridge struct {
 	pending map[string]*pendingEntry
 	counter atomic.Int64
 	version string
+	// Set once at startup, before any connection is served, and only read after.
+	exposed bool
 
 	// pluginVersion is what the connected plugin last announced, "" when no
 	// plugin has connected or when it is too old to announce anything.
@@ -273,10 +275,23 @@ func (b *Bridge) unlockWrite() { <-b.wslot }
 // within the grace is dropped rather than left to pile up behind whatever is
 // holding the slot — the plugin asks again on its next connect.
 func (b *Bridge) replyServerInfo(conn *websocket.Conn) {
-	b.writeControlFrame(conn, "server-info", map[string]string{
+	b.writeControlFrame(conn, "server-info", map[string]any{
 		"type":    "server-info",
 		"version": b.version,
+		// Whether the listener is reachable from another machine. There is no
+		// authentication on the socket — pairing was considered and rejected,
+		// because a prompt in front of every connect costs every local user
+		// something to protect the few who move the listener off loopback. So
+		// the exposure is reported instead, and the panel turns its confirm
+		// guard on by default when it hears this, gating the destructive tools
+		// rather than the connection.
+		"exposed": b.exposed,
 	})
+}
+
+// SetExposed records that the listener is bound somewhere other than loopback.
+func (b *Bridge) SetExposed(exposed bool) {
+	b.exposed = exposed
 }
 
 // writeControlFrame sends a frame that is not a response to anything: nothing

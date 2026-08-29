@@ -272,3 +272,20 @@ func TestLeaderPing_ReportsState(t *testing.T) {
 		t.Errorf("want version 9.9.9, got %v", got["version"])
 	}
 }
+
+// --ip is how a user drives Figma on one machine from an editor on another, and
+// the socket it opens carries no authentication. Which binds count as exposed
+// decides whether the plugin panel raises its confirm guard, so it is worth a
+// test rather than a glance at the string.
+func TestExposed(t *testing.T) {
+	for _, ip := range []string{"", "127.0.0.1", "localhost", "::1"} {
+		if Exposed(ip) {
+			t.Errorf("Exposed(%q) = true, want false — this bind reaches only this machine", ip)
+		}
+	}
+	for _, ip := range []string{"0.0.0.0", "192.168.1.10", "::", "10.0.0.5"} {
+		if !Exposed(ip) {
+			t.Errorf("Exposed(%q) = false, want true — this bind accepts connections from the network", ip)
+		}
+	}
+}

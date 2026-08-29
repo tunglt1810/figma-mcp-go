@@ -80,6 +80,11 @@
   let serverHost = DEFAULT_HOST;
   let serverPort = DEFAULT_PORT;
   let serverVersion = "";
+  // Whether the server says its listener is reachable from another machine.
+  let serverExposed = false;
+  // So the confirm guard is raised once per panel session rather than on every
+  // reconnect, which would undo a deliberate choice to turn it off.
+  let exposureHandled = false;
 
   const pluginVersion = __APP_VERSION__;
   // Sent by the plugin core once it starts. It can arrive either side of the
@@ -158,6 +163,19 @@
         const payload = JSON.parse(event.data);
         if (payload.type === "server-info") {
           serverVersion = payload.version ?? "";
+          serverExposed = payload.exposed === true;
+          // The socket carries no authentication — pairing was considered and
+          // rejected, because a prompt in front of every connect costs every
+          // local user something to protect the few who move the listener off
+          // loopback. So when the server says it is reachable from the network,
+          // the destructive tools are gated instead of the connection. Only
+          // from "off", and only once: a user who has chosen a mode keeps it,
+          // and one who turns this back off is not overruled on every frame.
+          if (serverExposed && guardMode === "off" && !exposureHandled) {
+            exposureHandled = true;
+            guardMode = "confirm";
+            savePrefs();
+          }
           return;
         }
         if (payload.type === "cancel_request") {
@@ -609,6 +627,11 @@
       <div class="error-banner" on:click={retryCopy} title={t.copyFailedTitle}>{t.copyFailed}</div>
     {/if}
   </div>
+  {#if serverExposed}
+    <div class="warn-banner" title={t.exposedTitle}>
+      <span>⚠️ {t.exposed}</span>
+    </div>
+  {/if}
   {#if versionMismatch}
     <div class="warn-banner" title={versionMismatchDetail}>
       <span>⚠️ {versionMismatch}</span>

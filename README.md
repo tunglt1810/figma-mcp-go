@@ -13,7 +13,7 @@ Open-source Figma MCP server with full read/write access via plugin. Turn text i
 **Highlights**
 - Operates locally via the Figma Plugin API (no REST API token required)
 - Real-time execution directly on your local machine
-- **Read and Write** live Figma data via plugin bridge — 76 tools total
+- **Read and Write** live Figma data via plugin bridge — 78 tools total
 - Full design automation — styles, variables, components, prototypes, content, and transactional batch pipelines
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
 
@@ -101,8 +101,11 @@ doing right now. Three controls sit above the connection row:
 | **Guard** | `off` runs every request (default, and how the plugin has always behaved). `confirm` holds deletes and bulk rewrites until you allow them. `read-only` blocks every change while still answering reads. |
 | **Undo** | Reverses the last change. A whole `batch_execute_pipeline` run is one undo step, not one per action. |
 | **Log** | Opens the activity log — every request with its tool name, duration, and error. `Copy` dumps it as text for a bug report. |
+| **Pin** | Holds the current selection still. `get_selection(source: "pinned")` then returns those nodes however the selection moves, so a conversation keeps the same context without copying node ids by hand. |
 
-Guard and log settings are remembered per machine.
+Guard, log, and the panel's size are remembered per machine. Drag the corner to
+resize it. The panel follows Figma's light and dark themes, and switches to
+Vietnamese when the browser asks for it.
 
 ### Dev Mode
 
@@ -119,6 +122,11 @@ Code panel asking your editor for a completion mid-render, which needs MCP
 sampling — optional in the protocol, and not implemented by the clients this
 server targets. Writing the code from your editor, where the repository is in
 front of it, produces better code anyway.
+
+The Code panel has a **Language** selector. A node often carries several blocks
+— the component, its styles, the query behind it — and picking a language shows
+only those. A language with nothing stored for the node falls back to showing
+everything, so the setting never reads as "this node has no code".
 
 ### 2. Install the Figma plugin
 
@@ -162,6 +170,13 @@ open the plugin anywhere, so expect to set it on whichever instance should use
 
 `--ip` moves the listener off `127.0.0.1` (use `0.0.0.0` to accept connections
 from another machine).
+
+**The plugin connection is not authenticated.** On the default `127.0.0.1` bind
+that costs nothing: only this machine can reach it. Move it off loopback and
+anyone who can reach the port can read and edit whatever file the plugin is open
+in. The server warns at startup when you do, and the plugin panel turns its
+`confirm` guard on and says so, which gates the destructive tools rather than
+the connection. Prefer an SSH tunnel to opening the port.
 
 ---
 
@@ -281,8 +296,9 @@ because `type` names the kind of style. Gradients can only target a fill;
 | `set_paint`              | Paint a node's fill or stroke — solid, linear gradient, or radial gradient       |
 | `set_corner_radius`      | Set corner radius — uniform or per-corner                                        |
 | `set_auto_layout`        | Set or update auto-layout (flex) on a frame, component, or instance — direction, padding, gap, alignment, HUG/FILL sizing, min/max bounds, and how the node sits in its parent's layout |
+| `set_layout_sizing`      | The sizing half of the above — HUG/FILL, min/max, layoutAlign, layoutGrow — across several nodes at once |
 | `set_layout_grids`       | Set the column, row, or square grids drawn over a frame                          |
-| `set_node_properties`    | Set any combination of visibility, lock, opacity, rotation, blend mode, constraints, z-order, and masking on one or more nodes |
+| `set_node_properties`    | Set any combination of visibility, lock, opacity, rotation, blend mode, constraints, z-order, masking, and stroke geometry (weight, alignment, caps, joins, miter limit, dash pattern) on one or more nodes |
 | `set_instance_overrides` | Update Component Properties (variants, booleans, text) on a component instance   |
 | `set_annotations`        | Set Dev Mode Annotations on a node (requires paid Dev Mode seat)                 |
 | `move_nodes`             | Move nodes to an absolute x/y position                                           |
@@ -296,6 +312,7 @@ because `type` names the kind of style. Gradients can only target a fill;
 | `save_version_checkpoint` | Save a named version in the file's version history — a way back that survives the session |
 | `set_codegen_result`     | Attach generated code to a node so it shows in Figma's Dev Mode Code panel      |
 | `manage_plugin_data`     | Read and write your own metadata on a node, stored in the Figma file            |
+| `set_export_settings`    | Set the export presets on nodes — the entries under Export in the right-hand panel |
 
 ### Write — Delete
 
@@ -351,10 +368,10 @@ because `type` names the kind of style. Gradients can only target a fill;
 
 | Tool                  | Description                                                         |
 | --------------------- | ------------------------------------------------------------------- |
-| `get_document`        | Current page tree, optionally capped by depth or maxNodes           |
+| `get_document`        | Current page tree, or the whole file with `scope: "document"`, optionally capped by depth or maxNodes |
 | `get_metadata`        | File name, pages, current page                                      |
 | `get_pages`           | All pages (IDs + names) — lightweight, no tree loading              |
-| `get_selection`       | Currently selected nodes                                            |
+| `get_selection`       | Currently selected nodes, or the set pinned in the panel with `source: "pinned"` |
 | `get_node`            | Single node by ID                                                   |
 | `get_nodes_info`      | Multiple nodes by ID                                                |
 | `get_design_context`  | Depth-limited tree with `detail` level (`minimal`/`compact`/`full`) |

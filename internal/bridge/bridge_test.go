@@ -446,6 +446,38 @@ func TestReadLoop_KeepsReadingWhileAServerInfoReplyIsParked(t *testing.T) {
 		"the read loop to notice the client hung up")
 }
 
+// The panel raises its confirm guard when the server says its listener is
+// reachable from the network, so this flag is the whole of that signal.
+func TestReplyServerInfo_ReportsWhetherTheListenerIsExposed(t *testing.T) {
+	for _, exposed := range []bool{false, true} {
+		b, client := setupBridgeWithClient(t)
+		b.SetExposed(exposed)
+
+		if err := writeJSON(t.Context(), client, map[string]string{"type": "get_server_info"}); err != nil {
+			t.Fatalf("write get_server_info: %v", err)
+		}
+
+		var info struct {
+			Type    string `json:"type"`
+			Version string `json:"version"`
+			Exposed bool   `json:"exposed"`
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		if err := readJSON(ctx, client, &info); err != nil {
+			cancel()
+			t.Fatalf("read server-info: %v", err)
+		}
+		cancel()
+
+		if info.Type != "server-info" {
+			t.Fatalf("frame type = %q, want server-info", info.Type)
+		}
+		if info.Exposed != exposed {
+			t.Errorf("exposed = %v, want %v", info.Exposed, exposed)
+		}
+	}
+}
+
 func waitFor(t *testing.T, limit time.Duration, cond func() bool, what string) {
 	t.Helper()
 	deadline := time.Now().Add(limit)

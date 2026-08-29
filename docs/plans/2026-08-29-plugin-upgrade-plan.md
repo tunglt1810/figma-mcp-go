@@ -40,6 +40,16 @@ New plugin modules, each with a sibling `.test.ts`:
 | `plugin/src/ui/prefs.ts` | stored preferences and their defaults |
 | `plugin/src/ui/activity.ts` | the activity-log ring buffer |
 
+Added by Phase 5:
+
+| Module | Holds |
+|---|---|
+| `plugin/src/progress.ts` | `reportProgress`, the clamp, and the yield that lets a message leave |
+| `plugin/src/fonts.ts` | `loadFonts` — every font at once, one error naming all the missing ones |
+| `plugin/src/pinned.ts` | the pinned context set, in the plugin core's memory |
+| `plugin/src/ui/i18n.ts` | the panel's strings, one table per locale |
+| `plugin/src/dynamic-page.fixture.ts` | test support: pages that report no children until loaded |
+
 New Go files: `internal/tools/tools_write_viewport.go`, `tools_write_document.go`, `tools_write_vector.go`, `tools_write_component_properties.go`, `internal/bridge/version_skew.go`.
 
 ---
@@ -87,43 +97,93 @@ gofmt -l . && go build ./... && go test ./... -count=1
 cd plugin && bun test && bun run build
 ```
 
-Expected: `gofmt` silent, 7 Go packages `ok`, 599 plugin tests passing across 27 files, both Vite builds clean.
+Expected: `gofmt` silent, 7 Go packages `ok`, 680 plugin tests passing across 33 files, both Vite builds clean.
 
-The golden snapshot is `cf8b3518b7caa920932b19be341b1b4ec75fece9eaf69e73262461f4afcfb844` at 76 tools.
+The golden snapshot is `909a1e5a4e8d74c59825658338f45a7eb4906a6610fb341e7a7cb7608798bb59` at 78 tools.
 
 ---
 
 ## Remaining
 
-None of this blocks anything. Grouped so a later session need not re-read the spec.
+Everything under this heading in the first draft of this plan has since been
+done — see the "Follow-up" phase below. What is left here is what nobody has
+asked for and nothing depends on.
+
+- [ ] The plugin connection is still unauthenticated. Pairing was considered and
+      rejected (spec §"Rejected"), and the exposure is now reported rather than
+      closed: the server warns when `--ip` moves the listener off loopback, and
+      the panel raises its `confirm` guard when it hears about it. Closing it
+      properly means a pairing handshake, and the cost to the default local
+      setup is the reason it has not been paid.
+- [ ] `get_design_context` has no `scope: "document"`, only `get_document` and
+      `search_nodes` do. It is the exploration tool, so a whole-file mode would
+      need a token budget of its own rather than the same one.
+- [ ] The panel's Vietnamese is picked from the browser's language tags, with no
+      way to override it. A third locale, or a user who wants English on a
+      Vietnamese machine, needs a setting.
+- [ ] `set_export_settings` writes presets but nothing reads them back: the
+      serializer does not report `exportSettings`, so a caller cannot see what a
+      node already has before replacing it.
+
+---
+
+## Phase 5 — Follow-up
+
+The items the first draft of this plan listed as Remaining.
 
 ### API coverage
 
-- [ ] `set_layout_sizing` applying to several nodes at once (spec §"Auto-layout").
-- [ ] `get_document` still serializes the current page only — no `scope: "document"` as `search_nodes` has.
-- [ ] Write-side `strokeCap`, `strokeJoin`, `dashPattern`, `strokeMiterLimit`. The serializer already reads `dashPattern`.
-- [ ] `exportSettings` preset on a node.
-- [ ] `imageTransform` (crop) and image `filters`.
-- [ ] `figma.codegen.on("preferenceschange")` for picking a language or framework.
+- [x] `set_layout_sizing`: a new tool taking `nodeIds`, applying the sizing half
+      of `set_auto_layout` across several nodes. Its parameters are derived from
+      `autoLayoutParams()` by name rather than retyped, so the two tools cannot
+      document the same property differently.
+- [x] `get_document` gains `scope`, matching `search_nodes`. One depth/maxNodes
+      budget is shared across the pages and styles are deduped file-wide.
+- [x] Stroke geometry on `set_node_properties`: `strokeWeight`, `strokeAlign`,
+      `strokeCap`, `strokeJoin`, `strokeMiterLimit`, `dashPattern`. They belong
+      to the node, not to a paint, which is why they are not on `set_paint`.
+      Assignment there is now guarded per property.
+- [x] `set_export_settings`: the presets under Export in the right-hand panel,
+      across several nodes. It exports nothing itself.
+- [x] `import_image` takes `crop` and `filters`. The crop is a rectangle in
+      fractions of the image; `cropToTransform` is the one place that knows
+      Figma's 2x3 matrix.
+- [x] A Dev Mode **Language** preference, declared in the manifest and refreshed
+      on `preferenceschange` — Figma does not re-render the panel by itself.
 
 ### Performance
 
-- [ ] `deduplicateStyles`/`globalVars` applies to `get_document` only; extend to `get_nodes_info` and `get_design_context`.
-- [ ] Widen `progress_update` coverage: per pipeline step, multi-node export, `find_replace_text`.
+- [x] `deduplicateStyles` now applies to `get_nodes_info` too, which moves its
+      answer to `{nodes, globalVars?}`. `get_design_context` already had it.
+- [x] `progress_update` moved into one module and covers the batch pipeline
+      (per step), `find_replace_text`, `get_screenshot`, and
+      `export_frames_to_pdf`.
 
 ### Panel
 
-- [ ] Remember a panel size the user dragged.
-- [ ] Follow Figma's light/dark theme instead of the hard-coded dark palette.
-- [ ] A "send selection to AI" pin, so a stable context set replaces copying ids by hand.
-- [ ] Vietnamese/English strings.
+- [x] The panel draws its own resize grip — Figma gives a plugin window none —
+      and stores the dragged size with the other preferences.
+- [x] Colours became tokens with a light and a dark set, keyed off the
+      `figma-dark` class Figma puts on the document element.
+- [x] A pinned context set, read with `get_selection(source: "pinned")`. It
+      lives in the plugin core's memory: a working set for one sitting, not a
+      property of the document.
+- [x] Vietnamese and English strings. Only the panel is translated; refusal text
+      and the activity log stay English, because the MCP client and a bug report
+      reader are their audience.
 
 ### Testing
 
-- [ ] A `dynamic-page` fixture with several pages, so a missing `loadAsync` fails a test rather than returning an empty answer.
-- [ ] A test that forces a new write handler to be considered for `CREATE_ACTIONS` in `batch-pipeline.ts`. The comment there already warns about the trap; nothing enforces it.
-- [ ] Report missing fonts up front rather than letting `loadFontAsync` throw part-way through a run.
+- [x] A `dynamic-page` fixture whose pages report no children until `loadAsync`,
+      verified by removing a load and watching the suite go red.
+- [x] Every write handler is classified as creating or keeping, so a new one
+      fails the test until `CREATE_ACTIONS` has been considered.
+- [x] Missing fonts are collected and reported before any text is written, in
+      one error naming all of them.
 
 ### Security
 
-- [ ] The `--ip` flag and `allowedDomains: ["*"]` still expose an unauthenticated port. Pairing was considered and rejected (spec §"Rejected"); if revisited, gate destructive tools rather than the connection.
+- [x] The exposure is reported rather than closed. `--ip` off loopback warns at
+      startup, the server-info frame carries `exposed`, and the panel raises its
+      `confirm` guard once — gating the destructive tools, not the connection.
+      Pairing itself stays rejected; see the Remaining item above.
