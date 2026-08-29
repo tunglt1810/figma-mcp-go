@@ -2,7 +2,7 @@
 
 import { readHandlers } from "./read-handlers";
 import { handleWriteRequest } from "./write-handlers";
-import { clearCancelled, markCancelled } from "./cancellation";
+import { clearCancelled, markCancelled, throwIfCancelled } from "./cancellation";
 import { enqueueWrite } from "./write-queue";
 import { isMutating, PIPELINE_TOOL } from "./tool-classes";
 import { registerCodegen } from "./codegen";
@@ -34,7 +34,7 @@ const runRequest = async (request: any) => {
   return result;
 };
 
-const handleRequest = async (request: any) => {
+export const handleRequest = async (request: any) => {
   try {
     // Writes take their turn; reads do not wait. Two writes interleaving would
     // put a plain write inside a pipeline's undo checkpoint — see write-queue.
@@ -42,7 +42,15 @@ const handleRequest = async (request: any) => {
     // flight at once share one undo checkpoint, so the user's Ctrl+Z would
     // reverse a run they did not ask about.
     return isMutating(request.type, request.params) || request.type === PIPELINE_TOOL
-      ? await enqueueWrite(() => runRequest(request))
+      ? await enqueueWrite(async () => {
+          // Time in the queue counts against the request's timeout, and a queued
+          // write emits no progress to extend it. By the time it is dequeued the
+          // server may already have given up, told the caller it failed and sent
+          // a cancel — mutating now would apply an edit the model has been told
+          // did not happen, and has retried.
+          throwIfCancelled(request.requestId);
+          return runRequest(request);
+        })
       : await runRequest(request);
   } catch (error) {
     return {
