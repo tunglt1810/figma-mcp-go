@@ -37,6 +37,15 @@ export const imageSize = async (image: any, p: any) => {
   }
 };
 
+// Figma expresses a crop as the 2x3 affine transform that maps the fill's unit
+// square onto a region of the image, so {x, y, width, height} in fractions of
+// the image is scale-then-translate. Callers get the rectangle; the matrix
+// stays here, where the one formula lives.
+export const cropToTransform = (crop: any): [[number, number, number], [number, number, number]] => [
+  [Number(crop.width), 0, Number(crop.x)],
+  [0, Number(crop.height), Number(crop.y)],
+];
+
 export const writeCreateHandlers: HandlerMap = {
   "create_node": async (request) => {
   const { type, ...params } = request.params || {};
@@ -234,8 +243,10 @@ export const writeCreateHandlers: HandlerMap = {
     const fill: any = {
       type: "IMAGE",
       imageHash: image.hash,
-      scaleMode: p.scaleMode || "FILL",
+      scaleMode: p.scaleMode || (p.crop ? "CROP" : "FILL"),
     };
+    if (p.crop) fill.imageTransform = cropToTransform(p.crop);
+    if (p.filters) fill.filters = { ...p.filters };
 
     // Painting an existing node beats making a rectangle beside it: an avatar
     // or a hero slot is usually already there, waiting for its picture.

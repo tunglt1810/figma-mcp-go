@@ -79,6 +79,11 @@ type paramSpec struct {
 	// (argument null) — an auto-layout min/max constraint, for one.
 	Nullable bool
 
+	// ObjectSchema spells out an object parameter's properties. Without it the
+	// schema says only "an object", and a caller has to guess the keys from the
+	// description.
+	ObjectSchema map[string]any
+
 	// ItemSchema spells out an array's element schema where "an object" is too
 	// vague to be useful to the client.
 	ItemSchema map[string]any
@@ -162,6 +167,11 @@ func (p paramSpec) toolOption() mcp.ToolOption {
 	case kindArray:
 		return mcp.WithArray(p.Name, opts...)
 	case kindObject:
+		// Only the properties: mcp-go has no per-object "required" option, and a
+		// missing key is caught by the spec's Validate instead.
+		if props, ok := p.ObjectSchema["properties"].(map[string]any); ok {
+			opts = append(opts, mcp.Properties(props))
+		}
 		return mcp.WithObject(p.Name, opts...)
 	case kindAny:
 		return mcp.WithAny(p.Name, opts...)

@@ -1477,6 +1477,62 @@
     "description": "Place an image in Figma, from a URL or from base64 data. Prefer imageUrl: base64 pushes the whole file through the plugin connection, which is the expensive half of placing an image. By default the image lands as a new rectangle sized to the image itself; pass nodeId to paint it onto a node that already exists instead — an avatar or a hero slot usually does.",
     "inputSchema": {
       "properties": {
+        "crop": {
+          "description": "Show only part of the image, as fractions of it: {x, y, width, height} from 0 to 1, where {x:0.25, y:0, width:0.5, height:1} is the middle half. Sets scaleMode to CROP.",
+          "properties": {
+            "height": {
+              "description": "Height as a fraction of the image height, 0-1",
+              "type": "number"
+            },
+            "width": {
+              "description": "Width as a fraction of the image width, 0-1",
+              "type": "number"
+            },
+            "x": {
+              "description": "Left edge as a fraction of the image width, 0-1",
+              "type": "number"
+            },
+            "y": {
+              "description": "Top edge as a fraction of the image height, 0-1",
+              "type": "number"
+            }
+          },
+          "type": "object"
+        },
+        "filters": {
+          "description": "Image adjustments, each from -1 to 1 and 0 for no change. Omitted ones stay at 0.",
+          "properties": {
+            "contrast": {
+              "description": "-1 to 1",
+              "type": "number"
+            },
+            "exposure": {
+              "description": "-1 to 1",
+              "type": "number"
+            },
+            "highlights": {
+              "description": "-1 to 1",
+              "type": "number"
+            },
+            "saturation": {
+              "description": "-1 to 1",
+              "type": "number"
+            },
+            "shadows": {
+              "description": "-1 to 1",
+              "type": "number"
+            },
+            "temperature": {
+              "description": "-1 (cooler) to 1 (warmer)",
+              "type": "number"
+            },
+            "tint": {
+              "description": "-1 to 1",
+              "type": "number"
+            }
+          },
+          "type": "object"
+        },
         "height": {
           "description": "Height in pixels. Omit to use the image's own size, scaled to fit 1000px.",
           "type": "number"
@@ -2296,6 +2352,83 @@
     },
     "name": "set_effects"
   },
+  "set_export_settings": {
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true
+    },
+    "description": "Set the export presets on nodes — the entries a designer sees under Export in the right-hand panel, and what a Figma export or a handoff pipeline uses. This changes the document; it does not export anything. Use get_screenshot or save_screenshots to actually produce a file.",
+    "inputSchema": {
+      "properties": {
+        "nodeIds": {
+          "description": "Node IDs in colon format e.g. ['4029:12345']",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "settings": {
+          "description": "Export presets, in the order they should appear. An empty array clears the node's presets.",
+          "items": {
+            "properties": {
+              "constraint": {
+                "description": "Raster size: {type: SCALE|WIDTH|HEIGHT, value}. SCALE 2 is @2x; WIDTH 512 fixes the width. Ignored for SVG and PDF.",
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "SCALE",
+                      "WIDTH",
+                      "HEIGHT"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "contentsOnly": {
+                "description": "Exclude overlapping content outside the node (default true)",
+                "type": "boolean"
+              },
+              "format": {
+                "description": "PNG, JPG, SVG, or PDF",
+                "enum": [
+                  "PNG",
+                  "SVG",
+                  "JPG",
+                  "PDF"
+                ],
+                "type": "string"
+              },
+              "suffix": {
+                "description": "Appended to the file name, e.g. '@2x' or '-dark'",
+                "type": "string"
+              },
+              "useAbsoluteBounds": {
+                "description": "Export the full node bounds even when it is clipped by its parent",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "format"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "nodeIds",
+        "settings"
+      ],
+      "type": "object"
+    },
+    "name": "set_export_settings"
+  },
   "set_instance_overrides": {
     "annotations": {
       "readOnlyHint": false,
@@ -2490,6 +2623,13 @@
           "properties": {},
           "type": "object"
         },
+        "dashPattern": {
+          "description": "Dash lengths in pixels, alternating dash and gap e.g. [4, 2]. An empty array makes the stroke solid again.",
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
         "isMask": {
           "description": "Turn the node into a mask for its later siblings (true) or back into an ordinary layer (false)",
           "type": "boolean"
@@ -2519,6 +2659,26 @@
         },
         "rotation": {
           "description": "Absolute rotation in degrees",
+          "type": "number"
+        },
+        "strokeAlign": {
+          "description": "Where the stroke sits relative to the shape's edge",
+          "type": "string"
+        },
+        "strokeCap": {
+          "description": "How open ends are drawn: NONE, ROUND, SQUARE, or an arrowhead (ARROW_LINES, ARROW_EQUILATERAL). Applies to lines and open vector paths.",
+          "type": "string"
+        },
+        "strokeJoin": {
+          "description": "How corners between segments are drawn",
+          "type": "string"
+        },
+        "strokeMiterLimit": {
+          "description": "How far a MITER join may extend before it is bevelled instead (default 4)",
+          "type": "number"
+        },
+        "strokeWeight": {
+          "description": "Stroke thickness in pixels. set_paint also takes this when it paints a stroke; use this one to change the thickness without repainting.",
           "type": "number"
         },
         "visible": {

@@ -1,5 +1,7 @@
 package tools
 
+import "github.com/tunglt1810/figma-mcp-go/internal/figma"
+
 // parentIDParam is the shared "where does this node go" argument.
 func parentIDParam(desc string) paramSpec {
 	return paramSpec{Name: "parentId", Kind: kindString, IsNodeID: true, Desc: desc}
@@ -207,6 +209,31 @@ var writeCreateSpecs = []toolSpec{
 				Desc: "Image scale mode: FILL (default), FIT, CROP, or TILE"},
 			paramSpec{Name: "mode", Kind: kindString, Enum: []string{"replace", "append"},
 				Desc: "With nodeId: replace the node's fills (default) or append the image to them"},
+			paramSpec{Name: "crop", Kind: kindObject,
+				Desc: "Show only part of the image, as fractions of it: {x, y, width, height} from 0 to 1, where {x:0.25, y:0, width:0.5, height:1} is the middle half. Sets scaleMode to CROP.",
+				ObjectSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"x":      map[string]any{"type": "number", "description": "Left edge as a fraction of the image width, 0-1"},
+						"y":      map[string]any{"type": "number", "description": "Top edge as a fraction of the image height, 0-1"},
+						"width":  map[string]any{"type": "number", "description": "Width as a fraction of the image width, 0-1"},
+						"height": map[string]any{"type": "number", "description": "Height as a fraction of the image height, 0-1"},
+					},
+				}},
+			paramSpec{Name: "filters", Kind: kindObject,
+				Desc: "Image adjustments, each from -1 to 1 and 0 for no change. Omitted ones stay at 0.",
+				ObjectSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"exposure":    map[string]any{"type": "number", "description": "-1 to 1"},
+						"contrast":    map[string]any{"type": "number", "description": "-1 to 1"},
+						"saturation":  map[string]any{"type": "number", "description": "-1 to 1"},
+						"temperature": map[string]any{"type": "number", "description": "-1 (cooler) to 1 (warmer)"},
+						"tint":        map[string]any{"type": "number", "description": "-1 to 1"},
+						"highlights":  map[string]any{"type": "number", "description": "-1 to 1"},
+						"shadows":     map[string]any{"type": "number", "description": "-1 to 1"},
+					},
+				}},
 			parentIDParam(defaultParentDesc),
 		)...),
 		Validate: func(_ []string, params map[string]any) string {
@@ -217,6 +244,21 @@ var writeCreateSpecs = []toolSpec{
 			}
 			if hasURL && hasData {
 				return "pass imageUrl or imageData, not both"
+			}
+			if crop, ok := params["crop"].(map[string]any); ok {
+				if msg := figma.ValidateImageCrop(crop); msg != "" {
+					return msg
+				}
+				// CROP is what makes the transform mean anything; any other
+				// scale mode would take the crop and silently ignore it.
+				if mode, ok := params["scaleMode"].(string); ok && mode != "CROP" {
+					return "crop needs scaleMode CROP, or scaleMode left out"
+				}
+			}
+			if filters, ok := params["filters"].(map[string]any); ok {
+				if msg := figma.ValidateImageFilters(filters); msg != "" {
+					return msg
+				}
 			}
 			return ""
 		},

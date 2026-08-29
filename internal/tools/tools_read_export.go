@@ -104,7 +104,45 @@ var exportSpecs = []toolSpec{
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs carrying image fills, in colon format e.g. ['4029:12345']",
-	}, getScreenshotSpec, exportFramesToPDFSpec, saveScreenshotsSpec}
+	},
+	{
+		Name: "set_export_settings",
+		Desc: "Set the export presets on nodes — the entries a designer sees under Export in the right-hand panel, and what a Figma export or a handoff pipeline uses. " +
+			"This changes the document; it does not export anything. Use get_screenshot or save_screenshots to actually produce a file.",
+		NodeIDs:    nodeIDsMulti,
+		NodeIDsReq: true,
+		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345']",
+		Params: []paramSpec{
+			{Name: "settings", Kind: kindObjectArray, Required: true,
+				Desc: "Export presets, in the order they should appear. An empty array clears the node's presets.",
+				ItemSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"format": map[string]any{"type": "string", "enum": exportFormats, "description": "PNG, JPG, SVG, or PDF"},
+						"suffix": map[string]any{"type": "string", "description": "Appended to the file name, e.g. '@2x' or '-dark'"},
+						"constraint": map[string]any{
+							"type":        "object",
+							"description": "Raster size: {type: SCALE|WIDTH|HEIGHT, value}. SCALE 2 is @2x; WIDTH 512 fixes the width. Ignored for SVG and PDF.",
+							"properties": map[string]any{
+								"type":  map[string]any{"type": "string", "enum": []string{"SCALE", "WIDTH", "HEIGHT"}},
+								"value": map[string]any{"type": "number"},
+							},
+						},
+						"contentsOnly":      map[string]any{"type": "boolean", "description": "Exclude overlapping content outside the node (default true)"},
+						"useAbsoluteBounds": map[string]any{"type": "boolean", "description": "Export the full node bounds even when it is clipped by its parent"},
+					},
+					"required": []string{"format"},
+				}},
+		},
+		Validate: func(_ []string, params map[string]any) string {
+			settings, ok := params["settings"].([]any)
+			if !ok {
+				return "settings must be an array of export presets"
+			}
+			return figma.ValidateExportSettings(settings, exportFormats)
+		},
+	},
+	getScreenshotSpec, exportFramesToPDFSpec, saveScreenshotsSpec}
 
 func executeExportFramesToPDF(ctx context.Context, sender Sender, nodeIDs []string, outputPath string) (*mcp.CallToolResult, error) {
 	workDir, err := os.Getwd()

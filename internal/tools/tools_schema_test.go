@@ -176,6 +176,7 @@ var expectedTools = []string{
 	"set_codegen_result",
 	"set_corner_radius",
 	"set_effects",
+	"set_export_settings",
 	"set_instance_overrides",
 	"set_reactions",
 	"set_selection",

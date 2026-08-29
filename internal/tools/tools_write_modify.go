@@ -4,6 +4,7 @@ import (
 	"github.com/tunglt1810/figma-mcp-go/internal/figma"
 
 	"fmt"
+	"strings"
 )
 
 // fillModeParam is the shared replace/append switch on the paint tools.
@@ -16,6 +17,7 @@ func fillModeParam(desc string) paramSpec {
 var nodePropertyKeys = []string{
 	"visible", "locked", "opacity", "rotation", "blendMode", "constraints", "order",
 	"isMask", "maskType",
+	"strokeWeight", "strokeAlign", "strokeCap", "strokeJoin", "strokeMiterLimit", "dashPattern",
 }
 
 // paintVariants say which arguments belong to which kind of paint. set_fills,
@@ -286,6 +288,18 @@ var writeModifySpecs = []toolSpec{
 				Desc: "Turn the node into a mask for its later siblings (true) or back into an ordinary layer (false)"},
 			{Name: "maskType", Kind: kindString, Enum: []string{"ALPHA", "VECTOR", "LUMINANCE"},
 				Desc: "How the mask is read: ALPHA uses opacity, VECTOR the outline, LUMINANCE the brightness"},
+			{Name: "strokeWeight", Kind: kindNumber, Min: floatPtr(0),
+				Desc: "Stroke thickness in pixels. set_paint also takes this when it paints a stroke; use this one to change the thickness without repainting."},
+			{Name: "strokeAlign", Kind: kindString, Enum: []string{"INSIDE", "OUTSIDE", "CENTER"},
+				Desc: "Where the stroke sits relative to the shape's edge"},
+			{Name: "strokeCap", Kind: kindString, Enum: figma.StrokeCapNames,
+				Desc: "How open ends are drawn: NONE, ROUND, SQUARE, or an arrowhead (ARROW_LINES, ARROW_EQUILATERAL). Applies to lines and open vector paths."},
+			{Name: "strokeJoin", Kind: kindString, Enum: []string{"MITER", "BEVEL", "ROUND"},
+				Desc: "How corners between segments are drawn"},
+			{Name: "strokeMiterLimit", Kind: kindNumber, Min: floatPtr(1),
+				Desc: "How far a MITER join may extend before it is bevelled instead (default 4)"},
+			{Name: "dashPattern", Kind: kindNumberArray,
+				Desc: "Dash lengths in pixels, alternating dash and gap e.g. [4, 2]. An empty array makes the stroke solid again."},
 		},
 		Validate: func(_ []string, params map[string]any) string {
 			supplied := false
@@ -296,7 +310,7 @@ var writeModifySpecs = []toolSpec{
 				}
 			}
 			if !supplied {
-				return "at least one of visible, locked, opacity, rotation, blendMode, constraints, order, isMask, or maskType is required"
+				return "at least one of " + strings.Join(nodePropertyKeys, ", ") + " is required"
 			}
 			if c, ok := params["constraints"].(map[string]any); ok {
 				return figma.ValidateConstraintAxes(c)

@@ -454,3 +454,117 @@ describe("set_paint", () => {
     await expect(paint({ type: "IMAGE", color: "#ff0000" })).rejects.toThrow(/SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL/);
   });
 });
+
+// ── stroke geometry ───────────────────────────────────────────────────────────
+
+describe("set_node_properties stroke geometry", () => {
+  it("sets caps, joins, dashes and the miter limit across nodes", async () => {
+    for (const id of ["1:1", "1:2"]) {
+      mockNodes[id] = {
+        id,
+        strokeWeight: 1, strokeAlign: "CENTER",
+        strokeCap: "NONE", strokeJoin: "MITER", strokeMiterLimit: 4,
+        dashPattern: [],
+      };
+    }
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1", "1:2"], {
+        strokeWeight: 3,
+        strokeAlign: "OUTSIDE",
+        strokeCap: "ARROW_LINES",
+        strokeJoin: "ROUND",
+        strokeMiterLimit: 8,
+        dashPattern: [4, 2],
+      }),
+    );
+    for (const id of ["1:1", "1:2"]) {
+      expect(mockNodes[id].strokeCap).toBe("ARROW_LINES");
+      expect(mockNodes[id].strokeJoin).toBe("ROUND");
+      expect(mockNodes[id].strokeMiterLimit).toBe(8);
+      expect(mockNodes[id].dashPattern).toEqual([4, 2]);
+      expect(mockNodes[id].strokeAlign).toBe("OUTSIDE");
+      expect(mockNodes[id].strokeWeight).toBe(3);
+    }
+    expect(res?.data.results.every((r: any) => !r.errors)).toBe(true);
+  });
+
+  it("reports an unsupported stroke property against that property alone", async () => {
+    mockNodes["1:1"] = { id: "1:1", opacity: 1 };
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { opacity: 0.5, strokeCap: "ROUND" }),
+    );
+    expect(mockNodes["1:1"].opacity).toBe(0.5);
+    expect(res?.data.results[0].errors.strokeCap).toContain("stroke caps");
+  });
+
+  // Figma throws for a value it will not take rather than ignoring it. The
+  // other properties in the same call must still land.
+  it("keeps the other properties when one assignment throws", async () => {
+    const node: any = { id: "1:1", opacity: 1, strokeCap: "NONE" };
+    Object.defineProperty(node, "dashPattern", {
+      enumerable: true,
+      get: () => [],
+      set: () => { throw new Error("Cannot use a negative dash length"); },
+    });
+    mockNodes["1:1"] = node;
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], {
+        opacity: 0.25, strokeCap: "ROUND", dashPattern: [-1],
+      }),
+    );
+    expect(node.opacity).toBe(0.25);
+    expect(node.strokeCap).toBe("ROUND");
+    expect(res?.data.results[0].errors.dashPattern).toContain("negative dash length");
+  });
+});
+
+// ── set_export_settings ───────────────────────────────────────────────────────
+
+describe("set_export_settings", () => {
+  it("writes the presets in order onto every node", async () => {
+    for (const id of ["1:1", "1:2"]) mockNodes[id] = { id, name: id, exportSettings: [] };
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_export_settings", ["1:1", "1:2"], {
+        settings: [
+          { format: "PNG", suffix: "@2x", constraint: { type: "SCALE", value: 2 } },
+          { format: "SVG", contentsOnly: false },
+        ],
+      }),
+    );
+    expect(mockNodes["1:1"].exportSettings).toEqual([
+      { format: "PNG", suffix: "@2x", constraint: { type: "SCALE", value: 2 } },
+      { format: "SVG", contentsOnly: false },
+    ]);
+    expect(mockNodes["1:2"].exportSettings.length).toBe(2);
+    expect(res?.data.results[0].exportSettings).toBe(2);
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  // Figma rejects a constraint on a vector format, so passing one through would
+  // turn a preset the caller can reasonably write into an error.
+  it("drops a raster constraint from SVG and PDF presets", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "n", exportSettings: [] };
+    await handleWriteModifyRequest(
+      makeRequest("set_export_settings", ["1:1"], {
+        settings: [{ format: "PDF", constraint: { type: "SCALE", value: 2 } }],
+      }),
+    );
+    expect(mockNodes["1:1"].exportSettings[0].constraint).toBeUndefined();
+  });
+
+  it("clears the presets on an empty array", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "n", exportSettings: [{ format: "PNG" }] };
+    await handleWriteModifyRequest(makeRequest("set_export_settings", ["1:1"], { settings: [] }));
+    expect(mockNodes["1:1"].exportSettings).toEqual([]);
+  });
+
+  it("reports a node that cannot be exported without failing the call", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "page", type: "PAGE" };
+    mockNodes["1:2"] = { id: "1:2", name: "frame", exportSettings: [] };
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_export_settings", ["1:1", "1:2"], { settings: [{ format: "PNG" }] }),
+    );
+    expect(res?.data.results[0].error).toContain("cannot be exported");
+    expect(mockNodes["1:2"].exportSettings.length).toBe(1);
+  });
+});

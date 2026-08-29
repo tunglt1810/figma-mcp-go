@@ -292,6 +292,16 @@ export const serializeStyles = async (node: any) => {
       if (node.strokeAlign) styles.strokeAlign = node.strokeAlign;
       if (Array.isArray(node.dashPattern) && node.dashPattern.length > 0)
         styles.dashPattern = node.dashPattern;
+      // The rest of the stroke geometry set_node_properties writes. Read back
+      // so a caller can round-trip a stroke rather than only half of one.
+      if ("strokeCap" in node && node.strokeCap)
+        styles.strokeCap = isMixed(node.strokeCap) ? "mixed" : node.strokeCap;
+      if ("strokeJoin" in node && node.strokeJoin)
+        styles.strokeJoin = isMixed(node.strokeJoin) ? "mixed" : node.strokeJoin;
+      // 4 is Figma's default and says nothing, so only a changed limit is worth
+      // the tokens.
+      if (typeof node.strokeMiterLimit === "number" && node.strokeMiterLimit !== 4)
+        styles.strokeMiterLimit = node.strokeMiterLimit;
     }
   }
 

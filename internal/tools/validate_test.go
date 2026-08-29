@@ -1330,3 +1330,88 @@ func TestValidateRPC_CreateNode(t *testing.T) {
 		})
 	}
 }
+
+// A crop is in fractions of the image, so a rect running past its edge is a
+// mistake rather than something to clamp.
+func TestImportImage_CropBounds(t *testing.T) {
+	base := map[string]any{"imageUrl": "https://example.com/a.png"}
+	with := func(crop map[string]any) map[string]any {
+		params := map[string]any{}
+		for k, v := range base {
+			params[k] = v
+		}
+		params["crop"] = crop
+		return params
+	}
+
+	ok := with(map[string]any{"x": 0.25, "y": 0.0, "width": 0.5, "height": 1.0})
+	if msg := ValidateRPC("import_image", nil, ok); msg != "" {
+		t.Errorf("a valid crop was rejected: %s", msg)
+	}
+
+	for name, crop := range map[string]map[string]any{
+		"past the right edge": {"x": 0.6, "y": 0, "width": 0.5, "height": 1},
+		"past the bottom":     {"x": 0, "y": 0.6, "width": 1, "height": 0.5},
+		"zero width":          {"x": 0, "y": 0, "width": 0, "height": 1},
+		"negative x":          {"x": -0.1, "y": 0, "width": 0.5, "height": 1},
+		"missing height":      {"x": 0, "y": 0, "width": 0.5},
+	} {
+		if msg := ValidateRPC("import_image", nil, with(crop)); msg == "" {
+			t.Errorf("expected a crop %s to be rejected", name)
+		}
+	}
+
+	scaled := with(map[string]any{"x": 0, "y": 0, "width": 0.5, "height": 1})
+	scaled["scaleMode"] = "TILE"
+	if msg := ValidateRPC("import_image", nil, scaled); msg == "" {
+		t.Error("expected a crop with a non-CROP scaleMode to be rejected")
+	}
+}
+
+func TestImportImage_FilterRange(t *testing.T) {
+	params := map[string]any{
+		"imageUrl": "https://example.com/a.png",
+		"filters":  map[string]any{"exposure": 0.5, "shadows": -1.0},
+	}
+	if msg := ValidateRPC("import_image", nil, params); msg != "" {
+		t.Errorf("valid filters were rejected: %s", msg)
+	}
+
+	params["filters"] = map[string]any{"exposure": 2.0}
+	if msg := ValidateRPC("import_image", nil, params); msg == "" {
+		t.Error("expected an out-of-range filter to be rejected")
+	}
+
+	params["filters"] = map[string]any{"sharpness": 0.5}
+	if msg := ValidateRPC("import_image", nil, params); msg == "" {
+		t.Error("expected an unknown filter name to be rejected")
+	}
+}
+
+// Figma throws on a malformed preset rather than skipping it, which would leave
+// a node half-updated — so the whole array is checked before any of it is sent.
+func TestSetExportSettings_ValidatesEveryPreset(t *testing.T) {
+	ok := map[string]any{"settings": []any{
+		map[string]any{"format": "PNG", "constraint": map[string]any{"type": "SCALE", "value": 2.0}},
+		map[string]any{"format": "SVG", "suffix": "-icon"},
+	}}
+	if msg := ValidateRPC("set_export_settings", []string{"1:1"}, ok); msg != "" {
+		t.Errorf("valid export presets were rejected: %s", msg)
+	}
+
+	for name, settings := range map[string][]any{
+		"an unknown format":     {map[string]any{"format": "WEBP"}},
+		"a missing format":      {map[string]any{"suffix": "@2x"}},
+		"a bad constraint type": {map[string]any{"format": "PNG", "constraint": map[string]any{"type": "DEPTH", "value": 2.0}}},
+		"a zero scale":          {map[string]any{"format": "PNG", "constraint": map[string]any{"type": "SCALE", "value": 0.0}}},
+		"a later bad preset":    {map[string]any{"format": "PNG"}, map[string]any{"format": "TIFF"}},
+	} {
+		if msg := ValidateRPC("set_export_settings", []string{"1:1"}, map[string]any{"settings": settings}); msg == "" {
+			t.Errorf("expected %s to be rejected", name)
+		}
+	}
+
+	if msg := ValidateRPC("set_export_settings", []string{"1:1"}, map[string]any{"settings": []any{}}); msg != "" {
+		t.Errorf("clearing the presets should be allowed, got: %s", msg)
+	}
+}

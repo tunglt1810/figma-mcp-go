@@ -14,6 +14,15 @@ const SIMPLE_NODE_PROPS: Array<{ key: string; label: string }> = [
   { key: "blendMode", label: "blend mode" },
   { key: "isMask", label: "masking" },
   { key: "maskType", label: "mask type" },
+  // Stroke geometry. These describe the line itself rather than its paint, so
+  // they live on the node, not in a Paint — which is why they belong here and
+  // not on set_paint, whose arguments all describe one paint.
+  { key: "strokeWeight", label: "stroke weight" },
+  { key: "strokeAlign", label: "stroke alignment" },
+  { key: "strokeCap", label: "stroke caps" },
+  { key: "strokeJoin", label: "stroke joins" },
+  { key: "strokeMiterLimit", label: "stroke miter limit" },
+  { key: "dashPattern", label: "dash pattern" },
 ];
 
 const reorderIndex = (order: string, currentIndex: number, siblingCount: number): number => {
@@ -41,8 +50,17 @@ const applyNodeProperties = (n: any, p: any) => {
       errors[key] = `Node does not support ${label}`;
       continue;
     }
-    n[key] = p[key];
-    applied[key] = n[key];
+    // Figma rejects some values for a node's current shape rather than
+    // ignoring them — a dash pattern with a negative length, a stroke cap on a
+    // node whose caps are mixed. Reporting that against the one property keeps
+    // the others in the same call applied, which is what the per-property
+    // errors above already promise.
+    try {
+      n[key] = p[key];
+      applied[key] = n[key];
+    } catch (e: any) {
+      errors[key] = e?.message ?? `Could not set ${label}`;
+    }
   }
 
   if (p.constraints !== undefined) {
@@ -410,6 +428,49 @@ export const writeModifyHandlers: HandlerMap = {
       } catch (e: any) {
         // One sibling that cannot FILL — because its parent has no auto layout
         // — must not undo the ones that could.
+        results.push({ nodeId: nid, error: e.message });
+      }
+    }
+    figma.commitUndo();
+    return { type: request.type, requestId: request.requestId, data: { results } };
+  },
+
+  // Writes the presets, it does not export. get_screenshot and save_screenshots
+  // still do the exporting; this is what a designer sees under Export in the
+  // right-hand panel, and what a handoff pipeline reads.
+  "set_export_settings": async (request) => {
+    const p = request.params || {};
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    if (!Array.isArray(p.settings)) throw new Error("settings must be an array of export presets");
+
+    const presets = p.settings.map((entry: any) => {
+      const preset: any = { format: entry.format };
+      if (entry.suffix != null) preset.suffix = String(entry.suffix);
+      if (entry.contentsOnly != null) preset.contentsOnly = !!entry.contentsOnly;
+      if (entry.useAbsoluteBounds != null) preset.useAbsoluteBounds = !!entry.useAbsoluteBounds;
+      // SVG and PDF have no raster size, and Figma rejects a constraint on them.
+      if (entry.constraint && entry.format !== "SVG" && entry.format !== "PDF") {
+        preset.constraint = {
+          type: entry.constraint.type,
+          value: Number(entry.constraint.value),
+        };
+      }
+      return preset;
+    });
+
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const n = await figma.getNodeByIdAsync(nid) as any;
+      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      if (!("exportSettings" in n)) {
+        results.push({ nodeId: nid, error: `Node ${nid} is a ${n.type} and cannot be exported` });
+        continue;
+      }
+      try {
+        n.exportSettings = presets;
+        results.push({ nodeId: nid, name: n.name, exportSettings: n.exportSettings.length });
+      } catch (e: any) {
         results.push({ nodeId: nid, error: e.message });
       }
     }
