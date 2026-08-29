@@ -338,6 +338,55 @@ export const serializeLetterSpacing = (letterSpacing: any) => {
   return { value: letterSpacing.value, unit: letterSpacing.unit };
 };
 
+/**
+ * Per-range styling, but only when the node actually has more than one.
+ *
+ * The node-level style fields report "mixed" for a paragraph with one bold
+ * word, which tells a code generator that something varies and nothing about
+ * what — so bold, links and colour changes were lost on the way to code. A node
+ * styled uniformly returns nothing here: a single segment repeating what the
+ * fields above already say is pure noise in every serialized tree.
+ */
+export const serializeStyledSegments = (node: any) => {
+  if (typeof node.getStyledTextSegments !== "function") return undefined;
+  const segments = node.getStyledTextSegments([
+    "fontName",
+    "fontSize",
+    "fills",
+    "textDecoration",
+    "textCase",
+    "hyperlink",
+    "listOptions",
+    "indentation",
+  ]);
+  if (!Array.isArray(segments) || segments.length <= 1) return undefined;
+  return segments.map((segment: any) => {
+    const out: any = {
+      start: segment.start,
+      end: segment.end,
+      characters: segment.characters,
+    };
+    if (segment.fontName) {
+      out.fontFamily = segment.fontName.family;
+      out.fontStyle = segment.fontName.style;
+    }
+    if (segment.fontSize != null) out.fontSize = segment.fontSize;
+    if (Array.isArray(segment.fills) && segment.fills.length > 0) {
+      out.fills = serializePaints(segment.fills);
+    }
+    if (segment.textDecoration && segment.textDecoration !== "NONE") {
+      out.textDecoration = segment.textDecoration;
+    }
+    if (segment.textCase && segment.textCase !== "ORIGINAL") out.textCase = segment.textCase;
+    if (segment.hyperlink) out.hyperlink = segment.hyperlink.value ?? segment.hyperlink;
+    if (segment.listOptions && segment.listOptions.type !== "NONE") {
+      out.listType = segment.listOptions.type;
+    }
+    if (segment.indentation) out.indentation = segment.indentation;
+    return out;
+  });
+};
+
 export const serializeText = async (node: any, base: any) => {
   let fontFamily: any;
   let fontStyle: any;
@@ -355,8 +404,11 @@ export const serializeText = async (node: any, base: any) => {
       ? ((await figma.getStyleByIdAsync(node.textStyleId))?.name ?? undefined)
       : undefined;
 
+  const styledSegments = serializeStyledSegments(node);
+
   return Object.assign({}, base, {
     characters: node.characters,
+    ...(styledSegments ? { styledSegments } : {}),
     styles: Object.assign({}, base.styles, {
       ...(textStyleName ? { textStyle: textStyleName } : {}),
       fontSize: isMixed(node.fontSize) ? "mixed" : node.fontSize,
@@ -446,7 +498,60 @@ export const serializeNodeProperties = (node: any) => {
   return props;
 };
 
-export const serializeNode = async (node: any): Promise<any> => {
+/**
+ * What a component or variant set exposes to its instances.
+ *
+ * Reading a component told you its layers and nothing about its API, so the
+ * only way to learn a property's name was to place an instance and inspect it.
+ * The `#1:2` suffix Figma appends is kept, because that is the id every write
+ * has to quote back, with the bare name alongside for reading.
+ */
+export const serializeComponentPropertyDefinitions = (node: any) => {
+  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") return undefined;
+  const defs = node.componentPropertyDefinitions;
+  if (!defs || Object.keys(defs).length === 0) return undefined;
+  const out: Record<string, any> = {};
+  for (const [key, def] of Object.entries<any>(defs)) {
+    out[key] = {
+      name: key.split("#")[0],
+      type: def.type,
+      defaultValue: def.defaultValue,
+      ...(def.variantOptions ? { variantOptions: def.variantOptions } : {}),
+      ...(def.preferredValues ? { preferredValues: def.preferredValues } : {}),
+    };
+  }
+  return out;
+};
+
+/**
+ * Bounds on how much of a tree serializeNode will walk.
+ *
+ * get_document on a busy page produced one object per node with no ceiling,
+ * which is a payload nothing on the far side asked for and an LLM context
+ * nothing survives. A budget is shared across the whole walk rather than
+ * applied per branch, so the cost of an answer is bounded by the answer and
+ * not by the shape of the tree.
+ */
+export interface SerializeBudget {
+  /** How many more nodes may be serialized. Mutated as the walk spends it. */
+  remaining: number;
+  /** How deep the walk may go below the root; Infinity for no limit. */
+  maxDepth: number;
+  /** Set when something was left out, so a half tree is never reported as whole. */
+  truncated: boolean;
+}
+
+export const makeBudget = (maxNodes?: number, maxDepth?: number): SerializeBudget => ({
+  remaining: maxNodes != null && Number(maxNodes) > 0 ? Number(maxNodes) : Infinity,
+  maxDepth: maxDepth != null && Number(maxDepth) >= 0 ? Number(maxDepth) : Infinity,
+  truncated: false,
+});
+
+export const serializeNode = async (
+  node: any,
+  budget?: SerializeBudget,
+  depth = 0,
+): Promise<any> => {
   const styles = await serializeStyles(node);
   const base: any = {
     id: node.id,
@@ -457,13 +562,44 @@ export const serializeNode = async (node: any): Promise<any> => {
     ...serializeNodeProperties(node),
   };
   if (Object.keys(styles).length > 0) base.styles = styles;
+  const componentProperties = serializeComponentPropertyDefinitions(node);
+  if (componentProperties) base.componentProperties = componentProperties;
   if (node.type === "TEXT") return serializeText(node, base);
   // An empty children array says nothing a reader cannot infer from the node type,
   // so only containers that actually hold something report children.
   if ("children" in node && node.children.length > 0) {
-    return Object.assign({}, base, {
-      children: await Promise.all(node.children.map((child: any) => serializeNode(child))),
-    });
+    // The node itself is still reported; only its children are withheld, and
+    // saying how many keeps the answer honest.
+    const omitted = () =>
+      Object.assign({}, base, { childCount: node.children.length, childrenOmitted: true });
+
+    if (budget && depth >= budget.maxDepth) {
+      budget.truncated = true;
+      return omitted();
+    }
+
+    const children: any[] = [];
+    for (const child of node.children) {
+      if (budget) {
+        if (budget.remaining <= 0) {
+          budget.truncated = true;
+          break;
+        }
+        budget.remaining--;
+      }
+      // Sequential rather than Promise.all: the budget is spent in tree order,
+      // or which nodes survive would depend on how the promises happen to settle.
+      children.push(await serializeNode(child, budget, depth + 1));
+    }
+
+    if (children.length < node.children.length) {
+      return Object.assign({}, base, {
+        children,
+        childCount: node.children.length,
+        childrenOmitted: true,
+      });
+    }
+    return Object.assign({}, base, { children });
   }
   return base;
 };

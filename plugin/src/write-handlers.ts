@@ -6,6 +6,11 @@ import { writeVariablesHandlers } from "./write-variables";
 import { writeComponentsHandlers } from "./write-components";
 import { writePrototypeHandlers } from "./write-prototype";
 import { writePageHandlers } from "./write-page";
+import { writeViewportHandlers } from "./write-viewport";
+import { writeDocumentHandlers } from "./write-document";
+import { writeTextHandlers } from "./write-text";
+import { writeVectorHandlers } from "./write-vector";
+import { writeComponentPropertyHandlers } from "./write-component-properties";
 import { handleBatchPipelineRequest } from "./batch-pipeline";
 
 export const writeHandlers: HandlerMap = mergeHandlers(
@@ -16,6 +21,11 @@ export const writeHandlers: HandlerMap = mergeHandlers(
   writeComponentsHandlers,
   writePrototypeHandlers,
   writePageHandlers,
+  writeViewportHandlers,
+  writeDocumentHandlers,
+  writeTextHandlers,
+  writeVectorHandlers,
+  writeComponentPropertyHandlers,
 );
 
 export const handleWriteRequest = async (request: any): Promise<any> => {

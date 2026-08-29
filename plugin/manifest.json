@@ -10,6 +10,6 @@
     "reasoning": "The server host and port are user-configurable (defaults to ws://127.0.0.1:1994), so any origin must be allowed to support custom addresses"
   },
   "documentAccess": "dynamic-page",
-  "editorType": ["figma", "dev"],
+  "editorType": ["figma", "figjam", "slides", "dev"],
   "capabilities": ["inspect"]
 }

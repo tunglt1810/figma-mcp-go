@@ -74,6 +74,11 @@ type paramSpec struct {
 	// Replacement strings and text bodies use "" to mean "clear this".
 	AllowEmpty bool
 
+	// Nullable lets an explicit null through the kind check. Used where the
+	// plugin distinguishes "leave this alone" (argument absent) from "clear it"
+	// (argument null) — an auto-layout min/max constraint, for one.
+	Nullable bool
+
 	// ItemSchema spells out an array's element schema where "an object" is too
 	// vague to be useful to the client.
 	ItemSchema map[string]any
@@ -211,9 +216,20 @@ func specArgs(spec toolSpec, args map[string]any) ([]string, map[string]any) {
 	params := map[string]any{}
 	for _, p := range spec.Params {
 		v, ok := args[p.Name]
-		if !ok || v == nil {
+		if !ok {
 			continue
 		}
+		if v == nil {
+			// A null is normally indistinguishable from an absent argument and
+			// is dropped. Nullable parameters are the exception: the plugin
+			// reads null as "clear this", which it cannot tell from "leave it
+			// alone" once the key is gone.
+			if p.Nullable {
+				params[p.wireName()] = nil
+			}
+			continue
+		}
+
 		switch p.Kind {
 		case kindString:
 			s, ok := v.(string)
@@ -339,6 +355,9 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]any) string
 			if p.Required {
 				return fmt.Sprintf("%s is required", p.Name)
 			}
+			continue
+		}
+		if v == nil && p.Nullable {
 			continue
 		}
 
@@ -527,12 +546,16 @@ func allSpecs() []toolSpec {
 		readDocumentSpecs,
 		readStyleSpecs,
 		writeComponentSpecs,
+		writeComponentPropertySpecs,
 		writeCreateSpecs,
+		writeDocumentSpecs,
 		writeModifySpecs,
 		writePageSpecs,
 		writePrototypeSpecs,
+		writeViewportSpecs,
 		writeStyleSpecs,
 		writeVariableSpecs,
+		writeVectorSpecs,
 	}
 	all := make([]toolSpec, 0, 64)
 	for _, group := range groups {

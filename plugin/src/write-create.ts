@@ -15,6 +15,28 @@ const NODE_ACTIONS: Record<string, string> = {
   SECTION: "create_section",
 };
 
+/**
+ * The size to give a newly placed image.
+ *
+ * An explicit width and height win. Otherwise the image's own dimensions are
+ * used, scaled down to fit a sensible box so a 4000px photo does not land as a
+ * 4000px rectangle. getSizeAsync can fail on a malformed image, and a square
+ * placeholder is a better outcome there than a failed import.
+ */
+export const imageSize = async (image: any, p: any) => {
+  if (p.width != null && p.height != null) {
+    return { width: Number(p.width), height: Number(p.height) };
+  }
+  const MAX = 1000;
+  try {
+    const size = await image.getSizeAsync();
+    const scale = Math.min(1, MAX / Math.max(size.width, size.height));
+    return { width: Math.round(size.width * scale), height: Math.round(size.height * scale) };
+  } catch {
+    return { width: Number(p.width ?? 200), height: Number(p.height ?? 200) };
+  }
+};
+
 export const writeCreateHandlers: HandlerMap = {
   "create_node": async (request) => {
   const { type, ...params } = request.params || {};
@@ -200,16 +222,46 @@ export const writeCreateHandlers: HandlerMap = {
 
   "import_image": async (request) => {
     const p = request.params || {};
-    if (!p.imageData) throw new Error("imageData (base64) is required");
+    if (!p.imageData && !p.imageUrl) {
+      throw new Error("imageData (base64) or imageUrl is required");
+    }
+
+    // A URL avoids pushing the whole file through the WebSocket as base64,
+    // which is the expensive half of placing an image.
+    const image = p.imageUrl
+      ? await figma.createImageAsync(p.imageUrl)
+      : figma.createImage(base64ToBytes(p.imageData));
+    const fill: any = {
+      type: "IMAGE",
+      imageHash: image.hash,
+      scaleMode: p.scaleMode || "FILL",
+    };
+
+    // Painting an existing node beats making a rectangle beside it: an avatar
+    // or a hero slot is usually already there, waiting for its picture.
+    if (p.nodeId) {
+      const target = await figma.getNodeByIdAsync(p.nodeId) as any;
+      if (!target) throw new Error(`Node not found: ${p.nodeId}`);
+      if (!("fills" in target)) throw new Error(`Node ${p.nodeId} does not support fills`);
+      target.fills = p.mode === "append" ? [...target.fills, fill] : [fill];
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { id: target.id, name: target.name, type: target.type, bounds: getBounds(target) },
+      };
+    }
+
     const parent = await getParentNode(p.parentId);
-    const bytes = base64ToBytes(p.imageData);
-    const image = figma.createImage(bytes);
     const rect = figma.createRectangle();
-    rect.resize(p.width || 200, p.height || 200);
+    // Fall back to the image's own size rather than a fixed 200x200, so an
+    // imported picture is not silently squashed into a square.
+    const { width, height } = await imageSize(image, p);
+    rect.resize(width, height);
     rect.x = p.x != null ? p.x : 0;
     rect.y = p.y != null ? p.y : 0;
     if (p.name) rect.name = p.name;
-    rect.fills = [{ type: "IMAGE", imageHash: image.hash, scaleMode: p.scaleMode || "FILL" }];
+    rect.fills = [fill];
     (parent as any).appendChild(rect);
     figma.commitUndo();
     return {

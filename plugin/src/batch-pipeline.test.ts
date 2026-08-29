@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { executeRollback, isCreateStep, resolveParams, SymbolTable, WALStack } from './batch-pipeline';
+import { executeBatchPipeline, executeRollback, isCreateStep, resolveParams, SymbolTable, WALStack, withSingleUndoCheckpoint } from './batch-pipeline';
 import { handleWriteRequest } from './write-handlers';
 
 describe('SymbolTable & resolveParams', () => {
@@ -425,5 +425,149 @@ describe('isCreateStep', () => {
   it('still recognises the plain create actions', () => {
     expect(isCreateStep('create_frame', {})).toBe(true);
     expect(isCreateStep('rename_node', { nodeId: '1:1' })).toBe(false);
+  });
+});
+
+// ── withSingleUndoCheckpoint ──────────────────────────────────────────────────
+
+describe('withSingleUndoCheckpoint', () => {
+  const withFigma = (commitUndo: any) => {
+    const previous = (globalThis as any).figma;
+    (globalThis as any).figma = { ...(previous ?? {}), commitUndo };
+    return () => {
+      (globalThis as any).figma = previous;
+    };
+  };
+
+  it('collapses many handler checkpoints into one', async () => {
+    let commits = 0;
+    const restore = withFigma(() => {
+      commits++;
+    });
+    try {
+      await withSingleUndoCheckpoint(async () => {
+        (globalThis as any).figma.commitUndo();
+        (globalThis as any).figma.commitUndo();
+        (globalThis as any).figma.commitUndo();
+      });
+      expect(commits).toBe(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it('commits nothing when no step touched the document', async () => {
+    let commits = 0;
+    const restore = withFigma(() => {
+      commits++;
+    });
+    try {
+      await withSingleUndoCheckpoint(async () => {});
+      expect(commits).toBe(0);
+    } finally {
+      restore();
+    }
+  });
+
+  it('restores commitUndo and still checkpoints when the work throws', async () => {
+    let commits = 0;
+    const real = () => {
+      commits++;
+    };
+    const restore = withFigma(real);
+    try {
+      const boom = withSingleUndoCheckpoint(async () => {
+        (globalThis as any).figma.commitUndo();
+        throw new Error('step failed');
+      });
+      expect(boom).rejects.toThrow('step failed');
+      await boom.catch(() => {});
+      expect(commits).toBe(1);
+      // A swallowing stub left behind would silently disable undo for the
+      // rest of the session.
+      expect((globalThis as any).figma.commitUndo).toBe(real);
+    } finally {
+      restore();
+    }
+  });
+
+  it('returns the work’s value', async () => {
+    const restore = withFigma(() => {});
+    try {
+      expect(await withSingleUndoCheckpoint(async () => 'done')).toBe('done');
+    } finally {
+      restore();
+    }
+  });
+
+  it('runs the work unchanged when there is no commitUndo to swap', async () => {
+    const previous = (globalThis as any).figma;
+    (globalThis as any).figma = {};
+    try {
+      expect(await withSingleUndoCheckpoint(async () => 'ok')).toBe('ok');
+    } finally {
+      (globalThis as any).figma = previous;
+    }
+  });
+});
+
+// ── cancellation between steps ───────────────────────────────────────────────
+
+describe('executeBatchPipeline cancellation', () => {
+  const twoSteps = {
+    steps: [
+      { id: 's1', action: 'create_frame', params: {} },
+      { id: 's2', action: 'create_frame', params: {} },
+    ],
+  };
+
+  it('runs every step when nothing is cancelled', async () => {
+    const ran: string[] = [];
+    const res = await executeBatchPipeline(
+      twoSteps as any,
+      async (action) => {
+        ran.push(action);
+        return { id: `n${ran.length}` };
+      },
+      async () => null,
+      () => false,
+    );
+    expect(res.success).toBe(true);
+    expect(ran.length).toBe(2);
+  });
+
+  it('stops at the next step boundary and rolls back what ran', async () => {
+    const removed: string[] = [];
+    let cancelled = false;
+    const res = await executeBatchPipeline(
+      twoSteps as any,
+      async () => {
+        // Cancelled while the first step is in flight; it completes, and the
+        // second never starts.
+        cancelled = true;
+        return { id: 'n1' };
+      },
+      async (id) => ({ id, remove: () => removed.push(id) }),
+      () => cancelled,
+    );
+    expect(res.success).toBe(false);
+    expect(res.completed_steps).toBe(1);
+    expect(res.failed_step?.error).toBe('Request cancelled');
+    expect(res.rollback_executed).toBe(true);
+    expect(removed).toEqual(['n1']);
+  });
+
+  it('rolls back even when stop_on_error is off', async () => {
+    // stop_on_error tolerates a step that failed on its own terms; a cancelled
+    // run has no terms left to tolerate.
+    const res = await executeBatchPipeline(
+      { ...twoSteps, stop_on_error: false } as any,
+      async () => ({ id: 'n1' }),
+      async () => null,
+      () => true,
+    );
+    expect(res.success).toBe(false);
+    expect(res.completed_steps).toBe(0);
+    expect(res.rollback_executed).toBe(true);
   });
 });

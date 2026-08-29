@@ -1,4 +1,4 @@
-import { makeSolidPaint, hexToRgb, makeEffect } from "./write-helpers";
+import { makeSolidPaint, hexToRgb, makeEffect, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
 
 // create_style replaced four create_*_style tools on the MCP surface. The four
@@ -123,27 +123,7 @@ export const writeStylesHandlers: HandlerMap = {
     if (existing) {
       return { type: request.type, requestId: request.requestId, data: { id: existing.id, name: existing.name } };
     }
-    const pattern = p.pattern || "GRID";
-    let grid: LayoutGrid;
-    if (pattern === "COLUMNS" || pattern === "ROWS") {
-      grid = {
-        pattern,
-        count: Number(p.count ?? 12),
-        gutterSize: Number(p.gutterSize ?? 16),
-        offset: Number(p.offset ?? 0),
-        alignment: p.alignment || "STRETCH",
-        visible: true,
-      };
-    } else {
-      // GRID
-      const { r, g, b, a } = hexToRgb(p.color || "#FF0000");
-      grid = {
-        pattern: "GRID",
-        sectionSize: Number(p.sectionSize ?? 8),
-        visible: true,
-        color: { r, g, b, a: p.opacity != null ? Number(p.opacity) : (a !== 1 ? a : 0.1) },
-      };
-    }
+    const grid = makeLayoutGrid(p);
     const style = figma.createGridStyle();
     style.name = p.name;
     style.layoutGrids = [grid];

@@ -10,7 +10,10 @@ import {
   serializeLetterSpacing,
   serializeStyles,
   serializeText,
+  serializeStyledSegments,
+  serializeComponentPropertyDefinitions,
   serializeNode,
+  makeBudget,
   serializeEffects,
   serializeNodeProperties,
   invertTransform,
@@ -1047,5 +1050,182 @@ describe("serializeNode", () => {
       const result = await serializeNode(node);
       expect(result).not.toHaveProperty("children");
     });
+  });
+});
+
+// ── serializeStyledSegments ───────────────────────────────────────────────────
+
+describe("serializeStyledSegments", () => {
+  const nodeWith = (segments: any) => ({
+    getStyledTextSegments: () => segments,
+  });
+
+  it("returns nothing for a node with one uniform style", () => {
+    // The node-level style fields already say everything a single segment could.
+    expect(serializeStyledSegments(nodeWith([
+      { start: 0, end: 5, characters: "Hello", fontName: { family: "Inter", style: "Regular" } },
+    ]))).toBeUndefined();
+  });
+
+  it("returns nothing when the API is absent", () => {
+    expect(serializeStyledSegments({})).toBeUndefined();
+  });
+
+  it("reports the font of each segment", () => {
+    const segments = serializeStyledSegments(nodeWith([
+      { start: 0, end: 6, characters: "Hello ", fontName: { family: "Inter", style: "Regular" }, fontSize: 14 },
+      { start: 6, end: 11, characters: "world", fontName: { family: "Inter", style: "Bold" }, fontSize: 14 },
+    ]))!;
+    expect(segments.length).toBe(2);
+    expect(segments[1]).toMatchObject({
+      start: 6,
+      end: 11,
+      characters: "world",
+      fontFamily: "Inter",
+      fontStyle: "Bold",
+      fontSize: 14,
+    });
+  });
+
+  it("carries a hyperlink through as its URL", () => {
+    const segments = serializeStyledSegments(nodeWith([
+      { start: 0, end: 4, characters: "docs", hyperlink: { type: "URL", value: "https://x.dev" } },
+      { start: 4, end: 8, characters: " here" },
+    ]))!;
+    expect(segments[0].hyperlink).toBe("https://x.dev");
+  });
+
+  it("omits the defaults that mean 'nothing special'", () => {
+    const segments = serializeStyledSegments(nodeWith([
+      { start: 0, end: 2, characters: "ab", textDecoration: "NONE", textCase: "ORIGINAL", listOptions: { type: "NONE" }, indentation: 0 },
+      { start: 2, end: 4, characters: "cd", textDecoration: "UNDERLINE", listOptions: { type: "UNORDERED" } },
+    ]))!;
+    expect(segments[0].textDecoration).toBeUndefined();
+    expect(segments[0].textCase).toBeUndefined();
+    expect(segments[0].listType).toBeUndefined();
+    expect(segments[0].indentation).toBeUndefined();
+    expect(segments[1].textDecoration).toBe("UNDERLINE");
+    expect(segments[1].listType).toBe("UNORDERED");
+  });
+});
+
+// ── serializeComponentPropertyDefinitions ─────────────────────────────────────
+
+describe("serializeComponentPropertyDefinitions", () => {
+  it("ignores a node that is not a component", () => {
+    expect(serializeComponentPropertyDefinitions({
+      type: "FRAME",
+      componentPropertyDefinitions: { "X#1:0": { type: "BOOLEAN", defaultValue: true } },
+    })).toBeUndefined();
+  });
+
+  it("returns nothing for a component that exposes nothing", () => {
+    expect(serializeComponentPropertyDefinitions({ type: "COMPONENT", componentPropertyDefinitions: {} }))
+      .toBeUndefined();
+    expect(serializeComponentPropertyDefinitions({ type: "COMPONENT" })).toBeUndefined();
+  });
+
+  // The suffixed key is what every write has to quote back; the bare name is
+  // what a reader recognises.
+  it("keeps the full id as the key and the bare name alongside", () => {
+    const defs = serializeComponentPropertyDefinitions({
+      type: "COMPONENT_SET",
+      componentPropertyDefinitions: {
+        "Size#1:0": { type: "VARIANT", defaultValue: "Large", variantOptions: ["Small", "Large"] },
+        "Disabled#2:0": { type: "BOOLEAN", defaultValue: false },
+      },
+    })!;
+    expect(defs["Size#1:0"]).toEqual({
+      name: "Size",
+      type: "VARIANT",
+      defaultValue: "Large",
+      variantOptions: ["Small", "Large"],
+    });
+    expect(defs["Disabled#2:0"].name).toBe("Disabled");
+  });
+});
+
+// ── serialization budget ──────────────────────────────────────────────────────
+
+describe("serializeNode budget", () => {
+  // A tree of `breadth` children, each with `breadth` children of its own.
+  const makeTree = (breadth: number, levels: number, prefix = "1"): any => {
+    const node: any = {
+      id: `${prefix}:0`,
+      name: `Node ${prefix}`,
+      type: "FRAME",
+      x: 0, y: 0, width: 10, height: 10,
+      absoluteBoundingBox: { x: 0, y: 0, width: 10, height: 10 },
+      children: [],
+    };
+    if (levels > 0) {
+      for (let i = 0; i < breadth; i++) {
+        node.children.push(makeTree(breadth, levels - 1, `${prefix}${i}`));
+      }
+    }
+    return node;
+  };
+
+  const countNodes = (tree: any): number =>
+    1 + (tree.children ?? []).reduce((sum: number, child: any) => sum + countNodes(child), 0);
+
+  beforeEach(() => {
+    (globalThis as any).figma = {
+      getStyleByIdAsync: async () => null,
+      mixed: Symbol("mixed"),
+    };
+  });
+
+  it("walks the whole tree when no budget is given", async () => {
+    const tree = await serializeNode(makeTree(2, 2));
+    expect(countNodes(tree)).toBe(7);
+  });
+
+  it("stops at the depth limit and says what it withheld", async () => {
+    const budget = makeBudget(undefined, 1);
+    const tree = await serializeNode(makeTree(2, 2), budget);
+    expect(budget.truncated).toBe(true);
+    expect(tree.children.length).toBe(2);
+    // The depth-1 nodes are reported; their own children are not.
+    expect(tree.children[0].children).toBeUndefined();
+    expect(tree.children[0].childCount).toBe(2);
+    expect(tree.children[0].childrenOmitted).toBe(true);
+  });
+
+  it("depth 0 reports the root alone", async () => {
+    const budget = makeBudget(undefined, 0);
+    const tree = await serializeNode(makeTree(2, 2), budget);
+    expect(tree.children).toBeUndefined();
+    expect(tree.childCount).toBe(2);
+  });
+
+  it("stops at the node limit", async () => {
+    const budget = makeBudget(3);
+    const tree = await serializeNode(makeTree(2, 2), budget);
+    expect(budget.truncated).toBe(true);
+    // The root plus the three children the budget paid for.
+    expect(countNodes(tree)).toBe(4);
+  });
+
+  // Spending the budget in tree order is what makes a truncated answer
+  // reproducible rather than a race between promises.
+  it("spends the budget in tree order", async () => {
+    const budget = makeBudget(2);
+    const tree = await serializeNode(makeTree(2, 2), budget);
+    expect(tree.children[0].id).toBe("10:0");
+    expect(tree.children[0].children[0].id).toBe("100:0");
+  });
+
+  it("leaves an untruncated tree unmarked", async () => {
+    const budget = makeBudget(100, 10);
+    const tree = await serializeNode(makeTree(2, 2), budget);
+    expect(budget.truncated).toBe(false);
+    expect(tree.childrenOmitted).toBeUndefined();
+  });
+
+  it("treats a zero or negative limit as no limit", async () => {
+    expect(makeBudget(0).remaining).toBe(Infinity);
+    expect(makeBudget(-5).remaining).toBe(Infinity);
+    expect(makeBudget(undefined, -1).maxDepth).toBe(Infinity);
   });
 });

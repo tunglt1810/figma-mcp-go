@@ -42,13 +42,35 @@ export const getParentNode = async (parentId: string | undefined) => {
   return parent as ChildrenMixin & BaseNode;
 };
 
-export const applyAutoLayout = (frame: FrameNode, p: any) => {
-  if (p.layoutMode != null) frame.layoutMode = p.layoutMode;
+// Nodes that carry auto-layout properties: frames, components, component sets
+// and instances. Typed structurally rather than as FrameNode because the four
+// share the properties without sharing a Figma interface.
+type AutoLayoutNode = any;
+
+// A property Figma rejects for the node's current shape — FILL on a child whose
+// parent has no auto layout, HUG on a frame that is not itself auto-layout —
+// throws on assignment. Reporting which property failed beats a bare
+// "Cannot set property" with no clue which of a dozen arguments caused it.
+const assign = (node: AutoLayoutNode, property: string, value: any) => {
+  try {
+    node[property] = value;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Cannot set ${property} to ${JSON.stringify(value)}: ${reason}`);
+  }
+};
+
+export const applyAutoLayout = (frame: AutoLayoutNode, p: any) => {
+  // layoutMode goes first: every property below is rejected or ignored until
+  // the node actually has auto layout.
+  if (p.layoutMode != null) assign(frame, "layoutMode", p.layoutMode);
   if (p.paddingTop != null) frame.paddingTop = Number(p.paddingTop);
   if (p.paddingRight != null) frame.paddingRight = Number(p.paddingRight);
   if (p.paddingBottom != null) frame.paddingBottom = Number(p.paddingBottom);
   if (p.paddingLeft != null) frame.paddingLeft = Number(p.paddingLeft);
   if (p.itemSpacing != null) frame.itemSpacing = Number(p.itemSpacing);
+  if (p.clipsContent != null) frame.clipsContent = !!p.clipsContent;
+
   if (frame.layoutMode !== "NONE") {
     if (p.primaryAxisAlignItems) frame.primaryAxisAlignItems = p.primaryAxisAlignItems;
     if (p.counterAxisAlignItems) frame.counterAxisAlignItems = p.counterAxisAlignItems;
@@ -58,8 +80,42 @@ export const applyAutoLayout = (frame: FrameNode, p: any) => {
     if (p.counterAxisSpacing != null && frame.layoutWrap === "WRAP") {
       frame.counterAxisSpacing = Number(p.counterAxisSpacing);
     }
+    if (p.itemReverseZIndex != null) frame.itemReverseZIndex = !!p.itemReverseZIndex;
+    if (p.strokesIncludedInLayout != null) {
+      frame.strokesIncludedInLayout = !!p.strokesIncludedInLayout;
+    }
+  }
+
+  // Constraints come before the sizing properties: min/max are what make FILL
+  // and HUG behave responsively, and Figma clamps the current size against them
+  // as soon as they are set. Explicit null clears one, which is how a caller
+  // removes a constraint it set earlier — hence `!== undefined` rather than the
+  // `!= null` used above.
+  if (p.minWidth !== undefined) assign(frame, "minWidth", nullableNumber(p.minWidth));
+  if (p.maxWidth !== undefined) assign(frame, "maxWidth", nullableNumber(p.maxWidth));
+  if (p.minHeight !== undefined) assign(frame, "minHeight", nullableNumber(p.minHeight));
+  if (p.maxHeight !== undefined) assign(frame, "maxHeight", nullableNumber(p.maxHeight));
+
+  // These four describe how the node behaves inside its OWN parent's auto
+  // layout, so they apply whether or not this node has auto layout of its own.
+  if (p.layoutPositioning) assign(frame, "layoutPositioning", p.layoutPositioning);
+  if (p.layoutAlign) assign(frame, "layoutAlign", p.layoutAlign);
+  if (p.layoutGrow != null) assign(frame, "layoutGrow", Number(p.layoutGrow));
+
+  // layoutSizing* is last. It is the modern spelling of primaryAxisSizingMode /
+  // counterAxisSizingMode plus FILL, and Figma derives one from the other, so
+  // setting it after means an explicit HUG/FILL wins over a sizing mode passed
+  // in the same call rather than being silently overwritten by it.
+  if (p.layoutSizingHorizontal) {
+    assign(frame, "layoutSizingHorizontal", p.layoutSizingHorizontal);
+  }
+  if (p.layoutSizingVertical) {
+    assign(frame, "layoutSizingVertical", p.layoutSizingVertical);
   }
 };
+
+// null clears a min/max constraint; anything else is a number.
+const nullableNumber = (value: any) => (value === null ? null : Number(value));
 
 export const base64ToBytes = (b64: string) => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -286,4 +342,37 @@ export const makeEffect = (e: any): Effect => {
         `Unknown effect type: ${e.type}. Must be one of ${supportedEffectTypes.join(", ")}`,
       );
   }
+};
+
+/**
+ * Build one layout grid from a plain spec.
+ *
+ * Shared by create_grid_style and set_layout_grids: a grid saved as a style and
+ * a grid dropped straight onto a frame are the same object, and two copies of
+ * these defaults would drift.
+ */
+export const makeLayoutGrid = (spec: any): LayoutGrid => {
+  const pattern = spec?.pattern || "GRID";
+  if (pattern === "COLUMNS" || pattern === "ROWS") {
+    return {
+      pattern,
+      count: Number(spec.count ?? 12),
+      gutterSize: Number(spec.gutterSize ?? 16),
+      offset: Number(spec.offset ?? 0),
+      alignment: spec.alignment || "STRETCH",
+      visible: spec.visible !== false,
+    } as LayoutGrid;
+  }
+  if (pattern !== "GRID") {
+    throw new Error(`pattern must be COLUMNS, ROWS, or GRID, got: ${spec.pattern}`);
+  }
+  const { r, g, b, a } = hexToRgb(spec.color || "#FF0000");
+  return {
+    pattern: "GRID",
+    sectionSize: Number(spec.sectionSize ?? 8),
+    visible: spec.visible !== false,
+    // A grid overlay is a guide, so it defaults to faint rather than to the
+    // opaque red a bare hex would give.
+    color: { r, g, b, a: spec.opacity != null ? Number(spec.opacity) : (a !== 1 ? a : 0.1) },
+  } as LayoutGrid;
 };

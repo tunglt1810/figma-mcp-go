@@ -61,6 +61,15 @@ type Bridge struct {
 	counter atomic.Int64
 	version string
 
+	// pluginVersion is what the connected plugin last announced, "" when no
+	// plugin has connected or when it is too old to announce anything.
+	pluginVersion string
+
+	// pluginHandlers is what that plugin said it can do. Empty means "it did
+	// not say", which is not the same as "it can do nothing" — an older plugin
+	// announces no handlers and must keep working.
+	pluginHandlers map[string]bool
+
 	// Ping cadence, overridable in tests so they need not wait 20 seconds.
 	pingInterval time.Duration
 	pingTimeout  time.Duration
@@ -264,21 +273,49 @@ func (b *Bridge) unlockWrite() { <-b.wslot }
 // within the grace is dropped rather than left to pile up behind whatever is
 // holding the slot — the plugin asks again on its next connect.
 func (b *Bridge) replyServerInfo(conn *websocket.Conn) {
+	b.writeControlFrame(conn, "server-info", map[string]string{
+		"type":    "server-info",
+		"version": b.version,
+	})
+}
+
+// writeControlFrame sends a frame that is not a response to anything: nothing
+// waits on it and nothing retries it. Only the wait for the write slot is
+// bounded; the write itself goes out under a context that never cancels, for
+// the reason Send documents. A frame that cannot get on the wire within the
+// grace is dropped rather than left to pile up behind whatever holds the slot.
+func (b *Bridge) writeControlFrame(conn *websocket.Conn, what string, frame any) {
 	ctx, cancel := context.WithTimeout(context.Background(), serverInfoGrace)
 	defer cancel()
 	if err := b.lockWrite(ctx); err != nil {
-		log().Warn("gave up queueing the server-info reply", "err", err)
+		log().Warn("gave up queueing a control frame", "frame", what, "err", err)
 		return
 	}
 	defer b.unlockWrite()
 
-	err := writeJSON(context.Background(), conn, map[string]string{
-		"type":    "server-info",
-		"version": b.version,
-	})
-	if err != nil {
-		log().Warn("failed to write server-info", "err", err)
+	if err := writeJSON(context.Background(), conn, frame); err != nil {
+		log().Warn("failed to write a control frame", "frame", what, "err", err)
 	}
+}
+
+// cancelRequest tells the plugin to stop work it is still doing for a request
+// nobody is waiting for any more.
+//
+// Without this the plugin runs a long scan to completion after the caller has
+// walked away, holding the single WebSocket against the next request. The frame
+// is advisory: a handler that never checks simply finishes, and its response is
+// dropped as "a request that is already gone".
+func (b *Bridge) cancelRequest(requestID string) {
+	b.mu.RLock()
+	conn := b.conn
+	b.mu.RUnlock()
+	if conn == nil {
+		return
+	}
+	go b.writeControlFrame(conn, "cancel_request", map[string]string{
+		"type":      "cancel_request",
+		"requestId": requestID,
+	})
 }
 
 // readLoop reads messages from the plugin and resolves pending requests.
@@ -333,6 +370,19 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 			// reply parked behind another write would stop pongs being seen and
 			// the keepalive would drop a plugin that is perfectly healthy.
 			go b.replyServerInfo(conn)
+			continue
+		}
+
+		if resp.Type == "plugin-info" {
+			// The plugin announces itself on connect. Log the skew here as well
+			// as showing it in the panel: a user filing a bug sends the server
+			// log, and may never have opened the panel to see the banner.
+			b.setPluginInfo(resp.Version, resp.Handlers)
+			if msg := VersionSkewMessage(resp.Version, b.version); msg != "" {
+				log().Warn("version mismatch — " + msg)
+			} else {
+				log().Info("plugin connected", "pluginVersion", resp.Version, "serverVersion", b.version)
+			}
 			continue
 		}
 
@@ -400,6 +450,13 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 		return Response{}, errors.New("plugin not connected")
 	}
 
+	// Checked after the connection wait, so a plugin that reconnects mid-call
+	// has had its chance to announce before its capabilities are consulted.
+	if msg := b.checkPluginSupports(requestType); msg != "" {
+		log().Warn("tool refused by the plugin's declared capabilities", "tool", requestType, "err", msg)
+		return Response{}, errors.New(msg)
+	}
+
 	requestID := b.nextID()
 	req := Request{
 		Type:      requestType,
@@ -437,6 +494,7 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 		b.mu.Unlock()
 		// Use once to prevent closing a channel already consumed by the read goroutine.
 		entry.once.Do(func() { close(ch) })
+		b.cancelRequest(requestID)
 	})
 
 	b.mu.Lock()
@@ -476,6 +534,7 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 		delete(b.pending, requestID)
 		b.mu.Unlock()
 		log().Info("request cancelled by the caller", "id", requestID, "tool", requestType, "err", ctx.Err())
+		b.cancelRequest(requestID)
 		return Response{}, ctx.Err()
 	}
 }

@@ -1,14 +1,22 @@
-import { serializeNode, getBounds, serializeStyles, serializeNodeProperties, isMixed, deduplicateStyles } from "./serializers";
+import { serializeNode, getBounds, serializeStyles, serializeNodeProperties, isMixed, deduplicateStyles, makeBudget } from "./serializers";
 import { HandlerMap } from "./dispatch";
+import { throwIfCancelled } from "./cancellation";
 
 export const readDocumentHandlers: HandlerMap = {
   "get_document": async (request) => {
-    const raw = await serializeNode(figma.currentPage);
+    const p = request.params || {};
+    // Unbounded by default, which is what this tool has always meant. A caller
+    // that knows the page is large asks for a ceiling; one that does not still
+    // gets told when an answer came back short.
+    const budget = makeBudget(p.maxNodes, p.depth);
+    const raw = await serializeNode(figma.currentPage, budget);
     const { tree, globalVars } = deduplicateStyles(raw);
+    const data: any = globalVars ? { ...tree, globalVars } : tree;
+    if (budget.truncated) data.truncated = true;
     return {
       type: request.type,
       requestId: request.requestId,
-      data: globalVars ? { ...tree, globalVars } : tree,
+      data,
     };
   },
 
@@ -341,34 +349,82 @@ export const readDocumentHandlers: HandlerMap = {
     const scopeNodeId = request.params && request.params.nodeId;
     const types = request.params && request.params.types ? request.params.types : [];
     const limit = request.params && request.params.limit ? request.params.limit : 50;
-    const root = scopeNodeId
-      ? await figma.getNodeByIdAsync(scopeNodeId)
-      : figma.currentPage;
-    if (!root) throw new Error(`Node not found: ${scopeNodeId}`);
+    const scope = (request.params && request.params.scope) || "page";
+
+    // With documentAccess "dynamic-page" only the current page is in memory, so
+    // a search that never loads the others quietly reports "not found" for
+    // every node on them. Each root is loaded before it is walked; a page is
+    // loaded one at a time rather than through loadAllPagesAsync so a big file
+    // is paid for a page at a time.
+    let roots: any[];
+    if (scopeNodeId) {
+      const root = await figma.getNodeByIdAsync(scopeNodeId);
+      if (!root) throw new Error(`Node not found: ${scopeNodeId}`);
+      roots = [root];
+    } else if (scope === "document") {
+      roots = figma.root.children.slice();
+    } else {
+      roots = [figma.currentPage];
+    }
+
     const results: any[] = [];
-    const search = async (n: any) => {
+    const search = async (n: any, root: any, page: any) => {
       if (results.length >= limit) return;
       if (n !== root) {
         const nameMatch = !query || n.name.toLowerCase().includes(query);
         const typeMatch = types.length === 0 || types.includes(n.type);
         if (nameMatch && typeMatch) {
-          results.push({
+          const hit: any = {
             id: n.id,
             name: n.name,
             type: n.type,
             bounds: getBounds(n),
-          });
+          };
+          // Only when the answer spans pages — otherwise every hit would repeat
+          // the page the caller already knows it asked about.
+          if (page) {
+            hit.pageId = page.id;
+            hit.pageName = page.name;
+          }
+          results.push(hit);
         }
       }
       if (results.length < limit && "children" in n) {
-        for (const child of n.children) await search(child);
+        for (const child of n.children) await search(child, root, page);
       }
     };
-    await search(root);
+
+    const searchingPages = !scopeNodeId && scope === "document";
+    for (let i = 0; i < roots.length; i++) {
+      if (results.length >= limit) break;
+      // Between pages, not inside the walk: a page is the unit of work here,
+      // and a check per node would cost more than the search itself.
+      throwIfCancelled(request.requestId);
+      const root = roots[i];
+      if (root.type === "PAGE") await root.loadAsync();
+      await search(root, root, searchingPages ? root : null);
+      if (searchingPages && roots.length > 1) {
+        figma.ui.postMessage({
+          type: "progress_update",
+          requestId: request.requestId,
+          progress: Math.round(((i + 1) / roots.length) * 99) + 1,
+          message: `Searched ${root.name}: ${results.length} match(es) so far`,
+        });
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+
     return {
       type: request.type,
       requestId: request.requestId,
-      data: { count: results.length, nodes: results },
+      data: {
+        count: results.length,
+        nodes: results,
+        scope: scopeNodeId ? "node" : scope,
+        // A caller that gets exactly `limit` results cannot otherwise tell a
+        // complete answer from a truncated one.
+        truncated: results.length >= limit,
+      },
     };
   },
 
@@ -392,6 +448,7 @@ export const readDocumentHandlers: HandlerMap = {
     if (!root) throw new Error(`Node not found: ${nodeId}`);
     const textNodes: any[] = [];
     const findText = async (n: any) => {
+      throwIfCancelled(request.requestId);
       if (n.type === "TEXT") {
         textNodes.push({
           id: n.id,
@@ -431,6 +488,7 @@ export const readDocumentHandlers: HandlerMap = {
     if (!root) throw new Error(`Node not found: ${nodeId}`);
     const matchingNodes: any[] = [];
     const findByTypes = async (n: any) => {
+      throwIfCancelled(request.requestId);
       if ("visible" in n && !n.visible) return;
       if (types.includes(n.type)) {
         matchingNodes.push({

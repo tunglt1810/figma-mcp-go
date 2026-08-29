@@ -1,25 +1,70 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { copyTextToClipboard } from "./copy-helper";
+  import { versionWarning, versionWarningSummary } from "./version-check";
+  import { DEFAULT_HOST, DEFAULT_PORT, GUARD_MODES, normalizeStoredPrefs, sanitizeHost, sanitizePort } from "./prefs";
+  import type { GuardMode } from "./prefs";
+  import { finishEntry, formatDuration, formatLog, progressEntry, startEntry } from "./activity";
+  import type { ActivityEntry } from "./activity";
+  import { destructiveReason, isDestructive, isMutating } from "../tool-classes";
 
   let connected = false;
   let fileName = "—";
   let pageName = "—";
   let selectionCount = 0;
   let selectedNodes: { id: string, name: string }[] = [];
-  let activeRequests = new Set<string>();
-  $: isWorking = activeRequests.size > 0;
+  // Running work is read off the activity log rather than tracked separately —
+  // one source of truth means the banner and the log can never disagree.
+  let activityLog: ActivityEntry[] = [];
+  $: runningEntries = activityLog.filter(entry => entry.status === "running");
+  $: isWorking = runningEntries.length > 0;
+  $: currentTool = runningEntries.length > 0 ? runningEntries[0].tool : "";
+
+  // `now` ticks only while something is running, so a finished panel is not
+  // re-rendering once a second for nothing.
+  let now = Date.now();
+  let tick: ReturnType<typeof setInterval> | null = null;
+  $: {
+    if (isWorking && tick === null) {
+      tick = setInterval(() => { now = Date.now(); }, 200);
+    } else if (!isWorking && tick !== null) {
+      clearInterval(tick);
+      tick = null;
+      now = Date.now();
+    }
+  }
+
+  let guardMode: GuardMode = "off";
+  let showLog = false;
+  // Requests held for the user to approve, oldest first. The server is still
+  // waiting on each one, so nothing may be dropped silently.
+  let pendingApprovals: { payload: any; reason: string }[] = [];
+  $: pendingApproval = pendingApprovals.length > 0 ? pendingApprovals[0] : null;
+
+  const PANEL_WIDTH = 320;
+  const PANEL_HEIGHT = 230;
+  const PANEL_HEIGHT_WITH_LOG = 460;
   
-  let autoCopyEnabled = false;
+  // Defaults to on; the stored value replaces it once the core answers.
+  let autoCopyEnabled = true;
   let copyError = false;
   let autoCopyBroken = false; // sticky: true once an unattended auto-copy attempt has failed
 
   // Configurable server address.
   // Persisted via figma.clientStorage (through plugin core) because localStorage
   // is unavailable inside Figma's data: URL sandbox.
-  let serverHost = "127.0.0.1";
-  let serverPort = "1994";
+  let serverHost = DEFAULT_HOST;
+  let serverPort = DEFAULT_PORT;
   let serverVersion = "";
+
+  const pluginVersion = __APP_VERSION__;
+  // Sent by the plugin core once it starts. It can arrive either side of the
+  // socket opening, so both paths announce, and neither assumes the other ran.
+  let pluginHandlers: string[] = [];
+  // Recomputed whenever the server reports its version — null while
+  // disconnected, or when the two versions are close enough not to matter.
+  $: versionMismatch = connected ? versionWarningSummary(pluginVersion, serverVersion) : null;
+  $: versionMismatchDetail = connected ? versionWarning(pluginVersion, serverVersion) : null;
 
   let showSettings = false;
   let editHost = serverHost;
@@ -45,6 +90,9 @@
     ws.onopen = () => {
       connected = true;
       ws.send(JSON.stringify({ type: "get_server_info" }));
+      // Tell the server what it is talking to, so a mismatch is visible in its
+      // log too — the user reporting a bug may never open this panel.
+      announce(ws);
       parent.postMessage({ pluginMessage: { type: "ui-ready" } }, "*");
     };
 
@@ -53,8 +101,13 @@
       connected = false;
       serverVersion = "";
       socket = null;
-      activeRequests.clear();
-      activeRequests = activeRequests;
+      // Anything still running will never get an answer through this socket.
+      // Closing the entries out beats leaving a spinner that never stops.
+      activityLog = activityLog.map(entry =>
+        entry.status === "running"
+          ? { ...entry, status: "error" as const, endedAt: Date.now(), message: "connection lost" }
+          : entry,
+      );
       if (reconnectTimer === null) {
         reconnectTimer = setTimeout(() => {
           reconnectTimer = null;
@@ -74,9 +127,13 @@
           serverVersion = payload.version ?? "";
           return;
         }
+        if (payload.type === "cancel_request") {
+          cancelRequest(payload.requestId);
+          return;
+        }
         if (payload.requestId) {
-          activeRequests.add(payload.requestId);
-          activeRequests = activeRequests;
+          admitRequest(payload);
+          return;
         }
         parent.postMessage({ pluginMessage: { type: "server-request", payload } }, "*");
       } catch {
@@ -85,17 +142,41 @@
     };
   }
 
+  /** Tell the server what it is talking to. */
+  function announce(ws: WebSocket) {
+    ws.send(JSON.stringify({
+      type: "plugin-info",
+      version: pluginVersion,
+      handlers: pluginHandlers,
+    }));
+  }
+
   function handleMessage(event: MessageEvent) {
     const msg = event.data?.pluginMessage;
     if (!msg) return;
 
     if (msg.type === "ws_config") {
-      serverHost = msg.host ?? "127.0.0.1";
-      serverPort = msg.port ?? "1994";
+      const prefs = normalizeStoredPrefs(msg.config);
+      serverHost = prefs.host;
+      serverPort = prefs.port;
+      autoCopyEnabled = prefs.autoCopy;
+      guardMode = prefs.guardMode;
+      if (prefs.showLog !== showLog) {
+        showLog = prefs.showLog;
+        resizePanel();
+      }
       if (!configLoaded) {
         configLoaded = true;
         connect();
       }
+      return;
+    }
+
+    if (msg.type === "plugin-capabilities") {
+      pluginHandlers = msg.handlers ?? [];
+      // The socket may already be up; re-announce so the server is not left
+      // with the versionless first frame.
+      if (socket?.readyState === WebSocket.OPEN) announce(socket);
       return;
     }
 
@@ -112,14 +193,140 @@
     }
 
     if ("requestId" in msg) {
-      if (msg.type !== "progress_update") {
-        activeRequests.delete(msg.requestId);
-        activeRequests = activeRequests;
+      if (msg.type === "progress_update") {
+        activityLog = progressEntry(activityLog, msg.requestId, msg.message);
+      } else {
+        activityLog = finishEntry(activityLog, msg.requestId, msg.error, Date.now());
       }
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify(msg));
+      sendToServer(msg);
+    }
+  }
+
+  // ── Request admission ──────────────────────────────────────────────────────
+
+  function sendToServer(message: any) {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(message));
+    }
+  }
+
+  /** Answer the server ourselves, without the request ever reaching the core. */
+  function refuse(payload: any, reason: string) {
+    activityLog = startEntry(activityLog, payload.requestId, payload.type, Date.now());
+    activityLog = finishEntry(activityLog, payload.requestId, reason, Date.now());
+    sendToServer({ type: payload.type, requestId: payload.requestId, error: reason });
+  }
+
+  function forward(payload: any) {
+    activityLog = startEntry(activityLog, payload.requestId, payload.type, Date.now());
+    parent.postMessage({ pluginMessage: { type: "server-request", payload } }, "*");
+  }
+
+  /**
+   * Decide what happens to an incoming request.
+   *
+   * The gate lives here rather than in the plugin core because approving needs
+   * a dialog, and only this side has one. There is no trust boundary between
+   * the two — both are the plugin — so one gate is enough.
+   */
+  function admitRequest(payload: any) {
+    const mutating = isMutating(payload.type, payload.params);
+
+    if (guardMode === "readonly" && mutating) {
+      refuse(payload, `Read-only mode is on in the Figma plugin panel — ${payload.type} was not run`);
+      return;
+    }
+
+    if (guardMode === "confirm" && isDestructive(payload.type, payload.params)) {
+      pendingApprovals = [
+        ...pendingApprovals,
+        { payload, reason: destructiveReason(payload.type, payload.params) },
+      ];
+      return;
+    }
+
+    forward(payload);
+  }
+
+  /**
+   * The server has stopped waiting for a request.
+   *
+   * A request still queued for approval is dropped outright — nobody is left to
+   * read its answer, and leaving it in the dialog would ask the user about work
+   * that no longer matters. One already running is passed to the core, where a
+   * long loop can notice and stop.
+   */
+  function cancelRequest(requestId: string) {
+    const held = pendingApprovals.find(item => item.payload.requestId === requestId);
+    if (held) {
+      pendingApprovals = pendingApprovals.filter(item => item.payload.requestId !== requestId);
+      return;
+    }
+    parent.postMessage({ pluginMessage: { type: "cancel-request", requestId } }, "*");
+    activityLog = finishEntry(activityLog, requestId, "cancelled", Date.now());
+  }
+
+  function approvePending() {
+    const held = pendingApprovals[0];
+    if (!held) return;
+    pendingApprovals = pendingApprovals.slice(1);
+    forward(held.payload);
+  }
+
+  function denyPending() {
+    const held = pendingApprovals[0];
+    if (!held) return;
+    pendingApprovals = pendingApprovals.slice(1);
+    refuse(held.payload, `Declined in the Figma plugin panel — ${held.payload.type} was not run`);
+  }
+
+  // ── Panel controls ─────────────────────────────────────────────────────────
+
+  function resizePanel() {
+    parent.postMessage(
+      {
+        pluginMessage: {
+          type: "resize_ui",
+          width: PANEL_WIDTH,
+          height: showLog ? PANEL_HEIGHT_WITH_LOG : PANEL_HEIGHT,
+        },
+      },
+      "*",
+    );
+  }
+
+  function toggleLog() {
+    showLog = !showLog;
+    resizePanel();
+    savePrefs();
+  }
+
+  function cycleGuardMode() {
+    const index = GUARD_MODES.indexOf(guardMode);
+    guardMode = GUARD_MODES[(index + 1) % GUARD_MODES.length];
+    // Anything already held under the old mode is no longer being guarded for
+    // a reason the user still believes in — let it through rather than leaving
+    // the server waiting on a dialog that is gone.
+    if (guardMode !== "confirm" && pendingApprovals.length > 0) {
+      const held = pendingApprovals;
+      pendingApprovals = [];
+      for (const item of held) {
+        if (guardMode === "readonly" && isMutating(item.payload.type, item.payload.params)) {
+          refuse(item.payload, `Read-only mode is on in the Figma plugin panel — ${item.payload.type} was not run`);
+        } else {
+          forward(item.payload);
+        }
       }
     }
+    savePrefs();
+  }
+
+  function undoLast() {
+    parent.postMessage({ pluginMessage: { type: "trigger_undo" } }, "*");
+  }
+
+  function copyLog() {
+    copyToClipboard(formatLog(activityLog, Date.now()));
   }
 
   function openSettings() {
@@ -128,16 +335,31 @@
     showSettings = true;
   }
 
-  function applySettings() {
-    serverHost = editHost.trim() || "127.0.0.1";
-    const p = parseInt(editPort, 10);
-    serverPort = p > 0 && p <= 65535 ? String(p) : "1994";
-    // Persist via plugin core (figma.clientStorage), since localStorage is
-    // unavailable in Figma's data: URL environment.
+  // Persist via plugin core (figma.clientStorage), since localStorage is
+  // unavailable in Figma's data: URL environment. Address and preferences go in
+  // one object, so every save writes the whole current state.
+  function savePrefs() {
     parent.postMessage(
-      { pluginMessage: { type: "save_ws_config", host: serverHost, port: serverPort } },
+      {
+        pluginMessage: {
+          type: "save_ws_config",
+          config: {
+            host: serverHost,
+            port: serverPort,
+            autoCopy: autoCopyEnabled,
+            guardMode,
+            showLog,
+          },
+        },
+      },
       "*"
     );
+  }
+
+  function applySettings() {
+    serverHost = sanitizeHost(editHost);
+    serverPort = sanitizePort(editPort);
+    savePrefs();
     showSettings = false;
     // Cancel any pending reconnect and reconnect immediately with the new address.
     if (reconnectTimer !== null) {
@@ -187,6 +409,13 @@
     autoCopyBroken = false;
     copyError = false;
     autoCopyEnabled = true;
+    savePrefs();
+  }
+
+  function onAutoCopyToggle() {
+    // Turning it back on clears the sticky break, so the next selection retries.
+    if (autoCopyEnabled) autoCopyBroken = false;
+    savePrefs();
   }
 
   onMount(() => {
@@ -205,6 +434,7 @@
     }, 500);
 
     return () => {
+      if (tick !== null) clearInterval(tick);
       clearTimeout(fallback);
       window.removeEventListener("message", handleMessage);
       if (reconnectTimer !== null) clearTimeout(reconnectTimer);
@@ -234,7 +464,7 @@
             <input
               type="checkbox"
               bind:checked={autoCopyEnabled}
-              on:change={() => { if (autoCopyEnabled) autoCopyBroken = false; }}
+              on:change={onAutoCopyToggle}
             />
             Auto-copy ID
           </label>
@@ -266,13 +496,80 @@
       </div>
     {/if}
   </div>
+  {#if versionMismatch}
+    <div class="warn-banner" title={versionMismatchDetail}>
+      <span>⚠️ {versionMismatch}</span>
+    </div>
+  {/if}
+  {#if pendingApproval}
+    <div class="confirm-banner">
+      <div class="confirm-text">
+        Allow <strong>{pendingApproval.reason}</strong>?
+        {#if pendingApprovals.length > 1}
+          <span class="confirm-queue">+{pendingApprovals.length - 1} waiting</span>
+        {/if}
+      </div>
+      <div class="confirm-actions">
+        <button class="allow-btn" on:click={approvePending}>Allow</button>
+        <button class="deny-btn" on:click={denyPending}>Decline</button>
+      </div>
+    </div>
+  {/if}
   {#if isWorking}
     <div class="working-banner">
       <span class="spinner"></span>
-      <span>AI is working…</span>
+      <span class="working-tool" title={currentTool}>{currentTool}</span>
+      <span class="working-time">{formatDuration(runningEntries[0], now)}</span>
+      {#if runningEntries.length > 1}
+        <span class="working-more">+{runningEntries.length - 1}</span>
+      {/if}
+    </div>
+  {/if}
+  {#if showLog}
+    <div class="log-panel">
+      <div class="log-header">
+        <span>Activity</span>
+        <button class="copy-btn" on:click={copyLog} title="Copy the log for a bug report">Copy</button>
+      </div>
+      {#if activityLog.length === 0}
+        <div class="log-empty">Nothing yet.</div>
+      {:else}
+        <div class="log-items">
+          {#each activityLog as entry (entry.requestId)}
+            <div class="log-item" class:failed={entry.status === "error"}>
+              <span class="log-mark" class:ok={entry.status === "ok"} class:err={entry.status === "error"}>
+                {entry.status === "ok" ? "✓" : entry.status === "error" ? "✕" : "•"}
+              </span>
+              <span class="log-tool" title={entry.message || entry.tool}>{entry.tool}</span>
+              <span class="log-time">{formatDuration(entry, now)}</span>
+            </div>
+            {#if entry.message && entry.status === "error"}
+              <div class="log-message" title={entry.message}>{entry.message}</div>
+            {/if}
+          {/each}
+        </div>
+      {/if}
     </div>
   {/if}
   <div class="footer">
+    <!-- Row 0: guards and panel controls -->
+    <div class="footer-row">
+      <button
+        class="mode-btn"
+        class:confirm={guardMode === "confirm"}
+        class:readonly={guardMode === "readonly"}
+        on:click={cycleGuardMode}
+        title="Click to change: off runs everything, confirm asks before deletes and bulk rewrites, read-only blocks every change"
+      >
+        {guardMode === "off" ? "Guard: off" : guardMode === "confirm" ? "Guard: confirm" : "Guard: read-only"}
+      </button>
+      <div class="links">
+        <button class="mini-btn" on:click={undoLast} title="Undo the last change in Figma">Undo</button>
+        <button class="mini-btn" class:active={showLog} on:click={toggleLog} title="Show the activity log">
+          Log {showLog ? "▴" : "▾"}
+        </button>
+      </div>
+    </div>
     <!-- Row 1: server address (left) + connection badge (right) -->
     <div class="footer-row">
       {#if showSettings}
@@ -373,7 +670,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    flex: 1;
+    flex-shrink: 0;
   }
 
   .info-row {
@@ -490,6 +787,220 @@
     border-radius: 3px;
   }
 
+  .confirm-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    background: #3a2f1a;
+    border: 1px solid #fbbf2466;
+    border-radius: 8px;
+    color: #fbbf24;
+    font-size: 11px;
+  }
+
+  .confirm-text {
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  .confirm-queue {
+    color: #a1a1aa;
+    font-size: 10px;
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .allow-btn,
+  .deny-btn {
+    flex: 1;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid #444;
+  }
+
+  .allow-btn {
+    background: #1a472a;
+    border-color: #4ade8055;
+    color: #4ade80;
+  }
+
+  .allow-btn:hover {
+    background: #1f5733;
+  }
+
+  .deny-btn {
+    background: #3a1a1a;
+    border-color: #f8717155;
+    color: #f87171;
+  }
+
+  .deny-btn:hover {
+    background: #4a1a1a;
+  }
+
+  .log-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #2a2a2a;
+    border-radius: 6px;
+    padding: 6px 8px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: #888;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #444;
+    position: sticky;
+    top: -6px;
+    background: #2a2a2a;
+  }
+
+  .log-empty {
+    color: #666;
+    font-size: 11px;
+    padding: 6px 0;
+  }
+
+  .log-items {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .log-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .log-mark {
+    color: #60a5fa;
+    flex-shrink: 0;
+    width: 10px;
+    text-align: center;
+  }
+
+  .log-mark.ok {
+    color: #4ade80;
+  }
+
+  .log-mark.err {
+    color: #f87171;
+  }
+
+  .log-tool {
+    color: #ccc;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: monospace;
+    font-size: 10px;
+  }
+
+  .log-time {
+    color: #777;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  .log-message {
+    color: #f87171;
+    font-size: 10px;
+    line-height: 1.3;
+    padding: 0 0 2px 16px;
+    word-break: break-word;
+  }
+
+  .log-panel::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .log-panel::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .log-panel::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 3px;
+  }
+
+  .mode-btn {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: #888;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    cursor: pointer;
+  }
+
+  .mode-btn:hover {
+    color: #e0e0e0;
+  }
+
+  .mode-btn.confirm {
+    color: #fbbf24;
+    border-color: #fbbf2455;
+  }
+
+  .mode-btn.readonly {
+    color: #60a5fa;
+    border-color: #60a5fa55;
+  }
+
+  .mini-btn {
+    background: none;
+    border: 1px solid #444;
+    color: #888;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    cursor: pointer;
+  }
+
+  .mini-btn:hover {
+    color: #e0e0e0;
+    background: #2a2a2a;
+  }
+
+  .mini-btn.active {
+    color: #e0e0e0;
+    border-color: #666;
+  }
+
+  .working-tool {
+    font-family: monospace;
+    font-size: 10px;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .working-time,
+  .working-more {
+    color: #93c5fd;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
   .working-banner {
     display: flex;
     align-items: center;
@@ -500,6 +1011,20 @@
     border-radius: 8px;
     color: #60a5fa;
     font-size: 11px;
+    font-weight: 500;
+  }
+
+  .warn-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #3a2f1a;
+    border: 1px solid #fbbf2444;
+    border-radius: 8px;
+    color: #fbbf24;
+    font-size: 10px;
+    line-height: 1.4;
     font-weight: 500;
   }
 

@@ -146,6 +146,18 @@ describe("applyAutoLayout", () => {
     counterAxisSizingMode: undefined as any,
     layoutWrap: undefined as any,
     counterAxisSpacing: undefined as any,
+    itemReverseZIndex: undefined as any,
+    strokesIncludedInLayout: undefined as any,
+    clipsContent: undefined as any,
+    minWidth: undefined as any,
+    maxWidth: undefined as any,
+    minHeight: undefined as any,
+    maxHeight: undefined as any,
+    layoutPositioning: undefined as any,
+    layoutAlign: undefined as any,
+    layoutGrow: undefined as any,
+    layoutSizingHorizontal: undefined as any,
+    layoutSizingVertical: undefined as any,
   });
 
   it("sets layoutMode", () => {
@@ -210,6 +222,107 @@ describe("applyAutoLayout", () => {
       counterAxisSpacing: 8,
     });
     expect(frame.counterAxisSpacing).toBeUndefined();
+  });
+
+  it("sets layoutSizing on both axes", () => {
+    const frame = makeFrame();
+    applyAutoLayout(frame as any, {
+      layoutMode: "VERTICAL",
+      layoutSizingHorizontal: "FILL",
+      layoutSizingVertical: "HUG",
+    });
+    expect(frame.layoutSizingHorizontal).toBe("FILL");
+    expect(frame.layoutSizingVertical).toBe("HUG");
+  });
+
+  it("applies layoutSizing after the sizing modes, so an explicit HUG wins", () => {
+    const frame = makeFrame();
+    applyAutoLayout(frame as any, {
+      layoutMode: "VERTICAL",
+      counterAxisSizingMode: "FIXED",
+      layoutSizingHorizontal: "HUG",
+    });
+    // Both were asked for; the modern spelling is the one that lands last.
+    expect(frame.layoutSizingHorizontal).toBe("HUG");
+  });
+
+  it("sets min and max constraints", () => {
+    const frame = makeFrame();
+    applyAutoLayout(frame as any, {
+      minWidth: 120,
+      maxWidth: 480,
+      minHeight: 40,
+      maxHeight: 200,
+    });
+    expect(frame.minWidth).toBe(120);
+    expect(frame.maxWidth).toBe(480);
+    expect(frame.minHeight).toBe(40);
+    expect(frame.maxHeight).toBe(200);
+  });
+
+  it("clears a constraint when it is explicitly null", () => {
+    const frame = makeFrame();
+    frame.maxWidth = 480;
+    applyAutoLayout(frame as any, { maxWidth: null });
+    expect(frame.maxWidth).toBeNull();
+  });
+
+  it("leaves constraints alone when they are absent", () => {
+    const frame = makeFrame();
+    frame.maxWidth = 480;
+    applyAutoLayout(frame as any, { layoutMode: "HORIZONTAL" });
+    expect(frame.maxWidth).toBe(480);
+  });
+
+  it("sets child-in-parent properties even when the node has no auto layout", () => {
+    const frame = makeFrame();
+    applyAutoLayout(frame as any, {
+      layoutPositioning: "ABSOLUTE",
+      layoutAlign: "STRETCH",
+      layoutGrow: 1,
+    });
+    expect(frame.layoutMode).toBe("NONE");
+    expect(frame.layoutPositioning).toBe("ABSOLUTE");
+    expect(frame.layoutAlign).toBe("STRETCH");
+    expect(frame.layoutGrow).toBe(1);
+  });
+
+  it("sets clipsContent regardless of layout mode", () => {
+    const frame = makeFrame();
+    applyAutoLayout(frame as any, { clipsContent: false });
+    expect(frame.clipsContent).toBe(false);
+  });
+
+  it("sets itemReverseZIndex and strokesIncludedInLayout only with auto layout on", () => {
+    const off = makeFrame();
+    applyAutoLayout(off as any, { itemReverseZIndex: true, strokesIncludedInLayout: true });
+    expect(off.itemReverseZIndex).toBeUndefined();
+    expect(off.strokesIncludedInLayout).toBeUndefined();
+
+    const on = makeFrame();
+    applyAutoLayout(on as any, {
+      layoutMode: "HORIZONTAL",
+      itemReverseZIndex: true,
+      strokesIncludedInLayout: true,
+    });
+    expect(on.itemReverseZIndex).toBe(true);
+    expect(on.strokesIncludedInLayout).toBe(true);
+  });
+
+  it("names the property Figma rejected", () => {
+    // FILL on a child whose parent has no auto layout is the common case.
+    const frame = {
+      ...makeFrame(),
+      set layoutSizingHorizontal(_v: string) {
+        throw new Error("Cannot set to FILL without an auto-layout parent");
+      },
+      get layoutSizingHorizontal() {
+        return undefined as any;
+      },
+    };
+    expect(() =>
+      applyAutoLayout(frame as any, { layoutSizingHorizontal: "FILL" }),
+    ).toThrow(/layoutSizingHorizontal.*FILL/);
   });
 });
 

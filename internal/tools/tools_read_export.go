@@ -97,7 +97,14 @@ var saveScreenshotsSpec = toolSpec{
 
 // exportSpecs are validated from the table like every other tool, but their
 // handlers write files rather than simply forwarding to the plugin.
-var exportSpecs = []toolSpec{getScreenshotSpec, exportFramesToPDFSpec, saveScreenshotsSpec}
+var exportSpecs = []toolSpec{
+	{
+		Name:       "get_image_bytes",
+		Desc:       "Read the original bytes of the images placed on nodes, as base64. This is the asset that was imported, not a re-render — use get_screenshot when you want a picture of how a node looks now. One image used on several nodes is returned once. Nodes with no image fill are reported under `skipped` rather than failing the call.",
+		NodeIDs:    nodeIDsMulti,
+		NodeIDsReq: true,
+		NodeIDDesc: "Node IDs carrying image fills, in colon format e.g. ['4029:12345']",
+	}, getScreenshotSpec, exportFramesToPDFSpec, saveScreenshotsSpec}
 
 func executeExportFramesToPDF(ctx context.Context, sender Sender, nodeIDs []string, outputPath string) (*mcp.CallToolResult, error) {
 	workDir, err := os.Getwd()

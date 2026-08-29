@@ -84,6 +84,59 @@ export const readExportHandlers: HandlerMap = {
       data: { frames },
     };
   },
+
+  "get_image_bytes": async (request) => {
+    const nodeIds: string[] = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+
+    // The original bytes, not a re-render. get_screenshot rasterises what the
+    // node looks like now; this returns the asset that was placed, which is
+    // what a build needs to ship.
+    const images: any[] = [];
+    const skipped: { nodeId: string; reason: string }[] = [];
+    const seen = new Set<string>();
+
+    for (const nodeId of nodeIds) {
+      const node = await figma.getNodeByIdAsync(nodeId) as any;
+      if (!node) { skipped.push({ nodeId, reason: "Node not found" }); continue; }
+      const fills = node.fills;
+      if (!Array.isArray(fills)) {
+        skipped.push({ nodeId, reason: `${node.type} has no fills to read` });
+        continue;
+      }
+      const imageFills = fills.filter((fill: any) => fill.type === "IMAGE" && fill.imageHash);
+      if (imageFills.length === 0) {
+        skipped.push({ nodeId, reason: "No image fill on this node" });
+        continue;
+      }
+      for (const fill of imageFills) {
+        // One picture used in ten places is one asset. Sending it ten times
+        // would be the bulk of the response.
+        if (seen.has(fill.imageHash)) continue;
+        seen.add(fill.imageHash);
+        const image = figma.getImageByHash(fill.imageHash);
+        if (!image) {
+          skipped.push({ nodeId, reason: `Image ${fill.imageHash} is no longer in the file` });
+          continue;
+        }
+        const bytes = await image.getBytesAsync();
+        images.push({
+          nodeId,
+          nodeName: node.name,
+          imageHash: fill.imageHash,
+          scaleMode: fill.scaleMode,
+          base64: figma.base64Encode(bytes),
+          bytes: bytes.length,
+        });
+      }
+    }
+
+    return {
+      type: request.type,
+      requestId: request.requestId,
+      data: { images, skipped },
+    };
+  },
 };
 
 export const handleReadExportRequest = async (request: any): Promise<any> => {

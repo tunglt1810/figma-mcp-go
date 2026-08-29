@@ -13,7 +13,7 @@ Open-source Figma MCP server with full read/write access via plugin. Turn text i
 **Highlights**
 - Operates locally via the Figma Plugin API (no REST API token required)
 - Real-time execution directly on your local machine
-- **Read and Write** live Figma data via plugin bridge — 63 tools total
+- **Read and Write** live Figma data via plugin bridge — 76 tools total
 - Full design automation — styles, variables, components, prototypes, content, and transactional batch pipelines
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
 
@@ -90,6 +90,35 @@ codex mcp add figma-mcp-go -- bunx @tunglt1810/figma-mcp-go@latest
   }
 }
 ```
+
+### Plugin panel
+
+The panel shows the connected file, the current selection, and what the AI is
+doing right now. Three controls sit above the connection row:
+
+| Control | What it does |
+| ------- | ------------ |
+| **Guard** | `off` runs every request (default, and how the plugin has always behaved). `confirm` holds deletes and bulk rewrites until you allow them. `read-only` blocks every change while still answering reads. |
+| **Undo** | Reverses the last change. A whole `batch_execute_pipeline` run is one undo step, not one per action. |
+| **Log** | Opens the activity log — every request with its tool name, duration, and error. `Copy` dumps it as text for a bug report. |
+
+Guard and log settings are remembered per machine.
+
+### Dev Mode
+
+Figma's Dev Mode Code panel shows the code you attach to a node with
+`set_codegen_result`. The code lives in the Figma file, so every teammate's Dev
+Mode shows it — not only the machine that generated it.
+
+The panel looks for code on the node itself, then on the component an instance
+came from, then on its ancestors. Attaching code to a `COMPONENT` or
+`COMPONENT_SET` therefore covers every instance of it.
+
+This is deliberately not live generation. Generating on demand would mean the
+Code panel asking your editor for a completion mid-render, which needs MCP
+sampling — optional in the protocol, and not implemented by the clients this
+server targets. Writing the code from your editor, where the repository is in
+front of it, produces better code anyway.
 
 ### 2. Install the Figma plugin
 
@@ -232,20 +261,28 @@ because `type` names the kind of style. Gradients can only target a fill;
 | --------------------------- | ---------------------------------------------------------- |
 | `create_node`               | Create a FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION |
 | `create_text`               | Create a text node (font loaded automatically)             |
-| `import_image`              | Decode base64 image and place it as a rectangle fill       |
+| `import_image`              | Place an image from a URL or base64 — as a new rectangle, or onto an existing node |
 | `create_component`          | Convert an existing FRAME node into a reusable component   |
+| `combine_as_variants`       | Combine components into one COMPONENT_SET of variants      |
+| `manage_component_properties` | Declare what a component exposes — add, edit, delete, and bind properties to its layers |
 | `create_component_instance` | Create an instance of a component (local or library)       |
 | `create_connector`          | Create a Connector line between nodes (FigJam only)        |
+| `create_vector`             | Create a vector node from SVG markup — how an icon gets in |
+| `boolean_operation`         | UNION, SUBTRACT, INTERSECT, or EXCLUDE two or more shapes  |
+| `flatten_nodes`             | Flatten nodes into a single vector                         |
+| `outline_stroke`            | Turn a node's stroke into an editable filled vector        |
 
 ### Write — Modify
 
 | Tool                     | Description                                                                      |
 | ------------------------ | -------------------------------------------------------------------------------- |
-| `set_text`               | Update text content of an existing TEXT node                                     |
+| `set_text`               | Update a TEXT node's content and node-wide settings — wrapping, truncation, alignment, paragraph spacing |
+| `set_text_ranges`        | Style parts of a TEXT node independently — a bold word, a coloured phrase, a hyperlink, a bulleted list |
 | `set_paint`              | Paint a node's fill or stroke — solid, linear gradient, or radial gradient       |
 | `set_corner_radius`      | Set corner radius — uniform or per-corner                                        |
-| `set_auto_layout`        | Set or update auto-layout (flex) properties on a frame                           |
-| `set_node_properties`    | Set any combination of visibility, lock, opacity, rotation, blend mode, constraints, and z-order on one or more nodes |
+| `set_auto_layout`        | Set or update auto-layout (flex) on a frame, component, or instance — direction, padding, gap, alignment, HUG/FILL sizing, min/max bounds, and how the node sits in its parent's layout |
+| `set_layout_grids`       | Set the column, row, or square grids drawn over a frame                          |
+| `set_node_properties`    | Set any combination of visibility, lock, opacity, rotation, blend mode, constraints, z-order, and masking on one or more nodes |
 | `set_instance_overrides` | Update Component Properties (variants, booleans, text) on a component instance   |
 | `set_annotations`        | Set Dev Mode Annotations on a node (requires paid Dev Mode seat)                 |
 | `move_nodes`             | Move nodes to an absolute x/y position                                           |
@@ -255,6 +292,10 @@ because `type` names the kind of style. Gradients can only target a fill;
 | `reparent_nodes`         | Move nodes to a different parent frame, group, or section                        |
 | `batch_rename_nodes`     | Bulk rename nodes via find/replace, regex, or prefix/suffix                      |
 | `find_replace_text`      | Find and replace text across all TEXT nodes in a subtree or page; supports regex |
+| `set_selection`          | Select nodes and scroll the viewport to them, switching pages if needed — use it to show the user what changed |
+| `save_version_checkpoint` | Save a named version in the file's version history — a way back that survives the session |
+| `set_codegen_result`     | Attach generated code to a node so it shows in Figma's Dev Mode Code panel      |
+| `manage_plugin_data`     | Read and write your own metadata on a node, stored in the Figma file            |
 
 ### Write — Delete
 
@@ -310,14 +351,14 @@ because `type` names the kind of style. Gradients can only target a fill;
 
 | Tool                  | Description                                                         |
 | --------------------- | ------------------------------------------------------------------- |
-| `get_document`        | Full current page tree                                              |
+| `get_document`        | Current page tree, optionally capped by depth or maxNodes           |
 | `get_metadata`        | File name, pages, current page                                      |
 | `get_pages`           | All pages (IDs + names) — lightweight, no tree loading              |
 | `get_selection`       | Currently selected nodes                                            |
 | `get_node`            | Single node by ID                                                   |
 | `get_nodes_info`      | Multiple nodes by ID                                                |
 | `get_design_context`  | Depth-limited tree with `detail` level (`minimal`/`compact`/`full`) |
-| `search_nodes`        | Find nodes by name substring and/or type within a subtree           |
+| `search_nodes`        | Find nodes by name substring and/or type — current page, a subtree, or the whole document |
 | `scan_text_nodes`     | All text nodes in a subtree                                         |
 | `scan_nodes_by_types` | Nodes matching given type list                                      |
 | `get_viewport`        | Current viewport center, zoom, and visible bounds                   |
@@ -339,6 +380,7 @@ because `type` names the kind of style. Gradients can only target a fill;
 | Tool                   | Description                                                          |
 | ---------------------- | -------------------------------------------------------------------- |
 | `get_screenshot`       | Base64 image export of any node                                      |
+| `get_image_bytes`      | Original bytes of the images placed on nodes, as base64              |
 | `save_screenshots`     | Export images to disk (server-side, no API call)                     |
 | `export_frames_to_pdf` | Export multiple frames as a single multi-page PDF file saved to disk |
 | `export_tokens`        | Export design tokens (variables + paint styles) as JSON or CSS       |

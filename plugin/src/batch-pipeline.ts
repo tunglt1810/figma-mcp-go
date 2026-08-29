@@ -1,3 +1,5 @@
+import { isCancelled } from './cancellation';
+
 export type SymbolTable = Map<string, any>;
 
 export type LogEntry =
@@ -208,7 +210,11 @@ export async function executeBatchPipeline(
   req: BatchPipelineRequest,
   handlerDispatcher: (action: string, params: any) => Promise<any>,
   getNodeById: (id: string) => Promise<any> = async (id) =>
-    typeof figma !== 'undefined' ? (figma as any).getNodeByIdAsync(id) : null
+    typeof figma !== 'undefined' ? (figma as any).getNodeByIdAsync(id) : null,
+  // Checked between steps. A pipeline is the longest thing the plugin runs, and
+  // a step boundary is the only place it can stop and still leave the document
+  // in a state the rollback log describes.
+  isCancelled: () => boolean = () => false,
 ): Promise<BatchPipelineResponse> {
   const symbolTable: SymbolTable = new Map();
   const walStack: WALStack = [];
@@ -219,6 +225,25 @@ export async function executeBatchPipeline(
 
   for (let i = 0; i < req.steps.length; i++) {
     const step = req.steps[i];
+    if (isCancelled()) {
+      // Rolled back whatever stop_on_error says. That flag is about tolerating
+      // a step that failed on its own terms; a cancelled run has no terms left,
+      // and a half-built pipeline left standing is worse than none.
+      const rolledBackCount = await executeRollback(walStack, getNodeById);
+      return {
+        success: false,
+        completed_steps: i,
+        results,
+        failed_step: {
+          index: i,
+          step_id: step.id,
+          action: step.action,
+          error: 'Request cancelled',
+        },
+        rollback_executed: true,
+        rolled_back_steps: rolledBackCount,
+      };
+    }
     try {
       const resolvedParams = resolveParams(step.params || {}, symbolTable);
       const isCreate = isCreateStep(step.action, resolvedParams);
@@ -291,6 +316,43 @@ export async function executeBatchPipeline(
   };
 }
 
+/**
+ * Run `work` so the whole of it lands on the undo stack as one step.
+ *
+ * Every write handler commits its own undo checkpoint, which is right when it
+ * is the whole of what the user asked for. Inside a pipeline it is not: a
+ * twenty-step build left twenty checkpoints, so undoing it meant twenty
+ * Ctrl+Z, each one leaving the design in a state no one asked for.
+ *
+ * Figma offers no way to suspend commitUndo, so the handlers' calls are
+ * swallowed and one is made at the end. The original is restored in a finally
+ * and the swap is re-entrant — it puts back whatever it found rather than
+ * assuming it found the real one — so a throw part-way cannot leave the
+ * document permanently unable to checkpoint.
+ */
+export async function withSingleUndoCheckpoint<T>(work: () => Promise<T>): Promise<T> {
+  const api: any = typeof figma !== 'undefined' ? figma : null;
+  if (!api || typeof api.commitUndo !== 'function') return work();
+
+  // Held unbound and called with the receiver below, so what goes back is the
+  // exact function that was there. Restoring a bound copy would work, but each
+  // pipeline would wrap the previous wrapper, and nothing could then check that
+  // the swap really was undone.
+  const realCommitUndo = api.commitUndo;
+  let anyStepCommitted = false;
+  api.commitUndo = () => {
+    anyStepCommitted = true;
+  };
+  try {
+    return await work();
+  } finally {
+    api.commitUndo = realCommitUndo;
+    // Nothing mutated the document — a checkpoint here would be an empty undo
+    // step the user has to press through.
+    if (anyStepCommitted) realCommitUndo.call(api);
+  }
+}
+
 export async function handleBatchPipelineRequest(
   request: any,
   writeDispatcher: (subReq: any) => Promise<any>
@@ -321,7 +383,14 @@ export async function handleBatchPipelineRequest(
   };
 
   const pipelineParams = request.params || request;
-  const res = await executeBatchPipeline(pipelineParams, dispatcher);
+  // Rollback runs inside executeBatchPipeline, so it is inside the checkpoint
+  // too: a pipeline that fails and reverses itself leaves the undo stack as it
+  // found it rather than adding steps that undo each other.
+  const res = await withSingleUndoCheckpoint(() =>
+    executeBatchPipeline(pipelineParams, dispatcher, undefined, () =>
+      isCancelled(request.requestId),
+    ),
+  );
   return {
     type: request.type,
     requestId: request.requestId,

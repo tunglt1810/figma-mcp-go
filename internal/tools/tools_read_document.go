@@ -5,7 +5,13 @@ package tools
 var readDocumentSpecs = []toolSpec{
 	{
 		Name: "get_document",
-		Desc: "Get the full node tree of the current page (not the whole file — only the active page). Returns all nodes recursively and can be very large. Prefer get_design_context for exploration or when token efficiency matters.",
+		Desc: "Get the node tree of the current page (not the whole file — only the active page). Unbounded by default and can be very large; pass depth or maxNodes to cap it. A capped result sets `truncated`, and every node whose children were withheld reports `childCount` and `childrenOmitted`, so a short answer is never mistaken for a whole one. Prefer get_design_context for exploration or when token efficiency matters.",
+		Params: []paramSpec{
+			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
+				Desc: "How many levels below the page to walk. 0 returns the page alone. Omit for no limit."},
+			{Name: "maxNodes", Kind: kindNumber, Min: floatPtr(1),
+				Desc: "Stop after this many nodes, walking in tree order so the result is the same every time. Omit for no limit."},
+		},
 	},
 	{
 		Name: "get_pages",
@@ -47,12 +53,14 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "search_nodes",
-		Desc: "Search for nodes by name substring and/or type within a subtree. Use this when you know (part of) the node name. Use scan_nodes_by_types when you want all nodes of a type regardless of name.",
+		Desc: "Search for nodes by name substring and/or type. Searches the current page by default; pass scope 'document' to search every page, or nodeId to search one subtree. Use this when you know (part of) the node name. Use scan_nodes_by_types when you want all nodes of a type regardless of name. The result reports `truncated` when the limit cut the answer short.",
 		Params: []paramSpec{
 			{Name: "query", Kind: kindString, Required: true,
 				Desc: "Name substring to match (case-insensitive)"},
 			{Name: "nodeId", Kind: kindString, IsNodeID: true,
-				Desc: "Scope search to this subtree (default: current page), colon format e.g. '4029:12345'"},
+				Desc: "Scope search to this subtree, colon format e.g. '4029:12345'. Overrides scope."},
+			{Name: "scope", Kind: kindString, Enum: []string{"page", "document"},
+				Desc: "Where to search when no nodeId is given: 'page' for the current page (default), or 'document' for every page in the file. Use 'document' when a node may live on another page — a page search reports nothing rather than looking there."},
 			{Name: "types", Kind: kindStringArray,
 				Desc: "Filter by Figma node type e.g. ['TEXT', 'FRAME', 'COMPONENT']"},
 			{Name: "limit", Kind: kindNumber, Min: floatPtr(1),

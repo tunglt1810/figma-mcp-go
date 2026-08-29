@@ -1,5 +1,5 @@
 import { getBounds } from "./serializers";
-import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint } from "./write-helpers";
+import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
 
 const REORDER_ORDERS = ["bringToFront", "sendToBack", "bringForward", "sendBackward"];
@@ -12,6 +12,8 @@ const SIMPLE_NODE_PROPS: Array<{ key: string; label: string }> = [
   { key: "opacity", label: "opacity" },
   { key: "rotation", label: "rotation" },
   { key: "blendMode", label: "blend mode" },
+  { key: "isMask", label: "masking" },
+  { key: "maskType", label: "mask type" },
 ];
 
 const reorderIndex = (order: string, currentIndex: number, siblingCount: number): number => {
@@ -74,6 +76,25 @@ const applyNodeProperties = (n: any, p: any) => {
 // surface. The three implementations stay separate below; only the surface
 // merged. `type` names the kind of paint, which the gradient implementation
 // reads directly and the solid ones do not take at all.
+/**
+ * Text settings that belong to the whole node rather than a range.
+ *
+ * Range-level styling lives in set_text_ranges; these have no range form in
+ * Figma at all, so they stay with the tool that owns the node's text.
+ */
+const applyParagraphProperties = (node: any, p: any) => {
+  if (p.textAutoResize) node.textAutoResize = p.textAutoResize;
+  if (p.textTruncation) node.textTruncation = p.textTruncation;
+  // maxLines only means anything with truncation on, and null clears the cap.
+  if (p.maxLines !== undefined) {
+    node.maxLines = p.maxLines === null ? null : Number(p.maxLines);
+  }
+  if (p.paragraphSpacing != null) node.paragraphSpacing = Number(p.paragraphSpacing);
+  if (p.paragraphIndent != null) node.paragraphIndent = Number(p.paragraphIndent);
+  if (p.textAlignHorizontal) node.textAlignHorizontal = p.textAlignHorizontal;
+  if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
+};
+
 export const writeModifyHandlers: HandlerMap = {
   "set_paint": async (request) => {
   const { target = "fill", type, ...rest } = request.params || {};
@@ -131,7 +152,10 @@ export const writeModifyHandlers: HandlerMap = {
       ? { family: "Inter", style: "Regular" }
       : node.fontName;
     await figma.loadFontAsync(fontName);
-    node.characters = p.text;
+    // text is optional now that this tool also carries paragraph settings — a
+    // call that only changes the wrap mode should not blank the node.
+    if (p.text != null) node.characters = p.text;
+    applyParagraphProperties(node, p);
     figma.commitUndo();
     return {
       type: request.type,
@@ -299,14 +323,44 @@ export const writeModifyHandlers: HandlerMap = {
     return { type: request.type, requestId: request.requestId, data: { results } };
   },
 
+  "set_layout_grids": async (request) => {
+    const p = request.params || {};
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    if (!Array.isArray(p.grids)) throw new Error("grids is required and must be an array");
+    // An empty array is how a caller removes the grids a frame already has.
+    const grids = p.grids.map(makeLayoutGrid);
+
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const node = await figma.getNodeByIdAsync(nid) as any;
+      if (!node) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      if (!("layoutGrids" in node)) {
+        results.push({ nodeId: nid, error: `${node.type} does not support layout grids` });
+        continue;
+      }
+      node.layoutGrids = p.mode === "append" ? [...node.layoutGrids, ...grids] : grids;
+      results.push({ nodeId: nid, gridCount: node.layoutGrids.length });
+    }
+    figma.commitUndo();
+    return { type: request.type, requestId: request.requestId, data: { results } };
+  },
+
   "set_auto_layout": async (request) => {
     const p = request.params || {};
     const nodeId = request.nodeIds && request.nodeIds[0];
     if (!nodeId) throw new Error("nodeId is required");
     const node = await figma.getNodeByIdAsync(nodeId);
     if (!node) throw new Error(`Node not found: ${nodeId}`);
-    if (node.type !== "FRAME") throw new Error(`Node ${nodeId} is not a FRAME`);
-    applyAutoLayout(node, p);
+    // Components, component sets and instances carry auto layout too, and the
+    // FRAME-only check used to turn a perfectly valid call on a component into
+    // an error. Ask for the property instead of the type.
+    if (!("layoutMode" in node)) {
+      throw new Error(
+        `Node ${nodeId} is a ${node.type} and does not support auto layout — expected a FRAME, COMPONENT, COMPONENT_SET, or INSTANCE`,
+      );
+    }
+    applyAutoLayout(node as any, p);
     figma.commitUndo();
     return {
       type: request.type,
