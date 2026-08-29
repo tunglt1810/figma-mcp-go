@@ -70,13 +70,13 @@ export function sortRanges(ranges: TextRange[]): TextRange[] {
   return [...ranges].sort((a, b) => Number(a.start) - Number(b.start));
 }
 
-const applyRange = async (node: any, range: TextRange) => {
+const applyRange = async (node: any, range: TextRange, font: FontName | null) => {
   const [start, end] = resolveRange(range, node.characters.length);
 
-  // The font is already loaded: rangeFonts collected it before the first range
-  // was touched, so a missing one failed the call rather than leaving the text
-  // half-rewritten.
-  const font = resolveRangeFont(range, node.getRangeFontName(start, end));
+  // The font was resolved and loaded before the first range was written, and is
+  // applied exactly as resolved. Resolving it again here would read a node an
+  // earlier range has already changed, so the font written would be one that was
+  // never loaded — and Figma refuses it, half way through the edit.
   if (font) node.setRangeFontName(start, end, font);
 
   if (range.fontSize != null) node.setRangeFontSize(start, end, Number(range.fontSize));
@@ -123,23 +123,23 @@ export const loadNodeFonts = async (node: any) => {
 };
 
 /**
- * The fonts the ranges themselves ask for, on top of the ones already in the
- * node.
+ * The font each range asks for, resolved against the node as the caller found
+ * it — one entry per range, in the same order, null where the range asks for no
+ * font change.
  *
- * Collected before anything is written. A range asking for a font the file does
- * not have used to fail on that range, after the ranges before it had already
- * been applied — so the node was left in a state nobody asked for and the
- * caller learned about one missing font at a time.
+ * Resolved before anything is written, for two reasons. A range asking for a
+ * font the file does not have used to fail on that range, after the ranges
+ * before it had already been applied — so the node was left in a state nobody
+ * asked for and the caller learned about one missing font at a time. And a range
+ * that inherits half its font from the text would otherwise resolve differently
+ * at load time and at write time, once an earlier range had changed that text,
+ * so the font written was one that was never loaded.
  */
-export const rangeFonts = (node: any, ranges: TextRange[]): FontName[] => {
-  const fonts: FontName[] = [];
-  for (const range of ranges) {
+export const rangeFonts = (node: any, ranges: TextRange[]): (FontName | null)[] =>
+  ranges.map(range => {
     const [start, end] = resolveRange(range, node.characters.length);
-    const font = resolveRangeFont(range, node.getRangeFontName(start, end));
-    if (font) fonts.push(font);
-  }
-  return fonts;
-};
+    return resolveRangeFont(range, node.getRangeFontName(start, end));
+  });
 
 const getTextNode = async (nodeId: string | undefined) => {
   if (!nodeId) throw new Error("nodeId is required");
@@ -162,12 +162,13 @@ export const writeTextHandlers: HandlerMap = {
     const sorted = sortRanges(ranges);
     // One load for the node's existing fonts and every font the ranges ask for.
     // Nothing is written until they are all in.
+    const fonts = rangeFonts(node, sorted);
     await loadFonts([
       ...node.getRangeAllFontNames(0, node.characters.length),
-      ...rangeFonts(node, sorted),
+      ...fonts.filter((font): font is FontName => font !== null),
     ]);
-    for (const range of sorted) {
-      await applyRange(node, range);
+    for (let i = 0; i < sorted.length; i++) {
+      await applyRange(node, sorted[i], fonts[i]);
     }
 
     figma.commitUndo();

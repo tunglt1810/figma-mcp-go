@@ -255,3 +255,56 @@ describe("set_text_ranges with a font the file lacks", () => {
     expect(loadedFonts).toEqual([{ family: "Inter", style: "Regular" }]);
   });
 });
+
+describe("set_text_ranges when an earlier range changes the font", () => {
+  // A mock whose getRangeFontName reflects what has already been written, the
+  // way the real node does. A mock that always answers the same thing cannot
+  // catch a font that gets resolved twice.
+  let fontAt: any[];
+
+  beforeEach(() => {
+    fontAt = new Array(node.characters.length).fill({ family: "Inter", style: "Regular" });
+    node.getRangeFontName = (start: number, end: number) => {
+      const first = fontAt[start];
+      const uniform = fontAt
+        .slice(start, end)
+        .every(f => f.family === first.family && f.style === first.style);
+      return uniform ? first : Symbol("mixed");
+    };
+    node.setRangeFontName = (start: number, end: number, font: any) => {
+      calls.push({ name: "setRangeFontName", args: [start, end, font] });
+      for (let i = start; i < end; i++) fontAt[i] = font;
+    };
+  });
+
+  // The font was resolved twice: once to decide what to load, and again at write
+  // time against a node an earlier range had already changed. So Figma was asked
+  // for a font that was never loaded, and refused it — half way through the
+  // edit, with the earlier ranges already written.
+  it("applies exactly the fonts it loaded", async () => {
+    await call({
+      ranges: [
+        { start: 0, end: 10, fontFamily: "Roboto" },
+        { start: 4, end: 8, fontStyle: "Bold" },
+      ],
+    });
+    for (const font of callsNamed("setRangeFontName").map(c => c.args[2])) {
+      expect(loadedFonts).toContainEqual(font);
+    }
+  });
+
+  // Every range reads the node as the caller saw it, so the answer does not
+  // depend on which range happens to be written first.
+  it("inherits from the text as it was when the call started", async () => {
+    await call({
+      ranges: [
+        { start: 0, end: 10, fontFamily: "Roboto" },
+        { start: 4, end: 8, fontStyle: "Bold" },
+      ],
+    });
+    expect(callsNamed("setRangeFontName").map(c => c.args[2])).toEqual([
+      { family: "Roboto", style: "Regular" },
+      { family: "Inter", style: "Bold" },
+    ]);
+  });
+});
