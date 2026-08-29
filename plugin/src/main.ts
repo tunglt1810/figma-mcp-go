@@ -4,7 +4,7 @@ import { readHandlers } from "./read-handlers";
 import { handleWriteRequest } from "./write-handlers";
 import { clearCancelled, markCancelled } from "./cancellation";
 import { enqueueWrite } from "./write-queue";
-import { isMutating } from "./tool-classes";
+import { isMutating, PIPELINE_TOOL } from "./tool-classes";
 import { registerCodegen } from "./codegen";
 import { getPinned, setPinned } from "./pinned";
 import { readHandlers as readHandlerMap } from "./read-handlers";
@@ -38,7 +38,10 @@ const handleRequest = async (request: any) => {
   try {
     // Writes take their turn; reads do not wait. Two writes interleaving would
     // put a plain write inside a pipeline's undo checkpoint — see write-queue.
-    return isMutating(request.type, request.params)
+    // A pipeline queues even when every step of it only reads: two pipelines in
+    // flight at once share one undo checkpoint, so the user's Ctrl+Z would
+    // reverse a run they did not ask about.
+    return isMutating(request.type, request.params) || request.type === PIPELINE_TOOL
       ? await enqueueWrite(() => runRequest(request))
       : await runRequest(request);
   } catch (error) {

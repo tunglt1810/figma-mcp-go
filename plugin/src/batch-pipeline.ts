@@ -334,32 +334,57 @@ export async function executeBatchPipeline(
  * Ctrl+Z, each one leaving the design in a state no one asked for.
  *
  * Figma offers no way to suspend commitUndo, so the handlers' calls are
- * swallowed and one is made at the end. The original is restored in a finally
- * and the swap is re-entrant — it puts back whatever it found rather than
- * assuming it found the real one — so a throw part-way cannot leave the
- * document permanently unable to checkpoint.
+ * swallowed and one is made at the end.
+ *
+ * The swap is counted, not saved per call. Scopes do not always nest: a
+ * pipeline whose every step reads is not classified as mutating, so it skips
+ * the write queue and can overlap another pipeline. A per-call save/restore
+ * then has the first scope to finish put the real function back while the
+ * second is still running, and the second put the first's stub back for good —
+ * after which every write in the session loses its checkpoint, silently. A
+ * counter cannot do that: the real function goes back exactly once, when the
+ * last scope leaves, whatever order they started in.
  */
+let checkpointDepth = 0;
+let suspendedCommitUndo: (() => void) | null = null;
+let anyStepCommitted = false;
+
 export async function withSingleUndoCheckpoint<T>(work: () => Promise<T>): Promise<T> {
   const api: any = typeof figma !== 'undefined' ? figma : null;
   if (!api || typeof api.commitUndo !== 'function') return work();
 
-  // Held unbound and called with the receiver below, so what goes back is the
-  // exact function that was there. Restoring a bound copy would work, but each
-  // pipeline would wrap the previous wrapper, and nothing could then check that
-  // the swap really was undone.
-  const realCommitUndo = api.commitUndo;
-  let anyStepCommitted = false;
-  api.commitUndo = () => {
-    anyStepCommitted = true;
-  };
+  if (checkpointDepth === 0) {
+    // Held unbound and called with the receiver below, so what goes back is the
+    // exact function that was there. Restoring a bound copy would work, but each
+    // pipeline would wrap the previous wrapper, and nothing could then check that
+    // the swap really was undone.
+    suspendedCommitUndo = api.commitUndo;
+    anyStepCommitted = false;
+    api.commitUndo = () => {
+      anyStepCommitted = true;
+    };
+  }
+  checkpointDepth++;
   try {
     return await work();
   } finally {
-    api.commitUndo = realCommitUndo;
-    // Nothing mutated the document — a checkpoint here would be an empty undo
-    // step the user has to press through.
-    if (anyStepCommitted) realCommitUndo.call(api);
+    checkpointDepth--;
+    if (checkpointDepth === 0) {
+      const realCommitUndo = suspendedCommitUndo;
+      suspendedCommitUndo = null;
+      api.commitUndo = realCommitUndo;
+      // Nothing mutated the document — a checkpoint here would be an empty undo
+      // step the user has to press through.
+      if (anyStepCommitted && realCommitUndo) realCommitUndo.call(api);
+    }
   }
+}
+
+/** Test seam: forget any suspended swap. */
+export function resetUndoCheckpointState(): void {
+  checkpointDepth = 0;
+  suspendedCommitUndo = null;
+  anyStepCommitted = false;
 }
 
 export async function handleBatchPipelineRequest(
