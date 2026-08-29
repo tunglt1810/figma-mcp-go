@@ -11,5 +11,31 @@
   },
   "documentAccess": "dynamic-page",
   "editorType": ["figma", "figjam", "slides", "dev"],
-  "capabilities": ["inspect"]
+  "capabilities": ["inspect"],
+  "codegenPreferences": [
+    {
+      "itemType": "select",
+      "propertyName": "language",
+      "label": "Language",
+      "options": [
+        { "label": "All languages", "value": "ALL", "isDefault": true },
+        { "label": "TypeScript", "value": "TYPESCRIPT" },
+        { "label": "JavaScript", "value": "JAVASCRIPT" },
+        { "label": "HTML", "value": "HTML" },
+        { "label": "CSS", "value": "CSS" },
+        { "label": "JSON", "value": "JSON" },
+        { "label": "GraphQL", "value": "GRAPHQL" },
+        { "label": "Python", "value": "PYTHON" },
+        { "label": "Go", "value": "GO" },
+        { "label": "SQL", "value": "SQL" },
+        { "label": "Swift", "value": "SWIFT" },
+        { "label": "Kotlin", "value": "KOTLIN" },
+        { "label": "Ruby", "value": "RUBY" },
+        { "label": "C++", "value": "CPP" },
+        { "label": "Rust", "value": "RUST" },
+        { "label": "Bash", "value": "BASH" },
+        { "label": "Plain text", "value": "PLAINTEXT" }
+      ]
+    }
+  ]
 }

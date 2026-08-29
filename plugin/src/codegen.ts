@@ -90,6 +90,25 @@ export async function resolveBlocks(node: any): Promise<{ blocks: CodegenBlock[]
   return null;
 }
 
+/** The manifest's default for the language preference: show everything. */
+export const ALL_LANGUAGES = "ALL";
+
+/**
+ * Narrow the blocks to the language the viewer picked in the Code panel.
+ *
+ * A node often carries several blocks — the component in TypeScript, its CSS,
+ * the GraphQL query behind it — and a developer working in one of them does not
+ * want the other two. A language with nothing stored for this node falls back
+ * to everything rather than to an empty panel: the viewer's standing preference
+ * should not read as "this node has no code".
+ */
+export function selectBlocks(blocks: CodegenBlock[], language: string | undefined): CodegenBlock[] {
+  const wanted = String(language ?? ALL_LANGUAGES).toUpperCase();
+  if (wanted === ALL_LANGUAGES) return blocks;
+  const matching = blocks.filter((block) => block.language === wanted);
+  return matching.length > 0 ? matching : blocks;
+}
+
 /** Register the Dev Mode provider. Safe to call outside codegen mode. */
 export function registerCodegen(): boolean {
   const api: any = typeof figma !== "undefined" ? figma : null;
@@ -109,11 +128,20 @@ export function registerCodegen(): boolean {
         },
       ];
     }
-    return found.blocks.map((block) => ({
+    // The event carries the preferences as of this render; api.codegen.preferences
+    // is the same value and is read only as a fallback for older editors.
+    const language = event?.language ?? api.codegen.preferences?.language;
+    return selectBlocks(found.blocks, language).map((block) => ({
       title: block.title,
       language: block.language,
       code: block.code,
     }));
+  });
+
+  // Figma does not re-render the Code panel on its own when a preference
+  // changes — the handler above only runs again if something asks for it.
+  api.codegen.on("preferenceschange", async () => {
+    if (typeof api.codegen.refresh === "function") api.codegen.refresh();
   });
   return true;
 }

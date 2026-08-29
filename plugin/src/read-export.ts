@@ -1,4 +1,5 @@
 import { HandlerMap } from "./dispatch";
+import { reportProgress, stepProgress } from "./progress";
 export const readExportHandlers: HandlerMap = {
   "get_screenshot": async (request) => {
     const format =
@@ -24,34 +25,36 @@ export const readExportHandlers: HandlerMap = {
       throw new Error(
         "No nodes to export. Select nodes or provide nodeIds.",
       );
-    const exports = await Promise.all(
-      targetNodes.map(async (node: any) => {
-        const settings: any =
-          format === "SVG"
-            ? { format: "SVG" }
-            : format === "PDF"
-              ? { format: "PDF" }
-              : format === "JPG"
-                ? {
-                    format: "JPG",
-                    constraint: { type: "SCALE", value: scale },
-                  }
-                : {
-                    format: "PNG",
-                    constraint: { type: "SCALE", value: scale },
-                  };
-        const bytes = await node.exportAsync(settings);
-        const base64 = figma.base64Encode(bytes);
-        return {
-          nodeId: node.id,
-          nodeName: node.name,
-          format,
-          base64,
-          width: node.width,
-          height: node.height,
-        };
-      }),
-    );
+    // Sequential rather than Promise.all: exporting is the slowest read there
+    // is, and a caller that asked for twenty frames wants to know how far in it
+    // has got. Figma renders them one at a time regardless.
+    const exports: any[] = [];
+    for (let i = 0; i < targetNodes.length; i++) {
+      const node: any = targetNodes[i];
+      if (targetNodes.length > 1) {
+        await reportProgress(
+          request.requestId,
+          stepProgress(i, targetNodes.length),
+          `Exporting ${node.name} (${i + 1}/${targetNodes.length})`,
+        );
+      }
+      const settings: any =
+        format === "SVG"
+          ? { format: "SVG" }
+          : format === "PDF"
+            ? { format: "PDF" }
+            : { format, constraint: { type: "SCALE", value: scale } };
+      const bytes = await node.exportAsync(settings);
+      const base64 = figma.base64Encode(bytes);
+      exports.push({
+        nodeId: node.id,
+        nodeName: node.name,
+        format,
+        base64,
+        width: node.width,
+        height: node.height,
+      });
+    }
     return {
       type: request.type,
       requestId: request.requestId,
@@ -65,7 +68,15 @@ export const readExportHandlers: HandlerMap = {
       throw new Error("nodeIds is required and must not be empty");
     }
     const frames: any[] = [];
-    for (const id of nodeIds) {
+    for (let i = 0; i < nodeIds.length; i++) {
+      const id = nodeIds[i];
+      if (nodeIds.length > 1) {
+        await reportProgress(
+          request.requestId,
+          stepProgress(i, nodeIds.length),
+          `Rendering page ${i + 1}/${nodeIds.length}`,
+        );
+      }
       const node = await figma.getNodeByIdAsync(id);
       if (!node || node.type === "DOCUMENT" || node.type === "PAGE") {
         throw new Error(`Node ${id} not found or is not exportable`);

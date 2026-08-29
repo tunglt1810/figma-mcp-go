@@ -344,14 +344,18 @@ describe('executeBatchPipeline — results on failure', () => {
 // handleBatchPipelineRequest, a layer the mocks never exercised. These tests go
 // through handleWriteRequest so the whole chain is covered.
 
+let progressMessages: any[] = [];
+
 describe('batch pipeline → real write handlers', () => {
   let mockNodes: Record<string, any>;
 
   beforeEach(() => {
     mockNodes = {};
+    progressMessages = [];
     (globalThis as any).figma = {
       getNodeByIdAsync: async (id: string) => mockNodes[id] ?? null,
       commitUndo: () => {},
+      ui: { postMessage: (msg: any) => progressMessages.push(msg) },
     };
   });
 
@@ -569,5 +573,75 @@ describe('executeBatchPipeline cancellation', () => {
     expect(res.success).toBe(false);
     expect(res.completed_steps).toBe(0);
     expect(res.rollback_executed).toBe(true);
+  });
+});
+
+describe('batch pipeline progress', () => {
+  const noopDispatch = async () => ({ id: '1:1' });
+
+  it('reports the step about to run, not the one just finished', async () => {
+    const seen: Array<[number, number, string]> = [];
+    await executeBatchPipeline(
+      { steps: [{ action: 'rename_node' }, { action: 'move_nodes' }, { action: 'set_paint' }] } as any,
+      noopDispatch,
+      async () => null,
+      () => false,
+      async (done, total, action) => { seen.push([done, total, action]); },
+    );
+    expect(seen).toEqual([
+      [0, 3, 'rename_node'],
+      [1, 3, 'move_nodes'],
+      [2, 3, 'set_paint'],
+    ]);
+  });
+
+  it('stops reporting once a step has failed the run', async () => {
+    const seen: string[] = [];
+    await executeBatchPipeline(
+      { steps: [{ action: 'a' }, { action: 'b' }] } as any,
+      async () => { throw new Error('nope'); },
+      async () => null,
+      () => false,
+      async (_done, _total, action) => { seen.push(action); },
+    );
+    expect(seen).toEqual(['a']);
+  });
+});
+
+describe('batch pipeline progress through handleWriteRequest', () => {
+  beforeEach(() => {
+    progressMessages = [];
+    (globalThis as any).figma = {
+      getNodeByIdAsync: async () => ({ id: '1:1', name: 'n' }),
+      commitUndo: () => {},
+      ui: { postMessage: (msg: any) => progressMessages.push(msg) },
+    };
+  });
+
+  it('posts one progress message per step of a multi-step run', async () => {
+    await handleWriteRequest({
+      type: 'batch_execute_pipeline',
+      requestId: 'req-progress',
+      params: {
+        steps: [
+          { action: 'rename_node', params: { nodeId: '1:1', name: 'a' } },
+          { action: 'rename_node', params: { nodeId: '1:1', name: 'b' } },
+        ],
+      },
+    });
+    const updates = progressMessages.filter((m) => m.type === 'progress_update');
+    expect(updates.length).toBe(2);
+    expect(updates[0].message).toBe('Step 1/2: rename_node');
+    expect(updates[0].requestId).toBe('req-progress');
+  });
+
+  // The response lands at about the same moment, so a message would only add noise.
+  it('stays quiet for a one-step pipeline', async () => {
+    await handleWriteRequest({
+      type: 'batch_execute_pipeline',
+      requestId: 'req-single',
+      params: { steps: [{ action: 'rename_node', params: { nodeId: '1:1', name: 'a' } }] },
+    });
+    expect(progressMessages.filter((m) => m.type === 'progress_update')).toEqual([]);
   });
 });

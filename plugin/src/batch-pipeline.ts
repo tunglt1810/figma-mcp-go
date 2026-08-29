@@ -1,4 +1,5 @@
 import { isCancelled } from './cancellation';
+import { reportProgress, stepProgress } from './progress';
 
 export type SymbolTable = Map<string, any>;
 
@@ -215,6 +216,11 @@ export async function executeBatchPipeline(
   // a step boundary is the only place it can stop and still leave the document
   // in a state the rollback log describes.
   isCancelled: () => boolean = () => false,
+  // Called before each step. Injected rather than posting to figma.ui directly,
+  // for the same reason getNodeById is: this function is tested without a
+  // Figma global in scope.
+  onProgress: (done: number, total: number, action: string) => Promise<void> =
+    async () => {},
 ): Promise<BatchPipelineResponse> {
   const symbolTable: SymbolTable = new Map();
   const walStack: WALStack = [];
@@ -244,6 +250,9 @@ export async function executeBatchPipeline(
         rolled_back_steps: rolledBackCount,
       };
     }
+    // Before the step, not after: a pipeline's last step is often its slowest,
+    // and a caller wants to know what is running, not what has finished.
+    await onProgress(i, req.steps.length, step.action);
     try {
       const resolvedParams = resolveParams(step.params || {}, symbolTable);
       const isCreate = isCreateStep(step.action, resolvedParams);
@@ -387,8 +396,21 @@ export async function handleBatchPipelineRequest(
   // too: a pipeline that fails and reverses itself leaves the undo stack as it
   // found it rather than adding steps that undo each other.
   const res = await withSingleUndoCheckpoint(() =>
-    executeBatchPipeline(pipelineParams, dispatcher, undefined, () =>
-      isCancelled(request.requestId),
+    executeBatchPipeline(
+      pipelineParams,
+      dispatcher,
+      undefined,
+      () => isCancelled(request.requestId),
+      async (done, total, action) => {
+        // A one-step pipeline is not worth a progress message; the response
+        // arrives at about the same moment.
+        if (total < 2) return;
+        await reportProgress(
+          request.requestId,
+          stepProgress(done, total),
+          `Step ${done + 1}/${total}: ${action}`,
+        );
+      },
     ),
   );
   return {

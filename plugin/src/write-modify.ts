@@ -1,6 +1,7 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
+import { reportProgress, stepProgress } from "./progress";
 
 const REORDER_ORDERS = ["bringToFront", "sendToBack", "bringForward", "sendBackward"];
 
@@ -548,7 +549,19 @@ export const writeModifyHandlers: HandlerMap = {
     };
     collect(root);
     const results: any[] = [];
-    for (const tn of textNodes) {
+    // A find-and-replace over a whole page is the write that most often runs
+    // past the server's timeout, and it is the one write where the caller
+    // cannot guess how much there is to do.
+    const reportEvery = Math.max(1, Math.floor(textNodes.length / 20));
+    for (let i = 0; i < textNodes.length; i++) {
+      const tn = textNodes[i];
+      if (textNodes.length > 20 && i % reportEvery === 0) {
+        await reportProgress(
+          request.requestId,
+          stepProgress(i, textNodes.length),
+          `Scanned ${i}/${textNodes.length} text nodes, ${results.length} changed`,
+        );
+      }
       const originalText: string = tn.characters;
       let newText: string;
       if (p.useRegex) {

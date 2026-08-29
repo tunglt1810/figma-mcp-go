@@ -5,6 +5,7 @@ import { handleWriteModifyRequest } from "./write-modify";
 
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
+let progressPosts: any[] = [];
 
 const makeRequest = (type: string, nodeIds?: string[], params?: any) => ({
   type,
@@ -566,5 +567,55 @@ describe("set_export_settings", () => {
     );
     expect(res?.data.results[0].error).toContain("cannot be exported");
     expect(mockNodes["1:2"].exportSettings.length).toBe(1);
+  });
+});
+
+// ── find_replace_text progress ────────────────────────────────────────────────
+
+describe("find_replace_text progress", () => {
+  const buildPage = (count: number) => {
+    const children = Array.from({ length: count }, (_, i) => ({
+      id: `t:${i}`,
+      name: `Text ${i}`,
+      type: "TEXT",
+      characters: "before",
+      fontName: { family: "Inter", style: "Regular" },
+    }));
+    const page = { id: "0:1", name: "Page 1", type: "PAGE", children };
+    mockNodes["0:1"] = page;
+    return page;
+  };
+
+  const run = (requestId: string) =>
+    handleWriteModifyRequest({
+      ...makeRequest("find_replace_text", ["0:1"], { find: "before", replace: "after" }),
+      requestId,
+    });
+
+  beforeEach(() => {
+    progressPosts = [];
+    (globalThis as any).figma = {
+      getNodeByIdAsync: async (id: string) => mockNodes[id] ?? null,
+      commitUndo: () => { commitUndoCalled = true; },
+      loadFontAsync: async () => {},
+      ui: { postMessage: (msg: any) => progressPosts.push(msg) },
+    };
+  });
+
+  it("reports while walking a page with many text nodes", async () => {
+    buildPage(100);
+    const res = await run("req-many");
+    expect(res?.data.replaced).toBe(100);
+    const updates = progressPosts.filter((m) => m.type === "progress_update");
+    expect(updates.length).toBe(20);
+    expect(updates[0].message).toContain("0/100 text nodes");
+    expect(updates.every((u: any) => u.progress >= 1 && u.progress <= 99)).toBe(true);
+  });
+
+  // Under the threshold the work finishes before a message would be read.
+  it("stays quiet on a small page", async () => {
+    buildPage(5);
+    await run("req-few");
+    expect(progressPosts.filter((m) => m.type === "progress_update")).toEqual([]);
   });
 });

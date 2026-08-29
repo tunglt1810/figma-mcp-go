@@ -5,7 +5,9 @@ import {
   normalizeLanguage,
   parseBlocks,
   readBlocks,
+  registerCodegen,
   resolveBlocks,
+  selectBlocks,
 } from "./codegen";
 
 const withCode = (node: any, blocks: any) => ({
@@ -113,5 +115,60 @@ describe("resolveBlocks", () => {
       getMainComponentAsync: async () => null,
     };
     expect(await resolveBlocks(instance)).toBeNull();
+  });
+});
+
+describe("selectBlocks", () => {
+  const blocks = [
+    { title: "Component", language: "TYPESCRIPT", code: "a" },
+    { title: "Styles", language: "CSS", code: "b" },
+  ];
+
+  it("keeps everything on the manifest's default", () => {
+    expect(selectBlocks(blocks, "ALL")).toEqual(blocks);
+    expect(selectBlocks(blocks, undefined)).toEqual(blocks);
+  });
+
+  it("narrows to the language the viewer picked", () => {
+    expect(selectBlocks(blocks, "CSS").map(b => b.title)).toEqual(["Styles"]);
+  });
+
+  // A standing preference must not read as "this node has no code".
+  it("falls back to everything when the node has nothing in that language", () => {
+    expect(selectBlocks(blocks, "PYTHON")).toEqual(blocks);
+  });
+});
+
+describe("registerCodegen", () => {
+  const fakeCodegen = () => {
+    const handlers: Record<string, Function> = {};
+    let refreshed = 0;
+    (globalThis as any).figma = {
+      codegen: {
+        on: (event: string, handler: Function) => { handlers[event] = handler; },
+        refresh: () => { refreshed++; },
+        preferences: { language: "ALL" },
+      },
+    };
+    return { handlers, refreshed: () => refreshed };
+  };
+
+  it("applies the language preference the generate event carries", async () => {
+    const { handlers } = fakeCodegen();
+    expect(registerCodegen()).toBe(true);
+    const node = withCode({ type: "FRAME", parent: null }, [
+      { title: "Component", language: "TYPESCRIPT", code: "a" },
+      { title: "Styles", language: "CSS", code: "b" },
+    ]);
+    const result = await handlers["generate"]({ node, language: "CSS" });
+    expect(result.map((b: any) => b.title)).toEqual(["Styles"]);
+  });
+
+  // Figma does not re-render the Code panel by itself when a preference moves.
+  it("refreshes the panel when a preference changes", async () => {
+    const { handlers, refreshed } = fakeCodegen();
+    registerCodegen();
+    await handlers["preferenceschange"]({ propertyName: "language" });
+    expect(refreshed()).toBe(1);
   });
 });
