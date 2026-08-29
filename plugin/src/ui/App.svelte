@@ -146,6 +146,16 @@
           ? { ...entry, status: "error" as const, endedAt: Date.now(), message: "connection lost" }
           : entry,
       );
+      // A request held for approval was waiting on a caller that is now gone.
+      // The server's own cancel frame drops one of these, but a socket that
+      // simply dropped sends nothing — and the dialog would outlive the request,
+      // so Allow would run a destructive edit for nobody and answer into a
+      // socket the server no longer associates with it.
+      for (const held of pendingApprovals) {
+        activityLog = startEntry(activityLog, held.payload.requestId, held.payload.type, Date.now());
+        activityLog = finishEntry(activityLog, held.payload.requestId, "connection lost", Date.now());
+      }
+      pendingApprovals = [];
       if (reconnectTimer === null) {
         reconnectTimer = setTimeout(() => {
           reconnectTimer = null;
