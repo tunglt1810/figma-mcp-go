@@ -91,7 +91,7 @@ group list exists in one place, so a group cannot reach clients without rules or
 have rules without reaching clients.
 
 Side effect: `registerCustom` used to validate and then call `Node.Send`, which
-validated again. `export_frames_to_pdf` and `save_screenshots` no longer check
+validated again. `export_frames_to_pdf` and `export_screenshots` no longer check
 twice.
 
 ## The reliability fixes
@@ -165,19 +165,24 @@ name, node count and `paramBytes`. `/ping` returns `role`, `connected`,
 
 ## Found in cross-review, after the work
 
-**A `Custom` handler could reach the plugin unchecked.** `saveScreenshotItem`
+**A `Custom` handler could reach the plugin unchecked.** `exportScreenshotItem`
 calls `get_screenshot` once per item with params it builds itself, so checking
-the arguments `save_screenshots` was invoked with says nothing about them. On
+the arguments `export_screenshots` was invoked with says nothing about them. On
 `main` this was covered by accident: `Node.Send` validated by the tool name
 actually being sent, so the inner call met `getScreenshotSpec`. Removing that as
 "double validation" was right for `export_frames_to_pdf` — same tool name, no
-params — and wrong for `save_screenshots`, where it was the only check the inner
+params — and wrong for `export_screenshots`, where it was the only check the inner
 call ever had. A per-item `format` of `GIF` on a path whose extension implies
 nothing reached the plugin.
 
 Fixed by handing `Custom` handlers a `checkedSender`, which applies `Check` under
 the name of whatever tool a call actually names. **The invariant is about Sender
 calls, not about entry points** — that phrasing in the spec is what hid this.
+
+Since then `get_screenshot` has stopped being a tool of its own — it is the
+handler `export_screenshots` calls per item — so it has no spec for the
+`checkedSender` to apply. `export_screenshots` validates the item schema itself
+instead, one level below where a `paramSpec` enum reaches.
 
 ## The follow-up round
 

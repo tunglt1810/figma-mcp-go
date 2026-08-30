@@ -19,7 +19,7 @@ import (
 // keeping the two in step. A toolSpec states it once; the schema, the handler
 // and the validation are all derived from it.
 //
-// Tools that do real work in Go (save_screenshots, export_frames_to_pdf) keep
+// Tools that do real work in Go (export_screenshots, export_frames_to_pdf) keep
 // hand-written handlers.
 
 // Sender carries a tool call to the Figma plugin. The tool layer does not know
@@ -598,7 +598,7 @@ func handlerFor(sender Sender, spec toolSpec) server.ToolHandlerFunc {
 	var handle customHandler
 	if spec.Custom != nil {
 		// A Custom handler is free to call a different tool than the one it was
-		// invoked as — save_screenshots calls get_screenshot once per item, with
+		// invoked as — export_screenshots calls get_screenshot once per item, with
 		// params it builds itself. Checking the arguments this handler received
 		// says nothing about those, so give it a Sender that checks each call
 		// against the spec of whatever tool the call actually names.

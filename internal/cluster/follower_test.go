@@ -78,7 +78,7 @@ func TestFollowerSend_Success(t *testing.T) {
 		t.Fatalf("unexpected error: %s", resp.Error)
 	}
 	if resp.Type != "get_nodes_info" {
-		t.Errorf("resp.Type = %q, want get_node", resp.Type)
+		t.Errorf("resp.Type = %q, want get_nodes_info", resp.Type)
 	}
 }
 

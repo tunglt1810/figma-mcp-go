@@ -18,7 +18,7 @@ The MCP Plugin supports writing (creating or replacing) and deleting annotations
 
 ```json
 {
-  "nodeId": "1:1",
+  "nodeIds": ["1:1", "1:2"],
   "annotations": [
     {
       "label": "Button Container",
@@ -42,24 +42,19 @@ The Figma API defines a Node's `annotations` property as a `ReadonlyArray<Annota
 
 *Note:* This assignment replaces all existing Annotations on the Node.
 
-## 4. Delete Annotations (`clear_annotations`)
+## 4. Delete Annotations
 
-### Purpose
-
-Clear all existing technical annotations from one or more nodes at the same time.
+Deleting is the same call with an empty array — there is no separate tool.
 
 ### Input Payload
 
 ```json
 {
-  "nodeIds": ["1:1", "1:2"]
+  "nodeIds": ["1:1", "1:2"],
+  "annotations": []
 }
 ```
 
 ### Logic
 
-Iterate over the list of IDs, check whether each node supports the `annotations` property (`"annotations" in node`), and then assign an empty array:
-
-```typescript
-(node as any).annotations = [];
-```
+Iterate over the list of IDs, check whether each node supports the `annotations` property (`"annotations" in node`), and then assign the array through. A node that does not support annotations, or a seat without Dev Mode — which Figma reports by throwing — is reported against that node in `results` rather than failing the whole call.

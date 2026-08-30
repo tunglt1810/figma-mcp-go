@@ -35,7 +35,7 @@ Ask the user:
 ## Steps
 
 ### 1. Inspect the source
-Call get_node(sourceNodeId) to understand:
+Call get_nodes_info([sourceNodeId]) to understand:
 - Width, height, position
 - Fill colors (note hex values)
 - Text content and sizes

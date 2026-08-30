@@ -7,7 +7,7 @@ import (
 
 func TestTimeoutFor(t *testing.T) {
 	if got := TimeoutFor("get_nodes_info"); got != defaultToolTimeout {
-		t.Errorf("TimeoutFor(get_node) = %s, want the default %s", got, defaultToolTimeout)
+		t.Errorf("TimeoutFor(get_nodes_info) = %s, want the default %s", got, defaultToolTimeout)
 	}
 	for tool, want := range toolTimeouts {
 		if got := TimeoutFor(tool); got != want {

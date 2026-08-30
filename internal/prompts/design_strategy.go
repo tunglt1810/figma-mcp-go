@@ -66,7 +66,7 @@ func addDesignStrategy(s *server.MCPServer) {
      * Smaller for helper text/links
 
 8. Best Practices:
-   - Verify each creation with get_node()
+   - Verify each creation with get_nodes_info()
    - Use parentId to maintain proper hierarchy
    - Group related elements together in frames
    - Keep consistent spacing and alignment

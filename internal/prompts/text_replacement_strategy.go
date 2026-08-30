@@ -28,7 +28,7 @@ func addTextReplacementStrategy(s *server.MCPServer) {
   * Navigation (menu items, breadcrumbs)
 
 search_nodes(nodeId: "node-id", types: ["TEXT"], includeText: true, limit: 500)
-get_node(nodeId: "node-id")  // optional for extra context
+get_nodes_info(nodeIds: ["node-id"])  // optional for extra context
 
 ## 2. Strategic Chunking for Complex Designs
 - Divide replacement tasks into logical content chunks based on design structure

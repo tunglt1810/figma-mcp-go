@@ -32,9 +32,9 @@ func addReadDesignStrategy(s *server.MCPServer) {
    a. get_document(scope=selection, detail=minimal, dedupe_components=true) — see the instance layout + component IDs
    b. Inspect componentDefs in the response — one definition per unique component, not one per instance
    c. Read componentProperties on each instance stub — variant selections, text overrides, boolean toggles
-   d. Drill into specific instances with get_node only when an instance has unique overrides you need to inspect
+   d. Drill into specific instances with get_nodes_info only when an instance has unique overrides you need to inspect
 5. Use search_nodes to find nodes by name or type without dumping the entire tree
-6. Drill into specific nodes with get_node or get_nodes_info (prefer batch over single calls)
+6. Drill into specific nodes with get_nodes_info — one call for all of them, not one call each
 7. For text-heavy components, use search_nodes(types=["TEXT"], includeText=true) to collect all copy at once
 8. Use search_nodes(types=["FRAME","COMPONENT","INSTANCE"]) to find them all in a subtree
 9. Call get_styles and get_variable_defs once per session to understand the design system

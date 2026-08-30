@@ -13,7 +13,7 @@ Open-source Figma MCP server with full read/write access via plugin. Turn text i
 **Highlights**
 - Operates locally via the Figma Plugin API (no REST API token required)
 - Real-time execution directly on your local machine
-- **Read and Write** live Figma data via plugin bridge — 78 tools total
+- **Read and Write** live Figma data via plugin bridge — 65 tools total
 - Full design automation — styles, variables, components, prototypes, content, and transactional batch pipelines
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
 
@@ -208,6 +208,45 @@ No tool changed its name or its arguments. Five things behave differently:
 - **`/ping`** returns `role`, `connected`, `pending` and `uptimeSeconds`
   alongside `status` and `version`.
 
+### Tool consolidation
+
+Thirteen tools were removed by folding each into one that already covered it.
+No capability was lost — everything possible before is still one call:
+
+| Removed | Replacement |
+| ------- | ----------- |
+| `set_layout_sizing` | `set_auto_layout({ nodeIds, … })` — it takes several nodes now |
+| `get_node` | `get_nodes_info({ nodeIds: [id] })` |
+| `get_pages` | `get_metadata()` |
+| `scan_nodes_by_types` | `search_nodes({ nodeId, types, includeHidden: false })` |
+| `scan_text_nodes` | `search_nodes({ nodeId, types: ["TEXT"], includeText: true })` |
+| `clear_annotations` | `set_annotations({ nodeIds, annotations: [] })` |
+| `rename_node` | `batch_rename_nodes({ nodeIds, name })` |
+| `move_nodes` | `set_node_properties({ nodeIds, x, y })` |
+| `resize_nodes` | `set_node_properties({ nodeIds, width, height })` |
+| `set_corner_radius` | `set_node_properties({ nodeIds, cornerRadius })` |
+| `remove_reactions` | `set_reactions({ nodeId, removeIndices })` |
+| `get_design_context` | `get_document({ scope: "selection", detail, dedupe_components })` |
+| `get_screenshot` / `save_screenshots` | `export_screenshots({ items })` — an item with an `outputPath` is written to disk, one without comes back as base64 |
+
+Two of these gained something in the move. Moving and resizing a node is now
+one call and **one** undo entry rather than two, and `get_nodes_info` reports
+an ID that matched nothing under `missing` instead of dropping it — which used
+to read as "that node has no content".
+
+`detail` and `dedupe_components` were selection-only under
+`get_design_context`; they apply to a page or document walk too now.
+
+Four responses changed shape:
+
+- `set_auto_layout` and `set_annotations` answer `{results: [...]}`, one entry
+  per node, like every other multi-node tool.
+- `get_document` answers `{fileName, scope, currentPage, nodes: [...]}` for all
+  three scopes, instead of a bare page tree for one and a `DOCUMENT` wrapper
+  for another.
+- `export_screenshots` answers `{total, succeeded, failed, results: [...]}`,
+  each result carrying either an `outputPath` or a `base64`.
+
 ### Breaking changes in 0.1.0
 
 Eight single-purpose tools were replaced by one. Each took `nodeIds` plus a
@@ -294,19 +333,14 @@ because `type` names the kind of style. Gradients can only target a fill;
 | `set_text`               | Update a TEXT node's content and node-wide settings — wrapping, truncation, alignment, paragraph spacing |
 | `set_text_ranges`        | Style parts of a TEXT node independently — a bold word, a coloured phrase, a hyperlink, a bulleted list |
 | `set_paint`              | Paint a node's fill or stroke — solid, linear gradient, or radial gradient       |
-| `set_corner_radius`      | Set corner radius — uniform or per-corner                                        |
-| `set_auto_layout`        | Set or update auto-layout (flex) on a frame, component, or instance — direction, padding, gap, alignment, HUG/FILL sizing, min/max bounds, and how the node sits in its parent's layout |
-| `set_layout_sizing`      | The sizing half of the above — HUG/FILL, min/max, layoutAlign, layoutGrow — across several nodes at once |
+| `set_auto_layout`        | Set or update auto-layout (flex) on frames, components, or instances — direction, padding, gap, alignment, HUG/FILL sizing, min/max bounds, and how each node sits in its parent's layout. Takes several nodes, for a whole row of siblings in one call |
 | `set_layout_grids`       | Set the column, row, or square grids drawn over a frame                          |
-| `set_node_properties`    | Set any combination of visibility, lock, opacity, rotation, blend mode, constraints, z-order, masking, and stroke geometry (weight, alignment, caps, joins, miter limit, dash pattern) on one or more nodes |
+| `set_node_properties`    | Set any combination of position, size, corner radius, visibility, lock, opacity, rotation, blend mode, constraints, z-order, masking, and stroke geometry (weight, alignment, caps, joins, miter limit, dash pattern) on one or more nodes |
 | `set_instance_overrides` | Update Component Properties (variants, booleans, text) on a component instance   |
-| `set_annotations`        | Set Dev Mode Annotations on a node (requires paid Dev Mode seat)                 |
-| `move_nodes`             | Move nodes to an absolute x/y position                                           |
-| `resize_nodes`           | Resize nodes by width and/or height                                              |
-| `rename_node`            | Rename a node                                                                    |
+| `set_annotations`        | Set Dev Mode Annotations on one or more nodes; an empty array clears them (requires paid Dev Mode seat) |
 | `clone_node`             | Clone a node, optionally repositioning or reparenting                            |
 | `reparent_nodes`         | Move nodes to a different parent frame, group, or section                        |
-| `batch_rename_nodes`     | Bulk rename nodes via find/replace, regex, or prefix/suffix                      |
+| `batch_rename_nodes`     | Rename nodes — a literal `name`, or find/replace, regex, prefix, or suffix       |
 | `find_replace_text`      | Find and replace text across all TEXT nodes in a subtree or page; supports regex |
 | `set_selection`          | Select nodes and scroll the viewport to them, switching pages if needed — use it to show the user what changed |
 | `save_version_checkpoint` | Save a named version in the file's version history — a way back that survives the session |
@@ -316,17 +350,15 @@ because `type` names the kind of style. Gradients can only target a fill;
 
 ### Write — Delete
 
-| Tool                | Description                                           |
-| ------------------- | ----------------------------------------------------- |
-| `delete_nodes`      | Delete one or more nodes permanently                  |
-| `clear_annotations` | Clear all Dev Mode Annotations from one or more nodes |
+| Tool           | Description                          |
+| -------------- | ------------------------------------ |
+| `delete_nodes` | Delete one or more nodes permanently |
 
 ### Write — Prototype
 
-| Tool               | Description                                                                        |
-| ------------------ | ---------------------------------------------------------------------------------- |
-| `set_reactions`    | Set prototype reactions (triggers + actions) on a node; mode `replace` or `append` |
-| `remove_reactions` | Remove all or specific reactions by zero-based index from a node                   |
+| Tool            | Description                                                                                                       |
+| --------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `set_reactions` | Set prototype reactions (triggers + actions) on a node; mode `replace` or `append`, or `removeIndices` to delete them |
 
 ### Write — Styles
 
@@ -368,16 +400,11 @@ because `type` names the kind of style. Gradients can only target a fill;
 
 | Tool                  | Description                                                         |
 | --------------------- | ------------------------------------------------------------------- |
-| `get_document`        | Current page tree, or the whole file with `scope: "document"`, optionally capped by depth or maxNodes |
-| `get_metadata`        | File name, pages, current page                                      |
-| `get_pages`           | All pages (IDs + names) — lightweight, no tree loading              |
+| `get_document`        | Node tree of the selection, the current page, or the whole file — `scope` chooses; `detail`, `depth`, `maxNodes` and `dedupe_components` cap it |
+| `get_metadata`        | File name, page count, current page, and every page with its ID     |
 | `get_selection`       | Currently selected nodes, or the set pinned in the panel with `source: "pinned"` |
-| `get_node`            | Single node by ID                                                   |
-| `get_nodes_info`      | Multiple nodes by ID                                                |
-| `get_design_context`  | Depth-limited tree with `detail` level (`minimal`/`compact`/`full`) |
-| `search_nodes`        | Find nodes by name substring and/or type — current page, a subtree, or the whole document |
-| `scan_text_nodes`     | All text nodes in a subtree                                         |
-| `scan_nodes_by_types` | Nodes matching given type list                                      |
+| `get_nodes_info`      | One or more nodes by ID; an ID that matches nothing is reported under `missing` |
+| `search_nodes`        | Find nodes by name substring and/or type — current page, a subtree, or the whole document; `includeText` reads the copy, `includeHidden: false` skips hidden nodes |
 | `get_viewport`        | Current viewport center, zoom, and visible bounds                   |
 
 ### Read — Styles & Variables
@@ -396,9 +423,8 @@ because `type` names the kind of style. Gradients can only target a fill;
 
 | Tool                   | Description                                                          |
 | ---------------------- | -------------------------------------------------------------------- |
-| `get_screenshot`       | Base64 image export of any node                                      |
 | `get_image_bytes`      | Original bytes of the images placed on nodes, as base64              |
-| `save_screenshots`     | Export images to disk (server-side, no API call)                     |
+| `export_screenshots`   | Export nodes as images — to disk with an `outputPath`, as base64 without one, or the current selection with no items at all |
 | `export_frames_to_pdf` | Export multiple frames as a single multi-page PDF file saved to disk |
 | `export_tokens`        | Export design tokens (variables + paint styles) as JSON or CSS       |
 

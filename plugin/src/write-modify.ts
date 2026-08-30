@@ -405,9 +405,9 @@ export const writeModifyHandlers: HandlerMap = {
     return { type: request.type, requestId: request.requestId, data: { results } };
   },
 
-  // Writes the presets, it does not export. get_screenshot and save_screenshots
-  // still do the exporting; this is what a designer sees under Export in the
-  // right-hand panel, and what a handoff pipeline reads.
+  // Writes the presets, it does not export. export_screenshots still does the
+  // exporting; this is what a designer sees under Export in the right-hand
+  // panel, and what a handoff pipeline reads.
   "set_export_settings": async (request) => {
     const p = request.params || {};
     const nodeIds = request.nodeIds || [];

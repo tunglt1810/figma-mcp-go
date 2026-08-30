@@ -32,7 +32,7 @@ in Figma, maintaining design consistency while reducing manual work.
 - Determine which is the source instance (with content to copy) and which are targets
 
 ### 2. Inspect Source Instance
-- Use get_node(nodeId: "source-instance-id") to examine the source instance structure
+- Use get_nodes_info(nodeIds: ["source-instance-id"]) to examine the source instance structure
 - Use get_nodes_info(nodeIds: [...]) to batch-inspect multiple instances
 - Use search_nodes(nodeId: "source-instance-id", types: ["TEXT"], includeText: true) to capture all text content
 
