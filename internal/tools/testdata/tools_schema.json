@@ -1274,7 +1274,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Get the prototype reactions defined on a node. Returns an array of reaction objects — each has a trigger (e.g. ON_CLICK, ON_HOVER, AFTER_TIMEOUT) and an actions array (navigate to node, open URL, go back, etc.). Use set_reactions to add or replace reactions, remove_reactions to delete them.",
+    "description": "Get the prototype reactions defined on a node. Returns an array of reaction objects — each has a trigger (e.g. ON_CLICK, ON_HOVER, AFTER_TIMEOUT) and an actions array (navigate to node, open URL, go back, etc.). Use set_reactions to add or replace them, or set_reactions with removeIndices to delete them.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -1705,35 +1705,6 @@
       "type": "object"
     },
     "name": "outline_stroke"
-  },
-  "remove_reactions": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Remove prototype reactions from a node. Omit indices to remove all reactions. Provide a zero-based indices array to remove specific reactions (use get_reactions first to see current indices).",
-    "inputSchema": {
-      "properties": {
-        "indices": {
-          "description": "Zero-based indices of reactions to remove. Omit or pass [] to remove all.",
-          "items": {
-            "type": "number"
-          },
-          "type": "array"
-        },
-        "nodeId": {
-          "description": "Node ID in colon format e.g. '4029:12345'",
-          "type": "string"
-        }
-      },
-      "required": [
-        "nodeId"
-      ],
-      "type": "object"
-    },
-    "name": "remove_reactions"
   },
   "reparent_nodes": {
     "annotations": {
@@ -2497,7 +2468,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Set prototype reactions on a node. Use mode \"replace\" (default) to overwrite all reactions, or \"append\" to add to existing ones.\n\nSupported triggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT, MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN\nSupported action types: NODE (navigation), BACK, CLOSE, URL\n  NODE navigation values: NAVIGATE, OVERLAY, SCROLL_TO, SWAP, CHANGE_TO\nTransition types: DISSOLVE, SMART_ANIMATE, MOVE_IN, MOVE_OUT, PUSH, SLIDE_IN, SLIDE_OUT\n  DISSOLVE / SMART_ANIMATE: {\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}}\n  Directional (PUSH, MOVE_IN, MOVE_OUT, SLIDE_IN, SLIDE_OUT): also require \"direction\" (LEFT|RIGHT|TOP|BOTTOM) and \"matchLayers\" (bool):\n    {\"type\":\"PUSH\",\"direction\":\"LEFT\",\"matchLayers\":false,\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}}\n\nEach reaction has a \"trigger\" and an \"actions\" array (plural). Each action in the array is an Action object.\n\nExample — on-click navigate with dissolve:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}\n\nExample — on-click navigate with push (directional transition):\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"PUSH\",\"direction\":\"LEFT\",\"matchLayers\":false,\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}\n\nExample — open URL on hover:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_HOVER\"},\"actions\":[{\"type\":\"URL\",\"url\":\"https://example.com\"}]}]}\n\nExample — auto-advance after 3 seconds:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"AFTER_TIMEOUT\",\"timeout\":3000},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:4\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}\n\nExample — go back on click:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"BACK\"}]}]}",
+    "description": "Set or remove prototype reactions on a node. Use mode \"replace\" (default) to overwrite all reactions, or \"append\" to add to existing ones.\n\nTo remove instead, pass removeIndices rather than reactions: a zero-based list of the reactions to drop (get_reactions first to see the indices), or an empty array to remove them all.\n\nSupported triggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT, MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN\nSupported action types: NODE (navigation), BACK, CLOSE, URL\n  NODE navigation values: NAVIGATE, OVERLAY, SCROLL_TO, SWAP, CHANGE_TO\nTransition types: DISSOLVE, SMART_ANIMATE, MOVE_IN, MOVE_OUT, PUSH, SLIDE_IN, SLIDE_OUT\n  DISSOLVE / SMART_ANIMATE: {\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}}\n  Directional (PUSH, MOVE_IN, MOVE_OUT, SLIDE_IN, SLIDE_OUT): also require \"direction\" (LEFT|RIGHT|TOP|BOTTOM) and \"matchLayers\" (bool):\n    {\"type\":\"PUSH\",\"direction\":\"LEFT\",\"matchLayers\":false,\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}}\n\nEach reaction has a \"trigger\" and an \"actions\" array (plural). Each action in the array is an Action object.\n\nExample — on-click navigate with dissolve:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}\n\nExample — on-click navigate with push (directional transition):\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"PUSH\",\"direction\":\"LEFT\",\"matchLayers\":false,\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}\n\nExample — open URL on hover:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_HOVER\"},\"actions\":[{\"type\":\"URL\",\"url\":\"https://example.com\"}]}]}\n\nExample — auto-advance after 3 seconds:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"AFTER_TIMEOUT\",\"timeout\":3000},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:4\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}\n\nExample — go back on click:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"BACK\"}]}]}",
     "inputSchema": {
       "properties": {
         "mode": {
@@ -2514,11 +2485,17 @@
             "type": "object"
           },
           "type": "array"
+        },
+        "removeIndices": {
+          "description": "Zero-based indices of the reactions to remove. An empty array removes all of them. Cannot be combined with reactions.",
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
         }
       },
       "required": [
-        "nodeId",
-        "reactions"
+        "nodeId"
       ],
       "type": "object"
     },

@@ -105,17 +105,17 @@ describe("set_reactions", () => {
   });
 });
 
-// ── remove_reactions ──────────────────────────────────────────────────────────
+// ── set_reactions: the removal it absorbed ────────────────────────────────────
 
-describe("remove_reactions", () => {
-  it("removes all reactions when indices omitted", async () => {
+describe("set_reactions with removeIndices", () => {
+  it("removes every reaction when removeIndices is empty", async () => {
     let stored: any[] = [clickNavigate, { trigger: { type: "ON_HOVER" }, action: { type: "BACK" } }];
     mockNodes["1:2"] = {
       id: "1:2", name: "Button", reactions: stored,
       setReactionsAsync: async (r: any[]) => { stored = r; mockNodes["1:2"].reactions = r; },
     };
 
-    const res = await handleWritePrototypeRequest(makeRequest("remove_reactions", ["1:2"], {}));
+    const res = await handleWritePrototypeRequest(makeRequest("set_reactions", ["1:2"], { removeIndices: [] }));
 
     expect(mockNodes["1:2"].reactions).toHaveLength(0);
     expect(res?.data.removed).toBe(2);
@@ -123,7 +123,7 @@ describe("remove_reactions", () => {
     expect(commitUndoCalled).toBe(true);
   });
 
-  it("removes all reactions when indices is empty array", async () => {
+  it("ignores an index past the end rather than throwing", async () => {
     let stored: any[] = [clickNavigate];
     mockNodes["1:2"] = {
       id: "1:2", name: "Button", reactions: stored,
@@ -131,11 +131,28 @@ describe("remove_reactions", () => {
     };
 
     const res = await handleWritePrototypeRequest(
-      makeRequest("remove_reactions", ["1:2"], { indices: [] })
+      makeRequest("set_reactions", ["1:2"], { removeIndices: [7] })
     );
 
-    expect(mockNodes["1:2"].reactions).toHaveLength(0);
-    expect(res?.data.removed).toBe(1);
+    expect(mockNodes["1:2"].reactions).toHaveLength(1);
+    expect(res?.data.removed).toBe(0);
+  });
+
+  // The response says `removed` only when something was being removed, so a
+  // caller can tell which half of the tool answered it.
+  it("says nothing about removed when it is setting reactions", async () => {
+    let stored: any[] = [];
+    mockNodes["1:2"] = {
+      id: "1:2", name: "Button", reactions: stored,
+      setReactionsAsync: async (r: any[]) => { stored = r; mockNodes["1:2"].reactions = r; },
+    };
+
+    const res = await handleWritePrototypeRequest(
+      makeRequest("set_reactions", ["1:2"], { reactions: [clickNavigate] })
+    );
+
+    expect(res?.data.reactionCount).toBe(1);
+    expect(res?.data.removed).toBeUndefined();
   });
 
   it("removes only specified indices, keeps others", async () => {
@@ -149,7 +166,7 @@ describe("remove_reactions", () => {
     };
 
     const res = await handleWritePrototypeRequest(
-      makeRequest("remove_reactions", ["1:2"], { indices: [0, 2] })
+      makeRequest("set_reactions", ["1:2"], { removeIndices: [0, 2] })
     );
 
     expect(mockNodes["1:2"].reactions).toHaveLength(1);
@@ -161,20 +178,20 @@ describe("remove_reactions", () => {
 
   it("throws when node not found", async () => {
     await expect(
-      handleWritePrototypeRequest(makeRequest("remove_reactions", ["9:9"], {}))
+      handleWritePrototypeRequest(makeRequest("set_reactions", ["9:9"], { removeIndices: [] }))
     ).rejects.toThrow("Node not found: 9:9");
   });
 
   it("throws when node does not support reactions", async () => {
     mockNodes["1:2"] = { id: "1:2", name: "Document" };
     await expect(
-      handleWritePrototypeRequest(makeRequest("remove_reactions", ["1:2"], {}))
+      handleWritePrototypeRequest(makeRequest("set_reactions", ["1:2"], { removeIndices: [] }))
     ).rejects.toThrow("does not support reactions");
   });
 
   it("throws when nodeId is missing", async () => {
     await expect(
-      handleWritePrototypeRequest(makeRequest("remove_reactions", [], {}))
+      handleWritePrototypeRequest(makeRequest("set_reactions", [], { removeIndices: [] }))
     ).rejects.toThrow("nodeId is required");
   });
 });

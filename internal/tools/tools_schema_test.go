@@ -154,7 +154,6 @@ var expectedTools = []string{
 	"manage_page",
 	"manage_plugin_data",
 	"outline_stroke",
-	"remove_reactions",
 	"reparent_nodes",
 	"save_screenshots",
 	"save_version_checkpoint",

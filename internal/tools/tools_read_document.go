@@ -78,7 +78,7 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name:       "get_reactions",
-		Desc:       "Get the prototype reactions defined on a node. Returns an array of reaction objects — each has a trigger (e.g. ON_CLICK, ON_HOVER, AFTER_TIMEOUT) and an actions array (navigate to node, open URL, go back, etc.). Use set_reactions to add or replace reactions, remove_reactions to delete them.",
+		Desc:       "Get the prototype reactions defined on a node. Returns an array of reaction objects — each has a trigger (e.g. ON_CLICK, ON_HOVER, AFTER_TIMEOUT) and an actions array (navigate to node, open URL, go back, etc.). Use set_reactions to add or replace them, or set_reactions with removeIndices to delete them.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",

@@ -111,10 +111,10 @@ func TestToolWireShape(t *testing.T) {
 			// An empty array means "remove them all" and is not the same as
 			// omitting the argument.
 			name:        "empty indices removes every reaction",
-			tool:        "remove_reactions",
-			args:        map[string]any{"nodeId": "1:1", "indices": []any{}},
+			tool:        "set_reactions",
+			args:        map[string]any{"nodeId": "1:1", "removeIndices": []any{}},
 			wantNodeIDs: []string{"1:1"},
-			wantParams:  map[string]any{"indices": []any{}},
+			wantParams:  map[string]any{"removeIndices": []any{}},
 		},
 		{
 			// Empty clears every effect on the node, so the array has to be

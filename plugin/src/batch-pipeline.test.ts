@@ -726,7 +726,6 @@ const KEEPS_EXISTING_NODES = [
   'manage_page',
   'manage_plugin_data',
   'outline_stroke',
-  'remove_reactions',
   'reparent_nodes',
   'save_version_checkpoint',
   'set_annotations',

@@ -722,30 +722,49 @@ func TestValidateRPC_SetReactions(t *testing.T) {
 	}
 }
 
-// ── remove_reactions ──────────────────────────────────────────────────────────
+// ── set_reactions: the removal it absorbed ───────────────────────────────────
 
-func TestValidateRPC_RemoveReactions(t *testing.T) {
+func TestValidateRPC_SetReactions_RemoveIndices(t *testing.T) {
 	// missing nodeId
-	if msg := ValidateRPC("remove_reactions", nil, map[string]any{}); msg == "" {
+	if msg := ValidateRPC("set_reactions", nil, map[string]any{"removeIndices": []any{}}); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
 	// bad nodeId format
-	if msg := ValidateRPC("remove_reactions", []string{"1-2"}, map[string]any{}); msg == "" {
+	if msg := ValidateRPC("set_reactions", []string{"1-2"}, map[string]any{"removeIndices": []any{}}); msg == "" {
 		t.Error("expected error for bad nodeId format")
 	}
-	// non-number in indices
-	if msg := ValidateRPC("remove_reactions", []string{"1:2"}, map[string]any{
-		"indices": []any{"zero"},
+	// neither argument leaves the call with nothing to do
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{}); msg == "" {
+		t.Error("expected error when neither reactions nor removeIndices is given")
+	}
+	// both at once: an empty removeIndices means "remove all", so a call
+	// carrying reactions too is ambiguous in the worst direction
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+		"reactions": []any{}, "removeIndices": []any{},
+	}); msg == "" {
+		t.Error("expected reactions + removeIndices to be rejected")
+	}
+	// non-number in removeIndices
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+		"removeIndices": []any{"zero"},
 	}); msg == "" {
 		t.Error("expected error for non-number index")
 	}
-	// valid with no indices (remove all)
-	if msg := ValidateRPC("remove_reactions", []string{"1:2"}, map[string]any{}); msg != "" {
+	// negative index
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+		"removeIndices": []any{float64(-1)},
+	}); msg == "" {
+		t.Error("expected error for a negative index")
+	}
+	// empty means remove all — valid, and not the same as omitting it
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+		"removeIndices": []any{},
+	}); msg != "" {
 		t.Errorf("unexpected error for remove all: %s", msg)
 	}
 	// valid with numeric indices
-	if msg := ValidateRPC("remove_reactions", []string{"1:2"}, map[string]any{
-		"indices": []any{float64(0), float64(2)},
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+		"removeIndices": []any{float64(0), float64(2)},
 	}); msg != "" {
 		t.Errorf("unexpected error for valid indices: %s", msg)
 	}

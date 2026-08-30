@@ -31,6 +31,9 @@ async function setReactions(node: any, reactions: Reaction[]): Promise<void> {
 }
 
 export const writePrototypeHandlers: HandlerMap = {
+  // Absorbed remove_reactions. Removing everything is set_reactions(replace, [])
+  // already, but removing #1 and #3 by index had no expression short of a
+  // get→filter→set round trip — so removeIndices is what came across.
   "set_reactions": async (request) => {
     const p = request.params || {};
     const nodeId = request.nodeIds && request.nodeIds[0];
@@ -39,44 +42,27 @@ export const writePrototypeHandlers: HandlerMap = {
     if (!node) throw new Error(`Node not found: ${nodeId}`);
     if (!("reactions" in node)) throw new Error(`Node ${nodeId} does not support reactions`);
 
-    const incoming: Reaction[] = parseArray(p.reactions).map(buildReaction);
     const current: Reaction[] = (node as any).reactions;
-    const final = p.mode === "append" ? [...current, ...incoming] : incoming;
+    let final: Reaction[];
+    let removing = false;
 
-    await setReactions(node, final);
-    figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: (node as any).name, reactionCount: final.length },
-    };
-  },
-
-  "remove_reactions": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    if (!("reactions" in node)) throw new Error(`Node ${nodeId} does not support reactions`);
-
-    const current: Reaction[] = (node as any).reactions;
-    let updated: Reaction[];
-    if (p.indices == null) {
-      // indices not provided → remove all
-      updated = [];
-    } else {
-      const indices = parseArray(p.indices);
+    if (p.removeIndices !== undefined) {
+      removing = true;
+      const indices = parseArray(p.removeIndices);
+      // An empty array means remove everything, not remove nothing. That is
+      // what remove_reactions did, and it is easy to invert in a rewrite.
       if (indices.length === 0) {
-        // indices provided but empty → remove all
-        updated = [];
+        final = [];
       } else {
         const toRemove = new Set<number>(indices);
-        updated = current.filter((_: any, i: number) => !toRemove.has(i));
+        final = current.filter((_: any, i: number) => !toRemove.has(i));
       }
+    } else {
+      const incoming: Reaction[] = parseArray(p.reactions).map(buildReaction);
+      final = p.mode === "append" ? [...current, ...incoming] : incoming;
     }
 
-    await setReactions(node, updated);
+    await setReactions(node, final);
     figma.commitUndo();
     return {
       type: request.type,
@@ -84,8 +70,8 @@ export const writePrototypeHandlers: HandlerMap = {
       data: {
         id: node.id,
         name: (node as any).name,
-        removed: current.length - updated.length,
-        reactionCount: updated.length,
+        reactionCount: final.length,
+        ...(removing ? { removed: current.length - final.length } : {}),
       },
     };
   },
