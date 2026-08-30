@@ -1,8 +1,10 @@
 // Dev Mode codegen.
 //
-// The manifest has always declared `capabilities: ["inspect"]` without ever
-// registering a codegen provider, so Dev Mode's Code panel showed Figma's
-// generic output and nothing this project knows.
+// The manifest declared `capabilities: ["inspect"]` without ever registering a
+// codegen provider, so Dev Mode's Code panel showed Figma's generic output and
+// nothing this project knows. Registering the provider needs `"codegen"` in
+// capabilities as well — without it Figma never runs the plugin in codegen
+// mode, and rejects `codegenPreferences` in the manifest while it is at it.
 //
 // Live generation on demand would mean the panel asking the MCP client for a
 // completion mid-render — a second request direction through the bridge, plus

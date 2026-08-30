@@ -11,7 +11,7 @@
   },
   "documentAccess": "dynamic-page",
   "editorType": ["figma", "figjam", "slides", "dev"],
-  "capabilities": ["inspect"],
+  "capabilities": ["codegen", "inspect"],
   "codegenPreferences": [
     {
       "itemType": "select",
