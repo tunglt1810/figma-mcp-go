@@ -244,27 +244,17 @@ var writeModifySpecs = []toolSpec{
 		},
 	},
 	{
-		Name:       "set_auto_layout",
-		Desc:       "Set or update auto-layout (flex) properties on an existing frame, component, component set, or instance. Covers the frame's own layout (direction, padding, gap, alignment) and how it sizes itself — use layoutSizingHorizontal/layoutSizingVertical for HUG and FILL, with minWidth/maxWidth/minHeight/maxHeight to bound them. layoutPositioning, layoutAlign, and layoutGrow describe how this node sits inside its parent's auto layout instead.",
-		NodeIDs:    nodeIDsSingle,
-		NodeIDsReq: true,
-		NodeIDDesc: "Frame, component, component set, or instance node ID in colon format e.g. '4029:12345'",
-		Params:     autoLayoutParams(),
-	},
-	{
-		Name: "set_layout_sizing",
-		Desc: "Set how nodes size themselves inside auto layout, across several nodes at once. " +
-			"layoutSizingHorizontal/layoutSizingVertical give FIXED, HUG, or FILL; minWidth/maxWidth/minHeight/maxHeight bound them; " +
-			"layoutAlign, layoutGrow, and layoutPositioning describe how the node sits in its PARENT's auto layout. " +
-			"set_auto_layout does the same for one node alongside the frame's own layout — use this one when the same sizing goes on a row of siblings.",
+		Name: "set_auto_layout",
+		Desc: "Set or update auto-layout (flex) properties on frames, components, component sets, or instances. " +
+			"Covers the frame's own layout (direction, padding, gap, alignment) and how it sizes itself — " +
+			"use layoutSizingHorizontal/layoutSizingVertical for HUG and FILL, with minWidth/maxWidth/minHeight/maxHeight to bound them. " +
+			"layoutPositioning, layoutAlign, and layoutGrow describe how a node sits inside its parent's auto layout instead — " +
+			"pass several node IDs to put the same sizing on a whole row of siblings in one call. " +
+			"Each node reports its own outcome, so a sibling that cannot take the change does not stop the others.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345', '4029:67890']",
-		Params:     layoutSizingParams(),
-		Validate: requireAnyOf(
-			"at least one of layoutSizingHorizontal, layoutSizingVertical, minWidth, maxWidth, minHeight, maxHeight, layoutAlign, layoutGrow, or layoutPositioning is required",
-			layoutSizingParamNames...,
-		),
+		NodeIDDesc: "Frame, component, component set, or instance node IDs in colon format e.g. ['4029:12345', '4029:67890']",
+		Params:     autoLayoutParams(),
 	},
 	{
 		Name:       "set_node_properties",

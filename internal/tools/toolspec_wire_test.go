@@ -103,7 +103,7 @@ func TestToolWireShape(t *testing.T) {
 			// included; only declared parameters should reach the plugin now.
 			name:        "node id is not repeated in params",
 			tool:        "set_auto_layout",
-			args:        map[string]any{"nodeId": "1:1", "layoutMode": "VERTICAL", "itemSpacing": 8},
+			args:        map[string]any{"nodeIds": []any{"1:1"}, "layoutMode": "VERTICAL", "itemSpacing": 8},
 			wantNodeIDs: []string{"1:1"},
 			wantParams:  map[string]any{"layoutMode": "VERTICAL", "itemSpacing": float64(8)},
 		},

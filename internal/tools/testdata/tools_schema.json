@@ -2124,7 +2124,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Set or update auto-layout (flex) properties on an existing frame, component, component set, or instance. Covers the frame's own layout (direction, padding, gap, alignment) and how it sizes itself — use layoutSizingHorizontal/layoutSizingVertical for HUG and FILL, with minWidth/maxWidth/minHeight/maxHeight to bound them. layoutPositioning, layoutAlign, and layoutGrow describe how this node sits inside its parent's auto layout instead.",
+    "description": "Set or update auto-layout (flex) properties on frames, components, component sets, or instances. Covers the frame's own layout (direction, padding, gap, alignment) and how it sizes itself — use layoutSizingHorizontal/layoutSizingVertical for HUG and FILL, with minWidth/maxWidth/minHeight/maxHeight to bound them. layoutPositioning, layoutAlign, and layoutGrow describe how a node sits inside its parent's auto layout instead — pass several node IDs to put the same sizing on a whole row of siblings in one call. Each node reports its own outcome, so a sibling that cannot take the change does not stop the others.",
     "inputSchema": {
       "properties": {
         "clipsContent": {
@@ -2195,9 +2195,12 @@
           "description": "Minimum width in pixels; pass null to clear it",
           "type": "number"
         },
-        "nodeId": {
-          "description": "Frame, component, component set, or instance node ID in colon format e.g. '4029:12345'",
-          "type": "string"
+        "nodeIds": {
+          "description": "Frame, component, component set, or instance node IDs in colon format e.g. ['4029:12345', '4029:67890']",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "paddingBottom": {
           "description": "Auto-layout bottom padding",
@@ -2229,7 +2232,7 @@
         }
       },
       "required": [
-        "nodeId"
+        "nodeIds"
       ],
       "type": "object"
     },
@@ -2547,67 +2550,6 @@
       "type": "object"
     },
     "name": "set_layout_grids"
-  },
-  "set_layout_sizing": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Set how nodes size themselves inside auto layout, across several nodes at once. layoutSizingHorizontal/layoutSizingVertical give FIXED, HUG, or FILL; minWidth/maxWidth/minHeight/maxHeight bound them; layoutAlign, layoutGrow, and layoutPositioning describe how the node sits in its PARENT's auto layout. set_auto_layout does the same for one node alongside the frame's own layout — use this one when the same sizing goes on a row of siblings.",
-    "inputSchema": {
-      "properties": {
-        "layoutAlign": {
-          "description": "Cross-axis alignment of this node within its PARENT's auto layout",
-          "type": "string"
-        },
-        "layoutGrow": {
-          "description": "Whether this node grows along its PARENT's main axis: 0 to keep its size, 1 to fill the free space",
-          "type": "number"
-        },
-        "layoutPositioning": {
-          "description": "How this node sits in its PARENT's auto layout: AUTO to flow with its siblings, ABSOLUTE to float free of them at its own x/y",
-          "type": "string"
-        },
-        "layoutSizingHorizontal": {
-          "description": "Horizontal sizing: FIXED, HUG (shrink to contents), or FILL (fill the parent). Prefer this over counterAxisSizingMode/primaryAxisSizingMode — it is the only way to express 'fill container'. HUG needs auto-layout on this node; FILL needs auto-layout on its parent.",
-          "type": "string"
-        },
-        "layoutSizingVertical": {
-          "description": "Vertical sizing: FIXED, HUG (shrink to contents), or FILL (fill the parent). Same requirements as layoutSizingHorizontal.",
-          "type": "string"
-        },
-        "maxHeight": {
-          "description": "Maximum height in pixels; pass null to clear it",
-          "type": "number"
-        },
-        "maxWidth": {
-          "description": "Maximum width in pixels; pass null to clear it",
-          "type": "number"
-        },
-        "minHeight": {
-          "description": "Minimum height in pixels; pass null to clear it",
-          "type": "number"
-        },
-        "minWidth": {
-          "description": "Minimum width in pixels; pass null to clear it",
-          "type": "number"
-        },
-        "nodeIds": {
-          "description": "Node IDs in colon format e.g. ['4029:12345', '4029:67890']",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "nodeIds"
-      ],
-      "type": "object"
-    },
-    "name": "set_layout_sizing"
   },
   "set_node_properties": {
     "annotations": {

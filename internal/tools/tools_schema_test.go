@@ -169,7 +169,6 @@ var expectedTools = []string{
 	"search_nodes",
 	"set_annotations",
 	"set_layout_grids",
-	"set_layout_sizing",
 	"set_node_properties",
 	"set_paint",
 	"set_auto_layout",

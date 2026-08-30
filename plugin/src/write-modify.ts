@@ -118,14 +118,6 @@ const applyParagraphProperties = (node: any, p: any) => {
   if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
 };
 
-// The properties set_layout_sizing accepts, mirroring layoutSizingParamNames in
-// internal/tools/tools_write_create.go. The contract test pins the pair.
-const LAYOUT_SIZING_KEYS = [
-  "layoutSizingHorizontal", "layoutSizingVertical",
-  "minWidth", "maxWidth", "minHeight", "maxHeight",
-  "layoutPositioning", "layoutAlign", "layoutGrow",
-];
-
 export const writeModifyHandlers: HandlerMap = {
   "set_paint": async (request) => {
   const { target = "fill", type, ...rest } = request.params || {};
@@ -377,53 +369,34 @@ export const writeModifyHandlers: HandlerMap = {
     return { type: request.type, requestId: request.requestId, data: { results } };
   },
 
+  // Absorbed set_layout_sizing, which was these same arguments over many nodes.
+  // A row of siblings that should all FILL is the case that made the plural form
+  // worth having: one round trip per sibling was the alternative.
   "set_auto_layout": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    // Components, component sets and instances carry auto layout too, and the
-    // FRAME-only check used to turn a perfectly valid call on a component into
-    // an error. Ask for the property instead of the type.
-    if (!("layoutMode" in node)) {
-      throw new Error(
-        `Node ${nodeId} is a ${node.type} and does not support auto layout — expected a FRAME, COMPONENT, COMPONENT_SET, or INSTANCE`,
-      );
-    }
-    applyAutoLayout(node as any, p);
-    figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name },
-    };
-  },
-
-  // The sizing half of set_auto_layout, over many nodes. A row of siblings that
-  // should all FILL is the case that made this worth its own tool: doing it
-  // through set_auto_layout meant one round trip per sibling.
-  "set_layout_sizing": async (request) => {
     const p = request.params || {};
     const nodeIds = request.nodeIds || [];
     if (nodeIds.length === 0) throw new Error("nodeIds is required");
-    if (!LAYOUT_SIZING_KEYS.some(key => p[key] !== undefined)) {
-      throw new Error(`at least one property is required: ${LAYOUT_SIZING_KEYS.join(", ")}`);
-    }
-    // Only the keys this tool owns are forwarded. applyAutoLayout reads the
-    // whole auto-layout vocabulary, and passing the params straight through
-    // would let an argument the schema rejects arrive anyway through a batch.
-    const sizing: any = {};
-    for (const key of LAYOUT_SIZING_KEYS) {
-      if (p[key] !== undefined) sizing[key] = p[key];
-    }
 
     const results: any[] = [];
     for (const nid of nodeIds) {
       const n = await figma.getNodeByIdAsync(nid) as any;
       if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      // Components, component sets and instances carry auto layout too, and the
+      // FRAME-only check used to turn a perfectly valid call on a component into
+      // an error. Ask for the property instead of the type.
+      //
+      // layoutMode is the frame's own layout; a node that only sizes itself
+      // inside its parent's layout does not have it, and that is what the
+      // layoutSizing/layoutAlign/layoutGrow arguments are for.
+      if (!("layoutMode" in n) && !("layoutSizingHorizontal" in n)) {
+        results.push({
+          nodeId: nid,
+          error: `Node ${nid} is a ${n.type} and does not support auto layout — expected a FRAME, COMPONENT, COMPONENT_SET, or INSTANCE`,
+        });
+        continue;
+      }
       try {
-        applyAutoLayout(n, sizing);
+        applyAutoLayout(n, p);
         results.push({
           nodeId: nid,
           name: n.name,

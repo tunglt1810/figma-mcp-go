@@ -304,7 +304,8 @@ func TestHandlers_WriteModifyTools(t *testing.T) {
 	callTool(t, s, "clone_node", map[string]any{"nodeId": "1:1", "x": float64(50), "y": float64(50), "parentId": "2:2"})
 	callTool(t, s, "clone_node", map[string]any{"nodeId": "1:1"}) // minimal
 
-	callTool(t, s, "set_auto_layout", map[string]any{"nodeId": "1:1", "layoutMode": "HORIZONTAL"})
+	callTool(t, s, "set_auto_layout", map[string]any{"nodeIds": []any{"1:1"}, "layoutMode": "HORIZONTAL"})
+	callTool(t, s, "set_auto_layout", map[string]any{"nodeIds": []any{"1:1", "2:2"}, "layoutSizingHorizontal": "FILL"})
 
 	callTool(t, s, "delete_nodes", map[string]any{"nodeIds": []any{"1:1", "2:2"}})
 }

@@ -741,7 +741,6 @@ const KEEPS_EXISTING_NODES = [
   'set_export_settings',
   'set_instance_overrides',
   'set_layout_grids',
-  'set_layout_sizing',
   'set_node_properties',
   'set_paint',
   'set_reactions',

@@ -111,6 +111,83 @@ describe("reparent_nodes", () => {
   });
 });
 
+// ── set_auto_layout ───────────────────────────────────────────────────────────
+
+// It absorbed set_layout_sizing, so putting one sizing on a row of siblings has
+// to stay a single call — that was the whole reason the plural tool existed.
+describe("set_auto_layout", () => {
+  const sizeableNode = (id: string) => ({
+    id,
+    name: `Node ${id}`,
+    type: "FRAME",
+    layoutMode: "NONE",
+    layoutSizingHorizontal: "FIXED",
+    layoutSizingVertical: "FIXED",
+  });
+
+  it("applies the same sizing to several nodes in one undo entry", async () => {
+    mockNodes["1:1"] = sizeableNode("1:1");
+    mockNodes["1:2"] = sizeableNode("1:2");
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_auto_layout", ["1:1", "1:2"], { layoutSizingHorizontal: "FILL" }),
+    );
+    expect(res?.data.results.map((r: any) => r.nodeId)).toEqual(["1:1", "1:2"]);
+    expect(mockNodes["1:1"].layoutSizingHorizontal).toBe("FILL");
+    expect(mockNodes["1:2"].layoutSizingHorizontal).toBe("FILL");
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  it("still sets the frame's own layout", async () => {
+    mockNodes["1:1"] = sizeableNode("1:1");
+    await handleWriteModifyRequest(
+      makeRequest("set_auto_layout", ["1:1"], { layoutMode: "HORIZONTAL", itemSpacing: 8 }),
+    );
+    expect(mockNodes["1:1"].layoutMode).toBe("HORIZONTAL");
+    expect(mockNodes["1:1"].itemSpacing).toBe(8);
+  });
+
+  // One sibling that cannot FILL — its parent has no auto layout — must not
+  // take the siblings that could down with it.
+  it("reports a node that throws against itself, leaving the others applied", async () => {
+    mockNodes["1:1"] = sizeableNode("1:1");
+    mockNodes["1:2"] = {
+      ...sizeableNode("1:2"),
+      set layoutSizingHorizontal(_v: string) {
+        throw new Error("Cannot set layoutSizingHorizontal on a node whose parent has no auto layout");
+      },
+      get layoutSizingHorizontal() { return "FIXED"; },
+    };
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_auto_layout", ["1:1", "1:2"], { layoutSizingHorizontal: "FILL" }),
+    );
+    expect(mockNodes["1:1"].layoutSizingHorizontal).toBe("FILL");
+    expect(res?.data.results[1].error).toContain("no auto layout");
+  });
+
+  it("reports a node type that has no auto layout at all", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Slice", type: "SLICE" };
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_auto_layout", ["1:1"], { layoutMode: "VERTICAL" }),
+    );
+    expect(res?.data.results[0].error).toContain("does not support auto layout");
+  });
+
+  it("reports a missing node per node rather than failing the call", async () => {
+    mockNodes["1:1"] = sizeableNode("1:1");
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_auto_layout", ["9:9", "1:1"], { layoutSizingVertical: "HUG" }),
+    );
+    expect(res?.data.results[0].error).toBe("Node not found");
+    expect(mockNodes["1:1"].layoutSizingVertical).toBe("HUG");
+  });
+
+  it("throws when no node ids are given", async () => {
+    await expect(
+      handleWriteModifyRequest(makeRequest("set_auto_layout", [], { layoutMode: "VERTICAL" })),
+    ).rejects.toThrow("nodeIds is required");
+  });
+});
+
 // ── batch_rename_nodes ────────────────────────────────────────────────────────
 
 describe("batch_rename_nodes", () => {
