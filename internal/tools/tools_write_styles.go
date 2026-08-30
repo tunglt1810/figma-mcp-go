@@ -10,7 +10,7 @@ var effectTypes = []string{"DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGRO
 
 // nodeEffectTypes covers Figma's whole Effect union apart from SHADER, which needs a
 // shader imported by id before it can be applied and so cannot come from parameters.
-// get_node reports all of these, so set_effects has to accept them back.
+// get_nodes_info reports all of these, so set_effects has to accept them back.
 var nodeEffectTypes = []string{
 	"DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR",
 	"NOISE", "TEXTURE", "GLASS",
@@ -123,7 +123,7 @@ var writeStyleSpecs = []toolSpec{
 	},
 	{
 		Name:       "set_effects",
-		Desc:       "Apply one or more effects directly to a node. Replaces all existing effects. Pass an empty array to clear all effects. The shape matches what get_node reports under styles.effects, so effects can be read off one node and written to another unchanged.",
+		Desc:       "Apply one or more effects directly to a node. Replaces all existing effects. Pass an empty array to clear all effects. The shape matches what get_nodes_info reports under styles.effects, so effects can be read off one node and written to another unchanged.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Target node ID in colon format e.g. 4029:12345",

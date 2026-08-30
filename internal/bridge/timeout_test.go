@@ -6,7 +6,7 @@ import (
 )
 
 func TestTimeoutFor(t *testing.T) {
-	if got := TimeoutFor("get_node"); got != defaultToolTimeout {
+	if got := TimeoutFor("get_nodes_info"); got != defaultToolTimeout {
 		t.Errorf("TimeoutFor(get_node) = %s, want the default %s", got, defaultToolTimeout)
 	}
 	for tool, want := range toolTimeouts {
@@ -27,7 +27,7 @@ func TestFollowerDeadline_OutlastsTheLeader(t *testing.T) {
 			t.Errorf("follower deadline for %s = %s, must exceed the leader's %s", tool, got, leader)
 		}
 	}
-	if got := FollowerTimeoutFor("get_node"); got <= defaultToolTimeout {
+	if got := FollowerTimeoutFor("get_nodes_info"); got <= defaultToolTimeout {
 		t.Errorf("follower default deadline = %s, must exceed the leader's %s", got, defaultToolTimeout)
 	}
 }

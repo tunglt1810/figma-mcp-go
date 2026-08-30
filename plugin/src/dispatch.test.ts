@@ -15,8 +15,8 @@ describe("mergeHandlers", () => {
   });
 
   it("throws on a duplicate name, naming it", () => {
-    expect(() => mergeHandlers({ get_node: noop }, { get_node: noop }))
-      .toThrow(/Duplicate plugin handler for request type: get_node/);
+    expect(() => mergeHandlers({ get_nodes_info: noop }, { get_nodes_info: noop }))
+      .toThrow(/Duplicate plugin handler for request type: get_nodes_info/);
   });
 });
 
@@ -34,7 +34,7 @@ describe("the real handler maps", () => {
     // A write request used to traverse three read switches before reaching its
     // own module. Now it is a property access.
     expect(writeHandlers["set_paint"]).toBeTypeOf("function");
-    expect(readHandlers["get_node"]).toBeTypeOf("function");
-    expect(writeHandlers["get_node"]).toBeUndefined();
+    expect(readHandlers["get_nodes_info"]).toBeTypeOf("function");
+    expect(writeHandlers["get_nodes_info"]).toBeUndefined();
   });
 });

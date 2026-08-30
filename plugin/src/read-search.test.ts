@@ -209,6 +209,41 @@ describe("get_nodes_info", () => {
     expect(result.data.globalVars).toBeUndefined();
   });
 
+  // It absorbed get_node, whose one advantage was throwing on an id that
+  // matched nothing. Filtering such an id out in silence reads back as "that
+  // node has no content" rather than "there is no such node".
+  it("reports an id that matched nothing instead of dropping it", async () => {
+    const result = await readDocumentHandlers["get_nodes_info"]({
+      type: "get_nodes_info",
+      requestId: "r6",
+      params: {},
+      nodeIds: ["1:1", "9:9"],
+    });
+    expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:1"]);
+    expect(result.data.missing).toEqual(["9:9"]);
+  });
+
+  it("says nothing about missing when every id resolved", async () => {
+    const result = await readDocumentHandlers["get_nodes_info"]({
+      type: "get_nodes_info",
+      requestId: "r7",
+      params: {},
+      nodeIds: ["1:1"],
+    });
+    expect(result.data.missing).toBeUndefined();
+  });
+
+  it("answers with an empty nodes list when every id was wrong", async () => {
+    const result = await readDocumentHandlers["get_nodes_info"]({
+      type: "get_nodes_info",
+      requestId: "r8",
+      params: {},
+      nodeIds: ["8:8", "9:9"],
+    });
+    expect(result.data.nodes).toEqual([]);
+    expect(result.data.missing).toEqual(["8:8", "9:9"]);
+  });
+
   it("collapses a fill shared by several nodes into globalVars", async () => {
     const shared = [{ type: "SOLID", color: { r: 1, g: 0, b: 0 } }];
     nodes["1:1"].fills = shared;

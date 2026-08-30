@@ -83,19 +83,6 @@ export const readDocumentHandlers: HandlerMap = {
 
   },
 
-  "get_node": async (request) => {
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeIds is required for get_node");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node || node.type === "DOCUMENT")
-      throw new Error(`Node not found: ${nodeId}`);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: await serializeNode(node),
-    };
-  },
-
   "get_instance_overrides": async (request) => {
     const nodeId = request.nodeIds && request.nodeIds[0];
     if (!nodeId) throw new Error("nodeIds is required for get_instance_overrides");
@@ -132,11 +119,22 @@ export const readDocumentHandlers: HandlerMap = {
     const nodes = await Promise.all(
       request.nodeIds.map((id: string) => figma.getNodeByIdAsync(id)),
     );
-    const serialized = await Promise.all(
-      nodes
-        .filter((n) => n !== null && n.type !== "DOCUMENT")
-        .map((n) => serializeNode(n)),
-    );
+    // An id that resolved to nothing used to be filtered out in silence, which
+    // read back as "that node has no content" instead of "there is no such
+    // node". This absorbed get_node, whose one advantage was throwing on a bad
+    // id, so the diagnostic has to survive — per id, since the other ids in the
+    // same call still have real answers.
+    //
+    // A DOCUMENT node is not missing, it is just not serializable, so it is
+    // dropped without being reported.
+    const missing: string[] = [];
+    const found: any[] = [];
+    request.nodeIds.forEach((id: string, i: number) => {
+      const node = nodes[i];
+      if (!node) { missing.push(id); return; }
+      if (node.type !== "DOCUMENT") found.push(node);
+    });
+    const serialized = await Promise.all(found.map((n) => serializeNode(n)));
     // Fetching several nodes at once is exactly when the same fill repeats, so
     // the dedupe get_document has always done applies here too.
     //
@@ -146,6 +144,7 @@ export const readDocumentHandlers: HandlerMap = {
     const { tree, globalVars } = deduplicateStyles({ children: serialized });
     const data: any = { nodes: tree.children };
     if (globalVars) data.globalVars = globalVars;
+    if (missing.length > 0) data.missing = missing;
     return { type: request.type, requestId: request.requestId, data };
   },
 

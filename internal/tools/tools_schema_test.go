@@ -142,7 +142,6 @@ var expectedTools = []string{
 	"get_instance_overrides",
 	"get_local_components",
 	"get_metadata",
-	"get_node",
 	"get_nodes_info",
 	"get_pages",
 	"get_reactions",

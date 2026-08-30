@@ -113,7 +113,7 @@ func TestReadLoop_PluginInfoDoesNotDisturbAPendingRequest(t *testing.T) {
 		})
 	}()
 
-	got, err := b.Send(ctx, "get_node", []string{"1:1"}, nil)
+	got, err := b.Send(ctx, "get_nodes_info", []string{"1:1"}, nil)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -135,22 +135,22 @@ func TestCheckPluginSupports(t *testing.T) {
 
 	t.Run("nothing is refused before any plugin connects", func(t *testing.T) {
 		b := NewBridge("0.3.0")
-		if msg := b.checkPluginSupports("get_node"); msg != "" {
+		if msg := b.checkPluginSupports("get_nodes_info"); msg != "" {
 			t.Errorf("want no refusal, got %q", msg)
 		}
 	})
 
 	t.Run("a tool the plugin announced is allowed", func(t *testing.T) {
 		b := NewBridge("0.3.0")
-		b.setPluginInfo("0.3.0", []string{"get_node", "set_text"})
-		if msg := b.checkPluginSupports("get_node"); msg != "" {
+		b.setPluginInfo("0.3.0", []string{"get_nodes_info", "set_text"})
+		if msg := b.checkPluginSupports("get_nodes_info"); msg != "" {
 			t.Errorf("want no refusal, got %q", msg)
 		}
 	})
 
 	t.Run("a tool it did not announce is refused with a remedy", func(t *testing.T) {
 		b := NewBridge("0.4.0")
-		b.setPluginInfo("0.3.0", []string{"get_node"})
+		b.setPluginInfo("0.3.0", []string{"get_nodes_info"})
 		msg := b.checkPluginSupports("boolean_operation")
 		if msg == "" {
 			t.Fatal("want a refusal")
@@ -168,8 +168,8 @@ func TestCheckPluginSupports(t *testing.T) {
 
 	t.Run("a reconnecting plugin replaces the old capabilities", func(t *testing.T) {
 		b := NewBridge("0.4.0")
-		b.setPluginInfo("0.3.0", []string{"get_node"})
-		b.setPluginInfo("0.4.0", []string{"get_node", "boolean_operation"})
+		b.setPluginInfo("0.3.0", []string{"get_nodes_info"})
+		b.setPluginInfo("0.4.0", []string{"get_nodes_info", "boolean_operation"})
 		if msg := b.checkPluginSupports("boolean_operation"); msg != "" {
 			t.Errorf("want no refusal after the upgrade, got %q", msg)
 		}
@@ -177,7 +177,7 @@ func TestCheckPluginSupports(t *testing.T) {
 
 	t.Run("a plugin that stops announcing stops being second-guessed", func(t *testing.T) {
 		b := NewBridge("0.4.0")
-		b.setPluginInfo("0.4.0", []string{"get_node"})
+		b.setPluginInfo("0.4.0", []string{"get_nodes_info"})
 		b.setPluginInfo("0.2.0", nil)
 		if msg := b.checkPluginSupports("boolean_operation"); msg != "" {
 			t.Errorf("want no refusal, got %q", msg)
@@ -252,7 +252,7 @@ func TestSend_LeavesOtherPluginErrorsAlone(t *testing.T) {
 		})
 	}()
 
-	resp, err := b.Send(context.Background(), "get_node", []string{"1:1"}, nil)
+	resp, err := b.Send(context.Background(), "get_nodes_info", []string{"1:1"}, nil)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestSend_LeavesOtherPluginErrorsAlone(t *testing.T) {
 // The refusal must happen before a request id is spent or anything is written.
 func TestSend_RefusesAToolThePluginDoesNotHave(t *testing.T) {
 	b, clientConn := setupBridgeWithClient(t)
-	b.setPluginInfo("0.3.0", []string{"get_node"})
+	b.setPluginInfo("0.3.0", []string{"get_nodes_info"})
 
 	frames := make(chan Response, 2)
 	go func() {

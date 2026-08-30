@@ -110,7 +110,7 @@ describe("set_effects", () => {
     }))).rejects.toThrow("Unknown effect type");
   });
 
-  // Figma's Effect union covers more than shadows and blurs, and get_node reports all
+  // Figma's Effect union covers more than shadows and blurs, and get_nodes_info reports all
   // of it, so set_effects has to accept the whole set back.
 
   it("tags a plain blur with blurType NORMAL", async () => {

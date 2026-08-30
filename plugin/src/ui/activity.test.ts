@@ -9,12 +9,12 @@ import {
   startEntry,
 } from "./activity";
 
-const start = (log: ActivityEntry[], id: string, tool = "get_node", now = 0) =>
+const start = (log: ActivityEntry[], id: string, tool = "get_nodes_info", now = 0) =>
   startEntry(log, id, tool, now);
 
 describe("startEntry", () => {
   test("records the tool as running, newest first", () => {
-    let log = start([], "a", "get_node", 100);
+    let log = start([], "a", "get_nodes_info", 100);
     log = start(log, "b", "create_frame", 200);
     expect(log.map((e) => e.requestId)).toEqual(["b", "a"]);
     expect(log[0].tool).toBe("create_frame");
@@ -23,14 +23,14 @@ describe("startEntry", () => {
 
   test("caps the log", () => {
     let log: ActivityEntry[] = [];
-    for (let i = 0; i < MAX_ENTRIES + 5; i++) log = start(log, `r${i}`, "get_node", i);
+    for (let i = 0; i < MAX_ENTRIES + 5; i++) log = start(log, `r${i}`, "get_nodes_info", i);
     expect(log.length).toBe(MAX_ENTRIES);
     expect(log[0].requestId).toBe(`r${MAX_ENTRIES + 4}`);
   });
 
   test("a repeated request id replaces the old entry rather than doubling it", () => {
-    let log = start([], "a", "get_node", 100);
-    log = start(log, "a", "get_node", 300);
+    let log = start([], "a", "get_nodes_info", 100);
+    log = start(log, "a", "get_nodes_info", 300);
     expect(log.length).toBe(1);
     expect(log[0].startedAt).toBe(300);
   });
@@ -60,14 +60,14 @@ describe("progressEntry", () => {
 
 describe("finishEntry", () => {
   test("marks success and stamps the end", () => {
-    let log = start([], "a", "get_node", 100);
+    let log = start([], "a", "get_nodes_info", 100);
     log = finishEntry(log, "a", undefined, 250);
     expect(log[0].status).toBe("ok");
     expect(log[0].endedAt).toBe(250);
   });
 
   test("marks failure and keeps the error text", () => {
-    let log = start([], "a", "get_node", 100);
+    let log = start([], "a", "get_nodes_info", 100);
     log = finishEntry(log, "a", "Node not found: 1:2", 150);
     expect(log[0].status).toBe("error");
     expect(log[0].message).toBe("Node not found: 1:2");
@@ -91,7 +91,7 @@ describe("finishEntry", () => {
 describe("formatDuration", () => {
   const entry = (startedAt: number, endedAt?: number): ActivityEntry => ({
     requestId: "a",
-    tool: "get_node",
+    tool: "get_nodes_info",
     startedAt,
     endedAt,
     status: "ok",
@@ -120,12 +120,12 @@ describe("formatDuration", () => {
 
 describe("formatLog", () => {
   test("renders one line per entry, with errors spelled out", () => {
-    let log = start([], "a", "get_node", 0);
+    let log = start([], "a", "get_nodes_info", 0);
     log = finishEntry(log, "a", "Node not found", 40);
     log = start(log, "b", "create_frame", 40);
     log = finishEntry(log, "b", undefined, 90);
     expect(formatLog(log, 90)).toBe(
-      "OK  create_frame (50ms)\nERR get_node (40ms) — Node not found",
+      "OK  create_frame (50ms)\nERR get_nodes_info (40ms) — Node not found",
     );
   });
 });

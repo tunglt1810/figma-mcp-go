@@ -1263,28 +1263,6 @@
     },
     "name": "get_metadata"
   },
-  "get_node": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Get a single node by ID with full detail. Use get_nodes_info to fetch multiple nodes in one round-trip instead of calling this repeatedly. Node ID must be colon format e.g. '4029:12345', never hyphens.",
-    "inputSchema": {
-      "properties": {
-        "nodeId": {
-          "description": "Node ID in colon format e.g. '4029:12345'",
-          "type": "string"
-        }
-      },
-      "required": [
-        "nodeId"
-      ],
-      "type": "object"
-    },
-    "name": "get_node"
-  },
   "get_nodes_info": {
     "annotations": {
       "readOnlyHint": false,
@@ -1292,7 +1270,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Get full details for multiple nodes by ID in one round-trip. Prefer this over calling get_node repeatedly when you need several nodes. Answers {nodes: [...]}, plus a globalVars.styles map when a fill or stroke was shared by more than one node and collapsed to a ref.",
+    "description": "Get full details for one or more nodes by ID in one round-trip. Answers {nodes: [...]}, plus a globalVars.styles map when a fill or stroke was shared by more than one node and collapsed to a ref. An ID that matches nothing is reported under `missing` rather than dropped, so a typo cannot read as a node with no content. Node IDs must use colon format e.g. '4029:12345', never hyphens.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -1385,7 +1363,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_design_context or get_node to retrieve deeper detail about a specific node by ID.",
+    "description": "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_design_context or get_nodes_info to retrieve deeper detail about specific nodes by ID.",
     "inputSchema": {
       "properties": {
         "source": {
@@ -2337,7 +2315,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Apply one or more effects directly to a node. Replaces all existing effects. Pass an empty array to clear all effects. The shape matches what get_node reports under styles.effects, so effects can be read off one node and written to another unchanged.",
+    "description": "Apply one or more effects directly to a node. Replaces all existing effects. Pass an empty array to clear all effects. The shape matches what get_nodes_info reports under styles.effects, so effects can be read off one node and written to another unchanged.",
     "inputSchema": {
       "properties": {
         "effects": {

@@ -77,10 +77,10 @@ describe("isMutating", () => {
 
   it("a pipeline mutates when any step does", () => {
     expect(isMutating("batch_execute_pipeline", {
-      steps: [{ action: "get_node" }, { action: "set_selection" }],
+      steps: [{ action: "get_nodes_info" }, { action: "set_selection" }],
     })).toBe(false);
     expect(isMutating("batch_execute_pipeline", {
-      steps: [{ action: "get_node" }, { action: "create_frame" }],
+      steps: [{ action: "get_nodes_info" }, { action: "create_frame" }],
     })).toBe(true);
   });
 

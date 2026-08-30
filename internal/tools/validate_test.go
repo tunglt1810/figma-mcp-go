@@ -7,21 +7,6 @@ import (
 
 // ── figma.ValidNodeID ──────────────────────────────────────────────────────────────
 
-func TestValidateRPC_GetNode(t *testing.T) {
-	// missing nodeId
-	if msg := ValidateRPC("get_node", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
-	}
-	// hyphen format
-	if msg := ValidateRPC("get_node", []string{"4029-12345"}, nil); msg == "" {
-		t.Error("expected error for hyphen nodeId")
-	}
-	// valid
-	if msg := ValidateRPC("get_node", []string{"4029:12345"}, nil); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_GetNodesInfo(t *testing.T) {
 	if msg := ValidateRPC("get_nodes_info", nil, nil); msg == "" {
 		t.Error("expected error for empty nodeIds")
@@ -29,8 +14,17 @@ func TestValidateRPC_GetNodesInfo(t *testing.T) {
 	if msg := ValidateRPC("get_nodes_info", []string{"bad"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
+	// ValidateRPC is the check after normalization, so a hyphen reaching it
+	// means nothing normalized it and it is not a node id.
+	if msg := ValidateRPC("get_nodes_info", []string{"4029-12345"}, nil); msg == "" {
+		t.Error("expected error for hyphen nodeId")
+	}
 	if msg := ValidateRPC("get_nodes_info", []string{"1:1", "2:2"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
+	}
+	// This absorbed get_node, so one node is a normal call, not a degenerate one.
+	if msg := ValidateRPC("get_nodes_info", []string{"4029:12345"}, nil); msg != "" {
+		t.Errorf("a single node was rejected: %s", msg)
 	}
 }
 
@@ -878,7 +872,7 @@ func TestValidateRPC_SetEffects(t *testing.T) {
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-	// get_node reports GLASS, NOISE and TEXTURE effects, so set_effects has to take
+	// get_nodes_info reports GLASS, NOISE and TEXTURE effects, so set_effects has to take
 	// them back or effects cannot be copied from one node to another.
 	for _, kind := range []string{"NOISE", "TEXTURE", "GLASS"} {
 		if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]any{
@@ -1220,7 +1214,7 @@ func TestValidateRPC_SetPaint(t *testing.T) {
 		{"linear gradient", map[string]any{
 			"type": "GRADIENT_LINEAR", "stops": linearStops, "geometry": geometry,
 		}, ""},
-		// get_node reports a gradient's paint-level opacity, so set_paint has to
+		// get_nodes_info reports a gradient's paint-level opacity, so set_paint has to
 		// accept it back or the read cannot be written again.
 		{"gradient with opacity", map[string]any{
 			"type": "GRADIENT_RADIAL", "stops": linearStops, "geometry": geometry, "opacity": 0.6,

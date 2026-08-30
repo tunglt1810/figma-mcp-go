@@ -25,22 +25,18 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "get_selection",
-		Desc: "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_design_context or get_node to retrieve deeper detail about a specific node by ID.",
+		Desc: "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_design_context or get_nodes_info to retrieve deeper detail about specific nodes by ID.",
 		Params: []paramSpec{
 			{Name: "source", Kind: kindString, Enum: []string{"selection", "pinned"},
 				Desc: "'selection' (default) follows what is selected right now, which moves the moment the user clicks elsewhere. 'pinned' reads the set they pinned in the panel, which holds still across a conversation — prefer it when you need the same nodes over several calls."},
 		},
 	},
 	{
-		Name:       "get_node",
-		Desc:       "Get a single node by ID with full detail. Use get_nodes_info to fetch multiple nodes in one round-trip instead of calling this repeatedly. Node ID must be colon format e.g. '4029:12345', never hyphens.",
-		NodeIDs:    nodeIDsSingle,
-		NodeIDsReq: true,
-		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
-	},
-	{
-		Name:       "get_nodes_info",
-		Desc:       "Get full details for multiple nodes by ID in one round-trip. Prefer this over calling get_node repeatedly when you need several nodes. Answers {nodes: [...]}, plus a globalVars.styles map when a fill or stroke was shared by more than one node and collapsed to a ref.",
+		Name: "get_nodes_info",
+		Desc: "Get full details for one or more nodes by ID in one round-trip. " +
+			"Answers {nodes: [...]}, plus a globalVars.styles map when a fill or stroke was shared by more than one node and collapsed to a ref. " +
+			"An ID that matches nothing is reported under `missing` rather than dropped, so a typo cannot read as a node with no content. " +
+			"Node IDs must use colon format e.g. '4029:12345', never hyphens.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "List of node IDs in colon format e.g. ['4029:12345', '4029:67890']",

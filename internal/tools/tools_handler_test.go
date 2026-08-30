@@ -137,13 +137,11 @@ func TestHandlers_NoParamReadTools(t *testing.T) {
 
 // ── Read – param tools ────────────────────────────────────────────────────────
 
-func TestHandlers_GetNode(t *testing.T) {
-	s, _ := newTestServer(t)
-	callTool(t, s, "get_node", map[string]any{"nodeId": "1:1"})
-}
-
 func TestHandlers_GetNodesInfo(t *testing.T) {
 	s, _ := newTestServer(t)
+	// One node and several: this absorbed get_node, so the single-node call has
+	// to keep working through the plural argument.
+	callTool(t, s, "get_nodes_info", map[string]any{"nodeIds": []any{"1:1"}})
 	callTool(t, s, "get_nodes_info", map[string]any{"nodeIds": []string{"1:1", "2:2"}})
 }
 
