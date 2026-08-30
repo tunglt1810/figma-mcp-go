@@ -143,7 +143,6 @@ var expectedTools = []string{
 	"get_local_components",
 	"get_metadata",
 	"get_nodes_info",
-	"get_pages",
 	"get_reactions",
 	"get_screenshot",
 	"get_selection",

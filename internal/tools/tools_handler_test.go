@@ -126,7 +126,7 @@ func TestMakeHandler_SenderError(t *testing.T) {
 func TestHandlers_NoParamReadTools(t *testing.T) {
 	s, _ := newTestServer(t)
 	noParamTools := []string{
-		"get_document", "get_pages", "get_metadata", "get_selection",
+		"get_document", "get_metadata", "get_selection",
 		"get_viewport", "get_fonts", "get_styles", "get_variable_defs",
 		"get_local_components", "get_annotations",
 	}

@@ -19,7 +19,7 @@ func addReadDesignStrategy(s *server.MCPServer) {
 					mcp.NewTextContent(`To effectively read a Figma design with figma-mcp-go:
 
 1. Start with get_metadata — understand file name, pages, and current page
-2. Use get_pages to list all pages without loading their full trees
+2. Use get_metadata to list all pages without loading their full trees
 3. Use get_design_context (depth=2, detail=compact) for a token-efficient summary of the current selection or page
    - detail=minimal: id/name/type/bounds only (~5% tokens)
    - detail=compact: + fills/strokes/opacity (~30% tokens)

@@ -20,7 +20,7 @@ func addDesignStrategy(s *server.MCPServer) {
 
 1. Start with Document Structure:
    - First use get_metadata() to understand the current document
-   - Use get_pages() to list all pages
+   - Use get_metadata() to list all pages
    - Plan your layout hierarchy before creating elements
    - Create a main container frame for each screen/section
 

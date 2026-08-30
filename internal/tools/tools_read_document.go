@@ -16,12 +16,9 @@ var readDocumentSpecs = []toolSpec{
 		},
 	},
 	{
-		Name: "get_pages",
-		Desc: "List all pages in the document with their IDs and names. Lightweight alternative to get_document.",
-	},
-	{
 		Name: "get_metadata",
-		Desc: "Get metadata about the current Figma document: file name, pages, current page",
+		Desc: "Get metadata about the current Figma document: file name, page count, which page is open, " +
+			"and every page in the file with its ID and name. Loads no node trees, so it is the cheap way to find a page ID before working on it.",
 	},
 	{
 		Name: "get_selection",

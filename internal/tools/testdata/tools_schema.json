@@ -1255,7 +1255,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Get metadata about the current Figma document: file name, pages, current page",
+    "description": "Get metadata about the current Figma document: file name, page count, which page is open, and every page in the file with its ID and name. Loads no node trees, so it is the cheap way to find a page ID before working on it.",
     "inputSchema": {
       "properties": {},
       "required": [],
@@ -1287,21 +1287,6 @@
       "type": "object"
     },
     "name": "get_nodes_info"
-  },
-  "get_pages": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "List all pages in the document with their IDs and names. Lightweight alternative to get_document.",
-    "inputSchema": {
-      "properties": {},
-      "required": [],
-      "type": "object"
-    },
-    "name": "get_pages"
   },
   "get_reactions": {
     "annotations": {
@@ -1643,7 +1628,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Add, delete, rename, or navigate to a page. `action` selects which, and each takes its own arguments — add: name, index. delete: pageId or pageName. rename: pageId or pageName, plus newName. navigate: pageId or pageName. An argument belonging to a different action is rejected rather than ignored. Use get_pages to list page IDs and names.",
+    "description": "Add, delete, rename, or navigate to a page. `action` selects which, and each takes its own arguments — add: name, index. delete: pageId or pageName. rename: pageId or pageName, plus newName. navigate: pageId or pageName. An argument belonging to a different action is rejected rather than ignored. Use get_metadata to list page IDs and names.",
     "inputSchema": {
       "properties": {
         "action": {

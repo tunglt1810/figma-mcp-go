@@ -344,21 +344,6 @@ export const readDocumentHandlers: HandlerMap = {
 
   },
 
-  "get_pages": async (request) => {
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        currentPageId: figma.currentPage.id,
-        pages: figma.root.children.map((page) => ({
-          id: page.id,
-          name: page.name,
-        })),
-      },
-    };
-
-  },
-
   "get_viewport": async (request) => {
     return {
       type: request.type,
