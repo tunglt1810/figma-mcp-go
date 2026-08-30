@@ -177,17 +177,6 @@ var writeModifySpecs = []toolSpec{
 		Validate: requireAnyOf("at least one of width or height is required", "width", "height"),
 	},
 	{
-		Name:       "rename_node",
-		Desc:       "Rename a single node by ID. Returns the updated node with its new name. Use batch_rename_nodes to rename multiple nodes at once or to apply find/replace patterns across many nodes.",
-		NodeIDs:    nodeIDsSingle,
-		NodeIDsReq: true,
-		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
-		Params: []paramSpec{
-			{Name: "name", Kind: kindString, Required: true,
-				Desc: "New name for the node. Figma supports slash-separated path notation e.g. 'Icons/Arrow/Left' to organise nodes in component panels."},
-		},
-	},
-	{
 		Name:       "clone_node",
 		Desc:       "Clone an existing node, optionally repositioning it or placing it in a new parent.",
 		NodeIDs:    nodeIDsSingle,
@@ -327,12 +316,15 @@ var writeModifySpecs = []toolSpec{
 		},
 	},
 	{
-		Name:       "batch_rename_nodes",
-		Desc:       "Rename multiple nodes using find/replace, regex substitution, or prefix/suffix addition.",
+		Name: "batch_rename_nodes",
+		Desc: "Rename one or more nodes: pass `name` to set the name outright, or find/replace, regex substitution, or prefix/suffix to derive it from the current one. " +
+			"`name` cannot be combined with the others — a literal name and a substitution in the same call have no defined order.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345']",
 		Params: []paramSpec{
+			{Name: "name", Kind: kindString,
+				Desc: "New name, applied as given to every node listed. Figma supports slash-separated path notation e.g. 'Icons/Arrow/Left' to organise nodes in component panels."},
 			{Name: "find", Kind: kindString,
 				Desc: "String (or regex pattern when useRegex=true) to search for in the node name"},
 			{Name: "replace", Kind: kindString, AllowEmpty: true,
@@ -343,12 +335,18 @@ var writeModifySpecs = []toolSpec{
 			{Name: "suffix", Kind: kindString, Desc: "String to append to the node name"},
 		},
 		Validate: func(_ []string, params map[string]any) string {
+			_, hasName := params["name"]
 			_, hasFind := params["find"]
 			_, hasReplace := params["replace"]
 			_, hasPrefix := params["prefix"]
 			_, hasSuffix := params["suffix"]
-			if !hasFind && !hasReplace && !hasPrefix && !hasSuffix {
-				return "at least one of find/replace, prefix, or suffix is required"
+			if !hasName && !hasFind && !hasReplace && !hasPrefix && !hasSuffix {
+				return "at least one of name, find/replace, prefix, or suffix is required"
+			}
+			// Silently picking one is exactly the failure this validation exists
+			// to prevent: the caller would get a name it did not ask for.
+			if hasName && (hasFind || hasReplace || hasPrefix || hasSuffix) {
+				return "name sets the name outright and cannot be combined with find/replace, prefix, or suffix"
 			}
 			if hasFind && !hasReplace {
 				return "replace is required when find is provided"

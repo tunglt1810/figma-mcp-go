@@ -429,7 +429,7 @@ describe('isCreateStep', () => {
 
   it('still recognises the plain create actions', () => {
     expect(isCreateStep('create_frame', {})).toBe(true);
-    expect(isCreateStep('rename_node', { nodeId: '1:1' })).toBe(false);
+    expect(isCreateStep('batch_rename_nodes', { nodeId: '1:1' })).toBe(false);
   });
 });
 
@@ -629,14 +629,14 @@ describe('batch pipeline progress', () => {
   it('reports the step about to run, not the one just finished', async () => {
     const seen: Array<[number, number, string]> = [];
     await executeBatchPipeline(
-      { steps: [{ action: 'rename_node' }, { action: 'move_nodes' }, { action: 'set_paint' }] } as any,
+      { steps: [{ action: 'batch_rename_nodes' }, { action: 'move_nodes' }, { action: 'set_paint' }] } as any,
       noopDispatch,
       async () => null,
       () => false,
       async (done, total, action) => { seen.push([done, total, action]); },
     );
     expect(seen).toEqual([
-      [0, 3, 'rename_node'],
+      [0, 3, 'batch_rename_nodes'],
       [1, 3, 'move_nodes'],
       [2, 3, 'set_paint'],
     ]);
@@ -671,14 +671,14 @@ describe('batch pipeline progress through handleWriteRequest', () => {
       requestId: 'req-progress',
       params: {
         steps: [
-          { action: 'rename_node', params: { nodeId: '1:1', name: 'a' } },
-          { action: 'rename_node', params: { nodeId: '1:1', name: 'b' } },
+          { action: 'batch_rename_nodes', params: { nodeId: '1:1', name: 'a' } },
+          { action: 'batch_rename_nodes', params: { nodeId: '1:1', name: 'b' } },
         ],
       },
     });
     const updates = progressMessages.filter((m) => m.type === 'progress_update');
     expect(updates.length).toBe(2);
-    expect(updates[0].message).toBe('Step 1/2: rename_node');
+    expect(updates[0].message).toBe('Step 1/2: batch_rename_nodes');
     expect(updates[0].requestId).toBe('req-progress');
   });
 
@@ -687,7 +687,7 @@ describe('batch pipeline progress through handleWriteRequest', () => {
     await handleWriteRequest({
       type: 'batch_execute_pipeline',
       requestId: 'req-single',
-      params: { steps: [{ action: 'rename_node', params: { nodeId: '1:1', name: 'a' } }] },
+      params: { steps: [{ action: 'batch_rename_nodes', params: { nodeId: '1:1', name: 'a' } }] },
     });
     expect(progressMessages.filter((m) => m.type === 'progress_update')).toEqual([]);
   });
@@ -728,7 +728,6 @@ const KEEPS_EXISTING_NODES = [
   'move_nodes',
   'outline_stroke',
   'remove_reactions',
-  'rename_node',
   'reparent_nodes',
   'resize_nodes',
   'save_version_checkpoint',

@@ -191,6 +191,19 @@ describe("set_auto_layout", () => {
 // ── batch_rename_nodes ────────────────────────────────────────────────────────
 
 describe("batch_rename_nodes", () => {
+  // It absorbed rename_node, so setting a name outright is one of its modes.
+  it("sets a literal name on every node listed", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Frame 1" };
+    mockNodes["1:2"] = { id: "1:2", name: "Frame 2" };
+    const res = await handleWriteModifyRequest(
+      makeRequest("batch_rename_nodes", ["1:1", "1:2"], { name: "Icons/Arrow/Left" }),
+    );
+    expect(mockNodes["1:1"].name).toBe("Icons/Arrow/Left");
+    expect(mockNodes["1:2"].name).toBe("Icons/Arrow/Left");
+    expect(res?.data.results[0].oldName).toBe("Frame 1");
+    expect(commitUndoCalled).toBe(true);
+  });
+
   it("renames with find/replace", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Button/Primary" };
     mockNodes["2:2"] = { id: "2:2", name: "Button/Secondary" };

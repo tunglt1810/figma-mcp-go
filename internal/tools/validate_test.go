@@ -305,15 +305,27 @@ func TestValidateRPC_DeleteNodes(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_RenameNode(t *testing.T) {
-	if msg := ValidateRPC("rename_node", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
+// batch_rename_nodes absorbed rename_node, so a literal name is one of the ways
+// it derives a name — and the one that cannot be mixed with the others.
+func TestValidateRPC_BatchRenameNodes_Name(t *testing.T) {
+	if msg := ValidateRPC("batch_rename_nodes", nil, map[string]any{"name": "Frame 1"}); msg == "" {
+		t.Error("expected error for missing nodeIds")
 	}
-	if msg := ValidateRPC("rename_node", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing name")
+	if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, nil); msg == "" {
+		t.Error("expected error when no renaming rule is given")
 	}
-	if msg := ValidateRPC("rename_node", []string{"1:1"}, map[string]any{"name": "Frame 1"}); msg != "" {
+	if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, map[string]any{"name": "Frame 1"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
+	}
+	// A literal name and a substitution in one call have no defined order.
+	for _, other := range []string{"find", "prefix", "suffix"} {
+		params := map[string]any{"name": "Frame 1", other: "x"}
+		if other == "find" {
+			params["replace"] = "y"
+		}
+		if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, params); msg == "" {
+			t.Errorf("expected name + %s to be rejected", other)
+		}
 	}
 }
 

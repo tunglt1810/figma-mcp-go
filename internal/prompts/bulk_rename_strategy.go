@@ -60,7 +60,7 @@ modifying any visual properties.
    | Node ID | Current Name | Proposed Name |
 
 5. **Apply renames (after user confirmation)**
-   Call rename_node(nodeId, name) for each node.
+   Call batch_rename_nodes(nodeIds, name) — one call sets the same name on every node listed.
    Process in batches — do not wait for user confirmation between individual renames once
    the full plan is approved.
 

@@ -114,11 +114,15 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Rename multiple nodes using find/replace, regex substitution, or prefix/suffix addition.",
+    "description": "Rename one or more nodes: pass `name` to set the name outright, or find/replace, regex substitution, or prefix/suffix to derive it from the current one. `name` cannot be combined with the others — a literal name and a substitution in the same call have no defined order.",
     "inputSchema": {
       "properties": {
         "find": {
           "description": "String (or regex pattern when useRegex=true) to search for in the node name",
+          "type": "string"
+        },
+        "name": {
+          "description": "New name, applied as given to every node listed. Figma supports slash-separated path notation e.g. 'Icons/Arrow/Left' to organise nodes in component panels.",
           "type": "string"
         },
         "nodeIds": {
@@ -1763,33 +1767,6 @@
       "type": "object"
     },
     "name": "remove_reactions"
-  },
-  "rename_node": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Rename a single node by ID. Returns the updated node with its new name. Use batch_rename_nodes to rename multiple nodes at once or to apply find/replace patterns across many nodes.",
-    "inputSchema": {
-      "properties": {
-        "name": {
-          "description": "New name for the node. Figma supports slash-separated path notation e.g. 'Icons/Arrow/Left' to organise nodes in component panels.",
-          "type": "string"
-        },
-        "nodeId": {
-          "description": "Node ID in colon format e.g. '4029:12345'",
-          "type": "string"
-        }
-      },
-      "required": [
-        "nodeId",
-        "name"
-      ],
-      "type": "object"
-    },
-    "name": "rename_node"
   },
   "reparent_nodes": {
     "annotations": {

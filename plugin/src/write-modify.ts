@@ -291,20 +291,6 @@ export const writeModifyHandlers: HandlerMap = {
     return { type: request.type, requestId: request.requestId, data: { results } };
   },
 
-  "rename_node": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    node.name = p.name;
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name },
-    };
-  },
-
   "clone_node": async (request) => {
     const p = request.params || {};
     const nodeId = request.nodeIds && request.nodeIds[0];
@@ -489,6 +475,13 @@ export const writeModifyHandlers: HandlerMap = {
       if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
       const oldName: string = n.name;
       let newName = oldName;
+      // Absorbed rename_node: a literal name wins outright, and the schema
+      // rejects it alongside a substitution rather than defining an order.
+      if (p.name !== undefined) {
+        n.name = p.name;
+        results.push({ nodeId: nid, oldName, name: p.name });
+        continue;
+      }
       if (p.find !== undefined && p.replace !== undefined) {
         if (p.useRegex) {
           try {

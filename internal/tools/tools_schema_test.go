@@ -156,7 +156,6 @@ var expectedTools = []string{
 	"move_nodes",
 	"outline_stroke",
 	"remove_reactions",
-	"rename_node",
 	"reparent_nodes",
 	"resize_nodes",
 	"save_screenshots",

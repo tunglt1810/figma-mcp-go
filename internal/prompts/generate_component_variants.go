@@ -60,7 +60,7 @@ create_node(type="FRAME", name="Variants/ComponentName", width=totalWidth, heigh
 - Compute scale factor (SM=0.75, MD=1.0, LG=1.5)
 - resize_nodes to new dimensions
 - For TEXT children: set_text to same content (font size cannot be changed via MCP — note this limitation)
-- rename_node to "ComponentName/SM" etc.
+- batch_rename_nodes to "ComponentName/SM" etc.
 
 **Color themes:**
 - Clone source: clone_node(sourceId, parentId=containerId)
@@ -71,19 +71,19 @@ create_node(type="FRAME", name="Variants/ComponentName", width=totalWidth, heigh
   - Danger    → #EF4444
   - Success   → #22C55E
   - Warning   → #F59E0B
-- rename_node to "ComponentName/Primary" etc.
+- batch_rename_nodes to "ComponentName/Primary" etc.
 
 **States:**
 - Clone source: clone_node(sourceId, parentId=containerId)
 - Disabled: set_paint on background to gray (#94A3B8), reduce fill opacity of text nodes
 - Hover: slightly lighten the primary fill
-- rename_node to "ComponentName/Hover" etc.
+- batch_rename_nodes to "ComponentName/Hover" etc.
 
 **Dark mode:**
 - Clone source: clone_node(sourceId, parentId=containerId)
 - Swap background fill to dark (#1E293B or similar)
 - Swap text fills to light (#F8FAFC)
-- rename_node to "ComponentName/Dark"
+- batch_rename_nodes to "ComponentName/Dark"
 
 ### 5. Summarize
 Report all created node IDs and names. Ask the user if they want further adjustments.

@@ -291,7 +291,7 @@ func TestHandlers_WriteModifyTools(t *testing.T) {
 	callTool(t, s, "resize_nodes", map[string]any{"nodeIds": []any{"1:1"}, "width": float64(300), "height": float64(200)})
 	callTool(t, s, "resize_nodes", map[string]any{"nodeIds": []any{"1:1"}, "height": float64(100)}) // width omitted
 
-	callTool(t, s, "rename_node", map[string]any{"nodeId": "1:1", "name": "New Name"})
+	callTool(t, s, "batch_rename_nodes", map[string]any{"nodeIds": []any{"1:1"}, "name": "New Name"})
 
 	callTool(t, s, "clone_node", map[string]any{"nodeId": "1:1", "x": float64(50), "y": float64(50), "parentId": "2:2"})
 	callTool(t, s, "clone_node", map[string]any{"nodeId": "1:1"}) // minimal
