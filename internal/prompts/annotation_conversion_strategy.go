@@ -74,7 +74,7 @@ Match each annotation to its target UI element using these strategies in order o
 
 After converting annotations, verify with:
 get_annotations(nodeId: "selected-node-id")
-get_screenshot(nodeIds: ["selected-node-id"], format: "PNG", scale: 0.5)
+export_screenshots(items: [{nodeId: "selected-node-id"}], format: "PNG", scale: 0.5)
 
 This strategy focuses on practical implementation based on real-world usage patterns,
 emphasizing the importance of handling various UI elements as annotation targets.`),

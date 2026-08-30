@@ -20,19 +20,6 @@ import (
 
 var exportFormats = []string{"PNG", "SVG", "JPG", "PDF"}
 
-var getScreenshotSpec = toolSpec{
-	Name:       "get_screenshot",
-	Desc:       "Export a screenshot of one or more nodes as base64-encoded image data (held in memory). Use save_screenshots instead when you want to write images directly to disk without base64 in the response.",
-	NodeIDs:    nodeIDsMulti,
-	NodeIDDesc: "Optional node IDs to export, colon format. If empty, exports current selection.",
-	Params: []paramSpec{
-		{Name: "format", Kind: kindString, Enum: exportFormats,
-			Desc: "Export format: PNG (default), SVG, JPG, or PDF"},
-		{Name: "scale", Kind: kindNumber, Positive: true,
-			Desc: "Export scale for raster formats (default 2)"},
-	},
-}
-
 var exportFramesToPDFSpec = toolSpec{
 	Name:       "export_frames_to_pdf",
 	Desc:       "Export multiple frames as a single multi-page PDF file. Each frame becomes one page in order. Ideal for pitch decks, proposals, and slide exports.",
@@ -51,21 +38,24 @@ var exportFramesToPDFSpec = toolSpec{
 	},
 }
 
-var saveScreenshotsSpec = toolSpec{
-	Name: "save_screenshots",
-	Desc: "Export screenshots for multiple nodes and write them to the local filesystem. Returns file metadata (path, size, dimensions) — no base64 in the response. Use get_screenshot instead when you need the image data in memory.",
+var exportScreenshotsSpec = toolSpec{
+	Name: "export_screenshots",
+	Desc: "Export nodes as images. An item with an outputPath is written to that file and answered with its metadata; " +
+		"one without comes back as base64 in the response, and both kinds can be in the same call. " +
+		"Omit items entirely to capture the current selection as base64. " +
+		"Prefer an outputPath when you only need the file — base64 is a lot of tokens to carry an image you are going to write to disk anyway.",
 	Params: []paramSpec{
-		{Name: "items", Kind: kindObjectArray, Required: true,
-			Desc: "List of {nodeId, outputPath, format?, scale?} objects",
+		{Name: "items", Kind: kindObjectArray,
+			Desc: "List of {nodeId, outputPath?, format?, scale?} objects. Omit to export the current selection.",
 			ItemSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"nodeId":     map[string]any{"type": "string", "description": "Node ID in colon format e.g. '4029:12345'"},
-					"outputPath": map[string]any{"type": "string", "description": "File path to write the image to"},
+					"outputPath": map[string]any{"type": "string", "description": "File path to write the image to. Omit to get base64 in the response instead."},
 					"format":     map[string]any{"type": "string", "description": "Export format: PNG, SVG, JPG, or PDF"},
 					"scale":      map[string]any{"type": "number", "description": "Export scale for raster formats"},
 				},
-				"required": []string{"nodeId", "outputPath"},
+				"required": []string{"nodeId"},
 			}},
 		{Name: "format", Kind: kindString, Enum: exportFormats,
 			Desc: "Default export format: PNG (default), SVG, JPG, or PDF"},
@@ -73,24 +63,41 @@ var saveScreenshotsSpec = toolSpec{
 			Desc: "Default export scale for raster formats (default 2)"},
 	},
 	Validate: func(_ []string, params map[string]any) string {
-		items, _ := params["items"].([]any)
-		if len(items) == 0 {
-			return "items must be a non-empty array"
+		items, hasItems := params["items"]
+		if !hasItems {
+			return ""
 		}
-		for i, item := range items {
+		list, _ := items.([]any)
+		if len(list) == 0 {
+			return "items must be a non-empty array — omit it entirely to export the current selection"
+		}
+		for i, item := range list {
 			m, _ := item.(map[string]any)
 			if nodeID, _ := m["nodeId"].(string); !figma.ValidNodeID(nodeID) {
 				return fmt.Sprintf("items[%d].nodeId must use colon format e.g. 4029:12345", i)
 			}
-			if outputPath, _ := m["outputPath"].(string); outputPath == "" {
-				return fmt.Sprintf("items[%d].outputPath is required", i)
+			// Absent means "answer in memory"; present and empty is a path the
+			// caller got wrong, and silently returning base64 would hide it.
+			if raw, present := m["outputPath"]; present {
+				if path, _ := raw.(string); path == "" {
+					return fmt.Sprintf("items[%d].outputPath is empty — omit it to get base64 instead", i)
+				}
+			}
+			// The per-item format is nested a level below anything a paramSpec
+			// enum can reach, and the plugin is the only thing that would have
+			// rejected it — after the round trip.
+			if format, present := m["format"].(string); present && !containsString(exportFormats, format) {
+				return fmt.Sprintf("items[%d].format must be one of %v, got: %s", i, exportFormats, format)
+			}
+			if scale, present := m["scale"].(float64); present && scale <= 0 {
+				return fmt.Sprintf("items[%d].scale must be positive, got: %g", i, scale)
 			}
 		}
 		return ""
 	},
 	Custom: func(sender Sender) customHandler {
 		return func(ctx context.Context, _ []string, params map[string]any) (*mcp.CallToolResult, error) {
-			return executeSaveScreenshots(ctx, sender, params)
+			return executeExportScreenshots(ctx, sender, params)
 		}
 	},
 }
@@ -100,7 +107,7 @@ var saveScreenshotsSpec = toolSpec{
 var exportSpecs = []toolSpec{
 	{
 		Name:       "get_image_bytes",
-		Desc:       "Read the original bytes of the images placed on nodes, as base64. This is the asset that was imported, not a re-render — use get_screenshot when you want a picture of how a node looks now. One image used on several nodes is returned once. Nodes with no image fill are reported under `skipped` rather than failing the call.",
+		Desc:       "Read the original bytes of the images placed on nodes, as base64. This is the asset that was imported, not a re-render — use export_screenshots when you want a picture of how a node looks now. One image used on several nodes is returned once. Nodes with no image fill are reported under `skipped` rather than failing the call.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs carrying image fills, in colon format e.g. ['4029:12345']",
@@ -108,7 +115,7 @@ var exportSpecs = []toolSpec{
 	{
 		Name: "set_export_settings",
 		Desc: "Set the export presets on nodes — the entries a designer sees under Export in the right-hand panel, and what a Figma export or a handoff pipeline uses. " +
-			"This changes the document; it does not export anything. Use get_screenshot or save_screenshots to actually produce a file.",
+			"This changes the document; it does not export anything. Use export_screenshots to actually produce a file.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345']",
@@ -142,7 +149,7 @@ var exportSpecs = []toolSpec{
 			return figma.ValidateExportSettings(settings, exportFormats)
 		},
 	},
-	getScreenshotSpec, exportFramesToPDFSpec, saveScreenshotsSpec}
+	exportFramesToPDFSpec, exportScreenshotsSpec}
 
 func executeExportFramesToPDF(ctx context.Context, sender Sender, nodeIDs []string, outputPath string) (*mcp.CallToolResult, error) {
 	workDir, err := os.Getwd()
@@ -175,7 +182,7 @@ func executeExportFramesToPDF(ctx context.Context, sender Sender, nodeIDs []stri
 	if err := os.MkdirAll(filepath.Dir(resolvedPath), 0o755); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("mkdir: %v", err)), nil
 	}
-	// Overwrite, as save_screenshots does: re-exporting after a design change is
+	// Overwrite, as export_screenshots does: re-exporting after a design change is
 	// the normal loop. The path is already confined to the working directory.
 	_, statErr := os.Stat(resolvedPath)
 	replaced := statErr == nil

@@ -25,7 +25,7 @@ const pluginHandlers = new Set<string>([
 
 /** Tools the Go server answers itself, without ever asking the plugin. */
 const SERVER_SIDE_TOOLS = new Set([
-  "save_screenshots",
+  "export_screenshots",
 ]);
 
 /**
@@ -42,6 +42,8 @@ const INTERNAL_DISPATCH_TARGETS = new Set([
   "add_page", "delete_page", "rename_page", "navigate_to_page",
   "create_paint_style", "create_text_style", "create_effect_style", "create_grid_style",
   "set_fills", "set_strokes", "set_gradient_fills",
+  // export_screenshots calls this once per item, with params it builds itself.
+  "get_screenshot",
 ]);
 
 describe("the plugin implements what the server offers", () => {

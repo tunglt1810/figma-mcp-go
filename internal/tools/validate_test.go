@@ -28,58 +28,64 @@ func TestValidateRPC_GetNodesInfo(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_GetScreenshot(t *testing.T) {
-	// invalid format
-	msg := ValidateRPC("get_screenshot", []string{"1:1"}, map[string]any{"format": "GIF"})
-	if msg == "" {
+// get_screenshot and save_screenshots became export_screenshots, where the
+// outputPath is what decides whether a capture goes to disk or comes back as
+// base64.
+func TestValidateRPC_ExportScreenshots(t *testing.T) {
+	// no items at all is the "capture the selection" call, not an error
+	if msg := ValidateRPC("export_screenshots", nil, nil); msg != "" {
+		t.Errorf("exporting the selection was rejected: %s", msg)
+	}
+	// an explicitly empty array is a caller mistake, not that call
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{"items": []any{}}); msg == "" {
+		t.Error("expected error for an empty items array")
+	}
+	// invalid format on the tool itself
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{"format": "GIF"}); msg == "" {
 		t.Error("expected error for invalid format")
 	}
-	// valid formats
 	for _, f := range []string{"PNG", "SVG", "JPG", "PDF"} {
-		msg := ValidateRPC("get_screenshot", []string{"1:1"}, map[string]any{"format": f})
-		if msg != "" {
+		if msg := ValidateRPC("export_screenshots", nil, map[string]any{"format": f}); msg != "" {
 			t.Errorf("unexpected error for format %s: %s", f, msg)
 		}
 	}
-}
-
-func TestValidateRPC_SaveScreenshots(t *testing.T) {
-	// missing items
-	if msg := ValidateRPC("save_screenshots", nil, nil); msg == "" {
-		t.Error("expected error for missing items")
-	}
-	// empty items array
-	msg := ValidateRPC("save_screenshots", nil, map[string]any{
-		"items": []any{},
-	})
-	if msg == "" {
-		t.Error("expected error for empty items")
-	}
 	// invalid nodeId in item
-	msg = ValidateRPC("save_screenshots", nil, map[string]any{
-		"items": []any{
-			map[string]any{"nodeId": "bad", "outputPath": "out.png"},
-		},
-	})
-	if msg == "" {
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+		"items": []any{map[string]any{"nodeId": "bad", "outputPath": "out.png"}},
+	}); msg == "" {
 		t.Error("expected error for bad nodeId in item")
 	}
-	// missing outputPath
-	msg = ValidateRPC("save_screenshots", nil, map[string]any{
-		"items": []any{
-			map[string]any{"nodeId": "1:1"},
-		},
-	})
-	if msg == "" {
-		t.Error("expected error for missing outputPath")
+	// no outputPath is base64, not an error — this is the get_screenshot half
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1"}},
+	}); msg != "" {
+		t.Errorf("an item without outputPath was rejected: %s", msg)
 	}
-	// valid
-	msg = ValidateRPC("save_screenshots", nil, map[string]any{
+	// an empty outputPath is a path the caller got wrong, and must not quietly
+	// become the base64 answer
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1", "outputPath": ""}},
+	}); msg == "" {
+		t.Error("expected error for an empty outputPath")
+	}
+	// the per-item format is a level below any paramSpec enum
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1", "format": "GIF"}},
+	}); msg == "" {
+		t.Error("expected error for an invalid per-item format")
+	}
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1", "scale": float64(0)}},
+	}); msg == "" {
+		t.Error("expected error for a non-positive per-item scale")
+	}
+	// both kinds in one call
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
 		"items": []any{
 			map[string]any{"nodeId": "1:1", "outputPath": "out.png"},
+			map[string]any{"nodeId": "2:2"},
 		},
-	})
-	if msg != "" {
+	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }

@@ -66,7 +66,7 @@ Flow Map:
 - [Screen B] --ON_CLICK/NAVIGATE--> [Screen C]
 
 ### 5. Verification
-- Use get_screenshot(nodeIds: [...]) on key screens to visually confirm the flow
+- Use export_screenshots(items: [{nodeId: ...}]) on key screens to visually confirm the flow
 - Cross-check node names from get_nodes_info with the flow map
 
 ## Notes

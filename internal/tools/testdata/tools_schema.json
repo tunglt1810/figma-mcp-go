@@ -986,6 +986,58 @@
     },
     "name": "export_frames_to_pdf"
   },
+  "export_screenshots": {
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true
+    },
+    "description": "Export nodes as images. An item with an outputPath is written to that file and answered with its metadata; one without comes back as base64 in the response, and both kinds can be in the same call. Omit items entirely to capture the current selection as base64. Prefer an outputPath when you only need the file — base64 is a lot of tokens to carry an image you are going to write to disk anyway.",
+    "inputSchema": {
+      "properties": {
+        "format": {
+          "description": "Default export format: PNG (default), SVG, JPG, or PDF",
+          "type": "string"
+        },
+        "items": {
+          "description": "List of {nodeId, outputPath?, format?, scale?} objects. Omit to export the current selection.",
+          "items": {
+            "properties": {
+              "format": {
+                "description": "Export format: PNG, SVG, JPG, or PDF",
+                "type": "string"
+              },
+              "nodeId": {
+                "description": "Node ID in colon format e.g. '4029:12345'",
+                "type": "string"
+              },
+              "outputPath": {
+                "description": "File path to write the image to. Omit to get base64 in the response instead.",
+                "type": "string"
+              },
+              "scale": {
+                "description": "Export scale for raster formats",
+                "type": "number"
+              }
+            },
+            "required": [
+              "nodeId"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "scale": {
+          "description": "Default export scale for raster formats (default 2)",
+          "type": "number"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "name": "export_screenshots"
+  },
   "export_tokens": {
     "annotations": {
       "readOnlyHint": false,
@@ -1152,7 +1204,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Read the original bytes of the images placed on nodes, as base64. This is the asset that was imported, not a re-render — use get_screenshot when you want a picture of how a node looks now. One image used on several nodes is returned once. Nodes with no image fill are reported under `skipped` rather than failing the call.",
+    "description": "Read the original bytes of the images placed on nodes, as base64. This is the asset that was imported, not a re-render — use export_screenshots when you want a picture of how a node looks now. One image used on several nodes is returned once. Nodes with no image fill are reported under `skipped` rather than failing the call.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -1268,37 +1320,6 @@
       "type": "object"
     },
     "name": "get_reactions"
-  },
-  "get_screenshot": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Export a screenshot of one or more nodes as base64-encoded image data (held in memory). Use save_screenshots instead when you want to write images directly to disk without base64 in the response.",
-    "inputSchema": {
-      "properties": {
-        "format": {
-          "description": "Export format: PNG (default), SVG, JPG, or PDF",
-          "type": "string"
-        },
-        "nodeIds": {
-          "description": "Optional node IDs to export, colon format. If empty, exports current selection.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "scale": {
-          "description": "Export scale for raster formats (default 2)",
-          "type": "number"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "get_screenshot"
   },
   "get_selection": {
     "annotations": {
@@ -1716,61 +1737,6 @@
     },
     "name": "reparent_nodes"
   },
-  "save_screenshots": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Export screenshots for multiple nodes and write them to the local filesystem. Returns file metadata (path, size, dimensions) — no base64 in the response. Use get_screenshot instead when you need the image data in memory.",
-    "inputSchema": {
-      "properties": {
-        "format": {
-          "description": "Default export format: PNG (default), SVG, JPG, or PDF",
-          "type": "string"
-        },
-        "items": {
-          "description": "List of {nodeId, outputPath, format?, scale?} objects",
-          "items": {
-            "properties": {
-              "format": {
-                "description": "Export format: PNG, SVG, JPG, or PDF",
-                "type": "string"
-              },
-              "nodeId": {
-                "description": "Node ID in colon format e.g. '4029:12345'",
-                "type": "string"
-              },
-              "outputPath": {
-                "description": "File path to write the image to",
-                "type": "string"
-              },
-              "scale": {
-                "description": "Export scale for raster formats",
-                "type": "number"
-              }
-            },
-            "required": [
-              "nodeId",
-              "outputPath"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "scale": {
-          "description": "Default export scale for raster formats (default 2)",
-          "type": "number"
-        }
-      },
-      "required": [
-        "items"
-      ],
-      "type": "object"
-    },
-    "name": "save_screenshots"
-  },
   "save_version_checkpoint": {
     "annotations": {
       "readOnlyHint": false,
@@ -2079,7 +2045,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Set the export presets on nodes — the entries a designer sees under Export in the right-hand panel, and what a Figma export or a handoff pipeline uses. This changes the document; it does not export anything. Use get_screenshot or save_screenshots to actually produce a file.",
+    "description": "Set the export presets on nodes — the entries a designer sees under Export in the right-hand panel, and what a Figma export or a handoff pipeline uses. This changes the document; it does not export anything. Use export_screenshots to actually produce a file.",
     "inputSchema": {
       "properties": {
         "nodeIds": {

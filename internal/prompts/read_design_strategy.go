@@ -41,7 +41,7 @@ func addReadDesignStrategy(s *server.MCPServer) {
 10. Call get_fonts to understand typography usage across the page at a glance
 11. Use get_viewport to see what the user is currently looking at in the canvas
 12. Use get_reactions to inspect prototype interactions on a node
-13. Call get_screenshot last and only when visual confirmation is needed — it is expensive
+13. Call export_screenshots last and only when visual confirmation is needed — it is expensive
 14. Node IDs use colon format: 4029:12345 — never use hyphens
 15. get_local_components returns componentSets and variantProperties for variant-aware inspection`),
 				),

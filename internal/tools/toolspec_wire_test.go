@@ -226,35 +226,35 @@ func TestRegisterTools_ChecksWithoutANodeBehindIt(t *testing.T) {
 	}
 }
 
-// save_screenshots calls get_screenshot once per item with params it builds
-// itself, so checking the arguments it was invoked with says nothing about what
-// reaches the plugin. Before this was noticed, an unrecognised per-item format
-// went straight through: on a path whose extension implies nothing, the
-// format-conflict guard does not fire either.
-//
-// The invariant is about Sender calls, not entry points.
-func TestCustomHandler_InnerCallIsCheckedUnderItsOwnName(t *testing.T) {
+// export_screenshots calls get_screenshot once per item with params it builds
+// itself, and get_screenshot is no longer a tool with a spec of its own, so
+// nothing downstream would reject a bad per-item argument. Before this was
+// noticed, an unrecognised per-item format went straight through: on a path
+// whose extension implies nothing, the format-conflict guard does not fire
+// either. The item schema is a level below any paramSpec enum, so the tool's
+// own Validate is what has to catch it — before anything reaches the sender.
+func TestExportScreenshots_BadItemIsRejectedBeforeTheSender(t *testing.T) {
 	s, fake := newTestServer(t)
 
-	callTool(t, s, "save_screenshots", map[string]any{
+	result := callToolResult(t, s, "export_screenshots", map[string]any{
 		"items": []any{
 			map[string]any{"nodeId": "1:2", "outputPath": "out/shot.bin", "format": "GIF"},
 		},
 	})
 
-	for _, c := range fake.calls {
-		if msg := ValidateRPC(c.tool, c.nodeIDs, c.params); msg != "" {
-			t.Errorf("a call reached the sender that its own spec rejects: tool=%s params=%v: %s",
-				c.tool, c.params, msg)
-		}
+	if !result.IsError {
+		t.Error("expected an unrecognised per-item format to be rejected")
+	}
+	if len(fake.calls) != 0 {
+		t.Errorf("nothing should have reached the sender, got %d calls", len(fake.calls))
 	}
 }
 
-// The wrapping must not break the calls that are fine.
-func TestCustomHandler_ValidInnerCallStillGoesThrough(t *testing.T) {
+// The checking must not break the calls that are fine.
+func TestExportScreenshots_ValidInnerCallStillGoesThrough(t *testing.T) {
 	s, fake := newTestServer(t)
 
-	callTool(t, s, "save_screenshots", map[string]any{
+	callTool(t, s, "export_screenshots", map[string]any{
 		"items": []any{
 			map[string]any{"nodeId": "1:2", "outputPath": "out/shot.png"},
 		},
@@ -269,4 +269,35 @@ func TestCustomHandler_ValidInnerCallStillGoesThrough(t *testing.T) {
 	if fake.calls[0].params["format"] != "PNG" {
 		t.Errorf("inner params = %v, want format PNG", fake.calls[0].params)
 	}
+}
+
+// The half that came from get_screenshot: no outputPath means the bytes come
+// back rather than being written, and no items at all means the selection.
+func TestExportScreenshots_InMemoryHalf(t *testing.T) {
+	t.Run("an item without outputPath asks for one node", func(t *testing.T) {
+		s, fake := newTestServer(t)
+		callTool(t, s, "export_screenshots", map[string]any{
+			"items": []any{map[string]any{"nodeId": "1:2"}},
+		})
+		if len(fake.calls) != 1 {
+			t.Fatalf("expected one inner call, got %d", len(fake.calls))
+		}
+		if got := fake.calls[0].nodeIDs; len(got) != 1 || got[0] != "1:2" {
+			t.Errorf("inner nodeIDs = %v, want [1:2]", got)
+		}
+	})
+
+	t.Run("no items asks for the selection", func(t *testing.T) {
+		s, fake := newTestServer(t)
+		callTool(t, s, "export_screenshots", map[string]any{"format": "SVG"})
+		if len(fake.calls) != 1 {
+			t.Fatalf("expected one inner call, got %d", len(fake.calls))
+		}
+		if fake.calls[0].nodeIDs != nil {
+			t.Errorf("inner nodeIDs = %v, want none — the plugin exports the selection", fake.calls[0].nodeIDs)
+		}
+		if fake.calls[0].params["format"] != "SVG" {
+			t.Errorf("inner params = %v, want format SVG", fake.calls[0].params)
+		}
+	})
 }

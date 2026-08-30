@@ -181,33 +181,45 @@ func TestMustBeInsideDir_SameDir(t *testing.T) {
 	}
 }
 
-// ── parseSaveItem ─────────────────────────────────────────────────────────────
+// ── parseExportItem ───────────────────────────────────────────────────────────
 
-func TestParseSaveItem_Valid(t *testing.T) {
+func TestParseExportItem_Valid(t *testing.T) {
 	raw := map[string]any{
 		"nodeId":     "1:1",
 		"outputPath": "out/img.png",
 		"format":     "PNG",
 		"scale":      float64(2),
 	}
-	item, err := parseSaveItem(raw)
+	item, err := parseExportItem(raw)
 	if err != nil {
-		t.Fatalf("parseSaveItem: %v", err)
+		t.Fatalf("parseExportItem: %v", err)
 	}
 	if item.NodeID != "1:1" {
 		t.Errorf("NodeID = %q, want 1:1", item.NodeID)
 	}
-	if item.OutputPath != "out/img.png" {
-		t.Errorf("OutputPath = %q, want out/img.png", item.OutputPath)
+	if item.OutputPath == nil || *item.OutputPath != "out/img.png" {
+		t.Errorf("OutputPath = %v, want out/img.png", item.OutputPath)
 	}
 	if item.Scale != 2 {
 		t.Errorf("Scale = %v, want 2", item.Scale)
 	}
 }
 
-func TestParseSaveItem_UnmarshalError(t *testing.T) {
+// An absent outputPath is what makes an item answer in memory, so it must not
+// arrive as an empty string that reads as a path.
+func TestParseExportItem_AbsentOutputPathStaysNil(t *testing.T) {
+	item, err := parseExportItem(map[string]any{"nodeId": "1:1"})
+	if err != nil {
+		t.Fatalf("parseExportItem: %v", err)
+	}
+	if item.OutputPath != nil {
+		t.Errorf("OutputPath = %q, want nil", *item.OutputPath)
+	}
+}
+
+func TestParseExportItem_UnmarshalError(t *testing.T) {
 	// A channel cannot be marshaled to JSON.
-	_, err := parseSaveItem(make(chan int))
+	_, err := parseExportItem(make(chan int))
 	if err == nil {
 		t.Error("expected marshal error for non-JSON-serialisable value")
 	}

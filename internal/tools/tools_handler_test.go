@@ -185,33 +185,30 @@ func TestHandlers_GetReactions(t *testing.T) {
 
 // ── Read – export tools ───────────────────────────────────────────────────────
 
-func TestHandlers_GetScreenshot(t *testing.T) {
+// TestHandlers_ExportScreenshots exercises executeExportScreenshots +
+// exportScreenshotItem. The fake sender returns no export data, so each item
+// ends up an error inside the result JSON rather than a panic.
+func TestHandlers_ExportScreenshots(t *testing.T) {
 	s, _ := newTestServer(t)
-	// with format + scale
-	callTool(t, s, "get_screenshot", map[string]any{
-		"nodeIds": []any{"1:1"},
-		"format":  "PNG",
-		"scale":   float64(2),
+
+	// no items at all – the current selection, in memory
+	callTool(t, s, "export_screenshots", nil)
+	callTool(t, s, "export_screenshots", map[string]any{"format": "PNG", "scale": float64(2)})
+
+	// an item without an outputPath – base64 for one node
+	callTool(t, s, "export_screenshots", map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1"}},
 	})
-	// no params (exports current selection)
-	callTool(t, s, "get_screenshot", nil)
-}
 
-// TestHandlers_SaveScreenshots exercises executeSaveScreenshots +
-// saveScreenshotItem. The fake sender returns no export data, so each item ends
-// up an error inside the result JSON rather than a panic.
-func TestHandlers_SaveScreenshots(t *testing.T) {
-	s, _ := newTestServer(t)
-
-	// single item – reaches saveScreenshotItem → node.Send fails → error result
-	callTool(t, s, "save_screenshots", map[string]any{
+	// single item to disk
+	callTool(t, s, "export_screenshots", map[string]any{
 		"items": []any{
 			map[string]any{"nodeId": "1:1", "outputPath": "out/screen.png"},
 		},
 	})
 
 	// multiple items with default format + scale
-	callTool(t, s, "save_screenshots", map[string]any{
+	callTool(t, s, "export_screenshots", map[string]any{
 		"format": "SVG",
 		"scale":  float64(1),
 		"items": []any{
@@ -220,10 +217,11 @@ func TestHandlers_SaveScreenshots(t *testing.T) {
 		},
 	})
 
-	// item with explicit per-item format + scale
-	callTool(t, s, "save_screenshots", map[string]any{
+	// item with explicit per-item format + scale, alongside one in memory
+	callTool(t, s, "export_screenshots", map[string]any{
 		"items": []any{
 			map[string]any{"nodeId": "3:3", "outputPath": "out/c.jpg", "format": "JPG", "scale": float64(2)},
+			map[string]any{"nodeId": "4:4"},
 		},
 	})
 }

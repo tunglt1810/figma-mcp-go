@@ -45,7 +45,7 @@ in Figma, maintaining design consistency while reducing manual work.
 ### 4. Verification
 - Verify results with get_nodes_info() or get_document()
 - Confirm text content and style overrides have transferred successfully
-- Use get_screenshot() for visual confirmation if needed
+- Use export_screenshots() for visual confirmation if needed
 
 ## Key Tips
 - Use search_nodes(types: ["INSTANCE"]) to enumerate all instances before starting

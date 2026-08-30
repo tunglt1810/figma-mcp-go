@@ -57,20 +57,28 @@ func toStringSlice(raw []any) []string {
 	return out
 }
 
-// ── save_screenshots ─────────────────────────────────────────────────────────
+// ── export_screenshots ───────────────────────────────────────────────────────
+//
+// get_screenshot and save_screenshots exported the same nodes through the same
+// plugin call and differed only in where the picture went. That is one argument,
+// not two tools: an item with an outputPath is written to disk, one without
+// comes back as base64, and both can be in the same call.
 
-type saveItem struct {
-	NodeID     string  `json:"nodeId"`
-	OutputPath string  `json:"outputPath"`
+type exportItem struct {
+	NodeID string `json:"nodeId"`
+	// A pointer, because absent and empty must be distinguishable: absent means
+	// "answer in memory", empty is a path the caller got wrong.
+	OutputPath *string `json:"outputPath,omitempty"`
 	Format     string  `json:"format,omitempty"`
 	Scale      float64 `json:"scale,omitzero"`
 }
 
-type saveResult struct {
+type exportResult struct {
 	Index        int     `json:"index"`
 	NodeID       string  `json:"nodeId"`
 	NodeName     string  `json:"nodeName,omitempty"`
-	OutputPath   string  `json:"outputPath"`
+	OutputPath   string  `json:"outputPath,omitempty"`
+	Base64       string  `json:"base64,omitempty"`
 	Format       string  `json:"format,omitempty"`
 	Width        float64 `json:"width,omitzero"`
 	Height       float64 `json:"height,omitzero"`
@@ -79,7 +87,7 @@ type saveResult struct {
 	Error        string  `json:"error,omitempty"`
 }
 
-func executeSaveScreenshots(ctx context.Context, sender Sender, params map[string]any) (*mcp.CallToolResult, error) {
+func executeExportScreenshots(ctx context.Context, sender Sender, params map[string]any) (*mcp.CallToolResult, error) {
 	rawItems, _ := params["items"].([]any)
 	defaultFormat, _ := params["format"].(string)
 	defaultScale, _ := params["scale"].(float64)
@@ -89,19 +97,28 @@ func executeSaveScreenshots(ctx context.Context, sender Sender, params map[strin
 		return mcp.NewToolResultError(fmt.Sprintf("getwd: %v", err)), nil
 	}
 
-	results := make([]saveResult, 0, len(rawItems))
-	succeeded, failed := 0, 0
-
-	for i, rawItem := range rawItems {
-		item, err := parseSaveItem(rawItem)
+	var results []exportResult
+	if len(rawItems) == 0 {
+		// No items: the current selection, in memory. This is what
+		// get_screenshot with no node ids has always done.
+		results, err = exportSelection(ctx, sender, defaultFormat, defaultScale)
 		if err != nil {
-			results = append(results, saveResult{Index: i, Error: err.Error()})
-			failed++
-			continue
+			return mcp.NewToolResultError(err.Error()), nil
 		}
+	} else {
+		results = make([]exportResult, 0, len(rawItems))
+		for i, rawItem := range rawItems {
+			item, err := parseExportItem(rawItem)
+			if err != nil {
+				results = append(results, exportResult{Index: i, Error: err.Error()})
+				continue
+			}
+			results = append(results, exportScreenshotItem(ctx, sender, item, i, workDir, defaultFormat, defaultScale))
+		}
+	}
 
-		r := saveScreenshotItem(ctx, sender, item, i, workDir, defaultFormat, defaultScale)
-		results = append(results, r)
+	succeeded, failed := 0, 0
+	for _, r := range results {
 		if r.Success {
 			succeeded++
 		} else {
@@ -122,13 +139,48 @@ func executeSaveScreenshots(ctx context.Context, sender Sender, params map[strin
 	return mcp.NewToolResultText(string(out)), nil
 }
 
-func saveScreenshotItem(ctx context.Context, sender Sender, item saveItem, index int, workDir, defaultFormat string, defaultScale float64) saveResult {
-	resolvedPath, err := resolveOutputPath(item.OutputPath, workDir)
+// exportSelection captures whatever the user has selected, in memory. The
+// plugin decides how many nodes that is, so this is the one path that cannot be
+// driven per item.
+func exportSelection(ctx context.Context, sender Sender, format string, scale float64) ([]exportResult, error) {
+	if format == "" {
+		format = "PNG"
+	}
+	params := map[string]any{"format": format}
+	if scale > 0 {
+		params["scale"] = scale
+	}
+	data, err := sender.Send(ctx, "get_screenshot", nil, params)
 	if err != nil {
-		return saveResult{Index: index, NodeID: item.NodeID, OutputPath: item.OutputPath, Error: err.Error()}
+		return nil, err
+	}
+	exports, err := extractScreenshotExports(data)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]exportResult, 0, len(exports))
+	for i, e := range exports {
+		results = append(results, exportResult{
+			Index: i, NodeID: e.NodeID, NodeName: e.NodeName, Base64: e.Base64,
+			Format: format, Width: e.Width, Height: e.Height, Success: true,
+		})
+	}
+	return results, nil
+}
+
+func exportScreenshotItem(ctx context.Context, sender Sender, item exportItem, index int, workDir, defaultFormat string, defaultScale float64) exportResult {
+	toDisk := item.OutputPath != nil
+	var resolvedPath string
+	if toDisk {
+		var err error
+		resolvedPath, err = resolveOutputPath(*item.OutputPath, workDir)
+		if err != nil {
+			return exportResult{Index: index, NodeID: item.NodeID, OutputPath: *item.OutputPath, Error: err.Error()}
+		}
 	}
 
 	format := coalesce(item.Format, defaultFormat)
+	// Only a path can imply a format, so this stays inside the disk branch.
 	inferredFormat := inferFormat(resolvedPath)
 	if format == "" {
 		format = inferredFormat
@@ -137,7 +189,7 @@ func saveScreenshotItem(ctx context.Context, sender Sender, item saveItem, index
 		format = "PNG"
 	}
 	if inferredFormat != "" && format != inferredFormat {
-		return saveResult{Index: index, NodeID: item.NodeID, OutputPath: resolvedPath,
+		return exportResult{Index: index, NodeID: item.NodeID, OutputPath: resolvedPath,
 			Error: fmt.Sprintf("format %s conflicts with file extension %s", format, inferredFormat)}
 	}
 
@@ -151,32 +203,40 @@ func saveScreenshotItem(ctx context.Context, sender Sender, item saveItem, index
 		params["scale"] = scale
 	}
 
-	data, err := sender.Send(ctx, "get_screenshot", []string{item.NodeID}, params)
-	if err != nil {
-		return saveResult{Index: index, NodeID: item.NodeID, OutputPath: resolvedPath, Error: err.Error()}
+	fail := func(err error) exportResult {
+		return exportResult{Index: index, NodeID: item.NodeID, OutputPath: resolvedPath, Error: err.Error()}
 	}
 
+	data, err := sender.Send(ctx, "get_screenshot", []string{item.NodeID}, params)
+	if err != nil {
+		return fail(err)
+	}
 	export, err := extractScreenshotExport(data)
 	if err != nil {
-		return saveResult{Index: index, NodeID: item.NodeID, OutputPath: resolvedPath, Error: err.Error()}
+		return fail(err)
+	}
+
+	result := exportResult{
+		Index:    index,
+		NodeID:   export.NodeID,
+		NodeName: export.NodeName,
+		Format:   format,
+		Width:    export.Width,
+		Height:   export.Height,
+		Success:  true,
+	}
+	if !toDisk {
+		result.Base64 = export.Base64
+		return result
 	}
 
 	bytes, err := writeBase64(export.Base64, resolvedPath)
 	if err != nil {
-		return saveResult{Index: index, NodeID: item.NodeID, OutputPath: resolvedPath, Error: err.Error()}
+		return fail(err)
 	}
-
-	return saveResult{
-		Index:        index,
-		NodeID:       export.NodeID,
-		NodeName:     export.NodeName,
-		OutputPath:   resolvedPath,
-		Format:       format,
-		Width:        export.Width,
-		Height:       export.Height,
-		BytesWritten: bytes,
-		Success:      true,
-	}
+	result.OutputPath = resolvedPath
+	result.BytesWritten = bytes
+	return result
 }
 
 type screenshotExport struct {
@@ -187,21 +247,29 @@ type screenshotExport struct {
 	Height   float64 `json:"height"`
 }
 
-func extractScreenshotExport(data any) (screenshotExport, error) {
+func extractScreenshotExports(data any) ([]screenshotExport, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
-		return screenshotExport{}, err
+		return nil, err
 	}
 	var wrapper struct {
 		Exports []screenshotExport `json:"exports"`
 	}
 	if err := json.Unmarshal(b, &wrapper); err != nil {
-		return screenshotExport{}, err
+		return nil, err
 	}
 	if len(wrapper.Exports) == 0 {
-		return screenshotExport{}, errors.New("no screenshot export returned by plugin")
+		return nil, errors.New("no screenshot export returned by plugin")
 	}
-	return wrapper.Exports[0], nil
+	return wrapper.Exports, nil
+}
+
+func extractScreenshotExport(data any) (screenshotExport, error) {
+	exports, err := extractScreenshotExports(data)
+	if err != nil {
+		return screenshotExport{}, err
+	}
+	return exports[0], nil
 }
 
 func writeBase64(b64, outputPath string) (int, error) {
@@ -255,14 +323,14 @@ func inferFormat(path string) string {
 	return ""
 }
 
-func parseSaveItem(raw any) (saveItem, error) {
+func parseExportItem(raw any) (exportItem, error) {
 	b, err := json.Marshal(raw)
 	if err != nil {
-		return saveItem{}, err
+		return exportItem{}, err
 	}
-	var item saveItem
+	var item exportItem
 	if err := json.Unmarshal(b, &item); err != nil {
-		return saveItem{}, err
+		return exportItem{}, err
 	}
 	return item, nil
 }
