@@ -104,8 +104,7 @@ doing right now. Three controls sit above the connection row:
 | **Pin** | Holds the current selection still. `get_selection(source: "pinned")` then returns those nodes however the selection moves, so a conversation keeps the same context without copying node ids by hand. |
 
 Guard, log, and the panel's size are remembered per machine. Drag the corner to
-resize it. The panel follows Figma's light and dark themes, and switches to
-Vietnamese when the browser asks for it.
+resize it. The panel follows Figma's light and dark themes.
 
 ### Dev Mode
 

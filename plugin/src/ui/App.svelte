@@ -23,13 +23,7 @@
   import { finishEntry, formatDuration, formatLog, progressEntry, startEntry } from "./activity";
   import type { ActivityEntry } from "./activity";
   import { destructiveReason, isDestructive, isMutating } from "../tool-classes";
-  import { pickLocale, strings } from "./i18n";
-
-  // The panel is translated; nothing that leaves it is. Refusal text the server
-  // receives and the activity log a user pastes into a bug report stay English —
-  // they are read by the MCP client and by whoever the report goes to.
-  const locale = pickLocale(typeof navigator !== "undefined" ? navigator.languages : undefined);
-  const t = strings(locale);
+  import { t } from "./i18n";
 
   let connected = false;
   let fileName = "—";
