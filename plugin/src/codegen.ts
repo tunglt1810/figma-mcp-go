@@ -3,8 +3,9 @@
 // The manifest declared `capabilities: ["inspect"]` without ever registering a
 // codegen provider, so Dev Mode's Code panel showed Figma's generic output and
 // nothing this project knows. Registering the provider needs `"codegen"` in
-// capabilities as well — without it Figma never runs the plugin in codegen
-// mode, and rejects `codegenPreferences` in the manifest while it is at it.
+// capabilities, plus a `codegenLanguages` list — Figma rejects the manifest of a
+// codegen plugin that offers no language, and the entry the viewer picks from
+// that list is what arrives as the generate event's `language`.
 //
 // Live generation on demand would mean the panel asking the MCP client for a
 // completion mid-render — a second request direction through the bridge, plus
@@ -92,7 +93,7 @@ export async function resolveBlocks(node: any): Promise<{ blocks: CodegenBlock[]
   return null;
 }
 
-/** The manifest's default for the language preference: show everything. */
+/** First entry of the manifest's codegenLanguages, so Figma's default: show everything. */
 export const ALL_LANGUAGES = "ALL";
 
 /**
@@ -130,20 +131,13 @@ export function registerCodegen(): boolean {
         },
       ];
     }
-    // The event carries the preferences as of this render; api.codegen.preferences
-    // is the same value and is read only as a fallback for older editors.
-    const language = event?.language ?? api.codegen.preferences?.language;
-    return selectBlocks(found.blocks, language).map((block) => ({
+    // Figma re-runs this handler by itself when the viewer changes the language,
+    // so the event is the only place the current choice needs reading from.
+    return selectBlocks(found.blocks, event?.language).map((block) => ({
       title: block.title,
       language: block.language,
       code: block.code,
     }));
-  });
-
-  // Figma does not re-render the Code panel on its own when a preference
-  // changes — the handler above only runs again if something asks for it.
-  api.codegen.on("preferenceschange", async () => {
-    if (typeof api.codegen.refresh === "function") api.codegen.refresh();
   });
   return true;
 }

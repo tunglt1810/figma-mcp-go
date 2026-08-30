@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  ALL_LANGUAGES,
   CODEGEN_KEY,
   PLUGIN_DATA_NAMESPACE,
   normalizeLanguage,
@@ -146,14 +147,12 @@ describe("registerCodegen", () => {
     (globalThis as any).figma = {
       codegen: {
         on: (event: string, handler: Function) => { handlers[event] = handler; },
-        refresh: () => { refreshed++; },
-        preferences: { language: "ALL" },
       },
     };
-    return { handlers, refreshed: () => refreshed };
+    return { handlers };
   };
 
-  it("applies the language preference the generate event carries", async () => {
+  it("applies the language the generate event carries", async () => {
     const { handlers } = fakeCodegen();
     expect(registerCodegen()).toBe(true);
     const node = withCode({ type: "FRAME", parent: null }, [
@@ -163,12 +162,32 @@ describe("registerCodegen", () => {
     const result = await handlers["generate"]({ node, language: "CSS" });
     expect(result.map((b: any) => b.title)).toEqual(["Styles"]);
   });
+});
 
-  // Figma does not re-render the Code panel by itself when a preference moves.
-  it("refreshes the panel when a preference changes", async () => {
-    const { handlers, refreshed } = fakeCodegen();
-    registerCodegen();
-    await handlers["preferenceschange"]({ propertyName: "language" });
-    expect(refreshed()).toBe(1);
+// Figma validates the manifest itself and only reports the failure inside the
+// desktop app, where no test run would see it. These are the two rules it
+// applied to this plugin: a codegen provider needs the capability, and a
+// codegen plugin must offer at least one language.
+describe("manifest", () => {
+  const manifest = require("../manifest.json");
+
+  it("declares the codegen capability the provider needs", () => {
+    expect(manifest.capabilities).toContain("codegen");
+  });
+
+  it("offers at least one language, whose values selectBlocks understands", () => {
+    expect(manifest.codegenLanguages.length).toBeGreaterThan(0);
+    for (const { label, value } of manifest.codegenLanguages) {
+      expect(label).toBeTruthy();
+      // Anything else would filter every block out and fall back to all of
+      // them, making the dropdown entry a no-op.
+      if (value !== ALL_LANGUAGES) expect(normalizeLanguage(value)).toBe(value);
+    }
+  });
+
+  // Figma takes the first entry as the default, and "show everything" is the
+  // only honest default for a panel that serves whatever was stored.
+  it("defaults to all languages", () => {
+    expect(manifest.codegenLanguages[0].value).toBe(ALL_LANGUAGES);
   });
 });
