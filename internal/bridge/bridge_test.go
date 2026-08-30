@@ -148,7 +148,7 @@ func TestBridgeSend_NotConnected(t *testing.T) {
 	b := NewBridge("0.1.1")
 	// No handover is in progress here, so there is nothing to wait for.
 	b.connectGrace = 10 * time.Millisecond
-	_, err := b.Send(context.Background(), "get_node", []string{"1:1"}, nil)
+	_, err := b.Send(context.Background(), "get_nodes_info", []string{"1:1"}, nil)
 	if err == nil {
 		t.Error("expected error when not connected")
 	}
@@ -160,7 +160,7 @@ func TestBridgeSend_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
 
-	_, err := b.Send(ctx, "get_node", []string{"1:1"}, nil)
+	_, err := b.Send(ctx, "get_nodes_info", []string{"1:1"}, nil)
 	if err == nil {
 		t.Error("expected error for cancelled context")
 	}
@@ -184,7 +184,7 @@ func TestBridgeSend_Success(t *testing.T) {
 		writeJSON(ctx, clientConn, resp) //nolint:errcheck
 	}()
 
-	got, err := b.Send(ctx, "get_node", []string{"1:1"}, nil)
+	got, err := b.Send(ctx, "get_nodes_info", []string{"1:1"}, nil)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestBridgeSend_PluginError(t *testing.T) {
 		writeJSON(ctx, clientConn, resp) //nolint:errcheck
 	}()
 
-	got, err := b.Send(ctx, "get_node", []string{"9:9"}, nil)
+	got, err := b.Send(ctx, "get_nodes_info", []string{"9:9"}, nil)
 	if err != nil {
 		t.Fatalf("unexpected transport error: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestBridgeSend_CallerDeadlineEndsTheWait(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	_, err := b.Send(ctx, "get_node", []string{"1:1"}, nil)
+	_, err := b.Send(ctx, "get_nodes_info", []string{"1:1"}, nil)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("err = %v, want context.DeadlineExceeded", err)
 	}
@@ -245,7 +245,7 @@ func TestBridgeSend_TimesOutWhenThePluginNeverAnswers(t *testing.T) {
 	b.toolTimeout = func(string) time.Duration { return 50 * time.Millisecond }
 
 	start := time.Now()
-	_, err := b.Send(context.Background(), "get_node", []string{"1:1"}, nil)
+	_, err := b.Send(context.Background(), "get_nodes_info", []string{"1:1"}, nil)
 	if err == nil || err.Error() != "request timed out" {
 		t.Fatalf("err = %v, want \"request timed out\"", err)
 	}
@@ -446,6 +446,38 @@ func TestReadLoop_KeepsReadingWhileAServerInfoReplyIsParked(t *testing.T) {
 		"the read loop to notice the client hung up")
 }
 
+// The panel raises its confirm guard when the server says its listener is
+// reachable from the network, so this flag is the whole of that signal.
+func TestReplyServerInfo_ReportsWhetherTheListenerIsExposed(t *testing.T) {
+	for _, exposed := range []bool{false, true} {
+		b, client := setupBridgeWithClient(t)
+		b.SetExposed(exposed)
+
+		if err := writeJSON(t.Context(), client, map[string]string{"type": "get_server_info"}); err != nil {
+			t.Fatalf("write get_server_info: %v", err)
+		}
+
+		var info struct {
+			Type    string `json:"type"`
+			Version string `json:"version"`
+			Exposed bool   `json:"exposed"`
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		if err := readJSON(ctx, client, &info); err != nil {
+			cancel()
+			t.Fatalf("read server-info: %v", err)
+		}
+		cancel()
+
+		if info.Type != "server-info" {
+			t.Fatalf("frame type = %q, want server-info", info.Type)
+		}
+		if info.Exposed != exposed {
+			t.Errorf("exposed = %v, want %v", info.Exposed, exposed)
+		}
+	}
+}
+
 func waitFor(t *testing.T, limit time.Duration, cond func() bool, what string) {
 	t.Helper()
 	deadline := time.Now().Add(limit)
@@ -514,7 +546,7 @@ func TestSend_HonoursTheCallersDeadlineWhileAnotherWriteIsParked(t *testing.T) {
 	waited := make(chan time.Duration, 1)
 	go func() {
 		start := time.Now()
-		b.Send(ctx, "get_node", []string{"1:1"}, nil) //nolint:errcheck
+		b.Send(ctx, "get_nodes_info", []string{"1:1"}, nil) //nolint:errcheck
 		waited <- time.Since(start)
 	}()
 

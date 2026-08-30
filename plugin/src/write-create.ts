@@ -1,6 +1,7 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
+import { loadFonts } from "./fonts";
 
 // create_node replaced seven create_* tools on the MCP surface. The seven
 // implementations stay separate below, because these shapes genuinely differ;
@@ -14,6 +15,42 @@ const NODE_ACTIONS: Record<string, string> = {
   LINE: "create_line",
   SECTION: "create_section",
 };
+
+/**
+ * The size to give a newly placed image.
+ *
+ * An explicit width and height win. One of the two is still an instruction —
+ * the schema takes them independently — so the other is derived from the
+ * image's aspect ratio rather than dropped on the floor. With neither, the
+ * image's own dimensions are used, scaled down to fit a sensible box so a
+ * 4000px photo does not land as a 4000px rectangle. getSizeAsync can fail on a
+ * malformed image, and a placeholder is a better outcome there than a failed
+ * import.
+ */
+export const imageSize = async (image: any, p: any) => {
+  const width = p.width != null ? Number(p.width) : null;
+  const height = p.height != null ? Number(p.height) : null;
+  if (width != null && height != null) return { width, height };
+  const MAX = 1000;
+  try {
+    const size = await image.getSizeAsync();
+    if (width != null) return { width, height: Math.round(width * (size.height / size.width)) };
+    if (height != null) return { width: Math.round(height * (size.width / size.height)), height };
+    const scale = Math.min(1, MAX / Math.max(size.width, size.height));
+    return { width: Math.round(size.width * scale), height: Math.round(size.height * scale) };
+  } catch {
+    return { width: width ?? 200, height: height ?? 200 };
+  }
+};
+
+// Figma expresses a crop as the 2x3 affine transform that maps the fill's unit
+// square onto a region of the image, so {x, y, width, height} in fractions of
+// the image is scale-then-translate. Callers get the rectangle; the matrix
+// stays here, where the one formula lives.
+export const cropToTransform = (crop: any): [[number, number, number], [number, number, number]] => [
+  [Number(crop.width), 0, Number(crop.x)],
+  [0, Number(crop.height), Number(crop.y)],
+];
 
 export const writeCreateHandlers: HandlerMap = {
   "create_node": async (request) => {
@@ -180,7 +217,7 @@ export const writeCreateHandlers: HandlerMap = {
     const parent = await getParentNode(p.parentId);
     const fontFamily = p.fontFamily || "Inter";
     const fontStyle = p.fontStyle || "Regular";
-    await figma.loadFontAsync({ family: fontFamily, style: fontStyle });
+    await loadFonts([{ family: fontFamily, style: fontStyle }]);
     const textNode = figma.createText();
     textNode.fontName = { family: fontFamily, style: fontStyle };
     if (p.fontSize != null) textNode.fontSize = Number(p.fontSize);
@@ -200,16 +237,59 @@ export const writeCreateHandlers: HandlerMap = {
 
   "import_image": async (request) => {
     const p = request.params || {};
-    if (!p.imageData) throw new Error("imageData (base64) is required");
+    if (!p.imageData && !p.imageUrl) {
+      throw new Error("imageData (base64) or imageUrl is required");
+    }
+
+    // A URL avoids pushing the whole file through the WebSocket as base64,
+    // which is the expensive half of placing an image.
+    const image = p.imageUrl
+      ? await figma.createImageAsync(p.imageUrl)
+      : figma.createImage(base64ToBytes(p.imageData));
+    const fill: any = {
+      type: "IMAGE",
+      imageHash: image.hash,
+      scaleMode: p.scaleMode || (p.crop ? "CROP" : "FILL"),
+    };
+    if (p.crop) fill.imageTransform = cropToTransform(p.crop);
+    if (p.filters) fill.filters = { ...p.filters };
+
+    // Painting an existing node beats making a rectangle beside it: an avatar
+    // or a hero slot is usually already there, waiting for its picture.
+    if (p.nodeId) {
+      const target = await figma.getNodeByIdAsync(p.nodeId) as any;
+      if (!target) throw new Error(`Node not found: ${p.nodeId}`);
+      if (!("fills" in target)) throw new Error(`Node ${p.nodeId} does not support fills`);
+      if (p.mode === "append") {
+        // figma.mixed is a symbol, and spreading it throws "is not iterable" —
+        // an error that names neither the node nor the fix.
+        if (!Array.isArray(target.fills)) {
+          throw new Error(
+            `Node ${p.nodeId} has mixed fills — mode "append" needs a node whose fills are all the same`,
+          );
+        }
+        target.fills = [...target.fills, fill];
+      } else {
+        target.fills = [fill];
+      }
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { id: target.id, name: target.name, type: target.type, bounds: getBounds(target) },
+      };
+    }
+
     const parent = await getParentNode(p.parentId);
-    const bytes = base64ToBytes(p.imageData);
-    const image = figma.createImage(bytes);
     const rect = figma.createRectangle();
-    rect.resize(p.width || 200, p.height || 200);
+    // Fall back to the image's own size rather than a fixed 200x200, so an
+    // imported picture is not silently squashed into a square.
+    const { width, height } = await imageSize(image, p);
+    rect.resize(width, height);
     rect.x = p.x != null ? p.x : 0;
     rect.y = p.y != null ? p.y : 0;
     if (p.name) rect.name = p.name;
-    rect.fills = [{ type: "IMAGE", imageHash: image.hash, scaleMode: p.scaleMode || "FILL" }];
+    rect.fills = [fill];
     (parent as any).appendChild(rect);
     figma.commitUndo();
     return {

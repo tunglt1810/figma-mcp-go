@@ -29,7 +29,7 @@ var writePageSpecs = []toolSpec{
 			"rename: pageId or pageName, plus newName. " +
 			"navigate: pageId or pageName. " +
 			"An argument belonging to a different action is rejected rather than ignored. " +
-			"Use get_pages to list page IDs and names.",
+			"Use get_metadata to list page IDs and names.",
 		Params: []paramSpec{
 			{Name: "action", Kind: kindString, Required: true, Enum: variantKinds(pageVariants),
 				Desc: "What to do: add, delete, rename, or navigate"},

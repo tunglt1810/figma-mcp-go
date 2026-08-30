@@ -8,7 +8,7 @@ import (
 
 func TestRequestJSONRoundTrip(t *testing.T) {
 	req := Request{
-		Type:      "get_node",
+		Type:      "get_nodes_info",
 		RequestID: "req-120000-1",
 		NodeIDs:   []string{"1:1", "2:2"},
 		Params:    map[string]any{"depth": float64(2)},

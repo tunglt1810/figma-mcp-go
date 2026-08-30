@@ -20,7 +20,7 @@ func addDesignStrategy(s *server.MCPServer) {
 
 1. Start with Document Structure:
    - First use get_metadata() to understand the current document
-   - Use get_pages() to list all pages
+   - Use get_metadata() to list all pages
    - Plan your layout hierarchy before creating elements
    - Create a main container frame for each screen/section
 
@@ -54,7 +54,7 @@ func addDesignStrategy(s *server.MCPServer) {
 6. Modifying existing elements:
    - Use set_text() to modify text content of a TEXT node
    - Use set_paint(type: "SOLID", color) to change background/fill colors
-   - Use move_nodes() / resize_nodes() for position and size adjustments
+   - Use set_node_properties() with x/y/width/height for position and size adjustments
 
 7. Visual Hierarchy:
    - Position elements in logical reading order (top to bottom)
@@ -66,7 +66,7 @@ func addDesignStrategy(s *server.MCPServer) {
      * Smaller for helper text/links
 
 8. Best Practices:
-   - Verify each creation with get_node()
+   - Verify each creation with get_nodes_info()
    - Use parentId to maintain proper hierarchy
    - Group related elements together in frames
    - Keep consistent spacing and alignment

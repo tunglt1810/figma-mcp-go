@@ -14,7 +14,7 @@ import (
 
 // pluginOnlyInGo are the tools the plugin deliberately does not handle.
 var pluginOnlyInGo = map[string]string{
-	"save_screenshots": "never reaches the plugin — the Go handler calls get_screenshot once per item and writes the files",
+	"export_screenshots": "never reaches the plugin — the Go handler calls get_screenshot once per item and writes the files",
 }
 
 // A handler claims a tool by being the map entry under its name. The pipeline

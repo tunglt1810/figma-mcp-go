@@ -1,4 +1,4 @@
-import { makeSolidPaint, hexToRgb, makeEffect } from "./write-helpers";
+import { makeSolidPaint, hexToRgb, makeEffect, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
 
 // create_style replaced four create_*_style tools on the MCP surface. The four
@@ -123,27 +123,7 @@ export const writeStylesHandlers: HandlerMap = {
     if (existing) {
       return { type: request.type, requestId: request.requestId, data: { id: existing.id, name: existing.name } };
     }
-    const pattern = p.pattern || "GRID";
-    let grid: LayoutGrid;
-    if (pattern === "COLUMNS" || pattern === "ROWS") {
-      grid = {
-        pattern,
-        count: Number(p.count ?? 12),
-        gutterSize: Number(p.gutterSize ?? 16),
-        offset: Number(p.offset ?? 0),
-        alignment: p.alignment || "STRETCH",
-        visible: true,
-      };
-    } else {
-      // GRID
-      const { r, g, b, a } = hexToRgb(p.color || "#FF0000");
-      grid = {
-        pattern: "GRID",
-        sectionSize: Number(p.sectionSize ?? 8),
-        visible: true,
-        color: { r, g, b, a: p.opacity != null ? Number(p.opacity) : (a !== 1 ? a : 0.1) },
-      };
-    }
+    const grid = makeLayoutGrid(p);
     const style = figma.createGridStyle();
     style.name = p.name;
     style.layoutGrids = [grid];
@@ -247,40 +227,6 @@ export const writeStylesHandlers: HandlerMap = {
       type: request.type,
       requestId: request.requestId,
       data: { id: node.id, name: node.name, effectCount: effects.length },
-    };
-  },
-
-  "bind_variable_to_node": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    if (!p.variableId) throw new Error("variableId is required");
-    if (!p.field) throw new Error("field is required");
-    const node = await figma.getNodeByIdAsync(nodeId) as any;
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    const variable = await figma.variables.getVariableByIdAsync(p.variableId);
-    if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
-    if (p.field === "fillColor") {
-      if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
-      const fills = [...(node.fills as Paint[])];
-      const base = fills.length > 0 ? fills[0] : makeSolidPaint("#000000");
-      const paint = figma.variables.setBoundVariableForPaint(base as SolidPaint, "color", variable);
-      node.fills = [paint];
-    } else if (p.field === "strokeColor") {
-      if (!("strokes" in node)) throw new Error(`Node ${nodeId} does not support strokes`);
-      const strokes = [...(node.strokes as Paint[])];
-      const base = strokes.length > 0 ? strokes[0] : makeSolidPaint("#000000");
-      const paint = figma.variables.setBoundVariableForPaint(base as SolidPaint, "color", variable);
-      node.strokes = [paint];
-    } else {
-      if (!(p.field in node)) throw new Error(`Node ${nodeId} does not have field: ${p.field}`);
-      node.setBoundVariable(p.field, variable);
-    }
-    figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name, variableId: p.variableId, field: p.field },
     };
   },
 };

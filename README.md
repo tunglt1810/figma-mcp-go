@@ -13,7 +13,7 @@ Open-source Figma MCP server with full read/write access via plugin. Turn text i
 **Highlights**
 - Operates locally via the Figma Plugin API (no REST API token required)
 - Real-time execution directly on your local machine
-- **Read and Write** live Figma data via plugin bridge — 63 tools total
+- **Read and Write** live Figma data via plugin bridge — 60 tools total
 - Full design automation — styles, variables, components, prototypes, content, and transactional batch pipelines
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
 
@@ -91,6 +91,42 @@ codex mcp add figma-mcp-go -- bunx @tunglt1810/figma-mcp-go@latest
 }
 ```
 
+### Plugin panel
+
+The panel shows the connected file, the current selection, and what the AI is
+doing right now. Three controls sit above the connection row:
+
+| Control | What it does |
+| ------- | ------------ |
+| **Guard** | `off` runs every request (default, and how the plugin has always behaved). `confirm` holds deletes and bulk rewrites until you allow them. `read-only` blocks every change while still answering reads. |
+| **Undo** | Reverses the last change. A whole `batch_execute_pipeline` run is one undo step, not one per action. |
+| **Log** | Opens the activity log — every request with its tool name, duration, and error. `Copy` dumps it as text for a bug report. |
+| **Pin** | Holds the current selection still. `get_selection(source: "pinned")` then returns those nodes however the selection moves, so a conversation keeps the same context without copying node ids by hand. |
+
+Guard, log, and the panel's size are remembered per machine. Drag the corner to
+resize it. The panel follows Figma's light and dark themes.
+
+### Dev Mode
+
+Figma's Dev Mode Code panel shows the code you attach to a node with
+`set_codegen_result`. The code lives in the Figma file, so every teammate's Dev
+Mode shows it — not only the machine that generated it.
+
+The panel looks for code on the node itself, then on the component an instance
+came from, then on its ancestors. Attaching code to a `COMPONENT` or
+`COMPONENT_SET` therefore covers every instance of it.
+
+This is deliberately not live generation. Generating on demand would mean the
+Code panel asking your editor for a completion mid-render, which needs MCP
+sampling — optional in the protocol, and not implemented by the clients this
+server targets. Writing the code from your editor, where the repository is in
+front of it, produces better code anyway.
+
+The Code panel has a **Language** selector. A node often carries several blocks
+— the component, its styles, the query behind it — and picking a language shows
+only those. A language with nothing stored for the node falls back to showing
+everything, so the setting never reads as "this node has no code".
+
 ### 2. Install the Figma plugin
 
 1. In Figma Desktop: **Plugins → Development → Import plugin from manifest**
@@ -134,6 +170,13 @@ open the plugin anywhere, so expect to set it on whichever instance should use
 `--ip` moves the listener off `127.0.0.1` (use `0.0.0.0` to accept connections
 from another machine).
 
+**The plugin connection is not authenticated.** On the default `127.0.0.1` bind
+that costs nothing: only this machine can reach it. Move it off loopback and
+anyone who can reach the port can read and edit whatever file the plugin is open
+in. The server warns at startup when you do, and the plugin panel turns its
+`confirm` guard on and says so, which gates the destructive tools rather than
+the connection. Prefer an SSH tunnel to opening the port.
+
 ---
 
 ## Upgrading
@@ -163,6 +206,51 @@ No tool changed its name or its arguments. Five things behave differently:
   other calls that have a shorter deadline of their own.
 - **`/ping`** returns `role`, `connected`, `pending` and `uptimeSeconds`
   alongside `status` and `version`.
+
+### Tool consolidation
+
+Eighteen tools were removed by folding each into one that already covered it.
+No capability was lost — everything possible before is still one call:
+
+| Removed | Replacement |
+| ------- | ----------- |
+| `set_layout_sizing` | `set_auto_layout({ nodeIds, … })` — it takes several nodes now |
+| `get_node` | `get_nodes_info({ nodeIds: [id] })` |
+| `get_pages` | `get_metadata()` |
+| `scan_nodes_by_types` | `search_nodes({ nodeId, types, includeHidden: false })` |
+| `scan_text_nodes` | `search_nodes({ nodeId, types: ["TEXT"], includeText: true })` |
+| `clear_annotations` | `set_annotations({ nodeIds, annotations: [] })` |
+| `rename_node` | `batch_rename_nodes({ nodeIds, name })` |
+| `move_nodes` | `set_node_properties({ nodeIds, x, y })` |
+| `resize_nodes` | `set_node_properties({ nodeIds, width, height })` |
+| `set_corner_radius` | `set_node_properties({ nodeIds, cornerRadius })` |
+| `remove_reactions` | `set_reactions({ nodeId, removeIndices })` |
+| `get_design_context` | `get_document({ scope: "selection", detail, dedupe_components })` |
+| `get_screenshot` / `save_screenshots` | `export_screenshots({ items })` — an item with an `outputPath` is written to disk, one without comes back as base64 |
+| `create_variable_collection` | `manage_variable({ action: "create_collection", name })` |
+| `add_variable_mode` | `manage_variable({ action: "add_mode", collectionId, modeName })` |
+| `create_variable` | `manage_variable({ action: "create", name, collectionId, type, value })` |
+| `set_variable_value` | `manage_variable({ action: "set_value", variableId, modeId, value })` |
+| `delete_variable` | `manage_variable({ action: "delete", variableId \| collectionId })` |
+| `bind_variable_to_node` | `manage_variable({ action: "bind", nodeId, variableId, field })` |
+
+Two of these gained something in the move. Moving and resizing a node is now
+one call and **one** undo entry rather than two, and `get_nodes_info` reports
+an ID that matched nothing under `missing` instead of dropping it — which used
+to read as "that node has no content".
+
+`detail` and `dedupe_components` were selection-only under
+`get_design_context`; they apply to a page or document walk too now.
+
+Four responses changed shape:
+
+- `set_auto_layout` and `set_annotations` answer `{results: [...]}`, one entry
+  per node, like every other multi-node tool.
+- `get_document` answers `{fileName, scope, currentPage, nodes: [...]}` for all
+  three scopes, instead of a bare page tree for one and a `DOCUMENT` wrapper
+  for another.
+- `export_screenshots` answers `{total, succeeded, failed, results: [...]}`,
+  each result carrying either an `outputPath` or a `base64`.
 
 ### Breaking changes in 0.1.0
 
@@ -232,43 +320,50 @@ because `type` names the kind of style. Gradients can only target a fill;
 | --------------------------- | ---------------------------------------------------------- |
 | `create_node`               | Create a FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION |
 | `create_text`               | Create a text node (font loaded automatically)             |
-| `import_image`              | Decode base64 image and place it as a rectangle fill       |
+| `import_image`              | Place an image from a URL or base64 — as a new rectangle, or onto an existing node |
 | `create_component`          | Convert an existing FRAME node into a reusable component   |
+| `combine_as_variants`       | Combine components into one COMPONENT_SET of variants      |
+| `manage_component_properties` | Declare what a component exposes — add, edit, delete, and bind properties to its layers |
 | `create_component_instance` | Create an instance of a component (local or library)       |
 | `create_connector`          | Create a Connector line between nodes (FigJam only)        |
+| `create_vector`             | Create a vector node from SVG markup — how an icon gets in |
+| `boolean_operation`         | UNION, SUBTRACT, INTERSECT, or EXCLUDE two or more shapes  |
+| `flatten_nodes`             | Flatten nodes into a single vector                         |
+| `outline_stroke`            | Turn a node's stroke into an editable filled vector        |
 
 ### Write — Modify
 
 | Tool                     | Description                                                                      |
 | ------------------------ | -------------------------------------------------------------------------------- |
-| `set_text`               | Update text content of an existing TEXT node                                     |
+| `set_text`               | Update a TEXT node's content and node-wide settings — wrapping, truncation, alignment, paragraph spacing |
+| `set_text_ranges`        | Style parts of a TEXT node independently — a bold word, a coloured phrase, a hyperlink, a bulleted list |
 | `set_paint`              | Paint a node's fill or stroke — solid, linear gradient, or radial gradient       |
-| `set_corner_radius`      | Set corner radius — uniform or per-corner                                        |
-| `set_auto_layout`        | Set or update auto-layout (flex) properties on a frame                           |
-| `set_node_properties`    | Set any combination of visibility, lock, opacity, rotation, blend mode, constraints, and z-order on one or more nodes |
+| `set_auto_layout`        | Set or update auto-layout (flex) on frames, components, or instances — direction, padding, gap, alignment, HUG/FILL sizing, min/max bounds, and how each node sits in its parent's layout. Takes several nodes, for a whole row of siblings in one call |
+| `set_layout_grids`       | Set the column, row, or square grids drawn over a frame                          |
+| `set_node_properties`    | Set any combination of position, size, corner radius, visibility, lock, opacity, rotation, blend mode, constraints, z-order, masking, and stroke geometry (weight, alignment, caps, joins, miter limit, dash pattern) on one or more nodes |
 | `set_instance_overrides` | Update Component Properties (variants, booleans, text) on a component instance   |
-| `set_annotations`        | Set Dev Mode Annotations on a node (requires paid Dev Mode seat)                 |
-| `move_nodes`             | Move nodes to an absolute x/y position                                           |
-| `resize_nodes`           | Resize nodes by width and/or height                                              |
-| `rename_node`            | Rename a node                                                                    |
+| `set_annotations`        | Set Dev Mode Annotations on one or more nodes; an empty array clears them (requires paid Dev Mode seat) |
 | `clone_node`             | Clone a node, optionally repositioning or reparenting                            |
 | `reparent_nodes`         | Move nodes to a different parent frame, group, or section                        |
-| `batch_rename_nodes`     | Bulk rename nodes via find/replace, regex, or prefix/suffix                      |
+| `batch_rename_nodes`     | Rename nodes — a literal `name`, or find/replace, regex, prefix, or suffix       |
 | `find_replace_text`      | Find and replace text across all TEXT nodes in a subtree or page; supports regex |
+| `set_selection`          | Select nodes and scroll the viewport to them, switching pages if needed — use it to show the user what changed |
+| `save_version_checkpoint` | Save a named version in the file's version history — a way back that survives the session |
+| `set_codegen_result`     | Attach generated code to a node so it shows in Figma's Dev Mode Code panel      |
+| `manage_plugin_data`     | Read and write your own metadata on a node, stored in the Figma file            |
+| `set_export_settings`    | Set the export presets on nodes — the entries under Export in the right-hand panel |
 
 ### Write — Delete
 
-| Tool                | Description                                           |
-| ------------------- | ----------------------------------------------------- |
-| `delete_nodes`      | Delete one or more nodes permanently                  |
-| `clear_annotations` | Clear all Dev Mode Annotations from one or more nodes |
+| Tool           | Description                          |
+| -------------- | ------------------------------------ |
+| `delete_nodes` | Delete one or more nodes permanently |
 
 ### Write — Prototype
 
-| Tool               | Description                                                                        |
-| ------------------ | ---------------------------------------------------------------------------------- |
-| `set_reactions`    | Set prototype reactions (triggers + actions) on a node; mode `replace` or `append` |
-| `remove_reactions` | Remove all or specific reactions by zero-based index from a node                   |
+| Tool            | Description                                                                                                       |
+| --------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `set_reactions` | Set prototype reactions (triggers + actions) on a node; mode `replace` or `append`, or `removeIndices` to delete them |
 
 ### Write — Styles
 
@@ -282,14 +377,9 @@ because `type` names the kind of style. Gradients can only target a fill;
 
 ### Write — Variables
 
-| Tool                         | Description                                                                                                                                                    |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create_variable_collection` | Create a new local variable collection with an optional initial mode                                                                                           |
-| `add_variable_mode`          | Add a new mode to an existing collection (e.g. Light/Dark)                                                                                                     |
-| `create_variable`            | Create a variable (COLOR/FLOAT/STRING/BOOLEAN) in a collection                                                                                                 |
-| `set_variable_value`         | Set a variable's value for a specific mode                                                                                                                     |
-| `bind_variable_to_node`      | Bind a variable to a node property — supports `fillColor`, `strokeColor`, `visible`, `opacity`, `rotation`, `width`, `height`, corner radii, spacing, and more |
-| `delete_variable`            | Delete a variable or an entire collection                                                                                                                      |
+| Tool              | Description                                                                                                    |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| `manage_variable` | Create, change, delete and apply variables — `action` selects which: `create_collection`, `add_mode`, `create`, `set_value`, `delete`, `bind` |
 
 ### Write — Pages
 
@@ -310,16 +400,11 @@ because `type` names the kind of style. Gradients can only target a fill;
 
 | Tool                  | Description                                                         |
 | --------------------- | ------------------------------------------------------------------- |
-| `get_document`        | Full current page tree                                              |
-| `get_metadata`        | File name, pages, current page                                      |
-| `get_pages`           | All pages (IDs + names) — lightweight, no tree loading              |
-| `get_selection`       | Currently selected nodes                                            |
-| `get_node`            | Single node by ID                                                   |
-| `get_nodes_info`      | Multiple nodes by ID                                                |
-| `get_design_context`  | Depth-limited tree with `detail` level (`minimal`/`compact`/`full`) |
-| `search_nodes`        | Find nodes by name substring and/or type within a subtree           |
-| `scan_text_nodes`     | All text nodes in a subtree                                         |
-| `scan_nodes_by_types` | Nodes matching given type list                                      |
+| `get_document`        | Node tree of the selection, the current page, or the whole file — `scope` chooses; `detail`, `depth`, `maxNodes` and `dedupe_components` cap it |
+| `get_metadata`        | File name, page count, current page, and every page with its ID     |
+| `get_selection`       | Currently selected nodes, or the set pinned in the panel with `source: "pinned"` |
+| `get_nodes_info`      | One or more nodes by ID; an ID that matches nothing is reported under `missing` |
+| `search_nodes`        | Find nodes by name substring and/or type — current page, a subtree, or the whole document; `includeText` reads the copy, `includeHidden: false` skips hidden nodes |
 | `get_viewport`        | Current viewport center, zoom, and visible bounds                   |
 
 ### Read — Styles & Variables
@@ -338,8 +423,8 @@ because `type` names the kind of style. Gradients can only target a fill;
 
 | Tool                   | Description                                                          |
 | ---------------------- | -------------------------------------------------------------------- |
-| `get_screenshot`       | Base64 image export of any node                                      |
-| `save_screenshots`     | Export images to disk (server-side, no API call)                     |
+| `get_image_bytes`      | Original bytes of the images placed on nodes, as base64              |
+| `export_screenshots`   | Export nodes as images — to disk with an `outputPath`, as base64 without one, or the current selection with no items at all |
 | `export_frames_to_pdf` | Export multiple frames as a single multi-page PDF file saved to disk |
 | `export_tokens`        | Export design tokens (variables + paint styles) as JSON or CSS       |
 

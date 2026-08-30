@@ -3,6 +3,7 @@ package figma
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -119,6 +120,102 @@ func ValidateConstraintAxes(c map[string]any) string {
 		case "MIN", "MAX", "CENTER", "STRETCH", "SCALE":
 		default:
 			return fmt.Sprintf("%s must be MIN, MAX, CENTER, STRETCH, or SCALE, got: %s", axis, v)
+		}
+	}
+	return ""
+}
+
+// StrokeCapNames are the ways Figma draws the open end of a stroke. The last
+// four are arrowheads, which is how a line becomes an arrow without a separate
+// tool for it.
+var StrokeCapNames = []string{
+	"NONE", "ROUND", "SQUARE",
+	"ARROW_LINES", "ARROW_EQUILATERAL",
+}
+
+// ValidateImageCrop checks the fractional crop rect import_image accepts. The
+// values are fractions of the source image, not pixels, so a rect that runs
+// past its right or bottom edge is a mistake rather than a clamp.
+func ValidateImageCrop(crop map[string]any) string {
+	values := make(map[string]float64, 4)
+	for _, key := range []string{"x", "y", "width", "height"} {
+		raw, ok := crop[key]
+		if !ok {
+			return fmt.Sprintf("crop.%s is required", key)
+		}
+		v, ok := raw.(float64)
+		if !ok {
+			return fmt.Sprintf("crop.%s must be a number", key)
+		}
+		if v < 0 || v > 1 {
+			return fmt.Sprintf("crop.%s must be between 0 and 1, got: %v", key, v)
+		}
+		values[key] = v
+	}
+	if values["width"] == 0 || values["height"] == 0 {
+		return "crop.width and crop.height must be greater than 0"
+	}
+	if values["x"]+values["width"] > 1 {
+		return "crop.x + crop.width must not exceed 1"
+	}
+	if values["y"]+values["height"] > 1 {
+		return "crop.y + crop.height must not exceed 1"
+	}
+	return ""
+}
+
+// ImageFilterNames are the adjustments an IMAGE paint carries, each -1 to 1.
+var ImageFilterNames = []string{
+	"exposure", "contrast", "saturation", "temperature", "tint", "highlights", "shadows",
+}
+
+// ValidateImageFilters checks the image adjustments import_image accepts.
+func ValidateImageFilters(filters map[string]any) string {
+	for key, raw := range filters {
+		if !slices.Contains(ImageFilterNames, key) {
+			return fmt.Sprintf("unknown image filter %q — expected one of %s", key, strings.Join(ImageFilterNames, ", "))
+		}
+		v, ok := raw.(float64)
+		if !ok {
+			return fmt.Sprintf("filters.%s must be a number", key)
+		}
+		if v < -1 || v > 1 {
+			return fmt.Sprintf("filters.%s must be between -1 and 1, got: %v", key, v)
+		}
+	}
+	return ""
+}
+
+// ValidateExportSettings checks the export presets set_export_settings takes.
+// Figma throws on a malformed preset rather than skipping it, which would leave
+// a node half-updated, so the whole array is checked before any of it is sent.
+func ValidateExportSettings(settings []any, formats []string) string {
+	for i, raw := range settings {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Sprintf("settings[%d] must be an object", i)
+		}
+		format, _ := entry["format"].(string)
+		if format == "" {
+			return fmt.Sprintf("settings[%d].format is required", i)
+		}
+		if !slices.Contains(formats, format) {
+			return fmt.Sprintf("settings[%d].format must be one of %s, got: %s", i, strings.Join(formats, ", "), format)
+		}
+		constraint, ok := entry["constraint"].(map[string]any)
+		if !ok {
+			continue
+		}
+		kind, _ := constraint["type"].(string)
+		if !slices.Contains([]string{"SCALE", "WIDTH", "HEIGHT"}, kind) {
+			return fmt.Sprintf("settings[%d].constraint.type must be SCALE, WIDTH, or HEIGHT, got: %s", i, kind)
+		}
+		value, ok := constraint["value"].(float64)
+		if !ok {
+			return fmt.Sprintf("settings[%d].constraint.value must be a number", i)
+		}
+		if value <= 0 {
+			return fmt.Sprintf("settings[%d].constraint.value must be greater than 0, got: %v", i, value)
 		}
 	}
 	return ""

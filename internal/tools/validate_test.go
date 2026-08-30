@@ -7,21 +7,6 @@ import (
 
 // ── figma.ValidNodeID ──────────────────────────────────────────────────────────────
 
-func TestValidateRPC_GetNode(t *testing.T) {
-	// missing nodeId
-	if msg := ValidateRPC("get_node", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
-	}
-	// hyphen format
-	if msg := ValidateRPC("get_node", []string{"4029-12345"}, nil); msg == "" {
-		t.Error("expected error for hyphen nodeId")
-	}
-	// valid
-	if msg := ValidateRPC("get_node", []string{"4029:12345"}, nil); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_GetNodesInfo(t *testing.T) {
 	if msg := ValidateRPC("get_nodes_info", nil, nil); msg == "" {
 		t.Error("expected error for empty nodeIds")
@@ -29,91 +14,142 @@ func TestValidateRPC_GetNodesInfo(t *testing.T) {
 	if msg := ValidateRPC("get_nodes_info", []string{"bad"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
+	// ValidateRPC is the check after normalization, so a hyphen reaching it
+	// means nothing normalized it and it is not a node id.
+	if msg := ValidateRPC("get_nodes_info", []string{"4029-12345"}, nil); msg == "" {
+		t.Error("expected error for hyphen nodeId")
+	}
 	if msg := ValidateRPC("get_nodes_info", []string{"1:1", "2:2"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
+	// This absorbed get_node, so one node is a normal call, not a degenerate one.
+	if msg := ValidateRPC("get_nodes_info", []string{"4029:12345"}, nil); msg != "" {
+		t.Errorf("a single node was rejected: %s", msg)
+	}
 }
 
-func TestValidateRPC_GetScreenshot(t *testing.T) {
-	// invalid format
-	msg := ValidateRPC("get_screenshot", []string{"1:1"}, map[string]any{"format": "GIF"})
-	if msg == "" {
+// get_screenshot and save_screenshots became export_screenshots, where the
+// outputPath is what decides whether a capture goes to disk or comes back as
+// base64.
+func TestValidateRPC_ExportScreenshots(t *testing.T) {
+	// no items at all is the "capture the selection" call, not an error
+	if msg := ValidateRPC("export_screenshots", nil, nil); msg != "" {
+		t.Errorf("exporting the selection was rejected: %s", msg)
+	}
+	// an explicitly empty array is a caller mistake, not that call
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{"items": []any{}}); msg == "" {
+		t.Error("expected error for an empty items array")
+	}
+	// invalid format on the tool itself
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{"format": "GIF"}); msg == "" {
 		t.Error("expected error for invalid format")
 	}
-	// valid formats
 	for _, f := range []string{"PNG", "SVG", "JPG", "PDF"} {
-		msg := ValidateRPC("get_screenshot", []string{"1:1"}, map[string]any{"format": f})
-		if msg != "" {
+		if msg := ValidateRPC("export_screenshots", nil, map[string]any{"format": f}); msg != "" {
 			t.Errorf("unexpected error for format %s: %s", f, msg)
 		}
 	}
-}
-
-func TestValidateRPC_SaveScreenshots(t *testing.T) {
-	// missing items
-	if msg := ValidateRPC("save_screenshots", nil, nil); msg == "" {
-		t.Error("expected error for missing items")
-	}
-	// empty items array
-	msg := ValidateRPC("save_screenshots", nil, map[string]any{
-		"items": []any{},
-	})
-	if msg == "" {
-		t.Error("expected error for empty items")
-	}
 	// invalid nodeId in item
-	msg = ValidateRPC("save_screenshots", nil, map[string]any{
-		"items": []any{
-			map[string]any{"nodeId": "bad", "outputPath": "out.png"},
-		},
-	})
-	if msg == "" {
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+		"items": []any{map[string]any{"nodeId": "bad", "outputPath": "out.png"}},
+	}); msg == "" {
 		t.Error("expected error for bad nodeId in item")
 	}
-	// missing outputPath
-	msg = ValidateRPC("save_screenshots", nil, map[string]any{
-		"items": []any{
-			map[string]any{"nodeId": "1:1"},
-		},
-	})
-	if msg == "" {
-		t.Error("expected error for missing outputPath")
+	// no outputPath is base64, not an error — this is the get_screenshot half
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1"}},
+	}); msg != "" {
+		t.Errorf("an item without outputPath was rejected: %s", msg)
 	}
-	// valid
-	msg = ValidateRPC("save_screenshots", nil, map[string]any{
+	// an empty outputPath is a path the caller got wrong, and must not quietly
+	// become the base64 answer
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1", "outputPath": ""}},
+	}); msg == "" {
+		t.Error("expected error for an empty outputPath")
+	}
+	// the per-item format is a level below any paramSpec enum
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1", "format": "GIF"}},
+	}); msg == "" {
+		t.Error("expected error for an invalid per-item format")
+	}
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1", "scale": float64(0)}},
+	}); msg == "" {
+		t.Error("expected error for a non-positive per-item scale")
+	}
+	// both kinds in one call
+	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
 		"items": []any{
 			map[string]any{"nodeId": "1:1", "outputPath": "out.png"},
+			map[string]any{"nodeId": "2:2"},
 		},
-	})
-	if msg != "" {
+	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
-func TestValidateRPC_GetDesignContext(t *testing.T) {
+// get_document absorbed get_design_context, so detail, dedupe_components and a
+// selection scope are arguments to it now.
+func TestValidateRPC_GetDocument(t *testing.T) {
 	// negative depth
-	msg := ValidateRPC("get_design_context", nil, map[string]any{"depth": float64(-1)})
-	if msg == "" {
+	if msg := ValidateRPC("get_document", nil, map[string]any{"depth": float64(-1)}); msg == "" {
 		t.Error("expected error for negative depth")
 	}
 	// invalid detail
-	msg = ValidateRPC("get_design_context", nil, map[string]any{"detail": "huge"})
-	if msg == "" {
+	if msg := ValidateRPC("get_document", nil, map[string]any{"detail": "huge"}); msg == "" {
 		t.Error("expected error for invalid detail")
 	}
 	// valid detail values
 	for _, d := range []string{"minimal", "compact", "full"} {
-		msg := ValidateRPC("get_design_context", nil, map[string]any{"detail": d})
-		if msg != "" {
+		if msg := ValidateRPC("get_document", nil, map[string]any{"detail": d}); msg != "" {
 			t.Errorf("unexpected error for detail %s: %s", d, msg)
 		}
+	}
+	// every scope, including the one that came from get_design_context
+	for _, scope := range []string{"selection", "page", "document"} {
+		if msg := ValidateRPC("get_document", nil, map[string]any{"scope": scope}); msg != "" {
+			t.Errorf("unexpected error for scope %s: %s", scope, msg)
+		}
+	}
+	if msg := ValidateRPC("get_document", nil, map[string]any{"scope": "everything"}); msg == "" {
+		t.Error("expected error for an unknown scope")
+	}
+	// what get_design_context was, now on a document walk
+	if msg := ValidateRPC("get_document", nil, map[string]any{
+		"scope": "document", "detail": "minimal", "dedupeComponents": true, "maxNodes": float64(500),
+	}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
 func TestValidateRPC_SearchNodes(t *testing.T) {
-	// missing query
+	// neither query nor types: this absorbed scan_nodes_by_types, so types alone
+	// is a whole search now — but neither would be "every node on the page".
 	if msg := ValidateRPC("search_nodes", nil, nil); msg == "" {
-		t.Error("expected error for missing query")
+		t.Error("expected error when neither query nor types is given")
+	}
+	// types alone, which is what scan_nodes_by_types was
+	if msg := ValidateRPC("search_nodes", nil, map[string]any{
+		"nodeId": "1:1",
+		"types":  []any{"FRAME", "COMPONENT"},
+	}); msg != "" {
+		t.Errorf("a types-only search was rejected: %s", msg)
+	}
+	// what scan_text_nodes was
+	if msg := ValidateRPC("search_nodes", nil, map[string]any{
+		"nodeId":      "1:1",
+		"types":       []any{"TEXT"},
+		"includeText": true,
+	}); msg != "" {
+		t.Errorf("a text scan was rejected: %s", msg)
+	}
+	if msg := ValidateRPC("search_nodes", nil, map[string]any{
+		"query":         "button",
+		"includeHidden": "no",
+	}); msg == "" {
+		t.Error("expected a non-boolean includeHidden to be rejected")
 	}
 	// invalid nodeId
 	msg := ValidateRPC("search_nodes", nil, map[string]any{
@@ -154,48 +190,120 @@ func TestValidateRPC_SetText(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_MoveNodes(t *testing.T) {
-	// no x or y
-	msg := ValidateRPC("move_nodes", []string{"1:1"}, nil)
-	if msg == "" {
-		t.Error("expected error when neither x nor y provided")
+// manage_variable absorbed the six single-purpose variable tools. Each action
+// keeps the arguments its tool required, and an argument from a different
+// action is rejected rather than dropped — the trade a merged tool makes is
+// only worth it if the wrong argument is reported.
+func TestValidateRPC_ManageVariable(t *testing.T) {
+	call := func(nodeIDs []string, params map[string]any) string {
+		return ValidateRPC("manage_variable", nodeIDs, params)
 	}
-	// valid with just x
-	msg = ValidateRPC("move_nodes", []string{"1:1"}, map[string]any{"x": float64(10)})
-	if msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
 
-func TestValidateRPC_CreateVariable(t *testing.T) {
-	// invalid type
-	msg := ValidateRPC("create_variable", nil, map[string]any{
-		"name": "myVar", "collectionId": "abc", "type": "NUMBER",
-	})
-	if msg == "" {
-		t.Error("expected error for invalid variable type")
-	}
-	// valid types
-	for _, vt := range []string{"COLOR", "FLOAT", "STRING", "BOOLEAN"} {
-		msg := ValidateRPC("create_variable", nil, map[string]any{
-			"name": "myVar", "collectionId": "abc", "type": vt,
-		})
-		if msg != "" {
-			t.Errorf("unexpected error for type %s: %s", vt, msg)
+	t.Run("the action itself", func(t *testing.T) {
+		if msg := call(nil, nil); msg == "" {
+			t.Error("expected error for a missing action")
 		}
-	}
-}
+		if msg := call(nil, map[string]any{"action": "reticulate"}); msg == "" {
+			t.Error("expected error for an unknown action")
+		}
+	})
 
-func TestValidateRPC_DeleteVariable(t *testing.T) {
-	// neither variableId nor collectionId
-	if msg := ValidateRPC("delete_variable", nil, nil); msg == "" {
-		t.Error("expected error when neither id provided")
-	}
-	// variableId only — valid
-	msg := ValidateRPC("delete_variable", nil, map[string]any{"variableId": "abc"})
-	if msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
+	t.Run("create_collection", func(t *testing.T) {
+		if msg := call(nil, map[string]any{"action": "create_collection"}); msg == "" {
+			t.Error("expected error for missing name")
+		}
+		if msg := call(nil, map[string]any{"action": "create_collection", "name": "Brand"}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+	})
+
+	t.Run("add_mode", func(t *testing.T) {
+		if msg := call(nil, map[string]any{"action": "add_mode"}); msg == "" {
+			t.Error("expected error for missing collectionId")
+		}
+		if msg := call(nil, map[string]any{"action": "add_mode", "collectionId": "c1"}); msg == "" {
+			t.Error("expected error for missing modeName")
+		}
+		if msg := call(nil, map[string]any{"action": "add_mode", "collectionId": "c1", "modeName": "Dark"}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+	})
+
+	t.Run("create", func(t *testing.T) {
+		if msg := call(nil, map[string]any{
+			"action": "create", "name": "myVar", "collectionId": "abc", "type": "NUMBER",
+		}); msg == "" {
+			t.Error("expected error for invalid variable type")
+		}
+		for _, vt := range []string{"COLOR", "FLOAT", "STRING", "BOOLEAN"} {
+			if msg := call(nil, map[string]any{
+				"action": "create", "name": "myVar", "collectionId": "abc", "type": vt,
+			}); msg != "" {
+				t.Errorf("unexpected error for type %s: %s", vt, msg)
+			}
+		}
+		if msg := call(nil, map[string]any{"action": "create", "name": "myVar", "type": "COLOR"}); msg == "" {
+			t.Error("expected error for missing collectionId")
+		}
+	})
+
+	t.Run("set_value", func(t *testing.T) {
+		if msg := call(nil, map[string]any{"action": "set_value"}); msg == "" {
+			t.Error("expected error for missing variableId")
+		}
+		if msg := call(nil, map[string]any{"action": "set_value", "variableId": "v1"}); msg == "" {
+			t.Error("expected error for missing modeId")
+		}
+		if msg := call(nil, map[string]any{"action": "set_value", "variableId": "v1", "modeId": "m1"}); msg == "" {
+			t.Error("expected error for missing value")
+		}
+		if msg := call(nil, map[string]any{
+			"action": "set_value", "variableId": "v1", "modeId": "m1", "value": "#fff",
+		}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+	})
+
+	t.Run("delete takes either target but needs one", func(t *testing.T) {
+		if msg := call(nil, map[string]any{"action": "delete"}); msg == "" {
+			t.Error("expected error when neither id is provided")
+		}
+		if msg := call(nil, map[string]any{"action": "delete", "variableId": "abc"}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+		if msg := call(nil, map[string]any{"action": "delete", "collectionId": "c1"}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+	})
+
+	// The node travels in its own field, which requireVariant cannot see.
+	t.Run("bind", func(t *testing.T) {
+		if msg := call(nil, map[string]any{"action": "bind", "variableId": "v1", "field": "fillColor"}); msg == "" {
+			t.Error("expected error for missing nodeId")
+		}
+		if msg := call([]string{"bad"}, map[string]any{"action": "bind", "variableId": "v1", "field": "fillColor"}); msg == "" {
+			t.Error("expected error for invalid nodeId")
+		}
+		if msg := call([]string{"1:1"}, map[string]any{"action": "bind", "field": "fillColor"}); msg == "" {
+			t.Error("expected error for missing variableId")
+		}
+		if msg := call([]string{"1:1"}, map[string]any{"action": "bind", "variableId": "v1"}); msg == "" {
+			t.Error("expected error for missing field")
+		}
+		if msg := call([]string{"1:1"}, map[string]any{
+			"action": "bind", "variableId": "v1", "field": "fillColor",
+		}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+	})
+
+	// An argument from another action is named rather than silently dropped.
+	t.Run("a stray argument is reported", func(t *testing.T) {
+		msg := call(nil, map[string]any{"action": "create_collection", "name": "Brand", "modeId": "m1"})
+		if !strings.Contains(msg, "modeId") {
+			t.Errorf("want the message to name modeId, got: %q", msg)
+		}
+	})
 }
 
 func TestValidateRPC_SwapComponent(t *testing.T) {
@@ -235,37 +343,6 @@ func TestValidateRPC_GetReactions(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_ScanTextNodes(t *testing.T) {
-	if msg := ValidateRPC("scan_text_nodes", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
-	}
-	if msg := ValidateRPC("scan_text_nodes", nil, map[string]any{"nodeId": "bad"}); msg == "" {
-		t.Error("expected error for invalid nodeId")
-	}
-	if msg := ValidateRPC("scan_text_nodes", nil, map[string]any{"nodeId": "1:1"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_ScanNodesByTypes(t *testing.T) {
-	if msg := ValidateRPC("scan_nodes_by_types", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
-	}
-	// missing types
-	msg := ValidateRPC("scan_nodes_by_types", nil, map[string]any{"nodeId": "1:1"})
-	if msg == "" {
-		t.Error("expected error for missing types")
-	}
-	// valid
-	msg = ValidateRPC("scan_nodes_by_types", nil, map[string]any{
-		"nodeId": "1:1",
-		"types":  []any{"FRAME"},
-	})
-	if msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_SetAutoLayout(t *testing.T) {
 	if msg := ValidateRPC("set_auto_layout", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
@@ -293,21 +370,6 @@ func TestValidateRPC_CreateText(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_ResizeNodes(t *testing.T) {
-	if msg := ValidateRPC("resize_nodes", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeIds")
-	}
-	if msg := ValidateRPC("resize_nodes", []string{"bad"}, nil); msg == "" {
-		t.Error("expected error for invalid nodeId")
-	}
-	if msg := ValidateRPC("resize_nodes", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error when neither width nor height provided")
-	}
-	if msg := ValidateRPC("resize_nodes", []string{"1:1"}, map[string]any{"width": float64(200)}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_DeleteNodes(t *testing.T) {
 	if msg := ValidateRPC("delete_nodes", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeIds")
@@ -320,15 +382,27 @@ func TestValidateRPC_DeleteNodes(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_RenameNode(t *testing.T) {
-	if msg := ValidateRPC("rename_node", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
+// batch_rename_nodes absorbed rename_node, so a literal name is one of the ways
+// it derives a name — and the one that cannot be mixed with the others.
+func TestValidateRPC_BatchRenameNodes_Name(t *testing.T) {
+	if msg := ValidateRPC("batch_rename_nodes", nil, map[string]any{"name": "Frame 1"}); msg == "" {
+		t.Error("expected error for missing nodeIds")
 	}
-	if msg := ValidateRPC("rename_node", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing name")
+	if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, nil); msg == "" {
+		t.Error("expected error when no renaming rule is given")
 	}
-	if msg := ValidateRPC("rename_node", []string{"1:1"}, map[string]any{"name": "Frame 1"}); msg != "" {
+	if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, map[string]any{"name": "Frame 1"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
+	}
+	// A literal name and a substitution in one call have no defined order.
+	for _, other := range []string{"find", "prefix", "suffix"} {
+		params := map[string]any{"name": "Frame 1", other: "x"}
+		if other == "find" {
+			params["replace"] = "y"
+		}
+		if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, params); msg == "" {
+			t.Errorf("expected name + %s to be rejected", other)
+		}
 	}
 }
 
@@ -385,42 +459,6 @@ func TestValidateRPC_DeleteStyle(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_CreateVariableCollection(t *testing.T) {
-	if msg := ValidateRPC("create_variable_collection", nil, nil); msg == "" {
-		t.Error("expected error for missing name")
-	}
-	if msg := ValidateRPC("create_variable_collection", nil, map[string]any{"name": "Brand"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_AddVariableMode(t *testing.T) {
-	if msg := ValidateRPC("add_variable_mode", nil, nil); msg == "" {
-		t.Error("expected error for missing collectionId")
-	}
-	if msg := ValidateRPC("add_variable_mode", nil, map[string]any{"collectionId": "c1"}); msg == "" {
-		t.Error("expected error for missing modeName")
-	}
-	if msg := ValidateRPC("add_variable_mode", nil, map[string]any{"collectionId": "c1", "modeName": "Dark"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_SetVariableValue(t *testing.T) {
-	if msg := ValidateRPC("set_variable_value", nil, nil); msg == "" {
-		t.Error("expected error for missing variableId")
-	}
-	if msg := ValidateRPC("set_variable_value", nil, map[string]any{"variableId": "v1"}); msg == "" {
-		t.Error("expected error for missing modeId")
-	}
-	if msg := ValidateRPC("set_variable_value", nil, map[string]any{"variableId": "v1", "modeId": "m1"}); msg == "" {
-		t.Error("expected error for missing value")
-	}
-	if msg := ValidateRPC("set_variable_value", nil, map[string]any{"variableId": "v1", "modeId": "m1", "value": "#fff"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_ApplyStyleToNode(t *testing.T) {
 	if msg := ValidateRPC("apply_style_to_node", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
@@ -441,24 +479,6 @@ func TestValidateRPC_ApplyStyleToNode(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_BindVariableToNode(t *testing.T) {
-	if msg := ValidateRPC("bind_variable_to_node", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
-	}
-	if msg := ValidateRPC("bind_variable_to_node", []string{"bad"}, nil); msg == "" {
-		t.Error("expected error for invalid nodeId")
-	}
-	if msg := ValidateRPC("bind_variable_to_node", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing variableId")
-	}
-	if msg := ValidateRPC("bind_variable_to_node", []string{"1:1"}, map[string]any{"variableId": "v1"}); msg == "" {
-		t.Error("expected error for missing field")
-	}
-	if msg := ValidateRPC("bind_variable_to_node", []string{"1:1"}, map[string]any{"variableId": "v1", "field": "fill"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_DetachInstance(t *testing.T) {
 	if msg := ValidateRPC("detach_instance", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeIds")
@@ -471,31 +491,39 @@ func TestValidateRPC_DetachInstance(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_SetCornerRadius(t *testing.T) {
-	// missing nodeIds
-	if msg := ValidateRPC("set_corner_radius", nil, map[string]any{"cornerRadius": float64(8)}); msg == "" {
+// set_node_properties absorbed move_nodes, resize_nodes and set_corner_radius,
+// so position, size and radii are now properties among the rest — each of them
+// enough on its own to make the call meaningful.
+func TestValidateRPC_SetNodeProperties_GeometryAbsorbed(t *testing.T) {
+	if msg := ValidateRPC("set_node_properties", nil, map[string]any{"cornerRadius": float64(8)}); msg == "" {
 		t.Error("expected error for missing nodeIds")
 	}
-	// invalid nodeId
-	if msg := ValidateRPC("set_corner_radius", []string{"bad"}, map[string]any{"cornerRadius": float64(8)}); msg == "" {
+	if msg := ValidateRPC("set_node_properties", []string{"bad"}, map[string]any{"width": float64(10)}); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
-	// no radius param provided
-	if msg := ValidateRPC("set_corner_radius", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error when no radius param provided")
+	if msg := ValidateRPC("set_node_properties", []string{"1:1"}, nil); msg == "" {
+		t.Error("expected error when no property is provided")
 	}
-	// uniform cornerRadius
-	if msg := ValidateRPC("set_corner_radius", []string{"1:1"}, map[string]any{"cornerRadius": float64(8)}); msg != "" {
-		t.Errorf("unexpected error for cornerRadius: %s", msg)
-	}
-	// per-corner individually
-	for _, param := range []string{"topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius"} {
-		if msg := ValidateRPC("set_corner_radius", []string{"1:1"}, map[string]any{param: float64(4)}); msg != "" {
+	// Each geometry property alone
+	for _, param := range []string{
+		"x", "y", "width", "height",
+		"cornerRadius", "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius",
+	} {
+		if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{param: float64(4)}); msg != "" {
 			t.Errorf("unexpected error for %s: %s", param, msg)
 		}
+		if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{param: "big"}); msg == "" {
+			t.Errorf("expected a non-numeric %s to be rejected", param)
+		}
+	}
+	// Move and resize together, which used to be two calls and two undo entries
+	if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{
+		"x": float64(10), "y": float64(20), "width": float64(300), "height": float64(200),
+	}); msg != "" {
+		t.Errorf("unexpected error for a move and resize in one call: %s", msg)
 	}
 	// mixed per-corner
-	if msg := ValidateRPC("set_corner_radius", []string{"1:1"}, map[string]any{
+	if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{
 		"topLeftRadius": float64(8), "topRightRadius": float64(0),
 		"bottomLeftRadius": float64(8), "bottomRightRadius": float64(0),
 	}); msg != "" {
@@ -745,30 +773,49 @@ func TestValidateRPC_SetReactions(t *testing.T) {
 	}
 }
 
-// ── remove_reactions ──────────────────────────────────────────────────────────
+// ── set_reactions: the removal it absorbed ───────────────────────────────────
 
-func TestValidateRPC_RemoveReactions(t *testing.T) {
+func TestValidateRPC_SetReactions_RemoveIndices(t *testing.T) {
 	// missing nodeId
-	if msg := ValidateRPC("remove_reactions", nil, map[string]any{}); msg == "" {
+	if msg := ValidateRPC("set_reactions", nil, map[string]any{"removeIndices": []any{}}); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
 	// bad nodeId format
-	if msg := ValidateRPC("remove_reactions", []string{"1-2"}, map[string]any{}); msg == "" {
+	if msg := ValidateRPC("set_reactions", []string{"1-2"}, map[string]any{"removeIndices": []any{}}); msg == "" {
 		t.Error("expected error for bad nodeId format")
 	}
-	// non-number in indices
-	if msg := ValidateRPC("remove_reactions", []string{"1:2"}, map[string]any{
-		"indices": []any{"zero"},
+	// neither argument leaves the call with nothing to do
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{}); msg == "" {
+		t.Error("expected error when neither reactions nor removeIndices is given")
+	}
+	// both at once: an empty removeIndices means "remove all", so a call
+	// carrying reactions too is ambiguous in the worst direction
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+		"reactions": []any{}, "removeIndices": []any{},
+	}); msg == "" {
+		t.Error("expected reactions + removeIndices to be rejected")
+	}
+	// non-number in removeIndices
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+		"removeIndices": []any{"zero"},
 	}); msg == "" {
 		t.Error("expected error for non-number index")
 	}
-	// valid with no indices (remove all)
-	if msg := ValidateRPC("remove_reactions", []string{"1:2"}, map[string]any{}); msg != "" {
+	// negative index
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+		"removeIndices": []any{float64(-1)},
+	}); msg == "" {
+		t.Error("expected error for a negative index")
+	}
+	// empty means remove all — valid, and not the same as omitting it
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+		"removeIndices": []any{},
+	}); msg != "" {
 		t.Errorf("unexpected error for remove all: %s", msg)
 	}
 	// valid with numeric indices
-	if msg := ValidateRPC("remove_reactions", []string{"1:2"}, map[string]any{
-		"indices": []any{float64(0), float64(2)},
+	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+		"removeIndices": []any{float64(0), float64(2)},
 	}); msg != "" {
 		t.Errorf("unexpected error for valid indices: %s", msg)
 	}
@@ -878,7 +925,7 @@ func TestValidateRPC_SetEffects(t *testing.T) {
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-	// get_node reports GLASS, NOISE and TEXTURE effects, so set_effects has to take
+	// get_nodes_info reports GLASS, NOISE and TEXTURE effects, so set_effects has to take
 	// them back or effects cannot be copied from one node to another.
 	for _, kind := range []string{"NOISE", "TEXTURE", "GLASS"} {
 		if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]any{
@@ -972,22 +1019,23 @@ func TestValidateRPC_SetAnnotations(t *testing.T) {
 	if msg := ValidateRPC("set_annotations", []string{"1:1"}, map[string]any{"annotations": "not-array"}); msg == "" {
 		t.Error("expected error for non-array annotations")
 	}
+	if msg := ValidateRPC("set_annotations", []string{"bad"}, map[string]any{
+		"annotations": []any{},
+	}); msg == "" {
+		t.Error("expected error for invalid nodeIds")
+	}
 	if msg := ValidateRPC("set_annotations", []string{"1:1"}, map[string]any{
 		"annotations": []any{map[string]any{"label": "Btn"}},
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-}
-
-func TestValidateRPC_ClearAnnotations(t *testing.T) {
-	if msg := ValidateRPC("clear_annotations", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeIds")
-	}
-	if msg := ValidateRPC("clear_annotations", []string{"bad"}, nil); msg == "" {
-		t.Error("expected error for invalid nodeIds")
-	}
-	if msg := ValidateRPC("clear_annotations", []string{"1:1"}, nil); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
+	// This absorbed clear_annotations: an empty array over several nodes is how
+	// annotations are cleared now, so it has to reach the plugin rather than
+	// being read as an absent argument.
+	if msg := ValidateRPC("set_annotations", []string{"1:1", "2:2"}, map[string]any{
+		"annotations": []any{},
+	}); msg != "" {
+		t.Errorf("clearing across several nodes was rejected: %s", msg)
 	}
 }
 
@@ -1220,7 +1268,7 @@ func TestValidateRPC_SetPaint(t *testing.T) {
 		{"linear gradient", map[string]any{
 			"type": "GRADIENT_LINEAR", "stops": linearStops, "geometry": geometry,
 		}, ""},
-		// get_node reports a gradient's paint-level opacity, so set_paint has to
+		// get_nodes_info reports a gradient's paint-level opacity, so set_paint has to
 		// accept it back or the read cannot be written again.
 		{"gradient with opacity", map[string]any{
 			"type": "GRADIENT_RADIAL", "stops": linearStops, "geometry": geometry, "opacity": 0.6,
@@ -1328,5 +1376,90 @@ func TestValidateRPC_CreateNode(t *testing.T) {
 				t.Errorf("error = %q, want it to contain %q", msg, c.wantMsg)
 			}
 		})
+	}
+}
+
+// A crop is in fractions of the image, so a rect running past its edge is a
+// mistake rather than something to clamp.
+func TestImportImage_CropBounds(t *testing.T) {
+	base := map[string]any{"imageUrl": "https://example.com/a.png"}
+	with := func(crop map[string]any) map[string]any {
+		params := map[string]any{}
+		for k, v := range base {
+			params[k] = v
+		}
+		params["crop"] = crop
+		return params
+	}
+
+	ok := with(map[string]any{"x": 0.25, "y": 0.0, "width": 0.5, "height": 1.0})
+	if msg := ValidateRPC("import_image", nil, ok); msg != "" {
+		t.Errorf("a valid crop was rejected: %s", msg)
+	}
+
+	for name, crop := range map[string]map[string]any{
+		"past the right edge": {"x": 0.6, "y": 0, "width": 0.5, "height": 1},
+		"past the bottom":     {"x": 0, "y": 0.6, "width": 1, "height": 0.5},
+		"zero width":          {"x": 0, "y": 0, "width": 0, "height": 1},
+		"negative x":          {"x": -0.1, "y": 0, "width": 0.5, "height": 1},
+		"missing height":      {"x": 0, "y": 0, "width": 0.5},
+	} {
+		if msg := ValidateRPC("import_image", nil, with(crop)); msg == "" {
+			t.Errorf("expected a crop %s to be rejected", name)
+		}
+	}
+
+	scaled := with(map[string]any{"x": 0, "y": 0, "width": 0.5, "height": 1})
+	scaled["scaleMode"] = "TILE"
+	if msg := ValidateRPC("import_image", nil, scaled); msg == "" {
+		t.Error("expected a crop with a non-CROP scaleMode to be rejected")
+	}
+}
+
+func TestImportImage_FilterRange(t *testing.T) {
+	params := map[string]any{
+		"imageUrl": "https://example.com/a.png",
+		"filters":  map[string]any{"exposure": 0.5, "shadows": -1.0},
+	}
+	if msg := ValidateRPC("import_image", nil, params); msg != "" {
+		t.Errorf("valid filters were rejected: %s", msg)
+	}
+
+	params["filters"] = map[string]any{"exposure": 2.0}
+	if msg := ValidateRPC("import_image", nil, params); msg == "" {
+		t.Error("expected an out-of-range filter to be rejected")
+	}
+
+	params["filters"] = map[string]any{"sharpness": 0.5}
+	if msg := ValidateRPC("import_image", nil, params); msg == "" {
+		t.Error("expected an unknown filter name to be rejected")
+	}
+}
+
+// Figma throws on a malformed preset rather than skipping it, which would leave
+// a node half-updated — so the whole array is checked before any of it is sent.
+func TestSetExportSettings_ValidatesEveryPreset(t *testing.T) {
+	ok := map[string]any{"settings": []any{
+		map[string]any{"format": "PNG", "constraint": map[string]any{"type": "SCALE", "value": 2.0}},
+		map[string]any{"format": "SVG", "suffix": "-icon"},
+	}}
+	if msg := ValidateRPC("set_export_settings", []string{"1:1"}, ok); msg != "" {
+		t.Errorf("valid export presets were rejected: %s", msg)
+	}
+
+	for name, settings := range map[string][]any{
+		"an unknown format":     {map[string]any{"format": "WEBP"}},
+		"a missing format":      {map[string]any{"suffix": "@2x"}},
+		"a bad constraint type": {map[string]any{"format": "PNG", "constraint": map[string]any{"type": "DEPTH", "value": 2.0}}},
+		"a zero scale":          {map[string]any{"format": "PNG", "constraint": map[string]any{"type": "SCALE", "value": 0.0}}},
+		"a later bad preset":    {map[string]any{"format": "PNG"}, map[string]any{"format": "TIFF"}},
+	} {
+		if msg := ValidateRPC("set_export_settings", []string{"1:1"}, map[string]any{"settings": settings}); msg == "" {
+			t.Errorf("expected %s to be rejected", name)
+		}
+	}
+
+	if msg := ValidateRPC("set_export_settings", []string{"1:1"}, map[string]any{"settings": []any{}}); msg != "" {
+		t.Errorf("clearing the presets should be allowed, got: %s", msg)
 	}
 }

@@ -75,13 +75,13 @@ Dark mode (add a "Dark" mode to the same collection):
 
 ## Creation Steps
 
-1. create_variable_collection(name="Primitives", modeName="Value")
-2. For each color in the scale: create_variable(type="COLOR", name="Primary/500", collectionId=...)
-   then set_variable_value(variableId, modeId, value="#hexcolor")
+1. manage_variable(action="create_collection", name="Primitives", modeName="Value")
+2. For each color in the scale: manage_variable(action="create", type="COLOR", name="Primary/500", collectionId=...)
+   then manage_variable(action="set_value", variableId, modeId, value="#hexcolor")
 3. Repeat for secondary and neutrals.
-4. create_variable_collection(name="Semantic Colors", modeName="Light")
-5. add_variable_mode(collectionId, modeName="Dark") — if dark mode requested
-6. For each semantic alias: create_variable + set_variable_value for Light mode, then Dark mode.
+4. manage_variable(action="create_collection", name="Semantic Colors", modeName="Light")
+5. manage_variable(action="add_mode", collectionId, modeName="Dark") — if dark mode requested
+6. For each semantic alias: action="create" then action="set_value" for Light mode, then again for Dark mode.
 
 ## Rules
 - Always show the color table preview before executing creation.

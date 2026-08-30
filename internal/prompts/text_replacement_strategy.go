@@ -27,8 +27,8 @@ func addTextReplacementStrategy(s *server.MCPServer) {
   * Forms (labels, input fields, validation text)
   * Navigation (menu items, breadcrumbs)
 
-scan_text_nodes(nodeId: "node-id")
-get_node(nodeId: "node-id")  // optional for extra context
+search_nodes(nodeId: "node-id", types: ["TEXT"], includeText: true, limit: 500)
+get_nodes_info(nodeIds: ["node-id"])  // optional for extra context
 
 ## 2. Strategic Chunking for Complex Designs
 - Divide replacement tasks into logical content chunks based on design structure
@@ -42,7 +42,7 @@ get_node(nodeId: "node-id")  // optional for extra context
 - Create a safe copy of the node before bulk replacements
 - Replace text chunk by chunk with continuous progress updates
 - After each chunk is processed:
-  * Export that section with get_screenshot for visual verification
+  * Export that section with export_screenshots for visual verification
   * Verify text fits properly and maintains design integrity
   * Fix issues before proceeding to the next chunk
 
@@ -53,7 +53,7 @@ clone_node(nodeId: "selected-node-id", x: newX, y: newY)
 set_text(nodeId: "node-id", text: "New text")
 
 // Verify chunk with targeted image export
-get_screenshot(nodeIds: ["chunk-node-id"], format: "PNG", scale: 0.5)
+export_screenshots(items: [{nodeId: "chunk-node-id"}], format: "PNG", scale: 0.5)
 
 ## 4. Intelligent Handling for Table Data
 - For tabular content:

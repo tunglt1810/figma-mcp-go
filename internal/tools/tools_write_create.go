@@ -1,5 +1,7 @@
 package tools
 
+import "github.com/tunglt1810/figma-mcp-go/internal/figma"
+
 // parentIDParam is the shared "where does this node go" argument.
 func parentIDParam(desc string) paramSpec {
 	return paramSpec{Name: "parentId", Kind: kindString, IsNodeID: true, Desc: desc}
@@ -37,8 +39,34 @@ func autoLayoutParams() []paramSpec {
 			Desc: "Wrap behaviour: NO_WRAP or WRAP"},
 		{Name: "counterAxisSpacing", Kind: kindNumber,
 			Desc: "Gap between wrapped rows/columns (only when layoutWrap is WRAP)"},
+		{Name: "layoutSizingHorizontal", Kind: kindString, Enum: layoutSizingValues,
+			Desc: "Horizontal sizing: FIXED, HUG (shrink to contents), or FILL (fill the parent). Prefer this over counterAxisSizingMode/primaryAxisSizingMode — it is the only way to express 'fill container'. HUG needs auto-layout on this node; FILL needs auto-layout on its parent."},
+		{Name: "layoutSizingVertical", Kind: kindString, Enum: layoutSizingValues,
+			Desc: "Vertical sizing: FIXED, HUG (shrink to contents), or FILL (fill the parent). Same requirements as layoutSizingHorizontal."},
+		{Name: "minWidth", Kind: kindNumber, Min: floatPtr(0), Nullable: true,
+			Desc: "Minimum width in pixels; pass null to clear it"},
+		{Name: "maxWidth", Kind: kindNumber, Min: floatPtr(0), Nullable: true,
+			Desc: "Maximum width in pixels; pass null to clear it"},
+		{Name: "minHeight", Kind: kindNumber, Min: floatPtr(0), Nullable: true,
+			Desc: "Minimum height in pixels; pass null to clear it"},
+		{Name: "maxHeight", Kind: kindNumber, Min: floatPtr(0), Nullable: true,
+			Desc: "Maximum height in pixels; pass null to clear it"},
+		{Name: "layoutPositioning", Kind: kindString, Enum: []string{"AUTO", "ABSOLUTE"},
+			Desc: "How this node sits in its PARENT's auto layout: AUTO to flow with its siblings, ABSOLUTE to float free of them at its own x/y"},
+		{Name: "layoutAlign", Kind: kindString, Enum: []string{"MIN", "CENTER", "MAX", "STRETCH", "INHERIT"},
+			Desc: "Cross-axis alignment of this node within its PARENT's auto layout"},
+		{Name: "layoutGrow", Kind: kindNumber, Min: floatPtr(0), Max: floatPtr(1),
+			Desc: "Whether this node grows along its PARENT's main axis: 0 to keep its size, 1 to fill the free space"},
+		{Name: "itemReverseZIndex", Kind: kindBool,
+			Desc: "Stack children last-on-top instead of first-on-top"},
+		{Name: "strokesIncludedInLayout", Kind: kindBool,
+			Desc: "Count this node's stroke width as part of the layout size"},
+		{Name: "clipsContent", Kind: kindBool,
+			Desc: "Clip children to the frame's bounds"},
 	}
 }
+
+var layoutSizingValues = []string{"FIXED", "HUG", "FILL"}
 
 // nodeVariants say which arguments belong to which shape. Seven create_* tools
 // became one, and these shapes genuinely differ — a star takes pointCount, a
@@ -57,7 +85,17 @@ var nodeVariants = map[string]variantSpec{
 	"SECTION":   {Allowed: []string{"width", "height"}},
 }
 
-var autoLayoutParamNames = []string{"layoutMode", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing", "primaryAxisAlignItems", "counterAxisAlignItems", "primaryAxisSizingMode", "counterAxisSizingMode", "layoutWrap", "counterAxisSpacing"}
+// Kept in step with autoLayoutParams by TestAutoLayoutParamNamesCoverTheSpecs —
+// a name missing here is silently rejected as "not allowed for this shape".
+var autoLayoutParamNames = []string{
+	"layoutMode", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+	"itemSpacing", "primaryAxisAlignItems", "counterAxisAlignItems",
+	"primaryAxisSizingMode", "counterAxisSizingMode", "layoutWrap", "counterAxisSpacing",
+	"layoutSizingHorizontal", "layoutSizingVertical",
+	"minWidth", "maxWidth", "minHeight", "maxHeight",
+	"layoutPositioning", "layoutAlign", "layoutGrow",
+	"itemReverseZIndex", "strokesIncludedInLayout", "clipsContent",
+}
 
 var writeCreateSpecs = []toolSpec{
 	{
@@ -126,17 +164,75 @@ var writeCreateSpecs = []toolSpec{
 	},
 	{
 		Name: "import_image",
-		Desc: "Import a base64-encoded image into Figma as a rectangle with an image fill. Use get_screenshot to capture images or provide your own base64 PNG/JPG.",
+		Desc: "Place an image in Figma, from a URL or from base64 data. Prefer imageUrl: base64 pushes the whole file through the plugin connection, which is the expensive half of placing an image. By default the image lands as a new rectangle sized to the image itself; pass nodeId to paint it onto a node that already exists instead — an avatar or a hero slot usually does.",
 		Params: append([]paramSpec{
-			{Name: "imageData", Kind: kindString, Required: true, Desc: "Base64-encoded image data (PNG or JPG)"},
+			{Name: "imageUrl", Kind: kindString, Desc: "URL of the image to fetch. Preferred over imageData."},
+			{Name: "imageData", Kind: kindString, Desc: "Base64-encoded image data (PNG or JPG), when there is no URL to fetch"},
+			{Name: "nodeId", Kind: kindString, IsNodeID: true,
+				Desc: "Paint the image onto this existing node instead of creating a rectangle, colon format e.g. '4029:12345'"},
 		}, append(positionParams(),
-			paramSpec{Name: "width", Kind: kindNumber, Positive: true, Desc: "Width in pixels (default 200)"},
-			paramSpec{Name: "height", Kind: kindNumber, Positive: true, Desc: "Height in pixels (default 200)"},
+			paramSpec{Name: "width", Kind: kindNumber, Positive: true,
+				Desc: "Width in pixels. Omit to use the image's own size, scaled to fit 1000px."},
+			paramSpec{Name: "height", Kind: kindNumber, Positive: true,
+				Desc: "Height in pixels. Omit to use the image's own size, scaled to fit 1000px."},
 			paramSpec{Name: "name", Kind: kindString, Desc: "Node name"},
 			paramSpec{Name: "scaleMode", Kind: kindString, Enum: []string{"FILL", "FIT", "CROP", "TILE"},
 				Desc: "Image scale mode: FILL (default), FIT, CROP, or TILE"},
+			paramSpec{Name: "mode", Kind: kindString, Enum: []string{"replace", "append"},
+				Desc: "With nodeId: replace the node's fills (default) or append the image to them"},
+			paramSpec{Name: "crop", Kind: kindObject,
+				Desc: "Show only part of the image, as fractions of it: {x, y, width, height} from 0 to 1, where {x:0.25, y:0, width:0.5, height:1} is the middle half. Sets scaleMode to CROP.",
+				ObjectSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"x":      map[string]any{"type": "number", "description": "Left edge as a fraction of the image width, 0-1"},
+						"y":      map[string]any{"type": "number", "description": "Top edge as a fraction of the image height, 0-1"},
+						"width":  map[string]any{"type": "number", "description": "Width as a fraction of the image width, 0-1"},
+						"height": map[string]any{"type": "number", "description": "Height as a fraction of the image height, 0-1"},
+					},
+				}},
+			paramSpec{Name: "filters", Kind: kindObject,
+				Desc: "Image adjustments, each from -1 to 1 and 0 for no change. Omitted ones stay at 0.",
+				ObjectSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"exposure":    map[string]any{"type": "number", "description": "-1 to 1"},
+						"contrast":    map[string]any{"type": "number", "description": "-1 to 1"},
+						"saturation":  map[string]any{"type": "number", "description": "-1 to 1"},
+						"temperature": map[string]any{"type": "number", "description": "-1 (cooler) to 1 (warmer)"},
+						"tint":        map[string]any{"type": "number", "description": "-1 to 1"},
+						"highlights":  map[string]any{"type": "number", "description": "-1 to 1"},
+						"shadows":     map[string]any{"type": "number", "description": "-1 to 1"},
+					},
+				}},
 			parentIDParam(defaultParentDesc),
 		)...),
+		Validate: func(_ []string, params map[string]any) string {
+			_, hasURL := params["imageUrl"]
+			_, hasData := params["imageData"]
+			if !hasURL && !hasData {
+				return "imageUrl or imageData is required"
+			}
+			if hasURL && hasData {
+				return "pass imageUrl or imageData, not both"
+			}
+			if crop, ok := params["crop"].(map[string]any); ok {
+				if msg := figma.ValidateImageCrop(crop); msg != "" {
+					return msg
+				}
+				// CROP is what makes the transform mean anything; any other
+				// scale mode would take the crop and silently ignore it.
+				if mode, ok := params["scaleMode"].(string); ok && mode != "CROP" {
+					return "crop needs scaleMode CROP, or scaleMode left out"
+				}
+			}
+			if filters, ok := params["filters"].(map[string]any); ok {
+				if msg := figma.ValidateImageFilters(filters); msg != "" {
+					return msg
+				}
+			}
+			return ""
+		},
 	},
 	{
 		Name:       "create_component",

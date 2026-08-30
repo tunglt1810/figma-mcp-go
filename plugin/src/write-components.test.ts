@@ -120,3 +120,63 @@ describe("ungroup_nodes", () => {
     expect(res).toBeNull();
   });
 });
+
+// ── set_annotations ───────────────────────────────────────────────────────────
+
+// It absorbed clear_annotations, whose only advantage was taking several nodes.
+// Clearing ten nodes must not cost ten calls.
+describe("set_annotations", () => {
+  const annotatable = (id: string) => ({ id, type: "FRAME", annotations: [{ label: "old" }] });
+
+  it("sets the same annotations across several nodes in one undo entry", async () => {
+    mockNodes["1:1"] = annotatable("1:1");
+    mockNodes["1:2"] = annotatable("1:2");
+    const res = await handleWriteComponentRequest(
+      makeRequest("set_annotations", ["1:1", "1:2"], { annotations: [{ label: "Main Button" }] }),
+    );
+    expect(mockNodes["1:1"].annotations).toEqual([{ label: "Main Button" }]);
+    expect(mockNodes["1:2"].annotations).toEqual([{ label: "Main Button" }]);
+    expect(res?.data.results.map((r: any) => r.success)).toEqual([true, true]);
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  it("clears across several nodes with an empty array", async () => {
+    mockNodes["1:1"] = annotatable("1:1");
+    mockNodes["1:2"] = annotatable("1:2");
+    await handleWriteComponentRequest(
+      makeRequest("set_annotations", ["1:1", "1:2"], { annotations: [] }),
+    );
+    expect(mockNodes["1:1"].annotations).toEqual([]);
+    expect(mockNodes["1:2"].annotations).toEqual([]);
+  });
+
+  it("reports an unsupported node against itself, leaving the others set", async () => {
+    mockNodes["1:1"] = { id: "1:1", type: "SLICE" }; // no annotations property
+    mockNodes["1:2"] = annotatable("1:2");
+    const res = await handleWriteComponentRequest(
+      makeRequest("set_annotations", ["1:1", "1:2"], { annotations: [{ label: "Btn" }] }),
+    );
+    expect(res?.data.results[0].error).toContain("does not support annotations");
+    expect(mockNodes["1:2"].annotations).toEqual([{ label: "Btn" }]);
+  });
+
+  it("reports a missing node per node", async () => {
+    const res = await handleWriteComponentRequest(
+      makeRequest("set_annotations", ["9:9"], { annotations: [] }),
+    );
+    expect(res?.data.results[0].error).toBe("Node not found");
+  });
+
+  it("throws when annotations is not an array", async () => {
+    mockNodes["1:1"] = annotatable("1:1");
+    await expect(
+      handleWriteComponentRequest(makeRequest("set_annotations", ["1:1"], {})),
+    ).rejects.toThrow("annotations array is required");
+  });
+
+  it("throws for empty nodeIds", async () => {
+    await expect(
+      handleWriteComponentRequest(makeRequest("set_annotations", [], { annotations: [] })),
+    ).rejects.toThrow("nodeIds is required");
+  });
+});

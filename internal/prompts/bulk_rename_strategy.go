@@ -37,12 +37,12 @@ modifying any visual properties.
 
 1. **Understand the scope**
    Ask the user: rename the entire page, a specific frame, or just selected nodes?
-   - Entire page: use get_document() to get the root node ID, then scan_nodes_by_types().
-   - Specific frame: use get_node(nodeId) to inspect it first.
+   - Entire page: use get_document() to get the root node ID, then search_nodes().
+   - Specific frame: use get_nodes_info(nodeIds) to inspect it first.
    - Selection: use get_selection().
 
 2. **Scan target nodes**
-   Call scan_nodes_by_types(nodeId, types=["FRAME","GROUP","INSTANCE","TEXT","RECTANGLE","ELLIPSE","VECTOR"])
+   Call search_nodes(nodeId, types=["FRAME","GROUP","INSTANCE","TEXT","RECTANGLE","ELLIPSE","VECTOR"], limit=500)
    to get a flat list of all nodes in scope.
 
 3. **Identify nodes needing rename**
@@ -60,7 +60,7 @@ modifying any visual properties.
    | Node ID | Current Name | Proposed Name |
 
 5. **Apply renames (after user confirmation)**
-   Call rename_node(nodeId, name) for each node.
+   Call batch_rename_nodes(nodeIds, name) — one call sets the same name on every node listed.
    Process in batches — do not wait for user confirmation between individual renames once
    the full plan is approved.
 

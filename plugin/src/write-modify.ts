@@ -1,6 +1,11 @@
 import { getBounds } from "./serializers";
-import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint } from "./write-helpers";
+import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
+import { reportProgress, stepProgress } from "./progress";
+import { loadFonts } from "./fonts";
+
+// What Figma itself falls back to when a node's font is mixed.
+const FALLBACK_FONT = { family: "Inter", style: "Regular" };
 
 const REORDER_ORDERS = ["bringToFront", "sendToBack", "bringForward", "sendBackward"];
 
@@ -12,6 +17,24 @@ const SIMPLE_NODE_PROPS: Array<{ key: string; label: string }> = [
   { key: "opacity", label: "opacity" },
   { key: "rotation", label: "rotation" },
   { key: "blendMode", label: "blend mode" },
+  { key: "isMask", label: "masking" },
+  { key: "maskType", label: "mask type" },
+  // Stroke geometry. These describe the line itself rather than its paint, so
+  // they live on the node, not in a Paint — which is why they belong here and
+  // not on set_paint, whose arguments all describe one paint.
+  { key: "strokeWeight", label: "stroke weight" },
+  { key: "strokeAlign", label: "stroke alignment" },
+  { key: "strokeCap", label: "stroke caps" },
+  { key: "strokeJoin", label: "stroke joins" },
+  { key: "strokeMiterLimit", label: "stroke miter limit" },
+  { key: "dashPattern", label: "dash pattern" },
+];
+
+// The uniform radius first: a call carrying both means "these corners, that
+// default", and applying the uniform one afterwards would erase the specifics.
+const CORNER_RADIUS_KEYS = [
+  "cornerRadius",
+  "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius",
 ];
 
 const reorderIndex = (order: string, currentIndex: number, siblingCount: number): number => {
@@ -39,8 +62,66 @@ const applyNodeProperties = (n: any, p: any) => {
       errors[key] = `Node does not support ${label}`;
       continue;
     }
-    n[key] = p[key];
-    applied[key] = n[key];
+    // Figma rejects some values for a node's current shape rather than
+    // ignoring them — a dash pattern with a negative length, a stroke cap on a
+    // node whose caps are mixed. Reporting that against the one property keeps
+    // the others in the same call applied, which is what the per-property
+    // errors above already promise.
+    try {
+      n[key] = p[key];
+      applied[key] = n[key];
+    } catch (e: any) {
+      errors[key] = e?.message ?? `Could not set ${label}`;
+    }
+  }
+
+  // Position, size and corner radius were move_nodes, resize_nodes and
+  // set_corner_radius. They report per property like everything above, and
+  // moving plus resizing is now one undo entry rather than two.
+  if (p.x !== undefined || p.y !== undefined) {
+    if (!("x" in n)) {
+      if (p.x !== undefined) errors.x = "Node does not support position";
+      if (p.y !== undefined) errors.y = "Node does not support position";
+    } else {
+      if (p.x !== undefined) { n.x = p.x; applied.x = n.x; }
+      if (p.y !== undefined) { n.y = p.y; applied.y = n.y; }
+    }
+  }
+
+  if (p.width !== undefined || p.height !== undefined) {
+    const label = "resize";
+    if (typeof n.resize !== "function") {
+      if (p.width !== undefined) errors.width = `Node does not support ${label}`;
+      if (p.height !== undefined) errors.height = `Node does not support ${label}`;
+    } else {
+      // One resize call, not one per axis: Figma takes both, and the axis the
+      // caller left out keeps the value it has.
+      try {
+        n.resize(p.width !== undefined ? p.width : n.width, p.height !== undefined ? p.height : n.height);
+        if (p.width !== undefined) applied.width = n.width;
+        if (p.height !== undefined) applied.height = n.height;
+      } catch (e: any) {
+        const message = e?.message ?? "Could not resize";
+        if (p.width !== undefined) errors.width = message;
+        if (p.height !== undefined) errors.height = message;
+      }
+    }
+  }
+
+  for (const key of CORNER_RADIUS_KEYS) {
+    if (p[key] === undefined) continue;
+    // Every per-corner property is gated on cornerRadius: a node that has the
+    // uniform one has the four, and one that has neither is not a shape.
+    if (!("cornerRadius" in n)) {
+      errors[key] = "Node does not support corner radius";
+      continue;
+    }
+    try {
+      n[key] = p[key];
+      applied[key] = n[key];
+    } catch (e: any) {
+      errors[key] = e?.message ?? `Could not set ${key}`;
+    }
   }
 
   if (p.constraints !== undefined) {
@@ -74,6 +155,25 @@ const applyNodeProperties = (n: any, p: any) => {
 // surface. The three implementations stay separate below; only the surface
 // merged. `type` names the kind of paint, which the gradient implementation
 // reads directly and the solid ones do not take at all.
+/**
+ * Text settings that belong to the whole node rather than a range.
+ *
+ * Range-level styling lives in set_text_ranges; these have no range form in
+ * Figma at all, so they stay with the tool that owns the node's text.
+ */
+const applyParagraphProperties = (node: any, p: any) => {
+  if (p.textAutoResize) node.textAutoResize = p.textAutoResize;
+  if (p.textTruncation) node.textTruncation = p.textTruncation;
+  // maxLines only means anything with truncation on, and null clears the cap.
+  if (p.maxLines !== undefined) {
+    node.maxLines = p.maxLines === null ? null : Number(p.maxLines);
+  }
+  if (p.paragraphSpacing != null) node.paragraphSpacing = Number(p.paragraphSpacing);
+  if (p.paragraphIndent != null) node.paragraphIndent = Number(p.paragraphIndent);
+  if (p.textAlignHorizontal) node.textAlignHorizontal = p.textAlignHorizontal;
+  if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
+};
+
 export const writeModifyHandlers: HandlerMap = {
   "set_paint": async (request) => {
   const { target = "fill", type, ...rest } = request.params || {};
@@ -99,7 +199,12 @@ export const writeModifyHandlers: HandlerMap = {
     const nodeIds = request.nodeIds || [];
     if (nodeIds.length === 0) throw new Error("nodeIds is required");
 
-    const requested = [...SIMPLE_NODE_PROPS.map(s => s.key), "constraints", "order"];
+    const requested = [
+      ...SIMPLE_NODE_PROPS.map(s => s.key),
+      "constraints", "order",
+      "x", "y", "width", "height",
+      ...CORNER_RADIUS_KEYS,
+    ];
     if (!requested.some(key => p[key] !== undefined)) {
       throw new Error(`at least one property is required: ${requested.join(", ")}`);
     }
@@ -130,8 +235,11 @@ export const writeModifyHandlers: HandlerMap = {
     const fontName = typeof node.fontName === "symbol"
       ? { family: "Inter", style: "Regular" }
       : node.fontName;
-    await figma.loadFontAsync(fontName);
-    node.characters = p.text;
+    await loadFonts([fontName]);
+    // text is optional now that this tool also carries paragraph settings — a
+    // call that only changes the wrap mode should not blank the node.
+    if (p.text != null) node.characters = p.text;
+    applyParagraphProperties(node, p);
     figma.commitUndo();
     return {
       type: request.type,
@@ -209,55 +317,6 @@ export const writeModifyHandlers: HandlerMap = {
     };
   },
 
-  "move_nodes": async (request) => {
-    const p = request.params || {};
-    const nodeIds = request.nodeIds || [];
-    if (nodeIds.length === 0) throw new Error("nodeIds is required");
-    const results: any[] = [];
-    for (const nid of nodeIds) {
-      const n = await figma.getNodeByIdAsync(nid) as any;
-      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-      if (!("x" in n)) { results.push({ nodeId: nid, error: "Node does not support position" }); continue; }
-      if (p.x != null) n.x = p.x;
-      if (p.y != null) n.y = p.y;
-      results.push({ nodeId: nid, x: n.x, y: n.y });
-    }
-    figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
-  },
-
-  "resize_nodes": async (request) => {
-    const p = request.params || {};
-    const nodeIds = request.nodeIds || [];
-    if (nodeIds.length === 0) throw new Error("nodeIds is required");
-    const results: any[] = [];
-    for (const nid of nodeIds) {
-      const n = await figma.getNodeByIdAsync(nid) as any;
-      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-      if (!("resize" in n)) { results.push({ nodeId: nid, error: "Node does not support resize" }); continue; }
-      const w = p.width != null ? p.width : n.width;
-      const h = p.height != null ? p.height : n.height;
-      n.resize(w, h);
-      results.push({ nodeId: nid, width: n.width, height: n.height });
-    }
-    figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
-  },
-
-  "rename_node": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    node.name = p.name;
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name },
-    };
-  },
-
   "clone_node": async (request) => {
     const p = request.params || {};
     const nodeId = request.nodeIds && request.nodeIds[0];
@@ -279,40 +338,114 @@ export const writeModifyHandlers: HandlerMap = {
     };
   },
 
-  "set_corner_radius": async (request) => {
+  "set_layout_grids": async (request) => {
     const p = request.params || {};
     const nodeIds = request.nodeIds || [];
     if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    if (!Array.isArray(p.grids)) throw new Error("grids is required and must be an array");
+    // An empty array is how a caller removes the grids a frame already has.
+    const grids = p.grids.map(makeLayoutGrid);
+
     const results: any[] = [];
     for (const nid of nodeIds) {
-      const n = await figma.getNodeByIdAsync(nid) as any;
-      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-      if (!("cornerRadius" in n)) { results.push({ nodeId: nid, error: "Node does not support corner radius" }); continue; }
-      if (p.cornerRadius != null) n.cornerRadius = p.cornerRadius;
-      if (p.topLeftRadius != null) n.topLeftRadius = p.topLeftRadius;
-      if (p.topRightRadius != null) n.topRightRadius = p.topRightRadius;
-      if (p.bottomLeftRadius != null) n.bottomLeftRadius = p.bottomLeftRadius;
-      if (p.bottomRightRadius != null) n.bottomRightRadius = p.bottomRightRadius;
-      results.push({ nodeId: nid, cornerRadius: n.cornerRadius });
+      const node = await figma.getNodeByIdAsync(nid) as any;
+      if (!node) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      if (!("layoutGrids" in node)) {
+        results.push({ nodeId: nid, error: `${node.type} does not support layout grids` });
+        continue;
+      }
+      node.layoutGrids = p.mode === "append" ? [...node.layoutGrids, ...grids] : grids;
+      results.push({ nodeId: nid, gridCount: node.layoutGrids.length });
     }
     figma.commitUndo();
     return { type: request.type, requestId: request.requestId, data: { results } };
   },
 
+  // Absorbed set_layout_sizing, which was these same arguments over many nodes.
+  // A row of siblings that should all FILL is the case that made the plural form
+  // worth having: one round trip per sibling was the alternative.
   "set_auto_layout": async (request) => {
     const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    if (node.type !== "FRAME") throw new Error(`Node ${nodeId} is not a FRAME`);
-    applyAutoLayout(node, p);
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const n = await figma.getNodeByIdAsync(nid) as any;
+      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      // Components, component sets and instances carry auto layout too, and the
+      // FRAME-only check used to turn a perfectly valid call on a component into
+      // an error. Ask for the property instead of the type.
+      //
+      // layoutMode is the frame's own layout; a node that only sizes itself
+      // inside its parent's layout does not have it, and that is what the
+      // layoutSizing/layoutAlign/layoutGrow arguments are for.
+      if (!("layoutMode" in n) && !("layoutSizingHorizontal" in n)) {
+        results.push({
+          nodeId: nid,
+          error: `Node ${nid} is a ${n.type} and does not support auto layout — expected a FRAME, COMPONENT, COMPONENT_SET, or INSTANCE`,
+        });
+        continue;
+      }
+      try {
+        applyAutoLayout(n, p);
+        results.push({
+          nodeId: nid,
+          name: n.name,
+          layoutSizingHorizontal: n.layoutSizingHorizontal,
+          layoutSizingVertical: n.layoutSizingVertical,
+        });
+      } catch (e: any) {
+        // One sibling that cannot FILL — because its parent has no auto layout
+        // — must not undo the ones that could.
+        results.push({ nodeId: nid, error: e.message });
+      }
+    }
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name },
-    };
+    return { type: request.type, requestId: request.requestId, data: { results } };
+  },
+
+  // Writes the presets, it does not export. export_screenshots still does the
+  // exporting; this is what a designer sees under Export in the right-hand
+  // panel, and what a handoff pipeline reads.
+  "set_export_settings": async (request) => {
+    const p = request.params || {};
+    const nodeIds = request.nodeIds || [];
+    if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    if (!Array.isArray(p.settings)) throw new Error("settings must be an array of export presets");
+
+    const presets = p.settings.map((entry: any) => {
+      const preset: any = { format: entry.format };
+      if (entry.suffix != null) preset.suffix = String(entry.suffix);
+      if (entry.contentsOnly != null) preset.contentsOnly = !!entry.contentsOnly;
+      if (entry.useAbsoluteBounds != null) preset.useAbsoluteBounds = !!entry.useAbsoluteBounds;
+      // SVG and PDF have no raster size, and Figma rejects a constraint on them.
+      if (entry.constraint && entry.format !== "SVG" && entry.format !== "PDF") {
+        preset.constraint = {
+          type: entry.constraint.type,
+          value: Number(entry.constraint.value),
+        };
+      }
+      return preset;
+    });
+
+    const results: any[] = [];
+    for (const nid of nodeIds) {
+      const n = await figma.getNodeByIdAsync(nid) as any;
+      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+      if (!("exportSettings" in n)) {
+        results.push({ nodeId: nid, error: `Node ${nid} is a ${n.type} and cannot be exported` });
+        continue;
+      }
+      try {
+        n.exportSettings = presets;
+        results.push({ nodeId: nid, name: n.name, exportSettings: n.exportSettings.length });
+      } catch (e: any) {
+        results.push({ nodeId: nid, error: e.message });
+      }
+    }
+    figma.commitUndo();
+    return { type: request.type, requestId: request.requestId, data: { results } };
   },
 
   "reparent_nodes": async (request) => {
@@ -348,6 +481,13 @@ export const writeModifyHandlers: HandlerMap = {
       if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
       const oldName: string = n.name;
       let newName = oldName;
+      // Absorbed rename_node: a literal name wins outright, and the schema
+      // rejects it alongside a substitution rather than defining an order.
+      if (p.name !== undefined) {
+        n.name = p.name;
+        results.push({ nodeId: nid, oldName, name: p.name });
+        continue;
+      }
       if (p.find !== undefined && p.replace !== undefined) {
         if (p.useRegex) {
           try {
@@ -385,7 +525,21 @@ export const writeModifyHandlers: HandlerMap = {
     };
     collect(root);
     const results: any[] = [];
-    for (const tn of textNodes) {
+    // Collected first, written after every font has loaded.
+    const pending: Array<{ node: any; originalText: string; newText: string }> = [];
+    // A find-and-replace over a whole page is the write that most often runs
+    // past the server's timeout, and it is the one write where the caller
+    // cannot guess how much there is to do.
+    const reportEvery = Math.max(1, Math.floor(textNodes.length / 20));
+    for (let i = 0; i < textNodes.length; i++) {
+      const tn = textNodes[i];
+      if (textNodes.length > 20 && i % reportEvery === 0) {
+        await reportProgress(
+          request.requestId,
+          stepProgress(i, textNodes.length),
+          `Scanned ${i}/${textNodes.length} text nodes, ${results.length} changed`,
+        );
+      }
       const originalText: string = tn.characters;
       let newText: string;
       if (p.useRegex) {
@@ -400,13 +554,21 @@ export const writeModifyHandlers: HandlerMap = {
         newText = originalText.split(p.find).join(p.replace);
       }
       if (newText !== originalText) {
-        const fontName = typeof tn.fontName === "symbol"
-          ? { family: "Inter", style: "Regular" }
-          : tn.fontName;
-        await figma.loadFontAsync(fontName);
-        tn.characters = newText;
-        results.push({ nodeId: tn.id, nodeName: tn.name, oldText: originalText, newText });
+        pending.push({ node: tn, originalText, newText });
       }
+    }
+
+    // Every font first, then every write. Loading inside the loop meant one node
+    // in a font the file lacks aborted the run after the nodes before it had
+    // already been rewritten — and reported one missing font per attempt.
+    await loadFonts(
+      pending.map(({ node }) =>
+        typeof node.fontName === "symbol" ? FALLBACK_FONT : node.fontName,
+      ),
+    );
+    for (const { node, originalText, newText } of pending) {
+      node.characters = newText;
+      results.push({ nodeId: node.id, nodeName: node.name, oldText: originalText, newText });
     }
     figma.commitUndo();
     const successCount = results.filter((r: any) => !r.error).length;

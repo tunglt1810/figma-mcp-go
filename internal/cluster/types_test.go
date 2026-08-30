@@ -7,7 +7,7 @@ import (
 
 func TestRPCRequestJSONRoundTrip(t *testing.T) {
 	req := RPCRequest{
-		Tool:    "move_nodes",
+		Tool:    "set_node_properties",
 		NodeIDs: []string{"1:1"},
 		Params:  map[string]any{"x": float64(10)},
 	}

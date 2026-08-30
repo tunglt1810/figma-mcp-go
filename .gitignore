@@ -1,7 +1,14 @@
 # AI agent files
 ai/
-CLAUDE.md
-.claude
+# CLAUDE.md is tracked: it names the default working style for the repo, which
+# belongs to everyone who clones it — same reasoning as .claude/skills/ below.
+# The contents rather than the directory itself: git cannot re-include anything
+# under an excluded directory, so `.claude` followed by `!.claude/skills/` would
+# silently keep ignoring the skills.
+.claude/*
+# Skills are part of how the repo is worked on, so they belong to everyone who
+# clones it — unlike the local settings and caches around them.
+!.claude/skills/
 .code-review-graph
 .mcp.json
 .mcpregistry_github_token
@@ -10,6 +17,8 @@ CLAUDE.md
 # Go build artifacts
 /bin/
 /dist/
+# Written by the schema golden test when it fails, to diff against the golden.
+*.actual
 
 # Plugin
 node_modules/

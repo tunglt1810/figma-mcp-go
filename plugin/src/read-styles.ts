@@ -1,5 +1,6 @@
 import { serializeVariableValue } from "./serializers";
 import { HandlerMap } from "./dispatch";
+import { throwIfCancelled } from "./cancellation";
 
 export const readStylesHandlers: HandlerMap = {
   "get_styles": async (request) => {
@@ -92,6 +93,7 @@ export const readStylesHandlers: HandlerMap = {
     const componentSetsMap = new Map<string, any>();
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
+      throwIfCancelled(request.requestId);
       await page.loadAsync();
       const pageNodes = page.findAllWithCriteria({
         types: ["COMPONENT", "COMPONENT_SET"],

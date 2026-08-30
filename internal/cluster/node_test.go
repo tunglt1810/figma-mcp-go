@@ -241,7 +241,7 @@ func TestNodeSend_TurnsAPluginErrorIntoAnError(t *testing.T) {
 	backend := &fakeBackend{resp: bridge.Response{Error: "node not found"}}
 	n := newNodeWithSender(backend)
 
-	data, err := n.Send(context.Background(), "get_node", []string{"1:1"}, nil)
+	data, err := n.Send(context.Background(), "get_nodes_info", []string{"1:1"}, nil)
 	if err == nil {
 		t.Fatal("expected a plugin error to surface as an error")
 	}
@@ -257,7 +257,7 @@ func TestNodeSend_ReturnsTheDataOnly(t *testing.T) {
 	backend := &fakeBackend{resp: bridge.Response{Data: map[string]any{"ok": true}}}
 	n := newNodeWithSender(backend)
 
-	data, err := n.Send(context.Background(), "get_node", []string{"1:1"}, nil)
+	data, err := n.Send(context.Background(), "get_nodes_info", []string{"1:1"}, nil)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}

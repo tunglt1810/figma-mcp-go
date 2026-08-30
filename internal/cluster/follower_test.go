@@ -70,15 +70,15 @@ func TestFollowerSend_Success(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	f := NewFollower(srv.URL)
-	resp, err := f.Send(context.Background(), "get_node", []string{"1:1"}, nil)
+	resp, err := f.Send(context.Background(), "get_nodes_info", []string{"1:1"}, nil)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
 	if resp.Error != "" {
 		t.Fatalf("unexpected error: %s", resp.Error)
 	}
-	if resp.Type != "get_node" {
-		t.Errorf("resp.Type = %q, want get_node", resp.Type)
+	if resp.Type != "get_nodes_info" {
+		t.Errorf("resp.Type = %q, want get_nodes_info", resp.Type)
 	}
 }
 
@@ -90,7 +90,7 @@ func TestFollowerSend_LeaderReturnsError(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	f := NewFollower(srv.URL)
-	resp, err := f.Send(context.Background(), "get_node", []string{"1:1"}, nil)
+	resp, err := f.Send(context.Background(), "get_nodes_info", []string{"1:1"}, nil)
 	if err != nil {
 		t.Fatalf("unexpected transport error: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestFollowerSend_InvalidJSON(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	f := NewFollower(srv.URL)
-	_, err := f.Send(context.Background(), "get_node", []string{"1:1"}, nil)
+	_, err := f.Send(context.Background(), "get_nodes_info", []string{"1:1"}, nil)
 	if err == nil {
 		t.Error("expected error for malformed JSON response")
 	}
@@ -114,7 +114,7 @@ func TestFollowerSend_InvalidJSON(t *testing.T) {
 
 func TestFollowerSend_ServerDown(t *testing.T) {
 	f := NewFollower("http://127.0.0.1:1")
-	_, err := f.Send(context.Background(), "get_node", []string{"1:1"}, nil)
+	_, err := f.Send(context.Background(), "get_nodes_info", []string{"1:1"}, nil)
 	if err == nil {
 		t.Error("expected error when server is unreachable")
 	}

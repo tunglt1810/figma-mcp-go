@@ -19,7 +19,7 @@ import (
 // keeping the two in step. A toolSpec states it once; the schema, the handler
 // and the validation are all derived from it.
 //
-// Tools that do real work in Go (save_screenshots, export_frames_to_pdf) keep
+// Tools that do real work in Go (export_screenshots, export_frames_to_pdf) keep
 // hand-written handlers.
 
 // Sender carries a tool call to the Figma plugin. The tool layer does not know
@@ -73,6 +73,16 @@ type paramSpec struct {
 	// AllowEmpty forwards an empty string instead of treating it as absent.
 	// Replacement strings and text bodies use "" to mean "clear this".
 	AllowEmpty bool
+
+	// Nullable lets an explicit null through the kind check. Used where the
+	// plugin distinguishes "leave this alone" (argument absent) from "clear it"
+	// (argument null) — an auto-layout min/max constraint, for one.
+	Nullable bool
+
+	// ObjectSchema spells out an object parameter's properties. Without it the
+	// schema says only "an object", and a caller has to guess the keys from the
+	// description.
+	ObjectSchema map[string]any
 
 	// ItemSchema spells out an array's element schema where "an object" is too
 	// vague to be useful to the client.
@@ -157,6 +167,11 @@ func (p paramSpec) toolOption() mcp.ToolOption {
 	case kindArray:
 		return mcp.WithArray(p.Name, opts...)
 	case kindObject:
+		// Only the properties: mcp-go has no per-object "required" option, and a
+		// missing key is caught by the spec's Validate instead.
+		if props, ok := p.ObjectSchema["properties"].(map[string]any); ok {
+			opts = append(opts, mcp.Properties(props))
+		}
 		return mcp.WithObject(p.Name, opts...)
 	case kindAny:
 		return mcp.WithAny(p.Name, opts...)
@@ -211,9 +226,20 @@ func specArgs(spec toolSpec, args map[string]any) ([]string, map[string]any) {
 	params := map[string]any{}
 	for _, p := range spec.Params {
 		v, ok := args[p.Name]
-		if !ok || v == nil {
+		if !ok {
 			continue
 		}
+		if v == nil {
+			// A null is normally indistinguishable from an absent argument and
+			// is dropped. Nullable parameters are the exception: the plugin
+			// reads null as "clear this", which it cannot tell from "leave it
+			// alone" once the key is gone.
+			if p.Nullable {
+				params[p.wireName()] = nil
+			}
+			continue
+		}
+
 		switch p.Kind {
 		case kindString:
 			s, ok := v.(string)
@@ -339,6 +365,9 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]any) string
 			if p.Required {
 				return fmt.Sprintf("%s is required", p.Name)
 			}
+			continue
+		}
+		if v == nil && p.Nullable {
 			continue
 		}
 
@@ -527,12 +556,16 @@ func allSpecs() []toolSpec {
 		readDocumentSpecs,
 		readStyleSpecs,
 		writeComponentSpecs,
+		writeComponentPropertySpecs,
 		writeCreateSpecs,
+		writeDocumentSpecs,
 		writeModifySpecs,
 		writePageSpecs,
 		writePrototypeSpecs,
+		writeViewportSpecs,
 		writeStyleSpecs,
 		writeVariableSpecs,
+		writeVectorSpecs,
 	}
 	all := make([]toolSpec, 0, 64)
 	for _, group := range groups {
@@ -565,7 +598,7 @@ func handlerFor(sender Sender, spec toolSpec) server.ToolHandlerFunc {
 	var handle customHandler
 	if spec.Custom != nil {
 		// A Custom handler is free to call a different tool than the one it was
-		// invoked as — save_screenshots calls get_screenshot once per item, with
+		// invoked as — export_screenshots calls get_screenshot once per item, with
 		// params it builds itself. Checking the arguments this handler received
 		// says nothing about those, so give it a Sender that checks each call
 		// against the spec of whatever tool the call actually names.

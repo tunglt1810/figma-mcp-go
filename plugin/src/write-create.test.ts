@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { handleWriteCreateRequest } from "./write-create";
+import { cropToTransform, handleWriteCreateRequest } from "./write-create";
 
 // ── Figma global mock ─────────────────────────────────────────────────────────
 
@@ -45,7 +45,8 @@ beforeEach(() => {
       return comp;
     },
     createFrame: () => track({ id: "frame:new", type: "FRAME", name: "Frame", layoutMode: "NONE", resize(w: number, h: number) { this.width = w; this.height = h; } }),
-    createRectangle: () => track({ id: "rect:new", type: "RECTANGLE", name: "Rectangle", resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createRectangle: () => track({ id: "rect:new", type: "RECTANGLE", name: "Rectangle", fills: [], resize(w: number, h: number) { this.width = w; this.height = h; } }),
+    createImageAsync: async (_url: string) => ({ hash: "img-hash", getSizeAsync: async () => ({ width: 400, height: 200 }) }),
     createSection: () => track({ id: "section:new", type: "SECTION", name: "Section", resizeWithoutConstraints(w: number, h: number) { this.width = w; this.height = h; }, resize(w: number, h: number) { this.width = w; this.height = h; } }),
     createStar: () => track({ id: "star:new", type: "STAR", name: "Star", resize(w: number, h: number) { this.width = w; this.height = h; } }),
     createPolygon: () => track({ id: "poly:new", type: "POLYGON", name: "Polygon", resize(w: number, h: number) { this.width = w; this.height = h; } }),
@@ -407,5 +408,106 @@ describe("create_node", () => {
 
   it("reports an unknown shape rather than silently doing nothing", async () => {
     await expect(create({ type: "TRIANGLE" })).rejects.toThrow(/FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION/);
+  });
+});
+
+// ── import_image: crop and filters ────────────────────────────────────────────
+
+describe("cropToTransform", () => {
+  // Figma takes the affine transform that maps the fill's unit square onto the
+  // region of the image; the caller gives a rectangle in fractions of it.
+  it("maps a crop rectangle to a scale-then-translate matrix", () => {
+    expect(cropToTransform({ x: 0.25, y: 0.1, width: 0.5, height: 0.8 })).toEqual([
+      [0.5, 0, 0.25],
+      [0, 0.8, 0.1],
+    ]);
+  });
+
+  it("maps the whole image to the identity transform", () => {
+    expect(cropToTransform({ x: 0, y: 0, width: 1, height: 1 })).toEqual([
+      [1, 0, 0],
+      [0, 1, 0],
+    ]);
+  });
+});
+
+describe("import_image", () => {
+  const imported = (params: any) =>
+    handleWriteCreateRequest(makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
+
+  it("turns a crop into an imageTransform and switches to CROP", async () => {
+    await imported({ crop: { x: 0, y: 0.5, width: 1, height: 0.5 } });
+    const fill = lastCreated("RECTANGLE").fills[0];
+    expect(fill.scaleMode).toBe("CROP");
+    expect(fill.imageTransform).toEqual([[1, 0, 0], [0, 0.5, 0.5]]);
+  });
+
+  it("leaves the scale mode alone when there is no crop", async () => {
+    await imported({});
+    expect(lastCreated("RECTANGLE").fills[0].scaleMode).toBe("FILL");
+    expect(lastCreated("RECTANGLE").fills[0].imageTransform).toBeUndefined();
+  });
+
+  it("passes image filters through onto the paint", async () => {
+    await imported({ filters: { exposure: 0.3, saturation: -0.5 } });
+    expect(lastCreated("RECTANGLE").fills[0].filters).toEqual({ exposure: 0.3, saturation: -0.5 });
+  });
+});
+
+// The mock image is 400x200.
+describe("import_image sizing", () => {
+  const imported = (params: any) =>
+    handleWriteCreateRequest(makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
+  const placed = () => {
+    const rect = lastCreated("RECTANGLE");
+    return { width: rect.width, height: rect.height };
+  };
+
+  it("takes both dimensions when both are given", async () => {
+    await imported({ width: 300, height: 100 });
+    expect(placed()).toEqual({ width: 300, height: 100 });
+  });
+
+  // The schema takes width and height independently, so a caller giving one is
+  // asking for something — dropping it left the image at a size nobody chose.
+  it("keeps the aspect ratio when only a width is given", async () => {
+    await imported({ width: 300 });
+    expect(placed()).toEqual({ width: 300, height: 150 });
+  });
+
+  it("keeps the aspect ratio when only a height is given", async () => {
+    await imported({ height: 100 });
+    expect(placed()).toEqual({ width: 200, height: 100 });
+  });
+
+  it("uses the image's own size when neither is given", async () => {
+    await imported({});
+    expect(placed()).toEqual({ width: 400, height: 200 });
+  });
+});
+
+describe("import_image onto an existing node", () => {
+  const paint = (params: any) =>
+    handleWriteCreateRequest(makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
+
+  it("replaces the node's fills by default", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Card", type: "FRAME", fills: [{ type: "SOLID" }] };
+    await paint({ nodeId: "1:1" });
+    expect(mockNodes["1:1"].fills).toHaveLength(1);
+    expect(mockNodes["1:1"].fills[0].type).toBe("IMAGE");
+  });
+
+  it("appends to the node's fills when asked", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Card", type: "FRAME", fills: [{ type: "SOLID" }] };
+    await paint({ nodeId: "1:1", mode: "append" });
+    expect(mockNodes["1:1"].fills.map((f: any) => f.type)).toEqual(["SOLID", "IMAGE"]);
+  });
+
+  // A node whose parts carry different fills reports figma.mixed, which is a
+  // symbol. Spreading it threw "is not iterable" — an error naming neither the
+  // node nor what to do about it.
+  it("names the problem when appending to mixed fills", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Card", type: "FRAME", fills: (globalThis as any).figma.mixed };
+    await expect(paint({ nodeId: "1:1", mode: "append" })).rejects.toThrow(/mixed fills/);
   });
 });

@@ -126,7 +126,7 @@ func TestMakeHandler_SenderError(t *testing.T) {
 func TestHandlers_NoParamReadTools(t *testing.T) {
 	s, _ := newTestServer(t)
 	noParamTools := []string{
-		"get_document", "get_pages", "get_metadata", "get_selection",
+		"get_document", "get_metadata", "get_selection",
 		"get_viewport", "get_fonts", "get_styles", "get_variable_defs",
 		"get_local_components", "get_annotations",
 	}
@@ -137,26 +137,25 @@ func TestHandlers_NoParamReadTools(t *testing.T) {
 
 // ── Read – param tools ────────────────────────────────────────────────────────
 
-func TestHandlers_GetNode(t *testing.T) {
-	s, _ := newTestServer(t)
-	callTool(t, s, "get_node", map[string]any{"nodeId": "1:1"})
-}
-
 func TestHandlers_GetNodesInfo(t *testing.T) {
 	s, _ := newTestServer(t)
+	// One node and several: this absorbed get_node, so the single-node call has
+	// to keep working through the plural argument.
+	callTool(t, s, "get_nodes_info", map[string]any{"nodeIds": []any{"1:1"}})
 	callTool(t, s, "get_nodes_info", map[string]any{"nodeIds": []string{"1:1", "2:2"}})
 }
 
-func TestHandlers_GetDesignContext(t *testing.T) {
+func TestHandlers_GetDocument(t *testing.T) {
 	s, _ := newTestServer(t)
 	// with all optional params
-	callTool(t, s, "get_design_context", map[string]any{
+	callTool(t, s, "get_document", map[string]any{
 		"depth": float64(2), "detail": "compact", "dedupe_components": true,
+		"scope": "selection", "maxNodes": float64(500),
 	})
 	// with no params (defaults)
-	callTool(t, s, "get_design_context", nil)
+	callTool(t, s, "get_document", nil)
 	// depth = 0 should be ignored (not passed through)
-	callTool(t, s, "get_design_context", map[string]any{"depth": float64(0)})
+	callTool(t, s, "get_document", map[string]any{"depth": float64(0)})
 }
 
 func TestHandlers_SearchNodes(t *testing.T) {
@@ -170,18 +169,12 @@ func TestHandlers_SearchNodes(t *testing.T) {
 	})
 	// minimal (query only)
 	callTool(t, s, "search_nodes", map[string]any{"query": "icon"})
-}
-
-func TestHandlers_ScanTextNodes(t *testing.T) {
-	s, _ := newTestServer(t)
-	callTool(t, s, "scan_text_nodes", map[string]any{"nodeId": "1:1"})
-}
-
-func TestHandlers_ScanNodesByTypes(t *testing.T) {
-	s, _ := newTestServer(t)
-	callTool(t, s, "scan_nodes_by_types", map[string]any{
-		"nodeId": "1:1",
-		"types":  []any{"FRAME", "COMPONENT"},
+	// the two scans it absorbed
+	callTool(t, s, "search_nodes", map[string]any{
+		"nodeId": "1:1", "types": []any{"FRAME", "COMPONENT"}, "includeHidden": false,
+	})
+	callTool(t, s, "search_nodes", map[string]any{
+		"nodeId": "1:1", "types": []any{"TEXT"}, "includeText": true,
 	})
 }
 
@@ -192,33 +185,30 @@ func TestHandlers_GetReactions(t *testing.T) {
 
 // ── Read – export tools ───────────────────────────────────────────────────────
 
-func TestHandlers_GetScreenshot(t *testing.T) {
+// TestHandlers_ExportScreenshots exercises executeExportScreenshots +
+// exportScreenshotItem. The fake sender returns no export data, so each item
+// ends up an error inside the result JSON rather than a panic.
+func TestHandlers_ExportScreenshots(t *testing.T) {
 	s, _ := newTestServer(t)
-	// with format + scale
-	callTool(t, s, "get_screenshot", map[string]any{
-		"nodeIds": []any{"1:1"},
-		"format":  "PNG",
-		"scale":   float64(2),
+
+	// no items at all – the current selection, in memory
+	callTool(t, s, "export_screenshots", nil)
+	callTool(t, s, "export_screenshots", map[string]any{"format": "PNG", "scale": float64(2)})
+
+	// an item without an outputPath – base64 for one node
+	callTool(t, s, "export_screenshots", map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1"}},
 	})
-	// no params (exports current selection)
-	callTool(t, s, "get_screenshot", nil)
-}
 
-// TestHandlers_SaveScreenshots exercises executeSaveScreenshots +
-// saveScreenshotItem. The fake sender returns no export data, so each item ends
-// up an error inside the result JSON rather than a panic.
-func TestHandlers_SaveScreenshots(t *testing.T) {
-	s, _ := newTestServer(t)
-
-	// single item – reaches saveScreenshotItem → node.Send fails → error result
-	callTool(t, s, "save_screenshots", map[string]any{
+	// single item to disk
+	callTool(t, s, "export_screenshots", map[string]any{
 		"items": []any{
 			map[string]any{"nodeId": "1:1", "outputPath": "out/screen.png"},
 		},
 	})
 
 	// multiple items with default format + scale
-	callTool(t, s, "save_screenshots", map[string]any{
+	callTool(t, s, "export_screenshots", map[string]any{
 		"format": "SVG",
 		"scale":  float64(1),
 		"items": []any{
@@ -227,10 +217,11 @@ func TestHandlers_SaveScreenshots(t *testing.T) {
 		},
 	})
 
-	// item with explicit per-item format + scale
-	callTool(t, s, "save_screenshots", map[string]any{
+	// item with explicit per-item format + scale, alongside one in memory
+	callTool(t, s, "export_screenshots", map[string]any{
 		"items": []any{
 			map[string]any{"nodeId": "3:3", "outputPath": "out/c.jpg", "format": "JPG", "scale": float64(2)},
+			map[string]any{"nodeId": "4:4"},
 		},
 	})
 }
@@ -293,18 +284,24 @@ func TestHandlers_WriteModifyTools(t *testing.T) {
 	})
 	callTool(t, s, "set_strokes", map[string]any{"nodeId": "1:1", "color": "#000000"}) // minimal
 
-	callTool(t, s, "move_nodes", map[string]any{"nodeIds": []any{"1:1"}, "x": float64(10), "y": float64(20)})
-	callTool(t, s, "move_nodes", map[string]any{"nodeIds": []any{"1:1"}, "x": float64(5)}) // y omitted
+	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "x": float64(10), "y": float64(20)})
+	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "x": float64(5)}) // y omitted
 
-	callTool(t, s, "resize_nodes", map[string]any{"nodeIds": []any{"1:1"}, "width": float64(300), "height": float64(200)})
-	callTool(t, s, "resize_nodes", map[string]any{"nodeIds": []any{"1:1"}, "height": float64(100)}) // width omitted
+	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "width": float64(300), "height": float64(200)})
+	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "height": float64(100)}) // width omitted
 
-	callTool(t, s, "rename_node", map[string]any{"nodeId": "1:1", "name": "New Name"})
+	// One call where two used to be needed, and so one undo entry where two were.
+	callTool(t, s, "set_node_properties", map[string]any{
+		"nodeIds": []any{"1:1"}, "x": float64(0), "width": float64(64), "cornerRadius": float64(8),
+	})
+
+	callTool(t, s, "batch_rename_nodes", map[string]any{"nodeIds": []any{"1:1"}, "name": "New Name"})
 
 	callTool(t, s, "clone_node", map[string]any{"nodeId": "1:1", "x": float64(50), "y": float64(50), "parentId": "2:2"})
 	callTool(t, s, "clone_node", map[string]any{"nodeId": "1:1"}) // minimal
 
-	callTool(t, s, "set_auto_layout", map[string]any{"nodeId": "1:1", "layoutMode": "HORIZONTAL"})
+	callTool(t, s, "set_auto_layout", map[string]any{"nodeIds": []any{"1:1"}, "layoutMode": "HORIZONTAL"})
+	callTool(t, s, "set_auto_layout", map[string]any{"nodeIds": []any{"1:1", "2:2"}, "layoutSizingHorizontal": "FILL"})
 
 	callTool(t, s, "delete_nodes", map[string]any{"nodeIds": []any{"1:1", "2:2"}})
 }
@@ -330,12 +327,12 @@ func TestHandlers_WriteStyleTools(t *testing.T) {
 func TestHandlers_WriteVariableTools(t *testing.T) {
 	s, _ := newTestServer(t)
 
-	callTool(t, s, "create_variable_collection", map[string]any{"name": "Brand", "initialModeName": "Light"})
-	callTool(t, s, "add_variable_mode", map[string]any{"collectionId": "c1", "modeName": "Dark"})
-	callTool(t, s, "create_variable", map[string]any{"name": "primary", "collectionId": "c1", "type": "COLOR"})
-	callTool(t, s, "set_variable_value", map[string]any{"variableId": "v1", "modeId": "m1", "value": "#fff"})
-	callTool(t, s, "delete_variable", map[string]any{"variableId": "v1"})
-	callTool(t, s, "delete_variable", map[string]any{"collectionId": "c1"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "create_collection", "name": "Brand", "initialModeName": "Light"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "add_mode", "collectionId": "c1", "modeName": "Dark"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "create", "name": "primary", "collectionId": "c1", "type": "COLOR"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "set_value", "variableId": "v1", "modeId": "m1", "value": "#fff"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "delete", "variableId": "v1"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "delete", "collectionId": "c1"})
 }
 
 // ── Write – component tools ───────────────────────────────────────────────────
@@ -347,7 +344,7 @@ func TestHandlers_WriteComponentTools(t *testing.T) {
 	callTool(t, s, "detach_instance", map[string]any{"nodeIds": []any{"1:1", "2:2"}})
 }
 
-// ── Write – linked tools (apply_style_to_node, bind_variable_to_node) ─────────
+// ── Write – linked tools (apply_style_to_node, manage_variable bind) ─────────
 
 func TestHandlers_LinkedTools(t *testing.T) {
 	s, _ := newTestServer(t)
@@ -355,7 +352,7 @@ func TestHandlers_LinkedTools(t *testing.T) {
 	callTool(t, s, "apply_style_to_node", map[string]any{"nodeId": "1:1", "styleId": "S:abc", "target": "fill"})
 	callTool(t, s, "apply_style_to_node", map[string]any{"nodeId": "1:1", "styleId": "S:abc"}) // no target
 
-	callTool(t, s, "bind_variable_to_node", map[string]any{"nodeId": "1:1", "variableId": "v1", "field": "fills"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "bind", "nodeId": "1:1", "variableId": "v1", "field": "fills"})
 }
 
 func TestHandlers_NodeControlTools(t *testing.T) {
@@ -474,8 +471,8 @@ func TestToolCall_InvalidArgsRejected(t *testing.T) {
 		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "opacity": 5.0}, "opacity must be at most 1"},
 		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "blendMode": "NEON"}, "blendMode must be one of"},
 		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "order": "sideways"}, "order must be"},
-		{"resize_nodes", map[string]any{"nodeIds": []any{"nope"}, "width": 10.0}, "colon format"},
-		{"search_nodes", map[string]any{"query": ""}, "query is required"},
+		{"set_node_properties", map[string]any{"nodeIds": []any{"nope"}, "width": 10.0}, "colon format"},
+		{"search_nodes", map[string]any{"query": ""}, "at least one of query or types is required"},
 	}
 
 	for _, c := range cases {

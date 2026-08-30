@@ -44,12 +44,28 @@ type Leader struct {
 	started time.Time
 }
 
+// loopbackAddresses are the binds that reach this machine only. Anything else
+// accepts connections from the network, on a socket with no authentication.
+var loopbackAddresses = map[string]bool{
+	"127.0.0.1": true,
+	"localhost": true,
+	"::1":       true,
+}
+
+// Exposed reports whether an --ip value puts the listener on the network.
+// An empty value means the default bind, which is loopback.
+func Exposed(ip string) bool {
+	return ip != "" && !loopbackAddresses[ip]
+}
+
 // NewLeader creates a Leader. Call Start() to bind the ip:port.
 func NewLeader(ip string, port int, version string, guard Guard) *Leader {
+	b := bridge.NewBridge(version)
+	b.SetExposed(Exposed(ip))
 	return &Leader{
 		ip:                ip,
 		port:              port,
-		b:                 bridge.NewBridge(version),
+		b:                 b,
 		version:           version,
 		guard:             guard,
 		readHeaderTimeout: 5 * time.Second,
@@ -97,6 +113,15 @@ func (l *Leader) Start() error {
 	}()
 
 	leaderLog().Info("listening", "ip", l.ip, "port", l.port)
+	if Exposed(l.ip) {
+		// Worth a warning rather than a refusal: moving the listener off
+		// loopback is a thing people do deliberately, to drive Figma on one
+		// machine from an editor on another. They should know what it costs.
+		leaderLog().Warn(
+			"the plugin connection is reachable from the network and is not authenticated — anyone who can reach this port can read and edit the open Figma file",
+			"ip", l.ip, "port", l.port,
+		)
+	}
 	return nil
 }
 

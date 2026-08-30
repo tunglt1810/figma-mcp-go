@@ -1,37 +1,31 @@
-import { serializeNode, getBounds, serializeStyles, serializeNodeProperties, isMixed, deduplicateStyles } from "./serializers";
+import { serializeNode, getBounds, serializeStyles, serializeNodeProperties, isMixed, deduplicateStyles, makeBudget } from "./serializers";
 import { HandlerMap } from "./dispatch";
+import { throwIfCancelled } from "./cancellation";
+import { getPinned } from "./pinned";
+import { reportProgress, stepProgress } from "./progress";
 
 export const readDocumentHandlers: HandlerMap = {
-  "get_document": async (request) => {
-    const raw = await serializeNode(figma.currentPage);
-    const { tree, globalVars } = deduplicateStyles(raw);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: globalVars ? { ...tree, globalVars } : tree,
-    };
-  },
 
   "get_selection": async (request) => {
+    // source "pinned" reads the set the designer pinned in the panel instead of
+    // whatever happens to be selected now. Same answer shape either way, so a
+    // caller that never asks for a pin is unaffected.
+    if (request.params && request.params.source === "pinned") {
+      const ids = getPinned();
+      const nodes = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
+      const live = nodes.filter((n) => n !== null && n.type !== "DOCUMENT");
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: await Promise.all(live.map((node) => serializeNode(node as any))),
+      };
+    }
     return {
       type: request.type,
       requestId: request.requestId,
       data: await Promise.all(figma.currentPage.selection.map((node) => serializeNode(node))),
     };
 
-  },
-
-  "get_node": async (request) => {
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeIds is required for get_node");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node || node.type === "DOCUMENT")
-      throw new Error(`Node not found: ${nodeId}`);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: await serializeNode(node),
-    };
   },
 
   "get_instance_overrides": async (request) => {
@@ -70,24 +64,52 @@ export const readDocumentHandlers: HandlerMap = {
     const nodes = await Promise.all(
       request.nodeIds.map((id: string) => figma.getNodeByIdAsync(id)),
     );
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: await Promise.all(
-        nodes
-          .filter((n) => n !== null && n.type !== "DOCUMENT")
-          .map((n) => serializeNode(n)),
-      ),
-    };
+    // An id that resolved to nothing used to be filtered out in silence, which
+    // read back as "that node has no content" instead of "there is no such
+    // node". This absorbed get_node, whose one advantage was throwing on a bad
+    // id, so the diagnostic has to survive — per id, since the other ids in the
+    // same call still have real answers.
+    //
+    // A DOCUMENT node is not missing, it is just not serializable, so it is
+    // dropped without being reported.
+    const missing: string[] = [];
+    const found: any[] = [];
+    request.nodeIds.forEach((id: string, i: number) => {
+      const node = nodes[i];
+      if (!node) { missing.push(id); return; }
+      if (node.type !== "DOCUMENT") found.push(node);
+    });
+    const serialized = await Promise.all(found.map((n) => serializeNode(n)));
+    // Fetching several nodes at once is exactly when the same fill repeats, so
+    // the dedupe get_document has always done applies here too.
+    //
+    // The wrapper is unconditional. Returning a bare array when nothing was
+    // deduped and an object when something was would make the caller handle two
+    // shapes for one tool; get_design_context already answers in this shape.
+    const { tree, globalVars } = deduplicateStyles({ children: serialized });
+    const data: any = { nodes: tree.children };
+    if (globalVars) data.globalVars = globalVars;
+    if (missing.length > 0) data.missing = missing;
+    return { type: request.type, requestId: request.requestId, data };
   },
 
-  "get_design_context": async (request) => {
-    const depth =
-      request.params && request.params.depth != null
-        ? request.params.depth
-        : 2;
-    const detail = (request.params && request.params.detail) || "full";
-    const dedupeComponents = !!(request.params && request.params.dedupeComponents);
+  // get_design_context was folded in here. It answered the same depth-limited
+  // tree, but rooted at the selection and with detail levels this tool did not
+  // have; each description had to explain when to reach for the other, which is
+  // the surest sign of one tool split in two. `scope` chooses the root and the
+  // rest of the arguments apply to all three.
+  "get_document": async (request) => {
+    const p = request.params || {};
+    const scope = p.scope || "page";
+    const detail = p.detail || "full";
+    const dedupeComponents = !!p.dedupeComponents;
+    // Two ceilings, because the two halves cut differently: maxNodes counts
+    // nodes through a shared budget, depth counts levels. Selection scope
+    // defaults to 2 levels, as get_design_context did — it is the "what am I
+    // looking at" scope. A page or document walk stays unbounded, which is what
+    // get_document has always meant.
+    const depth = p.depth != null ? Number(p.depth) : scope === "selection" ? 2 : Infinity;
+    const budget = makeBudget(p.maxNodes, p.depth);
     const componentDefs = new Map<string, any>();
 
     const serializeForDetail = async (n: any) => {
@@ -233,32 +255,63 @@ export const readDocumentHandlers: HandlerMap = {
       return Object.assign({}, serialized, { children: serializedChildren });
     };
 
-    const selection = figma.currentPage.selection;
-    const rawContextNodes =
-      selection.length > 0
-        ? await Promise.all(
-            selection.map((node) => serializeWithDepth(node, 0)),
-          )
-        : [await serializeWithDepth(figma.currentPage, 0)];
-    const { tree: dedupedNodes, globalVars } = deduplicateStyles({ children: rawContextNodes });
-    const contextNodes = (dedupedNodes as any).children;
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        fileName: figma.root.name,
-        currentPage: {
-          id: figma.currentPage.id,
-          name: figma.currentPage.name,
-        },
-        selectionCount: selection.length,
-        context: contextNodes,
-        ...(componentDefs.size > 0 ? { componentDefs: Object.fromEntries(componentDefs) } : {}),
-        ...(globalVars ? { globalVars } : {}),
-      },
-    };
-  },
+    // The plain walk keeps the budget, which counts nodes rather than levels and
+    // is what reports `truncated`. It only applies where nothing asked for a
+    // trimmed shape: a detail level or a component dedupe is a different tree.
+    const plain = detail === "full" && !dedupeComponents && p.depth == null;
+    const walk = async (node: any) =>
+      plain ? await serializeNode(node, budget, 0) : await serializeWithDepth(node, 0);
 
+    const selection = figma.currentPage.selection;
+    let roots: any[];
+    if (scope === "document") {
+      roots = figma.root.children.slice();
+    } else if (scope === "selection") {
+      // Falling back to the page is what get_design_context did with nothing
+      // selected, and it is the more useful answer than an empty array.
+      roots = selection.length > 0 ? selection.slice() : [figma.currentPage];
+    } else {
+      roots = [figma.currentPage];
+    }
+
+    const serializedRoots: any[] = [];
+    for (let i = 0; i < roots.length; i++) {
+      throwIfCancelled(request.requestId);
+      const root = roots[i];
+      // Under documentAccess "dynamic-page" an unloaded page reports no children
+      // at all, so a walk that skips this returns an empty file. Only the
+      // document scope needs it: the current page is already loaded, and paying
+      // to load anything is exactly what a page-scoped call is avoiding.
+      if (scope === "document" && root.type === "PAGE") await root.loadAsync();
+      serializedRoots.push(await walk(root));
+      if (scope === "document" && roots.length > 1) {
+        await reportProgress(
+          request.requestId,
+          stepProgress(i + 1, roots.length),
+          `Serialized ${root.name} (${i + 1}/${roots.length})`,
+        );
+      }
+      // One budget is shared across the pages, so maxNodes still means what it
+      // says and a file with a huge first page cannot starve the rest silently.
+      if (plain && budget.remaining <= 0) break;
+    }
+
+    // Deduped across every root rather than per root: a colour used on every
+    // page is exactly the one worth collapsing to a single ref.
+    const { tree, globalVars } = deduplicateStyles({ children: serializedRoots });
+    const data: any = {
+      fileName: figma.root.name,
+      scope,
+      currentPage: { id: figma.currentPage.id, name: figma.currentPage.name },
+      nodes: (tree as any).children,
+    };
+    if (scope === "document") data.pageCount = figma.root.children.length;
+    if (scope === "selection") data.selectionCount = selection.length;
+    if (componentDefs.size > 0) data.componentDefs = Object.fromEntries(componentDefs);
+    if (globalVars) data.globalVars = globalVars;
+    if (budget.truncated || serializedRoots.length < roots.length) data.truncated = true;
+    return { type: request.type, requestId: request.requestId, data };
+  },
   "get_metadata": async (request) => {
     return {
       type: request.type,
@@ -268,21 +321,6 @@ export const readDocumentHandlers: HandlerMap = {
         currentPageId: figma.currentPage.id,
         currentPageName: figma.currentPage.name,
         pageCount: figma.root.children.length,
-        pages: figma.root.children.map((page) => ({
-          id: page.id,
-          name: page.name,
-        })),
-      },
-    };
-
-  },
-
-  "get_pages": async (request) => {
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        currentPageId: figma.currentPage.id,
         pages: figma.root.children.map((page) => ({
           id: page.id,
           name: page.name,
@@ -341,34 +379,93 @@ export const readDocumentHandlers: HandlerMap = {
     const scopeNodeId = request.params && request.params.nodeId;
     const types = request.params && request.params.types ? request.params.types : [];
     const limit = request.params && request.params.limit ? request.params.limit : 50;
-    const root = scopeNodeId
-      ? await figma.getNodeByIdAsync(scopeNodeId)
-      : figma.currentPage;
-    if (!root) throw new Error(`Node not found: ${scopeNodeId}`);
+    const scope = (request.params && request.params.scope) || "page";
+    const includeText = !!(request.params && request.params.includeText);
+    const includeHidden = !(request.params && request.params.includeHidden === false);
+
+    // With documentAccess "dynamic-page" only the current page is in memory, so
+    // a search that never loads the others quietly reports "not found" for
+    // every node on them. Each root is loaded before it is walked; a page is
+    // loaded one at a time rather than through loadAllPagesAsync so a big file
+    // is paid for a page at a time.
+    let roots: any[];
+    if (scopeNodeId) {
+      const root = await figma.getNodeByIdAsync(scopeNodeId);
+      if (!root) throw new Error(`Node not found: ${scopeNodeId}`);
+      roots = [root];
+    } else if (scope === "document") {
+      roots = figma.root.children.slice();
+    } else {
+      roots = [figma.currentPage];
+    }
+
     const results: any[] = [];
-    const search = async (n: any) => {
+    const search = async (n: any, root: any, page: any) => {
       if (results.length >= limit) return;
+      // A hidden node hides its subtree with it, which is what scan_nodes_by_types
+      // meant by skipping them and what a designer means by "what is on this
+      // screen". Default on, because that is what this tool has always done.
+      if (!includeHidden && n !== root && "visible" in n && !n.visible) return;
       if (n !== root) {
         const nameMatch = !query || n.name.toLowerCase().includes(query);
         const typeMatch = types.length === 0 || types.includes(n.type);
         if (nameMatch && typeMatch) {
-          results.push({
+          const hit: any = {
             id: n.id,
             name: n.name,
             type: n.type,
             bounds: getBounds(n),
-          });
+          };
+          // What scan_text_nodes answered, on the nodes that have it. Off by
+          // default: a page of copy is a lot of tokens to send unasked.
+          if (includeText && n.type === "TEXT") {
+            hit.characters = n.characters;
+            hit.fontSize = isMixed(n.fontSize) ? "mixed" : n.fontSize;
+            hit.fontName = isMixed(n.fontName) ? "mixed" : n.fontName;
+          }
+          // Only when the answer spans pages — otherwise every hit would repeat
+          // the page the caller already knows it asked about.
+          if (page) {
+            hit.pageId = page.id;
+            hit.pageName = page.name;
+          }
+          results.push(hit);
         }
       }
       if (results.length < limit && "children" in n) {
-        for (const child of n.children) await search(child);
+        for (const child of n.children) await search(child, root, page);
       }
     };
-    await search(root);
+
+    const searchingPages = !scopeNodeId && scope === "document";
+    for (let i = 0; i < roots.length; i++) {
+      if (results.length >= limit) break;
+      // Between pages, not inside the walk: a page is the unit of work here,
+      // and a check per node would cost more than the search itself.
+      throwIfCancelled(request.requestId);
+      const root = roots[i];
+      if (root.type === "PAGE") await root.loadAsync();
+      await search(root, root, searchingPages ? root : null);
+      if (searchingPages && roots.length > 1) {
+        await reportProgress(
+          request.requestId,
+          stepProgress(i + 1, roots.length),
+          `Searched ${root.name}: ${results.length} match(es) so far`,
+        );
+      }
+    }
+
     return {
       type: request.type,
       requestId: request.requestId,
-      data: { count: results.length, nodes: results },
+      data: {
+        count: results.length,
+        nodes: results,
+        scope: scopeNodeId ? "node" : scope,
+        // A caller that gets exactly `limit` results cannot otherwise tell a
+        // complete answer from a truncated one.
+        truncated: results.length >= limit,
+      },
     };
   },
 
@@ -382,88 +479,6 @@ export const readDocumentHandlers: HandlerMap = {
       type: request.type,
       requestId: request.requestId,
       data: { nodeId: node.id, name: node.name, reactions },
-    };
-  },
-
-  "scan_text_nodes": async (request) => {
-    const nodeId = request.params && request.params.nodeId;
-    if (!nodeId) throw new Error("nodeId is required for scan_text_nodes");
-    const root = await figma.getNodeByIdAsync(nodeId);
-    if (!root) throw new Error(`Node not found: ${nodeId}`);
-    const textNodes: any[] = [];
-    const findText = async (n: any) => {
-      if (n.type === "TEXT") {
-        textNodes.push({
-          id: n.id,
-          name: n.name,
-          characters: n.characters,
-          fontSize: isMixed(n.fontSize) ? "mixed" : n.fontSize,
-          fontName: isMixed(n.fontName) ? "mixed" : n.fontName,
-        });
-      }
-      if ("children" in n)
-        for (const child of n.children) await findText(child);
-    };
-    figma.ui.postMessage({
-      type: "progress_update",
-      requestId: request.requestId,
-      progress: 10,
-      message: "Scanning text nodes...",
-    });
-    await new Promise((r) => setTimeout(r, 0));
-    await findText(root);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { count: textNodes.length, textNodes },
-    };
-  },
-
-  "scan_nodes_by_types": async (request) => {
-    const nodeId = request.params && request.params.nodeId;
-    const types =
-      request.params && request.params.types ? request.params.types : [];
-    if (!nodeId)
-      throw new Error("nodeId is required for scan_nodes_by_types");
-    if (types.length === 0)
-      throw new Error("types must be a non-empty array");
-    const root = await figma.getNodeByIdAsync(nodeId);
-    if (!root) throw new Error(`Node not found: ${nodeId}`);
-    const matchingNodes: any[] = [];
-    const findByTypes = async (n: any) => {
-      if ("visible" in n && !n.visible) return;
-      if (types.includes(n.type)) {
-        matchingNodes.push({
-          id: n.id,
-          name: n.name,
-          type: n.type,
-          bbox: {
-            x: "x" in n ? n.x : 0,
-            y: "y" in n ? n.y : 0,
-            width: "width" in n ? n.width : 0,
-            height: "height" in n ? n.height : 0,
-          },
-        });
-      }
-      if ("children" in n)
-        for (const child of n.children) await findByTypes(child);
-    };
-    figma.ui.postMessage({
-      type: "progress_update",
-      requestId: request.requestId,
-      progress: 10,
-      message: `Scanning for types: ${types.join(", ")}...`,
-    });
-    await new Promise((r) => setTimeout(r, 0));
-    await findByTypes(root);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        count: matchingNodes.length,
-        matchingNodes,
-        searchedTypes: types,
-      },
     };
   },
 };

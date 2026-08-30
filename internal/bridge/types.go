@@ -24,4 +24,8 @@ type Response struct {
 	// Progress fields — sent mid-operation for long-running commands
 	Progress int    `json:"progress,omitzero"`
 	Message  string `json:"message,omitempty"`
+	// Version and Handlers carry what the plugin is and what it can do, on the
+	// plugin-info frame it sends when it connects. Unset on every other frame.
+	Version  string   `json:"version,omitempty"`
+	Handlers []string `json:"handlers,omitempty"`
 }

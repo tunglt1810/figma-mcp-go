@@ -1,3 +1,6 @@
+import { isCancelled } from './cancellation';
+import { reportProgress, stepProgress } from './progress';
+
 export type SymbolTable = Map<string, any>;
 
 export type LogEntry =
@@ -208,7 +211,16 @@ export async function executeBatchPipeline(
   req: BatchPipelineRequest,
   handlerDispatcher: (action: string, params: any) => Promise<any>,
   getNodeById: (id: string) => Promise<any> = async (id) =>
-    typeof figma !== 'undefined' ? (figma as any).getNodeByIdAsync(id) : null
+    typeof figma !== 'undefined' ? (figma as any).getNodeByIdAsync(id) : null,
+  // Checked between steps. A pipeline is the longest thing the plugin runs, and
+  // a step boundary is the only place it can stop and still leave the document
+  // in a state the rollback log describes.
+  isCancelled: () => boolean = () => false,
+  // Called before each step. Injected rather than posting to figma.ui directly,
+  // for the same reason getNodeById is: this function is tested without a
+  // Figma global in scope.
+  onProgress: (done: number, total: number, action: string) => Promise<void> =
+    async () => {},
 ): Promise<BatchPipelineResponse> {
   const symbolTable: SymbolTable = new Map();
   const walStack: WALStack = [];
@@ -219,6 +231,28 @@ export async function executeBatchPipeline(
 
   for (let i = 0; i < req.steps.length; i++) {
     const step = req.steps[i];
+    if (isCancelled()) {
+      // Rolled back whatever stop_on_error says. That flag is about tolerating
+      // a step that failed on its own terms; a cancelled run has no terms left,
+      // and a half-built pipeline left standing is worse than none.
+      const rolledBackCount = await executeRollback(walStack, getNodeById);
+      return {
+        success: false,
+        completed_steps: i,
+        results,
+        failed_step: {
+          index: i,
+          step_id: step.id,
+          action: step.action,
+          error: 'Request cancelled',
+        },
+        rollback_executed: true,
+        rolled_back_steps: rolledBackCount,
+      };
+    }
+    // Before the step, not after: a pipeline's last step is often its slowest,
+    // and a caller wants to know what is running, not what has finished.
+    await onProgress(i, req.steps.length, step.action);
     try {
       const resolvedParams = resolveParams(step.params || {}, symbolTable);
       const isCreate = isCreateStep(step.action, resolvedParams);
@@ -291,6 +325,68 @@ export async function executeBatchPipeline(
   };
 }
 
+/**
+ * Run `work` so the whole of it lands on the undo stack as one step.
+ *
+ * Every write handler commits its own undo checkpoint, which is right when it
+ * is the whole of what the user asked for. Inside a pipeline it is not: a
+ * twenty-step build left twenty checkpoints, so undoing it meant twenty
+ * Ctrl+Z, each one leaving the design in a state no one asked for.
+ *
+ * Figma offers no way to suspend commitUndo, so the handlers' calls are
+ * swallowed and one is made at the end.
+ *
+ * The swap is counted, not saved per call. Scopes do not always nest: a
+ * pipeline whose every step reads is not classified as mutating, so it skips
+ * the write queue and can overlap another pipeline. A per-call save/restore
+ * then has the first scope to finish put the real function back while the
+ * second is still running, and the second put the first's stub back for good —
+ * after which every write in the session loses its checkpoint, silently. A
+ * counter cannot do that: the real function goes back exactly once, when the
+ * last scope leaves, whatever order they started in.
+ */
+let checkpointDepth = 0;
+let suspendedCommitUndo: (() => void) | null = null;
+let anyStepCommitted = false;
+
+export async function withSingleUndoCheckpoint<T>(work: () => Promise<T>): Promise<T> {
+  const api: any = typeof figma !== 'undefined' ? figma : null;
+  if (!api || typeof api.commitUndo !== 'function') return work();
+
+  if (checkpointDepth === 0) {
+    // Held unbound and called with the receiver below, so what goes back is the
+    // exact function that was there. Restoring a bound copy would work, but each
+    // pipeline would wrap the previous wrapper, and nothing could then check that
+    // the swap really was undone.
+    suspendedCommitUndo = api.commitUndo;
+    anyStepCommitted = false;
+    api.commitUndo = () => {
+      anyStepCommitted = true;
+    };
+  }
+  checkpointDepth++;
+  try {
+    return await work();
+  } finally {
+    checkpointDepth--;
+    if (checkpointDepth === 0) {
+      const realCommitUndo = suspendedCommitUndo;
+      suspendedCommitUndo = null;
+      api.commitUndo = realCommitUndo;
+      // Nothing mutated the document — a checkpoint here would be an empty undo
+      // step the user has to press through.
+      if (anyStepCommitted && realCommitUndo) realCommitUndo.call(api);
+    }
+  }
+}
+
+/** Test seam: forget any suspended swap. */
+export function resetUndoCheckpointState(): void {
+  checkpointDepth = 0;
+  suspendedCommitUndo = null;
+  anyStepCommitted = false;
+}
+
 export async function handleBatchPipelineRequest(
   request: any,
   writeDispatcher: (subReq: any) => Promise<any>
@@ -321,7 +417,27 @@ export async function handleBatchPipelineRequest(
   };
 
   const pipelineParams = request.params || request;
-  const res = await executeBatchPipeline(pipelineParams, dispatcher);
+  // Rollback runs inside executeBatchPipeline, so it is inside the checkpoint
+  // too: a pipeline that fails and reverses itself leaves the undo stack as it
+  // found it rather than adding steps that undo each other.
+  const res = await withSingleUndoCheckpoint(() =>
+    executeBatchPipeline(
+      pipelineParams,
+      dispatcher,
+      undefined,
+      () => isCancelled(request.requestId),
+      async (done, total, action) => {
+        // A one-step pipeline is not worth a progress message; the response
+        // arrives at about the same moment.
+        if (total < 2) return;
+        await reportProgress(
+          request.requestId,
+          stepProgress(done, total),
+          `Step ${done + 1}/${total}: ${action}`,
+        );
+      },
+    ),
+  );
   return {
     type: request.type,
     requestId: request.requestId,
