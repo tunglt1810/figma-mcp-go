@@ -30,6 +30,13 @@ const SIMPLE_NODE_PROPS: Array<{ key: string; label: string }> = [
   { key: "dashPattern", label: "dash pattern" },
 ];
 
+// The uniform radius first: a call carrying both means "these corners, that
+// default", and applying the uniform one afterwards would erase the specifics.
+const CORNER_RADIUS_KEYS = [
+  "cornerRadius",
+  "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius",
+];
+
 const reorderIndex = (order: string, currentIndex: number, siblingCount: number): number => {
   switch (order) {
     case "bringToFront": return siblingCount - 1;
@@ -65,6 +72,55 @@ const applyNodeProperties = (n: any, p: any) => {
       applied[key] = n[key];
     } catch (e: any) {
       errors[key] = e?.message ?? `Could not set ${label}`;
+    }
+  }
+
+  // Position, size and corner radius were move_nodes, resize_nodes and
+  // set_corner_radius. They report per property like everything above, and
+  // moving plus resizing is now one undo entry rather than two.
+  if (p.x !== undefined || p.y !== undefined) {
+    if (!("x" in n)) {
+      if (p.x !== undefined) errors.x = "Node does not support position";
+      if (p.y !== undefined) errors.y = "Node does not support position";
+    } else {
+      if (p.x !== undefined) { n.x = p.x; applied.x = n.x; }
+      if (p.y !== undefined) { n.y = p.y; applied.y = n.y; }
+    }
+  }
+
+  if (p.width !== undefined || p.height !== undefined) {
+    const label = "resize";
+    if (typeof n.resize !== "function") {
+      if (p.width !== undefined) errors.width = `Node does not support ${label}`;
+      if (p.height !== undefined) errors.height = `Node does not support ${label}`;
+    } else {
+      // One resize call, not one per axis: Figma takes both, and the axis the
+      // caller left out keeps the value it has.
+      try {
+        n.resize(p.width !== undefined ? p.width : n.width, p.height !== undefined ? p.height : n.height);
+        if (p.width !== undefined) applied.width = n.width;
+        if (p.height !== undefined) applied.height = n.height;
+      } catch (e: any) {
+        const message = e?.message ?? "Could not resize";
+        if (p.width !== undefined) errors.width = message;
+        if (p.height !== undefined) errors.height = message;
+      }
+    }
+  }
+
+  for (const key of CORNER_RADIUS_KEYS) {
+    if (p[key] === undefined) continue;
+    // Every per-corner property is gated on cornerRadius: a node that has the
+    // uniform one has the four, and one that has neither is not a shape.
+    if (!("cornerRadius" in n)) {
+      errors[key] = "Node does not support corner radius";
+      continue;
+    }
+    try {
+      n[key] = p[key];
+      applied[key] = n[key];
+    } catch (e: any) {
+      errors[key] = e?.message ?? `Could not set ${key}`;
     }
   }
 
@@ -143,7 +199,12 @@ export const writeModifyHandlers: HandlerMap = {
     const nodeIds = request.nodeIds || [];
     if (nodeIds.length === 0) throw new Error("nodeIds is required");
 
-    const requested = [...SIMPLE_NODE_PROPS.map(s => s.key), "constraints", "order"];
+    const requested = [
+      ...SIMPLE_NODE_PROPS.map(s => s.key),
+      "constraints", "order",
+      "x", "y", "width", "height",
+      ...CORNER_RADIUS_KEYS,
+    ];
     if (!requested.some(key => p[key] !== undefined)) {
       throw new Error(`at least one property is required: ${requested.join(", ")}`);
     }
@@ -256,41 +317,6 @@ export const writeModifyHandlers: HandlerMap = {
     };
   },
 
-  "move_nodes": async (request) => {
-    const p = request.params || {};
-    const nodeIds = request.nodeIds || [];
-    if (nodeIds.length === 0) throw new Error("nodeIds is required");
-    const results: any[] = [];
-    for (const nid of nodeIds) {
-      const n = await figma.getNodeByIdAsync(nid) as any;
-      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-      if (!("x" in n)) { results.push({ nodeId: nid, error: "Node does not support position" }); continue; }
-      if (p.x != null) n.x = p.x;
-      if (p.y != null) n.y = p.y;
-      results.push({ nodeId: nid, x: n.x, y: n.y });
-    }
-    figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
-  },
-
-  "resize_nodes": async (request) => {
-    const p = request.params || {};
-    const nodeIds = request.nodeIds || [];
-    if (nodeIds.length === 0) throw new Error("nodeIds is required");
-    const results: any[] = [];
-    for (const nid of nodeIds) {
-      const n = await figma.getNodeByIdAsync(nid) as any;
-      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-      if (!("resize" in n)) { results.push({ nodeId: nid, error: "Node does not support resize" }); continue; }
-      const w = p.width != null ? p.width : n.width;
-      const h = p.height != null ? p.height : n.height;
-      n.resize(w, h);
-      results.push({ nodeId: nid, width: n.width, height: n.height });
-    }
-    figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
-  },
-
   "clone_node": async (request) => {
     const p = request.params || {};
     const nodeId = request.nodeIds && request.nodeIds[0];
@@ -310,26 +336,6 @@ export const writeModifyHandlers: HandlerMap = {
       requestId: request.requestId,
       data: { id: clone.id, name: clone.name, type: clone.type, bounds: getBounds(clone) },
     };
-  },
-
-  "set_corner_radius": async (request) => {
-    const p = request.params || {};
-    const nodeIds = request.nodeIds || [];
-    if (nodeIds.length === 0) throw new Error("nodeIds is required");
-    const results: any[] = [];
-    for (const nid of nodeIds) {
-      const n = await figma.getNodeByIdAsync(nid) as any;
-      if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-      if (!("cornerRadius" in n)) { results.push({ nodeId: nid, error: "Node does not support corner radius" }); continue; }
-      if (p.cornerRadius != null) n.cornerRadius = p.cornerRadius;
-      if (p.topLeftRadius != null) n.topLeftRadius = p.topLeftRadius;
-      if (p.topRightRadius != null) n.topRightRadius = p.topRightRadius;
-      if (p.bottomLeftRadius != null) n.bottomLeftRadius = p.bottomLeftRadius;
-      if (p.bottomRightRadius != null) n.bottomRightRadius = p.bottomRightRadius;
-      results.push({ nodeId: nid, cornerRadius: n.cornerRadius });
-    }
-    figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
   },
 
   "set_layout_grids": async (request) => {

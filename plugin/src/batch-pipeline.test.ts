@@ -227,7 +227,7 @@ describe('WAL — MODIFY snapshot and restore', () => {
         node.fills = [{ type: 'SOLID', color: { r: 1, g: 0, b: 0 } }];
         return { id: node.id };
       }
-      if (action === 'move_nodes') {
+      if (action === 'set_node_properties') {
         node.x = params.x;
         return { id: node.id };
       }
@@ -239,7 +239,7 @@ describe('WAL — MODIFY snapshot and restore', () => {
       {
         steps: [
           { id: 's1', action: 'set_fills', params: { nodeIds: ['1:1'], color: '#ff0000' } },
-          { id: 's2', action: 'move_nodes', params: { nodeIds: ['1:1'], x: 999 } },
+          { id: 's2', action: 'set_node_properties', params: { nodeIds: ['1:1'], x: 999 } },
           { id: 's3', action: 'boom', params: { nodeIds: ['1:1'] } },
         ],
       },
@@ -629,7 +629,7 @@ describe('batch pipeline progress', () => {
   it('reports the step about to run, not the one just finished', async () => {
     const seen: Array<[number, number, string]> = [];
     await executeBatchPipeline(
-      { steps: [{ action: 'batch_rename_nodes' }, { action: 'move_nodes' }, { action: 'set_paint' }] } as any,
+      { steps: [{ action: 'batch_rename_nodes' }, { action: 'set_node_properties' }, { action: 'set_paint' }] } as any,
       noopDispatch,
       async () => null,
       () => false,
@@ -637,7 +637,7 @@ describe('batch pipeline progress', () => {
     );
     expect(seen).toEqual([
       [0, 3, 'batch_rename_nodes'],
-      [1, 3, 'move_nodes'],
+      [1, 3, 'set_node_properties'],
       [2, 3, 'set_paint'],
     ]);
   });
@@ -725,16 +725,13 @@ const KEEPS_EXISTING_NODES = [
   'manage_component_properties',
   'manage_page',
   'manage_plugin_data',
-  'move_nodes',
   'outline_stroke',
   'remove_reactions',
   'reparent_nodes',
-  'resize_nodes',
   'save_version_checkpoint',
   'set_annotations',
   'set_auto_layout',
   'set_codegen_result',
-  'set_corner_radius',
   'set_effects',
   'set_export_settings',
   'set_instance_overrides',

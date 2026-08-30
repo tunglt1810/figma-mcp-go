@@ -285,11 +285,16 @@ func TestHandlers_WriteModifyTools(t *testing.T) {
 	})
 	callTool(t, s, "set_strokes", map[string]any{"nodeId": "1:1", "color": "#000000"}) // minimal
 
-	callTool(t, s, "move_nodes", map[string]any{"nodeIds": []any{"1:1"}, "x": float64(10), "y": float64(20)})
-	callTool(t, s, "move_nodes", map[string]any{"nodeIds": []any{"1:1"}, "x": float64(5)}) // y omitted
+	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "x": float64(10), "y": float64(20)})
+	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "x": float64(5)}) // y omitted
 
-	callTool(t, s, "resize_nodes", map[string]any{"nodeIds": []any{"1:1"}, "width": float64(300), "height": float64(200)})
-	callTool(t, s, "resize_nodes", map[string]any{"nodeIds": []any{"1:1"}, "height": float64(100)}) // width omitted
+	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "width": float64(300), "height": float64(200)})
+	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "height": float64(100)}) // width omitted
+
+	// One call where two used to be needed, and so one undo entry where two were.
+	callTool(t, s, "set_node_properties", map[string]any{
+		"nodeIds": []any{"1:1"}, "x": float64(0), "width": float64(64), "cornerRadius": float64(8),
+	})
 
 	callTool(t, s, "batch_rename_nodes", map[string]any{"nodeIds": []any{"1:1"}, "name": "New Name"})
 
@@ -467,7 +472,7 @@ func TestToolCall_InvalidArgsRejected(t *testing.T) {
 		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "opacity": 5.0}, "opacity must be at most 1"},
 		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "blendMode": "NEON"}, "blendMode must be one of"},
 		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "order": "sideways"}, "order must be"},
-		{"resize_nodes", map[string]any{"nodeIds": []any{"nope"}, "width": 10.0}, "colon format"},
+		{"set_node_properties", map[string]any{"nodeIds": []any{"nope"}, "width": 10.0}, "colon format"},
 		{"search_nodes", map[string]any{"query": ""}, "at least one of query or types is required"},
 	}
 

@@ -17,6 +17,8 @@ func fillModeParam(desc string) paramSpec {
 var nodePropertyKeys = []string{
 	"visible", "locked", "opacity", "rotation", "blendMode", "constraints", "order",
 	"isMask", "maskType",
+	"x", "y", "width", "height",
+	"cornerRadius", "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius",
 	"strokeWeight", "strokeAlign", "strokeCap", "strokeJoin", "strokeMiterLimit", "dashPattern",
 }
 
@@ -153,30 +155,6 @@ var writeModifySpecs = []toolSpec{
 		},
 	},
 	{
-		Name:       "move_nodes",
-		Desc:       "Move one or more nodes to an absolute canvas position. The same x/y is applied to every node independently (not a relative offset from current position).",
-		NodeIDs:    nodeIDsMulti,
-		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345']",
-		Params: []paramSpec{
-			{Name: "x", Kind: kindNumber, Desc: "Target X position"},
-			{Name: "y", Kind: kindNumber, Desc: "Target Y position"},
-		},
-		Validate: requireAnyOf("at least one of x or y is required", "x", "y"),
-	},
-	{
-		Name:       "resize_nodes",
-		Desc:       "Resize one or more nodes. The same width/height is applied to every node in the list independently. Provide width, height, or both.",
-		NodeIDs:    nodeIDsMulti,
-		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345']",
-		Params: []paramSpec{
-			{Name: "width", Kind: kindNumber, Desc: "New width in pixels"},
-			{Name: "height", Kind: kindNumber, Desc: "New height in pixels"},
-		},
-		Validate: requireAnyOf("at least one of width or height is required", "width", "height"),
-	},
-	{
 		Name:       "clone_node",
 		Desc:       "Clone an existing node, optionally repositioning it or placing it in a new parent.",
 		NodeIDs:    nodeIDsSingle,
@@ -187,23 +165,6 @@ var writeModifySpecs = []toolSpec{
 			{Name: "y", Kind: kindNumber, Desc: "Y position of the clone"},
 			parentIDParam("Parent node ID for the clone. Defaults to same parent as source."),
 		},
-	},
-	{
-		Name:       "set_corner_radius",
-		Desc:       "Set corner radius on one or more nodes. Provide a uniform cornerRadius or individual per-corner values.",
-		NodeIDs:    nodeIDsMulti,
-		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345']",
-		Params: []paramSpec{
-			{Name: "cornerRadius", Kind: kindNumber, Desc: "Uniform corner radius applied to all corners"},
-			{Name: "topLeftRadius", Kind: kindNumber, Desc: "Top-left corner radius"},
-			{Name: "topRightRadius", Kind: kindNumber, Desc: "Top-right corner radius"},
-			{Name: "bottomLeftRadius", Kind: kindNumber, Desc: "Bottom-left corner radius"},
-			{Name: "bottomRightRadius", Kind: kindNumber, Desc: "Bottom-right corner radius"},
-		},
-		Validate: requireAnyOf(
-			"at least one of cornerRadius, topLeftRadius, topRightRadius, bottomLeftRadius, or bottomRightRadius is required",
-			"cornerRadius", "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius"),
 	},
 	{
 		Name:       "set_layout_grids",
@@ -246,12 +207,26 @@ var writeModifySpecs = []toolSpec{
 		Params:     autoLayoutParams(),
 	},
 	{
-		Name:       "set_node_properties",
-		Desc:       "Set one or more display properties on nodes in a single call: visibility, lock state, opacity, rotation, blend mode, constraints, z-order, and masking. Every property is optional and independent — supply only the ones you want to change. Each node reports which properties were applied; a property the node type does not support is reported against that property alone, leaving the others applied.",
+		Name: "set_node_properties",
+		Desc: "Set one or more properties on nodes in a single call: position, size, corner radius, visibility, lock state, opacity, rotation, blend mode, constraints, z-order, masking, and stroke geometry. " +
+			"Every property is optional and independent — supply only the ones you want to change. " +
+			"Each node reports which properties were applied; a property the node type does not support is reported against that property alone, leaving the others applied. " +
+			"Moving and resizing in one call is one undo entry, not two.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345']",
 		Params: []paramSpec{
+			{Name: "x", Kind: kindNumber,
+				Desc: "Absolute X position on the canvas, applied to every node listed — not a relative offset from where each one is now"},
+			{Name: "y", Kind: kindNumber,
+				Desc: "Absolute Y position on the canvas, applied to every node listed — not a relative offset from where each one is now"},
+			{Name: "width", Kind: kindNumber, Desc: "New width in pixels. The height is left as it is unless you also pass height."},
+			{Name: "height", Kind: kindNumber, Desc: "New height in pixels. The width is left as it is unless you also pass width."},
+			{Name: "cornerRadius", Kind: kindNumber, Desc: "Uniform corner radius applied to all four corners"},
+			{Name: "topLeftRadius", Kind: kindNumber, Desc: "Top-left corner radius"},
+			{Name: "topRightRadius", Kind: kindNumber, Desc: "Top-right corner radius"},
+			{Name: "bottomLeftRadius", Kind: kindNumber, Desc: "Bottom-left corner radius"},
+			{Name: "bottomRightRadius", Kind: kindNumber, Desc: "Bottom-right corner radius"},
 			{Name: "visible", Kind: kindBool, Desc: "Show (true) or hide (false) the nodes"},
 			{Name: "locked", Kind: kindBool, Desc: "Lock (true) or unlock (false) the nodes against accidental edits"},
 			{Name: "opacity", Kind: kindNumber, Min: floatPtr(0), Max: floatPtr(1),

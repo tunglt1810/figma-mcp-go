@@ -58,7 +58,7 @@ create_node(type="FRAME", name="Variants/ComponentName", width=totalWidth, heigh
 **Sizes:**
 - Clone source: clone_node(sourceId, parentId=containerId)
 - Compute scale factor (SM=0.75, MD=1.0, LG=1.5)
-- resize_nodes to new dimensions
+- set_node_properties with width/height to new dimensions
 - For TEXT children: set_text to same content (font size cannot be changed via MCP — note this limitation)
 - batch_rename_nodes to "ComponentName/SM" etc.
 

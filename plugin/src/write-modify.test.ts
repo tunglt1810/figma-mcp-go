@@ -23,14 +23,17 @@ beforeEach(() => {
   };
 });
 
-// ── set_opacity ───────────────────────────────────────────────────────────────
+// ── set_node_properties: the geometry it absorbed ─────────────────────────────
+//
+// move_nodes, resize_nodes and set_corner_radius were three tools over the same
+// per-node loop. They are properties now, and report per property like the rest.
 
-describe("set_corner_radius", () => {
+describe("set_node_properties geometry", () => {
   it("sets uniform cornerRadius", async () => {
     mockNodes["1:1"] = { id: "1:1", cornerRadius: 0 };
-    const res = await handleWriteModifyRequest(makeRequest("set_corner_radius", ["1:1"], { cornerRadius: 8 }));
+    const res = await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { cornerRadius: 8 }));
     expect(mockNodes["1:1"].cornerRadius).toBe(8);
-    expect(res?.data.results[0].cornerRadius).toBe(8);
+    expect(res?.data.results[0].applied.cornerRadius).toBe(8);
     expect(commitUndoCalled).toBe(true);
   });
 
@@ -39,7 +42,7 @@ describe("set_corner_radius", () => {
       id: "1:1", cornerRadius: 0,
       topLeftRadius: 0, topRightRadius: 0, bottomLeftRadius: 0, bottomRightRadius: 0,
     };
-    await handleWriteModifyRequest(makeRequest("set_corner_radius", ["1:1"], {
+    await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], {
       topLeftRadius: 8, topRightRadius: 0, bottomLeftRadius: 8, bottomRightRadius: 0,
     }));
     expect(mockNodes["1:1"].topLeftRadius).toBe(8);
@@ -49,23 +52,84 @@ describe("set_corner_radius", () => {
   });
 
   it("reports error for missing node", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("set_corner_radius", ["9:9"], { cornerRadius: 4 }));
+    const res = await handleWriteModifyRequest(makeRequest("set_node_properties", ["9:9"], { cornerRadius: 4 }));
     expect(res?.data.results[0].error).toBe("Node not found");
   });
 
-  it("reports error for node without cornerRadius support", async () => {
-    mockNodes["1:1"] = { id: "1:1", name: "Text" }; // no cornerRadius property
-    const res = await handleWriteModifyRequest(makeRequest("set_corner_radius", ["1:1"], { cornerRadius: 4 }));
-    expect(res?.data.results[0].error).toContain("does not support corner radius");
+  it("reports a node without cornerRadius support against that property alone", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Text", opacity: 1 };
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { cornerRadius: 4, opacity: 0.5 }),
+    );
+    expect(res?.data.results[0].errors.cornerRadius).toContain("does not support corner radius");
+    expect(mockNodes["1:1"].opacity).toBe(0.5);
   });
 
   it("handles multiple nodeIds", async () => {
     mockNodes["1:1"] = { id: "1:1", cornerRadius: 0 };
     mockNodes["2:2"] = { id: "2:2", cornerRadius: 0 };
-    const res = await handleWriteModifyRequest(makeRequest("set_corner_radius", ["1:1", "2:2"], { cornerRadius: 12 }));
+    const res = await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1", "2:2"], { cornerRadius: 12 }));
     expect(res?.data.results).toHaveLength(2);
     expect(mockNodes["1:1"].cornerRadius).toBe(12);
     expect(mockNodes["2:2"].cornerRadius).toBe(12);
+  });
+
+  it("moves to an absolute position", async () => {
+    mockNodes["1:1"] = { id: "1:1", x: 5, y: 5 };
+    const res = await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { x: 10, y: 20 }));
+    expect(mockNodes["1:1"]).toMatchObject({ x: 10, y: 20 });
+    expect(res?.data.results[0].applied).toEqual({ x: 10, y: 20 });
+  });
+
+  it("moves on one axis without disturbing the other", async () => {
+    mockNodes["1:1"] = { id: "1:1", x: 5, y: 5 };
+    await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { x: 10 }));
+    expect(mockNodes["1:1"]).toMatchObject({ x: 10, y: 5 });
+  });
+
+  it("resizes, keeping the axis the caller left out", async () => {
+    const resized: number[][] = [];
+    mockNodes["1:1"] = {
+      id: "1:1", width: 100, height: 50,
+      resize(w: number, h: number) { resized.push([w, h]); this.width = w; this.height = h; },
+    };
+    await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { width: 300 }));
+    expect(resized).toEqual([[300, 50]]);
+  });
+
+  // The visible payoff of the merge: this cost two undo entries before.
+  it("moves and resizes in one call and one undo entry", async () => {
+    let resizeCalls = 0;
+    let undoCount = 0;
+    (globalThis as any).figma.commitUndo = () => { undoCount++; commitUndoCalled = true; };
+    mockNodes["1:1"] = {
+      id: "1:1", x: 0, y: 0, width: 100, height: 50,
+      resize(w: number, h: number) { resizeCalls++; this.width = w; this.height = h; },
+    };
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { x: 10, y: 20, width: 300, height: 200 }),
+    );
+    expect(mockNodes["1:1"]).toMatchObject({ x: 10, y: 20, width: 300, height: 200 });
+    expect(resizeCalls).toBe(1);
+    expect(undoCount).toBe(1);
+    expect(res?.data.results[0].errors).toBeUndefined();
+  });
+
+  it("reports a node that cannot resize while still applying what it can", async () => {
+    mockNodes["1:1"] = { id: "1:1", x: 0, y: 0 }; // no resize function
+    const res = await handleWriteModifyRequest(
+      makeRequest("set_node_properties", ["1:1"], { x: 10, width: 300 }),
+    );
+    expect(mockNodes["1:1"].x).toBe(10);
+    expect(res?.data.results[0].errors.width).toContain("does not support resize");
+    expect(res?.data.results[0].applied.x).toBe(10);
+  });
+
+  it("reports a node that has no position", async () => {
+    mockNodes["1:1"] = { id: "1:1", opacity: 1 }; // no x
+    const res = await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { x: 10, y: 20 }));
+    expect(res?.data.results[0].errors.x).toBe("Node does not support position");
+    expect(res?.data.results[0].errors.y).toBe("Node does not support position");
   });
 
   it("returns null for unrecognised type", async () => {

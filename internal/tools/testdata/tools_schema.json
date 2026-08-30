@@ -1681,39 +1681,6 @@
     },
     "name": "manage_plugin_data"
   },
-  "move_nodes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Move one or more nodes to an absolute canvas position. The same x/y is applied to every node independently (not a relative offset from current position).",
-    "inputSchema": {
-      "properties": {
-        "nodeIds": {
-          "description": "Node IDs in colon format e.g. ['4029:12345']",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "x": {
-          "description": "Target X position",
-          "type": "number"
-        },
-        "y": {
-          "description": "Target Y position",
-          "type": "number"
-        }
-      },
-      "required": [
-        "nodeIds"
-      ],
-      "type": "object"
-    },
-    "name": "move_nodes"
-  },
   "outline_stroke": {
     "annotations": {
       "readOnlyHint": false,
@@ -1797,39 +1764,6 @@
       "type": "object"
     },
     "name": "reparent_nodes"
-  },
-  "resize_nodes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Resize one or more nodes. The same width/height is applied to every node in the list independently. Provide width, height, or both.",
-    "inputSchema": {
-      "properties": {
-        "height": {
-          "description": "New height in pixels",
-          "type": "number"
-        },
-        "nodeIds": {
-          "description": "Node IDs in colon format e.g. ['4029:12345']",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "width": {
-          "description": "New width in pixels",
-          "type": "number"
-        }
-      },
-      "required": [
-        "nodeIds"
-      ],
-      "type": "object"
-    },
-    "name": "resize_nodes"
   },
   "save_screenshots": {
     "annotations": {
@@ -2157,51 +2091,6 @@
     },
     "name": "set_codegen_result"
   },
-  "set_corner_radius": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Set corner radius on one or more nodes. Provide a uniform cornerRadius or individual per-corner values.",
-    "inputSchema": {
-      "properties": {
-        "bottomLeftRadius": {
-          "description": "Bottom-left corner radius",
-          "type": "number"
-        },
-        "bottomRightRadius": {
-          "description": "Bottom-right corner radius",
-          "type": "number"
-        },
-        "cornerRadius": {
-          "description": "Uniform corner radius applied to all corners",
-          "type": "number"
-        },
-        "nodeIds": {
-          "description": "Node IDs in colon format e.g. ['4029:12345']",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "topLeftRadius": {
-          "description": "Top-left corner radius",
-          "type": "number"
-        },
-        "topRightRadius": {
-          "description": "Top-right corner radius",
-          "type": "number"
-        }
-      },
-      "required": [
-        "nodeIds"
-      ],
-      "type": "object"
-    },
-    "name": "set_corner_radius"
-  },
   "set_effects": {
     "annotations": {
       "readOnlyHint": false,
@@ -2430,17 +2319,29 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Set one or more display properties on nodes in a single call: visibility, lock state, opacity, rotation, blend mode, constraints, z-order, and masking. Every property is optional and independent — supply only the ones you want to change. Each node reports which properties were applied; a property the node type does not support is reported against that property alone, leaving the others applied.",
+    "description": "Set one or more properties on nodes in a single call: position, size, corner radius, visibility, lock state, opacity, rotation, blend mode, constraints, z-order, masking, and stroke geometry. Every property is optional and independent — supply only the ones you want to change. Each node reports which properties were applied; a property the node type does not support is reported against that property alone, leaving the others applied. Moving and resizing in one call is one undo entry, not two.",
     "inputSchema": {
       "properties": {
         "blendMode": {
           "description": "Blend mode e.g. NORMAL, MULTIPLY, SCREEN, OVERLAY, LUMINOSITY",
           "type": "string"
         },
+        "bottomLeftRadius": {
+          "description": "Bottom-left corner radius",
+          "type": "number"
+        },
+        "bottomRightRadius": {
+          "description": "Bottom-right corner radius",
+          "type": "number"
+        },
         "constraints": {
           "description": "Responsive constraints {horizontal, vertical}, each MIN, MAX, CENTER, STRETCH, or SCALE. Axes you omit keep their current value.",
           "properties": {},
           "type": "object"
+        },
+        "cornerRadius": {
+          "description": "Uniform corner radius applied to all four corners",
+          "type": "number"
         },
         "dashPattern": {
           "description": "Dash lengths in pixels, alternating dash and gap e.g. [4, 2]. An empty array makes the stroke solid again.",
@@ -2448,6 +2349,10 @@
             "type": "number"
           },
           "type": "array"
+        },
+        "height": {
+          "description": "New height in pixels. The width is left as it is unless you also pass width.",
+          "type": "number"
         },
         "isMask": {
           "description": "Turn the node into a mask for its later siblings (true) or back into an ordinary layer (false)",
@@ -2500,9 +2405,29 @@
           "description": "Stroke thickness in pixels. set_paint also takes this when it paints a stroke; use this one to change the thickness without repainting.",
           "type": "number"
         },
+        "topLeftRadius": {
+          "description": "Top-left corner radius",
+          "type": "number"
+        },
+        "topRightRadius": {
+          "description": "Top-right corner radius",
+          "type": "number"
+        },
         "visible": {
           "description": "Show (true) or hide (false) the nodes",
           "type": "boolean"
+        },
+        "width": {
+          "description": "New width in pixels. The height is left as it is unless you also pass height.",
+          "type": "number"
+        },
+        "x": {
+          "description": "Absolute X position on the canvas, applied to every node listed — not a relative offset from where each one is now",
+          "type": "number"
+        },
+        "y": {
+          "description": "Absolute Y position on the canvas, applied to every node listed — not a relative offset from where each one is now",
+          "type": "number"
         }
       },
       "required": [

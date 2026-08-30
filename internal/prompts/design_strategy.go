@@ -54,7 +54,7 @@ func addDesignStrategy(s *server.MCPServer) {
 6. Modifying existing elements:
    - Use set_text() to modify text content of a TEXT node
    - Use set_paint(type: "SOLID", color) to change background/fill colors
-   - Use move_nodes() / resize_nodes() for position and size adjustments
+   - Use set_node_properties() with x/y/width/height for position and size adjustments
 
 7. Visual Hierarchy:
    - Position elements in logical reading order (top to bottom)

@@ -170,19 +170,6 @@ func TestValidateRPC_SetText(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_MoveNodes(t *testing.T) {
-	// no x or y
-	msg := ValidateRPC("move_nodes", []string{"1:1"}, nil)
-	if msg == "" {
-		t.Error("expected error when neither x nor y provided")
-	}
-	// valid with just x
-	msg = ValidateRPC("move_nodes", []string{"1:1"}, map[string]any{"x": float64(10)})
-	if msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_CreateVariable(t *testing.T) {
 	// invalid type
 	msg := ValidateRPC("create_variable", nil, map[string]any{
@@ -274,21 +261,6 @@ func TestValidateRPC_CreateText(t *testing.T) {
 		t.Error("expected error for invalid parentId")
 	}
 	if msg := ValidateRPC("create_text", nil, map[string]any{"text": "hi"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_ResizeNodes(t *testing.T) {
-	if msg := ValidateRPC("resize_nodes", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeIds")
-	}
-	if msg := ValidateRPC("resize_nodes", []string{"bad"}, nil); msg == "" {
-		t.Error("expected error for invalid nodeId")
-	}
-	if msg := ValidateRPC("resize_nodes", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error when neither width nor height provided")
-	}
-	if msg := ValidateRPC("resize_nodes", []string{"1:1"}, map[string]any{"width": float64(200)}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
@@ -468,31 +440,39 @@ func TestValidateRPC_DetachInstance(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_SetCornerRadius(t *testing.T) {
-	// missing nodeIds
-	if msg := ValidateRPC("set_corner_radius", nil, map[string]any{"cornerRadius": float64(8)}); msg == "" {
+// set_node_properties absorbed move_nodes, resize_nodes and set_corner_radius,
+// so position, size and radii are now properties among the rest — each of them
+// enough on its own to make the call meaningful.
+func TestValidateRPC_SetNodeProperties_GeometryAbsorbed(t *testing.T) {
+	if msg := ValidateRPC("set_node_properties", nil, map[string]any{"cornerRadius": float64(8)}); msg == "" {
 		t.Error("expected error for missing nodeIds")
 	}
-	// invalid nodeId
-	if msg := ValidateRPC("set_corner_radius", []string{"bad"}, map[string]any{"cornerRadius": float64(8)}); msg == "" {
+	if msg := ValidateRPC("set_node_properties", []string{"bad"}, map[string]any{"width": float64(10)}); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
-	// no radius param provided
-	if msg := ValidateRPC("set_corner_radius", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error when no radius param provided")
+	if msg := ValidateRPC("set_node_properties", []string{"1:1"}, nil); msg == "" {
+		t.Error("expected error when no property is provided")
 	}
-	// uniform cornerRadius
-	if msg := ValidateRPC("set_corner_radius", []string{"1:1"}, map[string]any{"cornerRadius": float64(8)}); msg != "" {
-		t.Errorf("unexpected error for cornerRadius: %s", msg)
-	}
-	// per-corner individually
-	for _, param := range []string{"topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius"} {
-		if msg := ValidateRPC("set_corner_radius", []string{"1:1"}, map[string]any{param: float64(4)}); msg != "" {
+	// Each geometry property alone
+	for _, param := range []string{
+		"x", "y", "width", "height",
+		"cornerRadius", "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius",
+	} {
+		if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{param: float64(4)}); msg != "" {
 			t.Errorf("unexpected error for %s: %s", param, msg)
 		}
+		if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{param: "big"}); msg == "" {
+			t.Errorf("expected a non-numeric %s to be rejected", param)
+		}
+	}
+	// Move and resize together, which used to be two calls and two undo entries
+	if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{
+		"x": float64(10), "y": float64(20), "width": float64(300), "height": float64(200),
+	}); msg != "" {
+		t.Errorf("unexpected error for a move and resize in one call: %s", msg)
 	}
 	// mixed per-corner
-	if msg := ValidateRPC("set_corner_radius", []string{"1:1"}, map[string]any{
+	if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{
 		"topLeftRadius": float64(8), "topRightRadius": float64(0),
 		"bottomLeftRadius": float64(8), "bottomRightRadius": float64(0),
 	}); msg != "" {
