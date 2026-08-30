@@ -30,9 +30,9 @@ export const t = {
   clear: "Clear",
   clearPinTitle: "Clear the pin",
   autoCopyBroken:
-    "⚠️ Auto-copy disabled (browser policy). Connect Go MCP Server for native auto-copy, or click to retry.",
+    "⚠️ Figma blocks the clipboard here. Auto-copy resumes once the server connects — or click to copy now.",
   autoCopyBrokenTitle:
-    "Your browser's clipboard security policy blocks automatic copies without user clicks; connect Go MCP Server for native auto-copy, or click to retry",
+    "Figma runs this panel in a sandbox where the browser only allows a copy that a click asked for, so an automatic one has nowhere to go. The MCP server copies outside the browser and is not subject to this, so auto-copy starts working by itself as soon as the panel connects. Auto-copy is still on — this is not a setting that turned off.",
   copyFailed: "⚠️ Copy failed. Click here to retry.",
   copyFailedTitle:
     "Browsers require you to click here once after a reload to allow clipboard access",

@@ -18,8 +18,10 @@ export async function copyTextToClipboard(
     viaWS = true;
   }
 
-  // 2. Try DOM execCommand if available
-  if (options.execCommand) {
+  // 2. Try DOM execCommand if available. Skipped once the server has it: this
+  // copies the document's selection rather than `text`, so running it after a
+  // successful send can only replace what the server just put on the clipboard.
+  if (!success && options.execCommand) {
     try {
       if (options.execCommand("copy")) {
         success = true;

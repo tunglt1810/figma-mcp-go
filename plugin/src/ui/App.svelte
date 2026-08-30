@@ -121,6 +121,15 @@
 
     ws.onopen = () => {
       connected = true;
+      // The server copies for us and never touches the browser's clipboard, so
+      // a break recorded while there was no socket says nothing about now. The
+      // panel reads its prefs before it connects, which means the first
+      // selection often arrives during that gap — clear the break and copy it.
+      if (autoCopyBroken) {
+        autoCopyBroken = false;
+        copyError = false;
+        if (autoCopyEnabled && selectedNodes.length > 0) copyAllNodes(true);
+      }
       ws.send(JSON.stringify({ type: "get_server_info" }));
       // Tell the server what it is talking to, so a mismatch is visible in its
       // log too — the user reporting a bug may never open this panel.
@@ -492,10 +501,11 @@
     }
 
     copyError = true;
-    if (unattended) {
-      autoCopyEnabled = false;
-      autoCopyBroken = true;
-    }
+    // Hold off further unattended attempts, but leave the user's setting alone.
+    // Turning the checkbox off here was how a copy that failed in the seconds
+    // before the socket opened became a preference: any later savePrefs() wrote
+    // the false out, and the feature stayed off across reloads.
+    if (unattended) autoCopyBroken = true;
   }
 
   function copyAllNodes(unattended = false) {
@@ -513,8 +523,9 @@
   function reArmAutoCopy() {
     autoCopyBroken = false;
     copyError = false;
-    autoCopyEnabled = true;
-    savePrefs();
+    // A click is the user gesture the browser wanted, so this attempt can
+    // succeed where the unattended one could not.
+    if (selectedNodes.length > 0) copyAllNodes();
   }
 
   // ── Pinned context ─────────────────────────────────────────────────────────

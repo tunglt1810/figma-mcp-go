@@ -21,6 +21,20 @@ describe("copyTextToClipboard", () => {
     });
   });
 
+  // execCommand("copy") copies the document's selection, not `text`, so running
+  // it after the server already has the id can only overwrite it.
+  it("does not touch the browser clipboard once the server has the text", async () => {
+    let execCalled = false;
+    const result = await copyTextToClipboard("node-123", {
+      socket: { readyState: 1, OPEN: 1, send: () => {} },
+      execCommand: () => { execCalled = true; return true; },
+      writeText: async () => { throw new Error("should not be reached"); },
+    });
+
+    expect(result.viaWS).toBe(true);
+    expect(execCalled).toBe(false);
+  });
+
   it("should fallback to execCommand when WebSocket is disconnected", async () => {
     let execCalled = false;
     const mockExec = (cmd: string) => {
