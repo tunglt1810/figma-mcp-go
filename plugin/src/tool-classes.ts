@@ -11,7 +11,7 @@ export const READ_TOOLS: ReadonlySet<string> = new Set([
   "get_image_bytes", "get_metadata", "get_nodes_info",
   "get_reactions",
   "get_screenshot", "get_selection", "get_styles", "get_variable_defs",
-  "get_viewport", "scan_nodes_by_types", "scan_text_nodes", "search_nodes",
+  "get_viewport", "search_nodes",
 ]);
 
 /**

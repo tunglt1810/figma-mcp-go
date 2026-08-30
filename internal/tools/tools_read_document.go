@@ -52,37 +52,29 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "search_nodes",
-		Desc: "Search for nodes by name substring and/or type. Searches the current page by default; pass scope 'document' to search every page, or nodeId to search one subtree. Use this when you know (part of) the node name. Use scan_nodes_by_types when you want all nodes of a type regardless of name. The result reports `truncated` when the limit cut the answer short.",
+		Desc: "Find nodes by name substring, by type, or both — omit query to take every node of the given types, omit types to search by name alone. " +
+			"Searches the current page by default; pass scope 'document' to search every page, or nodeId to search one subtree. " +
+			"Pass includeText to read the content of the TEXT nodes it finds, and includeHidden false to skip hidden nodes. " +
+			"The result reports `truncated` when the limit cut the answer short — raise `limit` when you mean to sweep a whole subtree, as it defaults to 50.",
 		Params: []paramSpec{
-			{Name: "query", Kind: kindString, Required: true,
-				Desc: "Name substring to match (case-insensitive)"},
+			{Name: "query", Kind: kindString,
+				Desc: "Name substring to match (case-insensitive). Omit to match every node, which is how you take all nodes of a type."},
 			{Name: "nodeId", Kind: kindString, IsNodeID: true,
 				Desc: "Scope search to this subtree, colon format e.g. '4029:12345'. Overrides scope."},
 			{Name: "scope", Kind: kindString, Enum: []string{"page", "document"},
 				Desc: "Where to search when no nodeId is given: 'page' for the current page (default), or 'document' for every page in the file. Use 'document' when a node may live on another page — a page search reports nothing rather than looking there."},
 			{Name: "types", Kind: kindStringArray,
 				Desc: "Filter by Figma node type e.g. ['TEXT', 'FRAME', 'COMPONENT']"},
+			{Name: "includeText", Kind: kindBool,
+				Desc: "Add characters, fontSize and fontName to every TEXT node in the answer (default false). Costs nothing on the other node types."},
+			{Name: "includeHidden", Kind: kindBool,
+				Desc: "Whether hidden nodes are searched (default true). Pass false to skip a hidden node and everything under it, which is what a designer usually means by 'what is on this screen'."},
 			{Name: "limit", Kind: kindNumber, Min: floatPtr(1),
 				Desc: "Maximum results to return (default: 50)"},
 		},
-	},
-	{
-		Name: "scan_text_nodes",
-		Desc: "Scan all TEXT nodes in a subtree and return their content, font size, and font name. Includes hidden nodes. Note that scan_nodes_by_types(['TEXT']) is not a substitute: it returns no text content and skips hidden nodes.",
-		Params: []paramSpec{
-			{Name: "nodeId", Kind: kindString, Required: true, IsNodeID: true,
-				Desc: "Root node ID to scan from, colon format e.g. '4029:12345'"},
-		},
-	},
-	{
-		Name: "scan_nodes_by_types",
-		Desc: "Find all nodes of specific types in a subtree, regardless of name. Returns id, name, type, and bounds — not text content — and skips hidden nodes. Use search_nodes to filter by name, or scan_text_nodes to read text.",
-		Params: []paramSpec{
-			{Name: "nodeId", Kind: kindString, Required: true, IsNodeID: true,
-				Desc: "Root node ID to scan from, colon format e.g. '4029:12345'"},
-			{Name: "types", Kind: kindStringArray, Required: true,
-				Desc: "Node types to find e.g. ['FRAME', 'COMPONENT', 'INSTANCE']"},
-		},
+		Validate: requireAnyOf(
+			"at least one of query or types is required — a search with neither would return every node on the page",
+			"query", "types"),
 	},
 	{
 		Name:       "get_reactions",

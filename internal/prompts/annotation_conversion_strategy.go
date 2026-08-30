@@ -37,7 +37,7 @@ get_annotations(nodeId: "selected-node-id")
 ## Step 2: Scan Annotation Text Nodes
 
 // Get all text nodes in the selection
-scan_text_nodes(nodeId: "selected-node-id")
+search_nodes(nodeId: "selected-node-id", types: ["TEXT"], includeText: true, limit: 500)
 
 // Filter and group annotation markers and descriptions
 // Markers typically have these characteristics:
@@ -49,7 +49,7 @@ scan_text_nodes(nodeId: "selected-node-id")
 ## Step 3: Scan Target UI Elements
 
 // Get all potential target elements that annotations might refer to
-scan_nodes_by_types(nodeId: "selected-node-id", types: ["COMPONENT", "INSTANCE", "FRAME"])
+search_nodes(nodeId: "selected-node-id", types: ["COMPONENT", "INSTANCE", "FRAME"], limit: 500)
 
 ## Step 4: Match Annotations to Targets
 

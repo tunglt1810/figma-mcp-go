@@ -105,9 +105,31 @@ func TestValidateRPC_GetDesignContext(t *testing.T) {
 }
 
 func TestValidateRPC_SearchNodes(t *testing.T) {
-	// missing query
+	// neither query nor types: this absorbed scan_nodes_by_types, so types alone
+	// is a whole search now — but neither would be "every node on the page".
 	if msg := ValidateRPC("search_nodes", nil, nil); msg == "" {
-		t.Error("expected error for missing query")
+		t.Error("expected error when neither query nor types is given")
+	}
+	// types alone, which is what scan_nodes_by_types was
+	if msg := ValidateRPC("search_nodes", nil, map[string]any{
+		"nodeId": "1:1",
+		"types":  []any{"FRAME", "COMPONENT"},
+	}); msg != "" {
+		t.Errorf("a types-only search was rejected: %s", msg)
+	}
+	// what scan_text_nodes was
+	if msg := ValidateRPC("search_nodes", nil, map[string]any{
+		"nodeId":      "1:1",
+		"types":       []any{"TEXT"},
+		"includeText": true,
+	}); msg != "" {
+		t.Errorf("a text scan was rejected: %s", msg)
+	}
+	if msg := ValidateRPC("search_nodes", nil, map[string]any{
+		"query":         "button",
+		"includeHidden": "no",
+	}); msg == "" {
+		t.Error("expected a non-boolean includeHidden to be rejected")
 	}
 	// invalid nodeId
 	msg := ValidateRPC("search_nodes", nil, map[string]any{
@@ -225,37 +247,6 @@ func TestValidateRPC_GetReactions(t *testing.T) {
 		t.Error("expected error for hyphen nodeId")
 	}
 	if msg := ValidateRPC("get_reactions", []string{"1:1"}, nil); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_ScanTextNodes(t *testing.T) {
-	if msg := ValidateRPC("scan_text_nodes", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
-	}
-	if msg := ValidateRPC("scan_text_nodes", nil, map[string]any{"nodeId": "bad"}); msg == "" {
-		t.Error("expected error for invalid nodeId")
-	}
-	if msg := ValidateRPC("scan_text_nodes", nil, map[string]any{"nodeId": "1:1"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_ScanNodesByTypes(t *testing.T) {
-	if msg := ValidateRPC("scan_nodes_by_types", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
-	}
-	// missing types
-	msg := ValidateRPC("scan_nodes_by_types", nil, map[string]any{"nodeId": "1:1"})
-	if msg == "" {
-		t.Error("expected error for missing types")
-	}
-	// valid
-	msg = ValidateRPC("scan_nodes_by_types", nil, map[string]any{
-		"nodeId": "1:1",
-		"types":  []any{"FRAME"},
-	})
-	if msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }

@@ -122,6 +122,64 @@ describe("search_nodes", () => {
     expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:2"]);
   });
 
+  // ── what scan_nodes_by_types and scan_text_nodes used to do ────────────────
+
+  // scan_nodes_by_types skipped hidden nodes; this tool never has. Both
+  // behaviours have to be reachable, and the default has to stay the old one.
+  it("searches hidden nodes by default and skips them on request", async () => {
+    const hidden = makeNode("1:3", "Button Hidden", "FRAME");
+    hidden.visible = false;
+    currentPage.children.push(hidden);
+
+    expect((await search({ query: "button" })).data.nodes.map((n: any) => n.id))
+      .toEqual(["1:1", "1:3"]);
+    expect((await search({ query: "button", includeHidden: false })).data.nodes.map((n: any) => n.id))
+      .toEqual(["1:1"]);
+  });
+
+  it("skips everything under a hidden node, not just the node itself", async () => {
+    const hidden = makeNode("1:3", "Hidden Wrapper", "FRAME", [makeNode("1:4", "Button Inside")]);
+    hidden.visible = false;
+    currentPage.children.push(hidden);
+
+    const result = await search({ query: "button", includeHidden: false });
+    expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:1"]);
+  });
+
+  // scan_text_nodes returned the copy itself, which this tool did not.
+  it("reads the text of TEXT hits when asked, and nothing extra otherwise", async () => {
+    const text = makeNode("1:3", "Label", "TEXT");
+    text.characters = "Hello";
+    text.fontSize = 14;
+    text.fontName = { family: "Inter", style: "Regular" };
+    currentPage.children.push(text);
+
+    const withText = await search({ types: ["TEXT"], includeText: true });
+    expect(withText.data.nodes[0].characters).toBe("Hello");
+    expect(withText.data.nodes[0].fontSize).toBe(14);
+    expect(withText.data.nodes[0].fontName).toEqual({ family: "Inter", style: "Regular" });
+
+    const without = await search({ types: ["TEXT"] });
+    expect(without.data.nodes[0].characters).toBeUndefined();
+  });
+
+  it("reports a mixed font as mixed rather than a symbol", async () => {
+    const text = makeNode("1:3", "Label", "TEXT");
+    text.characters = "Hello";
+    text.fontSize = Symbol("figma.mixed");
+    text.fontName = Symbol("figma.mixed");
+    currentPage.children.push(text);
+
+    const result = await search({ types: ["TEXT"], includeText: true });
+    expect(result.data.nodes[0].fontSize).toBe("mixed");
+    expect(result.data.nodes[0].fontName).toBe("mixed");
+  });
+
+  it("leaves a non-TEXT hit alone when includeText is on", async () => {
+    const result = await search({ types: ["RECTANGLE"], includeText: true });
+    expect(result.data.nodes[0].characters).toBeUndefined();
+  });
+
   it("flags a truncated answer, so a full page of hits is not read as complete", async () => {
     const result = await search({ scope: "document", limit: 1 });
     expect(result.data.count).toBe(1);

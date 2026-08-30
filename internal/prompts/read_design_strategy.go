@@ -35,8 +35,8 @@ func addReadDesignStrategy(s *server.MCPServer) {
    d. Drill into specific instances with get_node only when an instance has unique overrides you need to inspect
 5. Use search_nodes to find nodes by name or type without dumping the entire tree
 6. Drill into specific nodes with get_node or get_nodes_info (prefer batch over single calls)
-7. For text-heavy components, use scan_text_nodes to collect all copy at once
-8. Use scan_nodes_by_types to find all FRAME/COMPONENT/INSTANCE nodes in a subtree
+7. For text-heavy components, use search_nodes(types=["TEXT"], includeText=true) to collect all copy at once
+8. Use search_nodes(types=["FRAME","COMPONENT","INSTANCE"]) to find them all in a subtree
 9. Call get_styles and get_variable_defs once per session to understand the design system
 10. Call get_fonts to understand typography usage across the page at a glance
 11. Use get_viewport to see what the user is currently looking at in the canvas

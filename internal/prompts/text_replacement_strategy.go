@@ -27,7 +27,7 @@ func addTextReplacementStrategy(s *server.MCPServer) {
   * Forms (labels, input fields, validation text)
   * Navigation (menu items, breadcrumbs)
 
-scan_text_nodes(nodeId: "node-id")
+search_nodes(nodeId: "node-id", types: ["TEXT"], includeText: true, limit: 500)
 get_node(nodeId: "node-id")  // optional for extra context
 
 ## 2. Strategic Chunking for Complex Designs

@@ -168,18 +168,12 @@ func TestHandlers_SearchNodes(t *testing.T) {
 	})
 	// minimal (query only)
 	callTool(t, s, "search_nodes", map[string]any{"query": "icon"})
-}
-
-func TestHandlers_ScanTextNodes(t *testing.T) {
-	s, _ := newTestServer(t)
-	callTool(t, s, "scan_text_nodes", map[string]any{"nodeId": "1:1"})
-}
-
-func TestHandlers_ScanNodesByTypes(t *testing.T) {
-	s, _ := newTestServer(t)
-	callTool(t, s, "scan_nodes_by_types", map[string]any{
-		"nodeId": "1:1",
-		"types":  []any{"FRAME", "COMPONENT"},
+	// the two scans it absorbed
+	callTool(t, s, "search_nodes", map[string]any{
+		"nodeId": "1:1", "types": []any{"FRAME", "COMPONENT"}, "includeHidden": false,
+	})
+	callTool(t, s, "search_nodes", map[string]any{
+		"nodeId": "1:1", "types": []any{"TEXT"}, "includeText": true,
 	})
 }
 
@@ -474,7 +468,7 @@ func TestToolCall_InvalidArgsRejected(t *testing.T) {
 		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "blendMode": "NEON"}, "blendMode must be one of"},
 		{"set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "order": "sideways"}, "order must be"},
 		{"resize_nodes", map[string]any{"nodeIds": []any{"nope"}, "width": 10.0}, "colon format"},
-		{"search_nodes", map[string]any{"query": ""}, "query is required"},
+		{"search_nodes", map[string]any{"query": ""}, "at least one of query or types is required"},
 	}
 
 	for _, c := range cases {

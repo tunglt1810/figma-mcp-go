@@ -1960,58 +1960,6 @@
     },
     "name": "save_version_checkpoint"
   },
-  "scan_nodes_by_types": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Find all nodes of specific types in a subtree, regardless of name. Returns id, name, type, and bounds — not text content — and skips hidden nodes. Use search_nodes to filter by name, or scan_text_nodes to read text.",
-    "inputSchema": {
-      "properties": {
-        "nodeId": {
-          "description": "Root node ID to scan from, colon format e.g. '4029:12345'",
-          "type": "string"
-        },
-        "types": {
-          "description": "Node types to find e.g. ['FRAME', 'COMPONENT', 'INSTANCE']",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "nodeId",
-        "types"
-      ],
-      "type": "object"
-    },
-    "name": "scan_nodes_by_types"
-  },
-  "scan_text_nodes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Scan all TEXT nodes in a subtree and return their content, font size, and font name. Includes hidden nodes. Note that scan_nodes_by_types(['TEXT']) is not a substitute: it returns no text content and skips hidden nodes.",
-    "inputSchema": {
-      "properties": {
-        "nodeId": {
-          "description": "Root node ID to scan from, colon format e.g. '4029:12345'",
-          "type": "string"
-        }
-      },
-      "required": [
-        "nodeId"
-      ],
-      "type": "object"
-    },
-    "name": "scan_text_nodes"
-  },
   "search_nodes": {
     "annotations": {
       "readOnlyHint": false,
@@ -2019,9 +1967,17 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Search for nodes by name substring and/or type. Searches the current page by default; pass scope 'document' to search every page, or nodeId to search one subtree. Use this when you know (part of) the node name. Use scan_nodes_by_types when you want all nodes of a type regardless of name. The result reports `truncated` when the limit cut the answer short.",
+    "description": "Find nodes by name substring, by type, or both — omit query to take every node of the given types, omit types to search by name alone. Searches the current page by default; pass scope 'document' to search every page, or nodeId to search one subtree. Pass includeText to read the content of the TEXT nodes it finds, and includeHidden false to skip hidden nodes. The result reports `truncated` when the limit cut the answer short — raise `limit` when you mean to sweep a whole subtree, as it defaults to 50.",
     "inputSchema": {
       "properties": {
+        "includeHidden": {
+          "description": "Whether hidden nodes are searched (default true). Pass false to skip a hidden node and everything under it, which is what a designer usually means by 'what is on this screen'.",
+          "type": "boolean"
+        },
+        "includeText": {
+          "description": "Add characters, fontSize and fontName to every TEXT node in the answer (default false). Costs nothing on the other node types.",
+          "type": "boolean"
+        },
         "limit": {
           "description": "Maximum results to return (default: 50)",
           "type": "number"
@@ -2031,7 +1987,7 @@
           "type": "string"
         },
         "query": {
-          "description": "Name substring to match (case-insensitive)",
+          "description": "Name substring to match (case-insensitive). Omit to match every node, which is how you take all nodes of a type.",
           "type": "string"
         },
         "scope": {
@@ -2046,9 +2002,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "query"
-      ],
+      "required": [],
       "type": "object"
     },
     "name": "search_nodes"

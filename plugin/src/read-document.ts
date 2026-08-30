@@ -394,6 +394,8 @@ export const readDocumentHandlers: HandlerMap = {
     const types = request.params && request.params.types ? request.params.types : [];
     const limit = request.params && request.params.limit ? request.params.limit : 50;
     const scope = (request.params && request.params.scope) || "page";
+    const includeText = !!(request.params && request.params.includeText);
+    const includeHidden = !(request.params && request.params.includeHidden === false);
 
     // With documentAccess "dynamic-page" only the current page is in memory, so
     // a search that never loads the others quietly reports "not found" for
@@ -414,6 +416,10 @@ export const readDocumentHandlers: HandlerMap = {
     const results: any[] = [];
     const search = async (n: any, root: any, page: any) => {
       if (results.length >= limit) return;
+      // A hidden node hides its subtree with it, which is what scan_nodes_by_types
+      // meant by skipping them and what a designer means by "what is on this
+      // screen". Default on, because that is what this tool has always done.
+      if (!includeHidden && n !== root && "visible" in n && !n.visible) return;
       if (n !== root) {
         const nameMatch = !query || n.name.toLowerCase().includes(query);
         const typeMatch = types.length === 0 || types.includes(n.type);
@@ -424,6 +430,13 @@ export const readDocumentHandlers: HandlerMap = {
             type: n.type,
             bounds: getBounds(n),
           };
+          // What scan_text_nodes answered, on the nodes that have it. Off by
+          // default: a page of copy is a lot of tokens to send unasked.
+          if (includeText && n.type === "TEXT") {
+            hit.characters = n.characters;
+            hit.fontSize = isMixed(n.fontSize) ? "mixed" : n.fontSize;
+            hit.fontName = isMixed(n.fontName) ? "mixed" : n.fontName;
+          }
           // Only when the answer spans pages — otherwise every hit would repeat
           // the page the caller already knows it asked about.
           if (page) {
@@ -480,78 +493,6 @@ export const readDocumentHandlers: HandlerMap = {
       type: request.type,
       requestId: request.requestId,
       data: { nodeId: node.id, name: node.name, reactions },
-    };
-  },
-
-  "scan_text_nodes": async (request) => {
-    const nodeId = request.params && request.params.nodeId;
-    if (!nodeId) throw new Error("nodeId is required for scan_text_nodes");
-    const root = await figma.getNodeByIdAsync(nodeId);
-    if (!root) throw new Error(`Node not found: ${nodeId}`);
-    const textNodes: any[] = [];
-    const findText = async (n: any) => {
-      throwIfCancelled(request.requestId);
-      if (n.type === "TEXT") {
-        textNodes.push({
-          id: n.id,
-          name: n.name,
-          characters: n.characters,
-          fontSize: isMixed(n.fontSize) ? "mixed" : n.fontSize,
-          fontName: isMixed(n.fontName) ? "mixed" : n.fontName,
-        });
-      }
-      if ("children" in n)
-        for (const child of n.children) await findText(child);
-    };
-    await reportProgress(request.requestId, 10, "Scanning text nodes...");
-    await findText(root);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { count: textNodes.length, textNodes },
-    };
-  },
-
-  "scan_nodes_by_types": async (request) => {
-    const nodeId = request.params && request.params.nodeId;
-    const types =
-      request.params && request.params.types ? request.params.types : [];
-    if (!nodeId)
-      throw new Error("nodeId is required for scan_nodes_by_types");
-    if (types.length === 0)
-      throw new Error("types must be a non-empty array");
-    const root = await figma.getNodeByIdAsync(nodeId);
-    if (!root) throw new Error(`Node not found: ${nodeId}`);
-    const matchingNodes: any[] = [];
-    const findByTypes = async (n: any) => {
-      throwIfCancelled(request.requestId);
-      if ("visible" in n && !n.visible) return;
-      if (types.includes(n.type)) {
-        matchingNodes.push({
-          id: n.id,
-          name: n.name,
-          type: n.type,
-          bbox: {
-            x: "x" in n ? n.x : 0,
-            y: "y" in n ? n.y : 0,
-            width: "width" in n ? n.width : 0,
-            height: "height" in n ? n.height : 0,
-          },
-        });
-      }
-      if ("children" in n)
-        for (const child of n.children) await findByTypes(child);
-    };
-    await reportProgress(request.requestId, 10, `Scanning for types: ${types.join(", ")}...`);
-    await findByTypes(root);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        count: matchingNodes.length,
-        matchingNodes,
-        searchedTypes: types,
-      },
     };
   },
 };

@@ -162,8 +162,6 @@ var expectedTools = []string{
 	"resize_nodes",
 	"save_screenshots",
 	"save_version_checkpoint",
-	"scan_nodes_by_types",
-	"scan_text_nodes",
 	"search_nodes",
 	"set_annotations",
 	"set_layout_grids",
