@@ -91,6 +91,10 @@ const startPanel = () => {
     width: 320,
     height: 230,
     title: `Figma MCP Go [v${__APP_VERSION__}]`,
+    // The panel's dark palette hangs off a `figma-dark` class, and Figma only
+    // puts that class on the document when the plugin asks for it here. Without
+    // this the panel stayed light however the editor was themed.
+    themeColors: true,
   });
   sendStatus();
   sendCapabilities();

@@ -705,7 +705,7 @@
         class:confirm={guardMode === "confirm"}
         class:readonly={guardMode === "readonly"}
         on:click={cycleGuardMode}
-        title={t.guardTitle}
+        data-tip={t.guardTitle}
       >
         {guardMode === "off" ? t.guardOff : guardMode === "confirm" ? t.guardConfirm : t.guardReadonly}
       </button>
@@ -807,8 +807,10 @@
   /*
    * Figma puts a `figma-dark` class on the document element in dark mode and
    * removes it in light mode, so the theme is a CSS question and the panel needs
-   * no script for it. Light is the base and dark is the override — the panel was
-   * dark-only before this, so the dark block is the palette it already had.
+   * no script for it — only the `themeColors: true` that main.ts passes to
+   * showUI, without which the class never arrives. Light is the base and dark is
+   * the override: the panel was dark-only before this, so the dark block is the
+   * palette it already had.
    */
   :global(:root) {
     --bg: #ffffff;
@@ -1340,6 +1342,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    /* Anchors the hover explanation below. */
+    position: relative;
   }
 
   .footer-row {
@@ -1347,6 +1351,39 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    /* The labels are translated, and a language whose words run longer than
+       English must push the row onto a second line rather than off the panel,
+       which can be dragged down to 240px. */
+    flex-wrap: wrap;
+  }
+
+  /*
+   * Hover explanations.
+   *
+   * A native `title` waits over a second before it appears and is easy to miss
+   * entirely, which is how a control whose label needs explaining ends up
+   * looking like it has none. This shows immediately and takes the panel's
+   * theme. Anchored to the footer rather than the button so a long explanation
+   * can use the panel's whole width instead of a small button's.
+   */
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    margin-bottom: 6px;
+    padding: 6px 8px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 10px;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    z-index: 10;
   }
 
   .links {

@@ -7,6 +7,7 @@ import { resetWriteQueue } from "./write-queue";
 // time; here they are plain globals.
 const posted: any[] = [];
 let uiHandler: ((message: any) => any) | null = null;
+let shownWith: any = null;
 
 (globalThis as any).__html__ = "<html></html>";
 (globalThis as any).__APP_VERSION__ = "0.0.0-test";
@@ -23,7 +24,7 @@ let uiHandler: ((message: any) => any) | null = null;
     },
     resize: () => {},
   },
-  showUI: () => {},
+  showUI: (_html: string, options: any) => { shownWith = options; },
   on: () => {},
   notify: () => {},
   getNodeByIdAsync: async () => null,
@@ -35,6 +36,15 @@ const { handleRequest } = await import("./main");
 beforeEach(() => {
   resetWriteQueue();
   resetCancellations();
+});
+
+describe("startPanel", () => {
+  // The dark palette is a `figma-dark` class Figma adds only for plugins that
+  // opt in here, so dropping this option silently leaves the panel light in a
+  // dark editor — nothing throws and no other test would notice.
+  it("opts into Figma's theme classes", () => {
+    expect(shownWith?.themeColors).toBe(true);
+  });
 });
 
 describe("handleRequest", () => {
