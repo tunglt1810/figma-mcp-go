@@ -542,6 +542,9 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 			return Response{}, errors.New("request timed out")
 		}
 		log().Info("request completed", "id", requestID, "tool", requestType, "ms", time.Since(start).Milliseconds())
+		// A plugin too old to announce its handlers was let through by
+		// checkPluginSupports, so this is where a tool it lacks turns up.
+		resp.Error = b.explainUnknownRequest(requestType, resp.Error)
 		return resp, nil
 	case <-ctx.Done():
 		entry.timer.Stop()

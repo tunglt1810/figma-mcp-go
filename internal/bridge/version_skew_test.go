@@ -185,6 +185,82 @@ func TestCheckPluginSupports(t *testing.T) {
 	})
 }
 
+// A plugin old enough not to announce its handlers gets the benefit of the
+// doubt, so the call reaches it and comes back with the plugin's own bare
+// "Unknown request type: x". That names no remedy, which leaves the caller —
+// usually a model — retrying a tool this plugin will never have.
+func TestSend_GivesTheUnknownRequestErrorARemedy(t *testing.T) {
+	cases := []struct {
+		name    string
+		version string
+		want    string
+	}{
+		{"an announced version is named", "0.3.0", "the Figma plugin (v0.3.0) does not support"},
+		{"an unannounced one is not invented", "", "the Figma plugin does not support"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b, clientConn := setupBridgeWithClient(t)
+			// No handler list: this is the fail-open path, which is the only way
+			// an Unknown request type can come back at all.
+			b.setPluginInfo(tc.version, nil)
+
+			go func() {
+				var req Request
+				if err := readJSON(context.Background(), clientConn, &req); err != nil {
+					return
+				}
+				writeJSON(context.Background(), clientConn, Response{ //nolint:errcheck
+					RequestID: req.RequestID,
+					Type:      req.Type,
+					Error:     "Unknown request type: set_layout_grids",
+				})
+			}()
+
+			resp, err := b.Send(context.Background(), "set_layout_grids", nil, nil)
+			if err != nil {
+				t.Fatalf("Send: %v", err)
+			}
+			if !strings.Contains(resp.Error, tc.want) {
+				t.Errorf("error = %q, want it to contain %q", resp.Error, tc.want)
+			}
+			if !strings.Contains(resp.Error, "set_layout_grids") {
+				t.Errorf("error should name the tool, got %q", resp.Error)
+			}
+			if !strings.Contains(resp.Error, "re-import") {
+				t.Errorf("error should say what to do, got %q", resp.Error)
+			}
+		})
+	}
+}
+
+// Only that one error is rewritten. A handler's own failure is the useful
+// answer and must reach the caller as the plugin worded it.
+func TestSend_LeavesOtherPluginErrorsAlone(t *testing.T) {
+	b, clientConn := setupBridgeWithClient(t)
+	b.setPluginInfo("0.3.0", nil)
+
+	go func() {
+		var req Request
+		if err := readJSON(context.Background(), clientConn, &req); err != nil {
+			return
+		}
+		writeJSON(context.Background(), clientConn, Response{ //nolint:errcheck
+			RequestID: req.RequestID,
+			Type:      req.Type,
+			Error:     "Node not found: 1:1",
+		})
+	}()
+
+	resp, err := b.Send(context.Background(), "get_node", []string{"1:1"}, nil)
+	if err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if resp.Error != "Node not found: 1:1" {
+		t.Errorf("error = %q, want it untouched", resp.Error)
+	}
+}
+
 // The refusal must happen before a request id is spent or anything is written.
 func TestSend_RefusesAToolThePluginDoesNotHave(t *testing.T) {
 	b, clientConn := setupBridgeWithClient(t)

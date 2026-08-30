@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // The plugin and the server ship from one version string, but they update
@@ -98,6 +99,20 @@ func (b *Bridge) setPluginInfo(version string, handlers []string) {
 	b.pluginHandlers = set
 }
 
+// unsupportedTool words the one answer a tool the plugin lacks should get,
+// wherever that is discovered — before the call from the announced handler
+// list, or after it from the plugin's own reply.
+func unsupportedTool(version, tool string) string {
+	where := "the Figma plugin"
+	if version != "" {
+		where = fmt.Sprintf("the Figma plugin (v%s)", version)
+	}
+	return fmt.Sprintf(
+		"%s does not support %s — re-import the plugin from the latest release to use it",
+		where, tool,
+	)
+}
+
 // checkPluginSupports reports why a tool cannot run, or "" when it can.
 //
 // A plugin that announced nothing gets the benefit of the doubt: it predates
@@ -113,14 +128,23 @@ func (b *Bridge) checkPluginSupports(tool string) string {
 	if len(handlers) == 0 || handlers[tool] {
 		return ""
 	}
-	where := "the Figma plugin"
-	if version != "" {
-		where = fmt.Sprintf("the Figma plugin (v%s)", version)
+	return unsupportedTool(version, tool)
+}
+
+// explainUnknownRequest gives the plugin's bare "Unknown request type" the
+// remedy it lacks.
+//
+// This is what the fail-open path in checkPluginSupports costs: a plugin too
+// old to announce its handlers is not second-guessed, so a call for a tool it
+// has never heard of reaches it and comes back named but unexplained. The
+// caller is usually a model, which reads that as a transient failure and
+// retries a tool this plugin will never have. Only that one error is rewritten
+// — a handler's own failure is the useful answer.
+func (b *Bridge) explainUnknownRequest(tool, pluginErr string) string {
+	if !strings.HasPrefix(pluginErr, "Unknown request type") {
+		return pluginErr
 	}
-	return fmt.Sprintf(
-		"%s does not support %s — re-import the plugin from the latest release to use it",
-		where, tool,
-	)
+	return unsupportedTool(b.PluginVersion(), tool)
 }
 
 // PluginVersion returns the version the connected plugin announced, or "" when
