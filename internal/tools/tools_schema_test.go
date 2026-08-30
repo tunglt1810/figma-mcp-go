@@ -114,7 +114,6 @@ var expectedTools = []string{
 	"batch_rename_nodes",
 	"bind_variable_to_node",
 	"boolean_operation",
-	"clear_annotations",
 	"clone_node",
 	"combine_as_variants",
 	"create_component",

@@ -957,22 +957,23 @@ func TestValidateRPC_SetAnnotations(t *testing.T) {
 	if msg := ValidateRPC("set_annotations", []string{"1:1"}, map[string]any{"annotations": "not-array"}); msg == "" {
 		t.Error("expected error for non-array annotations")
 	}
+	if msg := ValidateRPC("set_annotations", []string{"bad"}, map[string]any{
+		"annotations": []any{},
+	}); msg == "" {
+		t.Error("expected error for invalid nodeIds")
+	}
 	if msg := ValidateRPC("set_annotations", []string{"1:1"}, map[string]any{
 		"annotations": []any{map[string]any{"label": "Btn"}},
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-}
-
-func TestValidateRPC_ClearAnnotations(t *testing.T) {
-	if msg := ValidateRPC("clear_annotations", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeIds")
-	}
-	if msg := ValidateRPC("clear_annotations", []string{"bad"}, nil); msg == "" {
-		t.Error("expected error for invalid nodeIds")
-	}
-	if msg := ValidateRPC("clear_annotations", []string{"1:1"}, nil); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
+	// This absorbed clear_annotations: an empty array over several nodes is how
+	// annotations are cleared now, so it has to reach the plugin rather than
+	// being read as an absent argument.
+	if msg := ValidateRPC("set_annotations", []string{"1:1", "2:2"}, map[string]any{
+		"annotations": []any{},
+	}); msg != "" {
+		t.Errorf("clearing across several nodes was rejected: %s", msg)
 	}
 }
 

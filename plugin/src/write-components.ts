@@ -217,38 +217,32 @@ export const writeComponentsHandlers: HandlerMap = {
     };
   },
 
+  // Absorbed clear_annotations, which was this with an empty array — but over
+  // many nodes, where this took one. Clearing ten nodes must not cost ten calls,
+  // so the arity of the tool that clears is the one that survived.
   "set_annotations": async (request) => {
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    const p = request.params || {};
-    if (!nodeId) throw new Error("nodeId is required");
-    if (!Array.isArray(p.annotations)) throw new Error("annotations array is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    
-    if (!("annotations" in node)) {
-       throw new Error(`Node type ${node.type} does not support annotations`);
-    }
-    
-    (node as any).annotations = p.annotations;
-    
-    figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, success: true },
-    };
-  },
-
-  "clear_annotations": async (request) => {
     const nodeIds = request.nodeIds || [];
+    const p = request.params || {};
     if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    if (!Array.isArray(p.annotations)) throw new Error("annotations array is required");
+
     const results: any[] = [];
     for (const nid of nodeIds) {
       const n = await figma.getNodeByIdAsync(nid);
       if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-      if (!("annotations" in n)) { results.push({ nodeId: nid, error: "Node does not support annotations" }); continue; }
-      (n as any).annotations = [];
-      results.push({ nodeId: nid, success: true });
+      if (!("annotations" in n)) {
+        results.push({ nodeId: nid, error: `Node type ${n.type} does not support annotations` });
+        continue;
+      }
+      try {
+        (n as any).annotations = p.annotations;
+        results.push({ nodeId: nid, success: true });
+      } catch (e: any) {
+        // Annotations need a paid Dev Mode seat, and Figma reports that by
+        // throwing. One node's refusal is every node's, but reporting it per
+        // node keeps the shape the same either way.
+        results.push({ nodeId: nid, error: e.message });
+      }
     }
     figma.commitUndo();
     return { type: request.type, requestId: request.requestId, data: { results } };

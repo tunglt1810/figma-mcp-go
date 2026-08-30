@@ -709,7 +709,6 @@ const KEEPS_EXISTING_NODES = [
   'batch_rename_nodes',
   'bind_variable_to_node',
   'boolean_operation',
-  'clear_annotations',
   'combine_as_variants',
   'create_style',
   'create_variable',

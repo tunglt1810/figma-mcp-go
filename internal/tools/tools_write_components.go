@@ -80,21 +80,15 @@ var writeComponentSpecs = []toolSpec{
 			"startNodeId", "endNodeId", "startPosition", "endPosition"),
 	},
 	{
-		Name:       "set_annotations",
-		Desc:       "Set Dev Mode Annotations on a node. Note: Requires a paid Dev Mode seat.",
-		NodeIDs:    nodeIDsSingle,
-		NodeIDsReq: true,
-		NodeIDDesc: "Node ID in colon format",
-		Params: []paramSpec{
-			{Name: "annotations", Kind: kindArray, Required: true,
-				Desc: "Array of annotation objects. Example: [{\"label\": \"Main Button\"}]"},
-		},
-	},
-	{
-		Name:       "clear_annotations",
-		Desc:       "Clear all Dev Mode Annotations from one or more nodes.",
+		Name: "set_annotations",
+		Desc: "Set Dev Mode Annotations on one or more nodes. Pass an empty annotations array to clear the ones a node already has. " +
+			"Every node gets the same annotations, and each reports its own outcome. Note: requires a paid Dev Mode seat.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Array of node IDs in colon format",
+		NodeIDDesc: "Array of node IDs in colon format e.g. ['4029:12345']",
+		Params: []paramSpec{
+			{Name: "annotations", Kind: kindArray, Required: true, AllowEmpty: true,
+				Desc: "Array of annotation objects. Example: [{\"label\": \"Main Button\"}]. Empty clears every annotation on the nodes."},
+		},
 	},
 }

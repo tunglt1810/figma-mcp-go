@@ -222,31 +222,6 @@
     },
     "name": "boolean_operation"
   },
-  "clear_annotations": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Clear all Dev Mode Annotations from one or more nodes.",
-    "inputSchema": {
-      "properties": {
-        "nodeIds": {
-          "description": "Array of node IDs in colon format",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "nodeIds"
-      ],
-      "type": "object"
-    },
-    "name": "clear_annotations"
-  },
   "clone_node": {
     "annotations": {
       "readOnlyHint": false,
@@ -2014,20 +1989,23 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Set Dev Mode Annotations on a node. Note: Requires a paid Dev Mode seat.",
+    "description": "Set Dev Mode Annotations on one or more nodes. Pass an empty annotations array to clear the ones a node already has. Every node gets the same annotations, and each reports its own outcome. Note: requires a paid Dev Mode seat.",
     "inputSchema": {
       "properties": {
         "annotations": {
-          "description": "Array of annotation objects. Example: [{\"label\": \"Main Button\"}]",
+          "description": "Array of annotation objects. Example: [{\"label\": \"Main Button\"}]. Empty clears every annotation on the nodes.",
           "type": "array"
         },
-        "nodeId": {
-          "description": "Node ID in colon format",
-          "type": "string"
+        "nodeIds": {
+          "description": "Array of node IDs in colon format e.g. ['4029:12345']",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "required": [
-        "nodeId",
+        "nodeIds",
         "annotations"
       ],
       "type": "object"
