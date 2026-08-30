@@ -134,7 +134,6 @@ var expectedTools = []string{
 	"find_replace_text",
 	"flatten_nodes",
 	"get_annotations",
-	"get_design_context",
 	"get_document",
 	"get_fonts",
 	"get_image_bytes",

@@ -84,23 +84,37 @@ func TestValidateRPC_SaveScreenshots(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_GetDesignContext(t *testing.T) {
+// get_document absorbed get_design_context, so detail, dedupe_components and a
+// selection scope are arguments to it now.
+func TestValidateRPC_GetDocument(t *testing.T) {
 	// negative depth
-	msg := ValidateRPC("get_design_context", nil, map[string]any{"depth": float64(-1)})
-	if msg == "" {
+	if msg := ValidateRPC("get_document", nil, map[string]any{"depth": float64(-1)}); msg == "" {
 		t.Error("expected error for negative depth")
 	}
 	// invalid detail
-	msg = ValidateRPC("get_design_context", nil, map[string]any{"detail": "huge"})
-	if msg == "" {
+	if msg := ValidateRPC("get_document", nil, map[string]any{"detail": "huge"}); msg == "" {
 		t.Error("expected error for invalid detail")
 	}
 	// valid detail values
 	for _, d := range []string{"minimal", "compact", "full"} {
-		msg := ValidateRPC("get_design_context", nil, map[string]any{"detail": d})
-		if msg != "" {
+		if msg := ValidateRPC("get_document", nil, map[string]any{"detail": d}); msg != "" {
 			t.Errorf("unexpected error for detail %s: %s", d, msg)
 		}
+	}
+	// every scope, including the one that came from get_design_context
+	for _, scope := range []string{"selection", "page", "document"} {
+		if msg := ValidateRPC("get_document", nil, map[string]any{"scope": scope}); msg != "" {
+			t.Errorf("unexpected error for scope %s: %s", scope, msg)
+		}
+	}
+	if msg := ValidateRPC("get_document", nil, map[string]any{"scope": "everything"}); msg == "" {
+		t.Error("expected error for an unknown scope")
+	}
+	// what get_design_context was, now on a document walk
+	if msg := ValidateRPC("get_document", nil, map[string]any{
+		"scope": "document", "detail": "minimal", "dedupeComponents": true, "maxNodes": float64(500),
+	}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
 	}
 }
 

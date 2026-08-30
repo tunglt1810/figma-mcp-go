@@ -36,7 +36,7 @@ You will receive JSON data from get_reactions. Each node may contain reactions l
 
 ### 1. Gather Context
 - Call get_nodes_info(nodeIds: [...]) on all relevant nodes to get their names and types
-- Call get_design_context(depth: 2, detail: "minimal") to understand the page structure
+- Call get_document(depth: 2, detail: "minimal") to understand the page structure
 
 ### 2. Filter and Transform Reactions
 - Iterate through the get_reactions JSON output

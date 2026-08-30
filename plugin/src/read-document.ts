@@ -5,61 +5,6 @@ import { getPinned } from "./pinned";
 import { reportProgress, stepProgress } from "./progress";
 
 export const readDocumentHandlers: HandlerMap = {
-  "get_document": async (request) => {
-    const p = request.params || {};
-    // Unbounded by default, which is what this tool has always meant. A caller
-    // that knows the page is large asks for a ceiling; one that does not still
-    // gets told when an answer came back short.
-    const budget = makeBudget(p.maxNodes, p.depth);
-
-    // scope "document" walks every page, as search_nodes does. One budget is
-    // shared across all of them, so maxNodes still means what it says and a
-    // file with a huge first page cannot starve the rest silently — the answer
-    // reports `truncated` either way.
-    if (p.scope === "document") {
-      const pages: any[] = [];
-      for (const page of figma.root.children) {
-        throwIfCancelled(request.requestId);
-        // Under documentAccess "dynamic-page" an unloaded page reports no
-        // children at all, so a walk that skips this returns an empty file.
-        await page.loadAsync();
-        pages.push(await serializeNode(page, budget, 0));
-        if (figma.root.children.length > 1) {
-          await reportProgress(
-            request.requestId,
-            stepProgress(pages.length, figma.root.children.length),
-            `Serialized ${page.name} (${pages.length}/${figma.root.children.length})`,
-          );
-        }
-        if (budget.remaining <= 0) break;
-      }
-      // Deduped across the whole document rather than per page: a colour used
-      // on every page is exactly the one worth collapsing to a single ref.
-      const { tree, globalVars } = deduplicateStyles({ children: pages });
-      const data: any = {
-        id: figma.root.id,
-        name: figma.root.name,
-        type: "DOCUMENT",
-        scope: "document",
-        pageCount: figma.root.children.length,
-        children: tree.children,
-      };
-      if (globalVars) data.globalVars = globalVars;
-      if (budget.truncated || pages.length < figma.root.children.length) data.truncated = true;
-      return { type: request.type, requestId: request.requestId, data };
-    }
-
-    const raw = await serializeNode(figma.currentPage, budget);
-    const { tree, globalVars } = deduplicateStyles(raw);
-    const data: any = globalVars ? { ...tree, globalVars } : tree;
-    data.scope = "page";
-    if (budget.truncated) data.truncated = true;
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data,
-    };
-  },
 
   "get_selection": async (request) => {
     // source "pinned" reads the set the designer pinned in the panel instead of
@@ -148,13 +93,23 @@ export const readDocumentHandlers: HandlerMap = {
     return { type: request.type, requestId: request.requestId, data };
   },
 
-  "get_design_context": async (request) => {
-    const depth =
-      request.params && request.params.depth != null
-        ? request.params.depth
-        : 2;
-    const detail = (request.params && request.params.detail) || "full";
-    const dedupeComponents = !!(request.params && request.params.dedupeComponents);
+  // get_design_context was folded in here. It answered the same depth-limited
+  // tree, but rooted at the selection and with detail levels this tool did not
+  // have; each description had to explain when to reach for the other, which is
+  // the surest sign of one tool split in two. `scope` chooses the root and the
+  // rest of the arguments apply to all three.
+  "get_document": async (request) => {
+    const p = request.params || {};
+    const scope = p.scope || "page";
+    const detail = p.detail || "full";
+    const dedupeComponents = !!p.dedupeComponents;
+    // Two ceilings, because the two halves cut differently: maxNodes counts
+    // nodes through a shared budget, depth counts levels. Selection scope
+    // defaults to 2 levels, as get_design_context did — it is the "what am I
+    // looking at" scope. A page or document walk stays unbounded, which is what
+    // get_document has always meant.
+    const depth = p.depth != null ? Number(p.depth) : scope === "selection" ? 2 : Infinity;
+    const budget = makeBudget(p.maxNodes, p.depth);
     const componentDefs = new Map<string, any>();
 
     const serializeForDetail = async (n: any) => {
@@ -300,32 +255,63 @@ export const readDocumentHandlers: HandlerMap = {
       return Object.assign({}, serialized, { children: serializedChildren });
     };
 
-    const selection = figma.currentPage.selection;
-    const rawContextNodes =
-      selection.length > 0
-        ? await Promise.all(
-            selection.map((node) => serializeWithDepth(node, 0)),
-          )
-        : [await serializeWithDepth(figma.currentPage, 0)];
-    const { tree: dedupedNodes, globalVars } = deduplicateStyles({ children: rawContextNodes });
-    const contextNodes = (dedupedNodes as any).children;
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        fileName: figma.root.name,
-        currentPage: {
-          id: figma.currentPage.id,
-          name: figma.currentPage.name,
-        },
-        selectionCount: selection.length,
-        context: contextNodes,
-        ...(componentDefs.size > 0 ? { componentDefs: Object.fromEntries(componentDefs) } : {}),
-        ...(globalVars ? { globalVars } : {}),
-      },
-    };
-  },
+    // The plain walk keeps the budget, which counts nodes rather than levels and
+    // is what reports `truncated`. It only applies where nothing asked for a
+    // trimmed shape: a detail level or a component dedupe is a different tree.
+    const plain = detail === "full" && !dedupeComponents && p.depth == null;
+    const walk = async (node: any) =>
+      plain ? await serializeNode(node, budget, 0) : await serializeWithDepth(node, 0);
 
+    const selection = figma.currentPage.selection;
+    let roots: any[];
+    if (scope === "document") {
+      roots = figma.root.children.slice();
+    } else if (scope === "selection") {
+      // Falling back to the page is what get_design_context did with nothing
+      // selected, and it is the more useful answer than an empty array.
+      roots = selection.length > 0 ? selection.slice() : [figma.currentPage];
+    } else {
+      roots = [figma.currentPage];
+    }
+
+    const serializedRoots: any[] = [];
+    for (let i = 0; i < roots.length; i++) {
+      throwIfCancelled(request.requestId);
+      const root = roots[i];
+      // Under documentAccess "dynamic-page" an unloaded page reports no children
+      // at all, so a walk that skips this returns an empty file. Only the
+      // document scope needs it: the current page is already loaded, and paying
+      // to load anything is exactly what a page-scoped call is avoiding.
+      if (scope === "document" && root.type === "PAGE") await root.loadAsync();
+      serializedRoots.push(await walk(root));
+      if (scope === "document" && roots.length > 1) {
+        await reportProgress(
+          request.requestId,
+          stepProgress(i + 1, roots.length),
+          `Serialized ${root.name} (${i + 1}/${roots.length})`,
+        );
+      }
+      // One budget is shared across the pages, so maxNodes still means what it
+      // says and a file with a huge first page cannot starve the rest silently.
+      if (plain && budget.remaining <= 0) break;
+    }
+
+    // Deduped across every root rather than per root: a colour used on every
+    // page is exactly the one worth collapsing to a single ref.
+    const { tree, globalVars } = deduplicateStyles({ children: serializedRoots });
+    const data: any = {
+      fileName: figma.root.name,
+      scope,
+      currentPage: { id: figma.currentPage.id, name: figma.currentPage.name },
+      nodes: (tree as any).children,
+    };
+    if (scope === "document") data.pageCount = figma.root.children.length;
+    if (scope === "selection") data.selectionCount = selection.length;
+    if (componentDefs.size > 0) data.componentDefs = Object.fromEntries(componentDefs);
+    if (globalVars) data.globalVars = globalVars;
+    if (budget.truncated || serializedRoots.length < roots.length) data.truncated = true;
+    return { type: request.type, requestId: request.requestId, data };
+  },
   "get_metadata": async (request) => {
     return {
       type: request.type,

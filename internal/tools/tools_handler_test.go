@@ -145,16 +145,17 @@ func TestHandlers_GetNodesInfo(t *testing.T) {
 	callTool(t, s, "get_nodes_info", map[string]any{"nodeIds": []string{"1:1", "2:2"}})
 }
 
-func TestHandlers_GetDesignContext(t *testing.T) {
+func TestHandlers_GetDocument(t *testing.T) {
 	s, _ := newTestServer(t)
 	// with all optional params
-	callTool(t, s, "get_design_context", map[string]any{
+	callTool(t, s, "get_document", map[string]any{
 		"depth": float64(2), "detail": "compact", "dedupe_components": true,
+		"scope": "selection", "maxNodes": float64(500),
 	})
 	// with no params (defaults)
-	callTool(t, s, "get_design_context", nil)
+	callTool(t, s, "get_document", nil)
 	// depth = 0 should be ignored (not passed through)
-	callTool(t, s, "get_design_context", map[string]any{"depth": float64(0)})
+	callTool(t, s, "get_document", map[string]any{"depth": float64(0)})
 }
 
 func TestHandlers_SearchNodes(t *testing.T) {

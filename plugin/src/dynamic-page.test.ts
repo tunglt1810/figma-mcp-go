@@ -50,9 +50,9 @@ describe("handlers that walk every page", () => {
 
   it("get_document with scope document reaches every page", async () => {
     const result = await call(readDocumentHandlers, "get_document", { scope: "document" });
-    expect(result.data.children.map((p: any) => p.id)).toEqual(["1:0", "2:0", "3:0"]);
+    expect(result.data.nodes.map((p: any) => p.id)).toEqual(["1:0", "2:0", "3:0"]);
     // Not just the pages: their contents, which is what an unloaded page hides.
-    expect(result.data.children[1].children.map((n: any) => n.id)).toEqual(["2:1"]);
+    expect(result.data.nodes[1].children.map((n: any) => n.id)).toEqual(["2:1"]);
     expect(doc.loadedPages).toEqual(["1:0", "2:0", "3:0"]);
   });
 
@@ -70,7 +70,7 @@ describe("handlers scoped to the current page", () => {
     doc.pages[0].loadAsync();
     doc.loadedPages.length = 0;
     const result = await call(readDocumentHandlers, "get_document");
-    expect(result.data.id).toBe("1:0");
+    expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:0"]);
     expect(doc.loadedPages).toEqual([]);
   });
 

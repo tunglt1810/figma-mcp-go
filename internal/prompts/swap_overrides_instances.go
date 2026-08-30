@@ -43,7 +43,7 @@ in Figma, maintaining design consistency while reducing manual work.
 - Process targets one at a time or identify patterns to apply systematically
 
 ### 4. Verification
-- Verify results with get_node() or get_design_context()
+- Verify results with get_nodes_info() or get_document()
 - Confirm text content and style overrides have transferred successfully
 - Use get_screenshot() for visual confirmation if needed
 

@@ -1094,34 +1094,6 @@
     },
     "name": "get_annotations"
   },
-  "get_design_context": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Get a depth-limited, token-efficient tree of the current selection or page. Use this instead of get_document when exploring large files. Supports detail levels (minimal/compact/full) and dedupe_components for pages heavy with repeated component instances.",
-    "inputSchema": {
-      "properties": {
-        "dedupe_components": {
-          "description": "When true, INSTANCE nodes are serialized compactly (mainComponentId + componentProperties + overrides array of differing text/nested content) and unique component definitions are collected once in a top-level componentDefs map. Highly token-efficient for screens with many repeated component instances.",
-          "type": "boolean"
-        },
-        "depth": {
-          "description": "How many levels deep to traverse (default 2)",
-          "type": "number"
-        },
-        "detail": {
-          "description": "Property verbosity: minimal (id/name/type/bounds only), compact (+fills/strokes/opacity), full (everything, default)",
-          "type": "string"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "get_design_context"
-  },
   "get_document": {
     "annotations": {
       "readOnlyHint": false,
@@ -1129,19 +1101,27 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Get the node tree of the current page, or of every page with scope 'document'. Unbounded by default and can be very large; pass depth or maxNodes to cap it. A capped result sets `truncated`, and every node whose children were withheld reports `childCount` and `childrenOmitted`, so a short answer is never mistaken for a whole one. Prefer get_design_context for exploration or when token efficiency matters.",
+    "description": "Get the node tree of the current selection, the current page, or every page in the file — `scope` chooses which. Answers {fileName, scope, currentPage, nodes: [...]}, one entry in `nodes` per root walked. A page or document walk is unbounded by default and can be very large; cap it with depth, maxNodes, or a lower `detail`. A capped result sets `truncated`, and every node whose children were withheld reports `childCount`, so a short answer is never mistaken for a whole one.",
     "inputSchema": {
       "properties": {
+        "dedupe_components": {
+          "description": "When true, INSTANCE nodes are serialized compactly (mainComponentId + componentProperties + overrides array of differing text/nested content) and unique component definitions are collected once in a top-level componentDefs map. Highly token-efficient for screens with many repeated component instances.",
+          "type": "boolean"
+        },
         "depth": {
-          "description": "How many levels below the page to walk. 0 returns the page alone. Omit for no limit.",
+          "description": "How many levels below each root to walk. 0 returns the root alone. Defaults to 2 for scope 'selection' and to no limit otherwise.",
           "type": "number"
         },
+        "detail": {
+          "description": "Property verbosity: minimal (id/name/type/bounds only), compact (+fills/strokes/opacity), full (everything, default). Lower it when exploring a large file.",
+          "type": "string"
+        },
         "maxNodes": {
-          "description": "Stop after this many nodes, walking in tree order so the result is the same every time. Omit for no limit.",
+          "description": "Stop after this many nodes, walking in tree order so the result is the same every time. Omit for no limit. Applies to the full-detail walk; a `detail` level or dedupe_components trims by shape instead.",
           "type": "number"
         },
         "scope": {
-          "description": "'page' (default) walks the current page. 'document' walks every page in the file, sharing one depth/maxNodes budget across them and reporting each page as a child of the document.",
+          "description": "'page' (default) walks the current page. 'document' walks every page in the file, sharing one maxNodes budget across them. 'selection' walks what the user has selected, 2 levels deep unless you say otherwise — the scope to reach for when exploring — and falls back to the current page when nothing is selected.",
           "type": "string"
         }
       },
@@ -1327,7 +1307,7 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "description": "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_design_context or get_nodes_info to retrieve deeper detail about specific nodes by ID.",
+    "description": "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_document with scope 'selection', or get_nodes_info, to retrieve deeper detail about specific nodes by ID.",
     "inputSchema": {
       "properties": {
         "source": {

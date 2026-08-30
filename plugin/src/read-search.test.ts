@@ -219,17 +219,16 @@ const getDocument = (params?: any) =>
 describe("get_document", () => {
   it("serializes the current page by default", async () => {
     const result = await getDocument();
-    expect(result.data.id).toBe("1:0");
+    expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:0"]);
     expect(result.data.scope).toBe("page");
-    expect(loadedPages).toEqual([]);
+    expect(result.data.currentPage).toEqual({ id: "1:0", name: "Page 1" });
   });
 
   it("serializes every page when the scope is the document", async () => {
     const result = await getDocument({ scope: "document" });
-    expect(result.data.type).toBe("DOCUMENT");
     expect(result.data.scope).toBe("document");
     expect(result.data.pageCount).toBe(2);
-    expect(result.data.children.map((p: any) => p.id)).toEqual(["1:0", "2:0"]);
+    expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:0", "2:0"]);
   });
 
   // The same trap search_nodes fell into: an unloaded page reports no children,
@@ -250,6 +249,44 @@ describe("get_document", () => {
     const updates = progressMessages.filter((m) => m.type === "progress_update");
     expect(updates.length).toBe(2);
     expect(updates[updates.length - 1].progress).toBe(99);
+  });
+
+  // ── what get_design_context used to do ─────────────────────────────────────
+
+  it("walks the selection when asked, and says how much was selected", async () => {
+    currentPage.selection = [nodes["1:1"]];
+    const result = await getDocument({ scope: "selection" });
+    expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:1"]);
+    expect(result.data.selectionCount).toBe(1);
+  });
+
+  // What get_design_context did with nothing selected. An empty array would be
+  // technically right and useless.
+  it("falls back to the page when nothing is selected", async () => {
+    currentPage.selection = [];
+    const result = await getDocument({ scope: "selection" });
+    expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:0"]);
+    expect(result.data.selectionCount).toBe(0);
+  });
+
+  it("trims each node to id/name/type/bounds at detail minimal", async () => {
+    const result = await getDocument({ detail: "minimal" });
+    const page = result.data.nodes[0];
+    expect(Object.keys(page).sort()).toEqual(["bounds", "children", "id", "name", "type"]);
+  });
+
+  // detail is no longer selection-only: it applies to a page and a document walk
+  // too, which is new reach rather than new code.
+  it("applies a detail level to a document walk", async () => {
+    const result = await getDocument({ scope: "document", detail: "minimal" });
+    expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:0", "2:0"]);
+    expect(result.data.nodes[0].children[0].id).toBe("1:1");
+  });
+
+  it("stops at the requested depth and says how many children it withheld", async () => {
+    const result = await getDocument({ detail: "minimal", depth: 0 });
+    expect(result.data.nodes[0].children).toBeUndefined();
+    expect(result.data.nodes[0].childCount).toBe(2);
   });
 });
 

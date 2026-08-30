@@ -20,7 +20,7 @@ func addReadDesignStrategy(s *server.MCPServer) {
 
 1. Start with get_metadata — understand file name, pages, and current page
 2. Use get_metadata to list all pages without loading their full trees
-3. Use get_design_context (depth=2, detail=compact) for a token-efficient summary of the current selection or page
+3. Use get_document (scope=selection, detail=compact) for a token-efficient summary of what the user has selected
    - detail=minimal: id/name/type/bounds only (~5% tokens)
    - detail=compact: + fills/strokes/opacity (~30% tokens)
    - detail=full: everything, default (100% tokens)
@@ -29,7 +29,7 @@ func addReadDesignStrategy(s *server.MCPServer) {
      Use this whenever the screen contains repeated component instances (e.g. card lists, table rows, nav items).
      Typical savings: 5–10× fewer tokens vs full serialization of repeated instances.
 4. For screens with many repeated components, the recommended reading flow is:
-   a. get_design_context(depth=2, detail=minimal, dedupe_components=true) — see the instance layout + component IDs
+   a. get_document(scope=selection, detail=minimal, dedupe_components=true) — see the instance layout + component IDs
    b. Inspect componentDefs in the response — one definition per unique component, not one per instance
    c. Read componentProperties on each instance stub — variant selections, text overrides, boolean toggles
    d. Drill into specific instances with get_node only when an instance has unique overrides you need to inspect

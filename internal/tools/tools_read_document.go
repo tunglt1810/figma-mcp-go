@@ -5,14 +5,22 @@ package tools
 var readDocumentSpecs = []toolSpec{
 	{
 		Name: "get_document",
-		Desc: "Get the node tree of the current page, or of every page with scope 'document'. Unbounded by default and can be very large; pass depth or maxNodes to cap it. A capped result sets `truncated`, and every node whose children were withheld reports `childCount` and `childrenOmitted`, so a short answer is never mistaken for a whole one. Prefer get_design_context for exploration or when token efficiency matters.",
+		Desc: "Get the node tree of the current selection, the current page, or every page in the file — `scope` chooses which. " +
+			"Answers {fileName, scope, currentPage, nodes: [...]}, one entry in `nodes` per root walked. " +
+			"A page or document walk is unbounded by default and can be very large; cap it with depth, maxNodes, or a lower `detail`. " +
+			"A capped result sets `truncated`, and every node whose children were withheld reports `childCount`, so a short answer is never mistaken for a whole one.",
 		Params: []paramSpec{
-			{Name: "scope", Kind: kindString, Enum: []string{"page", "document"},
-				Desc: "'page' (default) walks the current page. 'document' walks every page in the file, sharing one depth/maxNodes budget across them and reporting each page as a child of the document."},
+			{Name: "scope", Kind: kindString, Enum: []string{"selection", "page", "document"},
+				Desc: "'page' (default) walks the current page. 'document' walks every page in the file, sharing one maxNodes budget across them. " +
+					"'selection' walks what the user has selected, 2 levels deep unless you say otherwise — the scope to reach for when exploring — and falls back to the current page when nothing is selected."},
 			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
-				Desc: "How many levels below the page to walk. 0 returns the page alone. Omit for no limit."},
+				Desc: "How many levels below each root to walk. 0 returns the root alone. Defaults to 2 for scope 'selection' and to no limit otherwise."},
 			{Name: "maxNodes", Kind: kindNumber, Min: floatPtr(1),
-				Desc: "Stop after this many nodes, walking in tree order so the result is the same every time. Omit for no limit."},
+				Desc: "Stop after this many nodes, walking in tree order so the result is the same every time. Omit for no limit. Applies to the full-detail walk; a `detail` level or dedupe_components trims by shape instead."},
+			{Name: "detail", Kind: kindString, Enum: []string{"minimal", "compact", "full"},
+				Desc: "Property verbosity: minimal (id/name/type/bounds only), compact (+fills/strokes/opacity), full (everything, default). Lower it when exploring a large file."},
+			{Name: "dedupe_components", Wire: "dedupeComponents", Kind: kindBool,
+				Desc: "When true, INSTANCE nodes are serialized compactly (mainComponentId + componentProperties + overrides array of differing text/nested content) and unique component definitions are collected once in a top-level componentDefs map. Highly token-efficient for screens with many repeated component instances."},
 		},
 	},
 	{
@@ -22,7 +30,7 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "get_selection",
-		Desc: "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_design_context or get_nodes_info to retrieve deeper detail about specific nodes by ID.",
+		Desc: "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_document with scope 'selection', or get_nodes_info, to retrieve deeper detail about specific nodes by ID.",
 		Params: []paramSpec{
 			{Name: "source", Kind: kindString, Enum: []string{"selection", "pinned"},
 				Desc: "'selection' (default) follows what is selected right now, which moves the moment the user clicks elsewhere. 'pinned' reads the set they pinned in the panel, which holds still across a conversation — prefer it when you need the same nodes over several calls."},
@@ -37,18 +45,6 @@ var readDocumentSpecs = []toolSpec{
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "List of node IDs in colon format e.g. ['4029:12345', '4029:67890']",
-	},
-	{
-		Name: "get_design_context",
-		Desc: "Get a depth-limited, token-efficient tree of the current selection or page. Use this instead of get_document when exploring large files. Supports detail levels (minimal/compact/full) and dedupe_components for pages heavy with repeated component instances.",
-		Params: []paramSpec{
-			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
-				Desc: "How many levels deep to traverse (default 2)"},
-			{Name: "detail", Kind: kindString, Enum: []string{"minimal", "compact", "full"},
-				Desc: "Property verbosity: minimal (id/name/type/bounds only), compact (+fills/strokes/opacity), full (everything, default)"},
-			{Name: "dedupe_components", Wire: "dedupeComponents", Kind: kindBool,
-				Desc: "When true, INSTANCE nodes are serialized compactly (mainComponentId + componentProperties + overrides array of differing text/nested content) and unique component definitions are collected once in a top-level componentDefs map. Highly token-efficient for screens with many repeated component instances."},
-		},
 	},
 	{
 		Name: "search_nodes",

@@ -6,7 +6,7 @@
 
 /** Requests that only read. Everything else changes something. */
 export const READ_TOOLS: ReadonlySet<string> = new Set([
-  "export_frames_to_pdf", "export_tokens", "get_annotations", "get_design_context",
+  "export_frames_to_pdf", "export_tokens", "get_annotations",
   "get_document", "get_fonts", "get_instance_overrides", "get_local_components",
   "get_image_bytes", "get_metadata", "get_nodes_info",
   "get_reactions",
