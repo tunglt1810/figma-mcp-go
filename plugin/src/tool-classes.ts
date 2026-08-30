@@ -41,6 +41,8 @@ export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
   "delete_nodes",
   "delete_page",
   "delete_style",
+  // Still a handler, reached through manage_variable or named directly by a
+  // pipeline step, exactly as delete_page is.
   "delete_variable",
   "detach_instance",
   "find_replace_text",
@@ -79,6 +81,9 @@ export function isMutating(type: string, params?: any): boolean {
 export function isDestructive(type: string, params?: any): boolean {
   if (DESTRUCTIVE_TOOLS.has(type)) return true;
   if (type === "manage_page") return params?.action === "delete";
+  // Deleting a collection takes every variable in it, and every binding that
+  // pointed at them.
+  if (type === "manage_variable") return params?.action === "delete";
   // Removing a component property changes every instance that used it.
   if (type === "manage_component_properties") return params?.action === "delete";
   // A pipeline is as destructive as its worst step. It runs as one unit inside
@@ -99,6 +104,9 @@ export function destructiveReason(type: string, params?: any): string {
     return worst ? `pipeline containing ${worst.action}` : "pipeline";
   }
   if (type === "manage_page" && params?.action === "delete") return "delete_page";
+  if (type === "manage_variable" && params?.action === "delete") {
+    return params?.collectionId ? "delete variable collection" : "delete variable";
+  }
   if (type === "manage_component_properties" && params?.action === "delete") {
     return `delete component property ${params?.property ?? ""}`.trim();
   }

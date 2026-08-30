@@ -327,12 +327,12 @@ func TestHandlers_WriteStyleTools(t *testing.T) {
 func TestHandlers_WriteVariableTools(t *testing.T) {
 	s, _ := newTestServer(t)
 
-	callTool(t, s, "create_variable_collection", map[string]any{"name": "Brand", "initialModeName": "Light"})
-	callTool(t, s, "add_variable_mode", map[string]any{"collectionId": "c1", "modeName": "Dark"})
-	callTool(t, s, "create_variable", map[string]any{"name": "primary", "collectionId": "c1", "type": "COLOR"})
-	callTool(t, s, "set_variable_value", map[string]any{"variableId": "v1", "modeId": "m1", "value": "#fff"})
-	callTool(t, s, "delete_variable", map[string]any{"variableId": "v1"})
-	callTool(t, s, "delete_variable", map[string]any{"collectionId": "c1"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "create_collection", "name": "Brand", "initialModeName": "Light"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "add_mode", "collectionId": "c1", "modeName": "Dark"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "create", "name": "primary", "collectionId": "c1", "type": "COLOR"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "set_value", "variableId": "v1", "modeId": "m1", "value": "#fff"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "delete", "variableId": "v1"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "delete", "collectionId": "c1"})
 }
 
 // ── Write – component tools ───────────────────────────────────────────────────
@@ -344,7 +344,7 @@ func TestHandlers_WriteComponentTools(t *testing.T) {
 	callTool(t, s, "detach_instance", map[string]any{"nodeIds": []any{"1:1", "2:2"}})
 }
 
-// ── Write – linked tools (apply_style_to_node, bind_variable_to_node) ─────────
+// ── Write – linked tools (apply_style_to_node, manage_variable bind) ─────────
 
 func TestHandlers_LinkedTools(t *testing.T) {
 	s, _ := newTestServer(t)
@@ -352,7 +352,7 @@ func TestHandlers_LinkedTools(t *testing.T) {
 	callTool(t, s, "apply_style_to_node", map[string]any{"nodeId": "1:1", "styleId": "S:abc", "target": "fill"})
 	callTool(t, s, "apply_style_to_node", map[string]any{"nodeId": "1:1", "styleId": "S:abc"}) // no target
 
-	callTool(t, s, "bind_variable_to_node", map[string]any{"nodeId": "1:1", "variableId": "v1", "field": "fills"})
+	callTool(t, s, "manage_variable", map[string]any{"action": "bind", "nodeId": "1:1", "variableId": "v1", "field": "fills"})
 }
 
 func TestHandlers_NodeControlTools(t *testing.T) {

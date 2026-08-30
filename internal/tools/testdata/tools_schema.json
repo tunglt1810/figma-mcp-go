@@ -1,31 +1,4 @@
 {
-  "add_variable_mode": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Add a new mode to an existing variable collection (e.g. Light/Dark, Desktop/Mobile). IMPORTANT — Figma free plan only allows 1 mode per collection; calling this tool on a free-plan account will return the error 'Limited to 1 modes only'. If that error occurs, stop retrying and switch to the name-prefix workaround: keep the single default mode and create variables prefixed by mode, e.g. 'light/color-bg' and 'dark/color-bg' in the same collection. Tell the user that native multi-mode variables require a paid Figma plan (Professional or above).",
-    "inputSchema": {
-      "properties": {
-        "collectionId": {
-          "description": "Variable collection ID",
-          "type": "string"
-        },
-        "modeName": {
-          "description": "Name for the new mode",
-          "type": "string"
-        }
-      },
-      "required": [
-        "collectionId",
-        "modeName"
-      ],
-      "type": "object"
-    },
-    "name": "add_variable_mode"
-  },
   "apply_style_to_node": {
     "annotations": {
       "readOnlyHint": false,
@@ -159,38 +132,6 @@
       "type": "object"
     },
     "name": "batch_rename_nodes"
-  },
-  "bind_variable_to_node": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Bind a local variable to a node property so the property is driven by the variable's value. COLOR variables: use fillColor or strokeColor. BOOLEAN variables: use visible. FLOAT variables: use opacity, rotation, width, height, cornerRadius, topLeftRadius, topRightRadius, bottomLeftRadius, bottomRightRadius, strokeWeight, itemSpacing, paddingTop, paddingRight, paddingBottom, paddingLeft.",
-    "inputSchema": {
-      "properties": {
-        "field": {
-          "description": "Property to bind: fillColor | strokeColor | visible | opacity | rotation | width | height | cornerRadius | topLeftRadius | topRightRadius | bottomLeftRadius | bottomRightRadius | strokeWeight | itemSpacing | paddingTop | paddingRight | paddingBottom | paddingLeft",
-          "type": "string"
-        },
-        "nodeId": {
-          "description": "Target node ID in colon format e.g. 4029:12345",
-          "type": "string"
-        },
-        "variableId": {
-          "description": "Variable ID to bind (from get_variable_defs)",
-          "type": "string"
-        }
-      },
-      "required": [
-        "nodeId",
-        "variableId",
-        "field"
-      ],
-      "type": "object"
-    },
-    "name": "bind_variable_to_node"
   },
   "boolean_operation": {
     "annotations": {
@@ -752,68 +693,6 @@
     },
     "name": "create_text"
   },
-  "create_variable": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new variable (design token) inside an existing collection. Returns the new variable's ID. Use get_variable_defs to find collection IDs, set_variable_value to set values per mode, and bind_variable_to_node to apply the variable to a node property.",
-    "inputSchema": {
-      "properties": {
-        "collectionId": {
-          "description": "ID of the variable collection to add this variable to (from get_variable_defs)",
-          "type": "string"
-        },
-        "name": {
-          "description": "Variable name — use slash notation to group e.g. 'Color/Primary', 'Spacing/MD'",
-          "type": "string"
-        },
-        "type": {
-          "description": "Variable type: COLOR (hex color), FLOAT (numeric dimension/spacing), STRING (text), or BOOLEAN (true/false toggle)",
-          "type": "string"
-        },
-        "value": {
-          "description": "Initial value for the first mode. COLOR: hex e.g. #FF5733. FLOAT: number e.g. 16. STRING: text. BOOLEAN: true or false.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "collectionId",
-        "type"
-      ],
-      "type": "object"
-    },
-    "name": "create_variable"
-  },
-  "create_variable_collection": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Create a new local variable collection with an optional initial mode name. NOTE — Figma free plan limits each collection to 1 mode. If you need Light/Dark (or any multi-mode) theming and the user is on the free plan, do NOT try to call add_variable_mode; instead use the name-prefix workaround: create all variables in a single collection and prefix each variable name with its mode, e.g. 'light/color-bg' and 'dark/color-bg'. Inform the user of this limitation.",
-    "inputSchema": {
-      "properties": {
-        "initialModeName": {
-          "description": "Name for the initial mode (default 'Mode 1')",
-          "type": "string"
-        },
-        "name": {
-          "description": "Collection name",
-          "type": "string"
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "type": "object"
-    },
-    "name": "create_variable_collection"
-  },
   "create_vector": {
     "annotations": {
       "readOnlyHint": false,
@@ -906,30 +785,6 @@
       "type": "object"
     },
     "name": "delete_style"
-  },
-  "delete_variable": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Delete a single variable (provide variableId) or an entire collection and all its variables (provide collectionId). Provide exactly one of the two — not both.",
-    "inputSchema": {
-      "properties": {
-        "collectionId": {
-          "description": "Collection ID to delete (removes all variables in the collection)",
-          "type": "string"
-        },
-        "variableId": {
-          "description": "Variable ID to delete",
-          "type": "string"
-        }
-      },
-      "required": [],
-      "type": "object"
-    },
-    "name": "delete_variable"
   },
   "detach_instance": {
     "annotations": {
@@ -1681,6 +1536,68 @@
       "type": "object"
     },
     "name": "manage_plugin_data"
+  },
+  "manage_variable": {
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true
+    },
+    "description": "Create, change, delete and apply variables — Figma's design tokens. `action` selects what, and each takes its own arguments — create_collection: name, initialModeName. add_mode: collectionId, modeName. create: name, collectionId, type, value. set_value: variableId, modeId, value. delete: variableId, or collectionId to remove a whole collection and every variable in it. bind: nodeId, variableId, field — points a node property at the variable so its value drives the property. An argument belonging to a different action is rejected rather than ignored. Use get_variable_defs to find collection, mode and variable IDs. NOTE — the Figma free plan limits each collection to 1 mode, so add_mode fails there with 'Limited to 1 modes only'. Do not retry: keep the single default mode and prefix each variable name with its mode instead, e.g. 'light/color-bg' and 'dark/color-bg' in one collection. Tell the user that native multi-mode variables need a paid plan (Professional or above).",
+    "inputSchema": {
+      "properties": {
+        "action": {
+          "description": "What to do: create_collection, add_mode, create, set_value, delete, or bind",
+          "type": "string"
+        },
+        "collectionId": {
+          "description": "add_mode and create: the collection to work in. delete: the collection to remove, along with every variable in it. From get_variable_defs.",
+          "type": "string"
+        },
+        "field": {
+          "description": "bind: the property to drive. COLOR variables: fillColor, strokeColor. BOOLEAN: visible. FLOAT: opacity, rotation, width, height, cornerRadius, topLeftRadius, topRightRadius, bottomLeftRadius, bottomRightRadius, strokeWeight, itemSpacing, paddingTop, paddingRight, paddingBottom, paddingLeft.",
+          "type": "string"
+        },
+        "initialModeName": {
+          "description": "create_collection: name for the initial mode (default 'Mode 1')",
+          "type": "string"
+        },
+        "modeId": {
+          "description": "set_value: which mode of the collection to set",
+          "type": "string"
+        },
+        "modeName": {
+          "description": "add_mode: name for the new mode e.g. 'Dark'",
+          "type": "string"
+        },
+        "name": {
+          "description": "create_collection: the collection's name. create: the variable's name — use slash notation to group e.g. 'Color/Primary', 'Spacing/MD'.",
+          "type": "string"
+        },
+        "nodeId": {
+          "description": "bind: the node whose property the variable should drive, in colon format e.g. '4029:12345'",
+          "type": "string"
+        },
+        "type": {
+          "description": "create: COLOR (hex color), FLOAT (numeric dimension/spacing), STRING (text), or BOOLEAN (true/false toggle)",
+          "type": "string"
+        },
+        "value": {
+          "description": "create: initial value for the first mode. set_value: the value for the given mode. COLOR: hex e.g. #FF5733. FLOAT: number e.g. 16. STRING: text. BOOLEAN: true or false.",
+          "type": "string"
+        },
+        "variableId": {
+          "description": "set_value, delete and bind: the variable, from get_variable_defs",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    "name": "manage_variable"
   },
   "outline_stroke": {
     "annotations": {
@@ -2653,38 +2570,6 @@
       "type": "object"
     },
     "name": "set_text_ranges"
-  },
-  "set_variable_value": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Set a variable's value for a specific mode.",
-    "inputSchema": {
-      "properties": {
-        "modeId": {
-          "description": "Mode ID within the collection",
-          "type": "string"
-        },
-        "value": {
-          "description": "Value to set. COLOR: hex e.g. #FF5733. FLOAT: number e.g. 16. STRING: text. BOOLEAN: true or false.",
-          "type": "string"
-        },
-        "variableId": {
-          "description": "Variable ID",
-          "type": "string"
-        }
-      },
-      "required": [
-        "variableId",
-        "modeId",
-        "value"
-      ],
-      "type": "object"
-    },
-    "name": "set_variable_value"
   },
   "swap_component": {
     "annotations": {

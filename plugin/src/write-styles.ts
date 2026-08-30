@@ -229,40 +229,6 @@ export const writeStylesHandlers: HandlerMap = {
       data: { id: node.id, name: node.name, effectCount: effects.length },
     };
   },
-
-  "bind_variable_to_node": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    if (!p.variableId) throw new Error("variableId is required");
-    if (!p.field) throw new Error("field is required");
-    const node = await figma.getNodeByIdAsync(nodeId) as any;
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    const variable = await figma.variables.getVariableByIdAsync(p.variableId);
-    if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
-    if (p.field === "fillColor") {
-      if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
-      const fills = [...(node.fills as Paint[])];
-      const base = fills.length > 0 ? fills[0] : makeSolidPaint("#000000");
-      const paint = figma.variables.setBoundVariableForPaint(base as SolidPaint, "color", variable);
-      node.fills = [paint];
-    } else if (p.field === "strokeColor") {
-      if (!("strokes" in node)) throw new Error(`Node ${nodeId} does not support strokes`);
-      const strokes = [...(node.strokes as Paint[])];
-      const base = strokes.length > 0 ? strokes[0] : makeSolidPaint("#000000");
-      const paint = figma.variables.setBoundVariableForPaint(base as SolidPaint, "color", variable);
-      node.strokes = [paint];
-    } else {
-      if (!(p.field in node)) throw new Error(`Node ${nodeId} does not have field: ${p.field}`);
-      node.setBoundVariable(p.field, variable);
-    }
-    figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name, variableId: p.variableId, field: p.field },
-    };
-  },
 };
 
 export const handleWriteStyleRequest = async (request: any): Promise<any> => {

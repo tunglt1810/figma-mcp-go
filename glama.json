@@ -4,13 +4,9 @@
     "tunglt1810"
   ],
   "name": "figma-mcp-go",
-  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 65 tools for design automation: styles, variables, components, prototypes, and content.",
+  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 60 tools for design automation: styles, variables, components, prototypes, and content.",
   "license": "MIT",
   "tools": [
-    {
-      "name": "add_variable_mode",
-      "description": "Add a new mode to an existing variable collection (e.g. Light/Dark, Desktop/Mobile)."
-    },
     {
       "name": "apply_style_to_node",
       "description": "Apply an existing local style (paint, text, effect, or grid) to a node, linking the node to that style."
@@ -22,10 +18,6 @@
     {
       "name": "batch_rename_nodes",
       "description": "Rename one or more nodes: pass `name` to set the name outright, or find/replace, regex substitution, or prefix/suffix to derive it from the current one."
-    },
-    {
-      "name": "bind_variable_to_node",
-      "description": "Bind a local variable to a node property so the property is driven by the variable's value."
     },
     {
       "name": "boolean_operation",
@@ -64,14 +56,6 @@
       "description": "Create a new text node on the current page or inside a parent node."
     },
     {
-      "name": "create_variable",
-      "description": "Create a new variable (design token) inside an existing collection."
-    },
-    {
-      "name": "create_variable_collection",
-      "description": "Create a new local variable collection with an optional initial mode name."
-    },
-    {
       "name": "create_vector",
       "description": "Create a vector node from SVG markup — the way to bring in an icon."
     },
@@ -82,10 +66,6 @@
     {
       "name": "delete_style",
       "description": "Delete a style (paint, text, effect, or grid) by its ID."
-    },
-    {
-      "name": "delete_variable",
-      "description": "Delete a single variable (provide variableId) or an entire collection and all its variables (provide collectionId)."
     },
     {
       "name": "detach_instance",
@@ -184,6 +164,10 @@
       "description": "Read and write your own metadata on a node, stored in the Figma file itself."
     },
     {
+      "name": "manage_variable",
+      "description": "Create, change, delete and apply variables — Figma's design tokens."
+    },
+    {
       "name": "outline_stroke",
       "description": "Convert each node's stroke into a filled vector, so the outline can be edited as a shape."
     },
@@ -250,10 +234,6 @@
     {
       "name": "set_text_ranges",
       "description": "Style parts of a TEXT node independently: a bold word, a coloured phrase, a hyperlink, a bulleted list."
-    },
-    {
-      "name": "set_variable_value",
-      "description": "Set a variable's value for a specific mode."
     },
     {
       "name": "swap_component",

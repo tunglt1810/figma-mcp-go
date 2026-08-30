@@ -190,35 +190,120 @@ func TestValidateRPC_SetText(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_CreateVariable(t *testing.T) {
-	// invalid type
-	msg := ValidateRPC("create_variable", nil, map[string]any{
-		"name": "myVar", "collectionId": "abc", "type": "NUMBER",
-	})
-	if msg == "" {
-		t.Error("expected error for invalid variable type")
+// manage_variable absorbed the six single-purpose variable tools. Each action
+// keeps the arguments its tool required, and an argument from a different
+// action is rejected rather than dropped — the trade a merged tool makes is
+// only worth it if the wrong argument is reported.
+func TestValidateRPC_ManageVariable(t *testing.T) {
+	call := func(nodeIDs []string, params map[string]any) string {
+		return ValidateRPC("manage_variable", nodeIDs, params)
 	}
-	// valid types
-	for _, vt := range []string{"COLOR", "FLOAT", "STRING", "BOOLEAN"} {
-		msg := ValidateRPC("create_variable", nil, map[string]any{
-			"name": "myVar", "collectionId": "abc", "type": vt,
-		})
-		if msg != "" {
-			t.Errorf("unexpected error for type %s: %s", vt, msg)
-		}
-	}
-}
 
-func TestValidateRPC_DeleteVariable(t *testing.T) {
-	// neither variableId nor collectionId
-	if msg := ValidateRPC("delete_variable", nil, nil); msg == "" {
-		t.Error("expected error when neither id provided")
-	}
-	// variableId only — valid
-	msg := ValidateRPC("delete_variable", nil, map[string]any{"variableId": "abc"})
-	if msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
+	t.Run("the action itself", func(t *testing.T) {
+		if msg := call(nil, nil); msg == "" {
+			t.Error("expected error for a missing action")
+		}
+		if msg := call(nil, map[string]any{"action": "reticulate"}); msg == "" {
+			t.Error("expected error for an unknown action")
+		}
+	})
+
+	t.Run("create_collection", func(t *testing.T) {
+		if msg := call(nil, map[string]any{"action": "create_collection"}); msg == "" {
+			t.Error("expected error for missing name")
+		}
+		if msg := call(nil, map[string]any{"action": "create_collection", "name": "Brand"}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+	})
+
+	t.Run("add_mode", func(t *testing.T) {
+		if msg := call(nil, map[string]any{"action": "add_mode"}); msg == "" {
+			t.Error("expected error for missing collectionId")
+		}
+		if msg := call(nil, map[string]any{"action": "add_mode", "collectionId": "c1"}); msg == "" {
+			t.Error("expected error for missing modeName")
+		}
+		if msg := call(nil, map[string]any{"action": "add_mode", "collectionId": "c1", "modeName": "Dark"}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+	})
+
+	t.Run("create", func(t *testing.T) {
+		if msg := call(nil, map[string]any{
+			"action": "create", "name": "myVar", "collectionId": "abc", "type": "NUMBER",
+		}); msg == "" {
+			t.Error("expected error for invalid variable type")
+		}
+		for _, vt := range []string{"COLOR", "FLOAT", "STRING", "BOOLEAN"} {
+			if msg := call(nil, map[string]any{
+				"action": "create", "name": "myVar", "collectionId": "abc", "type": vt,
+			}); msg != "" {
+				t.Errorf("unexpected error for type %s: %s", vt, msg)
+			}
+		}
+		if msg := call(nil, map[string]any{"action": "create", "name": "myVar", "type": "COLOR"}); msg == "" {
+			t.Error("expected error for missing collectionId")
+		}
+	})
+
+	t.Run("set_value", func(t *testing.T) {
+		if msg := call(nil, map[string]any{"action": "set_value"}); msg == "" {
+			t.Error("expected error for missing variableId")
+		}
+		if msg := call(nil, map[string]any{"action": "set_value", "variableId": "v1"}); msg == "" {
+			t.Error("expected error for missing modeId")
+		}
+		if msg := call(nil, map[string]any{"action": "set_value", "variableId": "v1", "modeId": "m1"}); msg == "" {
+			t.Error("expected error for missing value")
+		}
+		if msg := call(nil, map[string]any{
+			"action": "set_value", "variableId": "v1", "modeId": "m1", "value": "#fff",
+		}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+	})
+
+	t.Run("delete takes either target but needs one", func(t *testing.T) {
+		if msg := call(nil, map[string]any{"action": "delete"}); msg == "" {
+			t.Error("expected error when neither id is provided")
+		}
+		if msg := call(nil, map[string]any{"action": "delete", "variableId": "abc"}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+		if msg := call(nil, map[string]any{"action": "delete", "collectionId": "c1"}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+	})
+
+	// The node travels in its own field, which requireVariant cannot see.
+	t.Run("bind", func(t *testing.T) {
+		if msg := call(nil, map[string]any{"action": "bind", "variableId": "v1", "field": "fillColor"}); msg == "" {
+			t.Error("expected error for missing nodeId")
+		}
+		if msg := call([]string{"bad"}, map[string]any{"action": "bind", "variableId": "v1", "field": "fillColor"}); msg == "" {
+			t.Error("expected error for invalid nodeId")
+		}
+		if msg := call([]string{"1:1"}, map[string]any{"action": "bind", "field": "fillColor"}); msg == "" {
+			t.Error("expected error for missing variableId")
+		}
+		if msg := call([]string{"1:1"}, map[string]any{"action": "bind", "variableId": "v1"}); msg == "" {
+			t.Error("expected error for missing field")
+		}
+		if msg := call([]string{"1:1"}, map[string]any{
+			"action": "bind", "variableId": "v1", "field": "fillColor",
+		}); msg != "" {
+			t.Errorf("unexpected error: %s", msg)
+		}
+	})
+
+	// An argument from another action is named rather than silently dropped.
+	t.Run("a stray argument is reported", func(t *testing.T) {
+		msg := call(nil, map[string]any{"action": "create_collection", "name": "Brand", "modeId": "m1"})
+		if !strings.Contains(msg, "modeId") {
+			t.Errorf("want the message to name modeId, got: %q", msg)
+		}
+	})
 }
 
 func TestValidateRPC_SwapComponent(t *testing.T) {
@@ -374,42 +459,6 @@ func TestValidateRPC_DeleteStyle(t *testing.T) {
 	}
 }
 
-func TestValidateRPC_CreateVariableCollection(t *testing.T) {
-	if msg := ValidateRPC("create_variable_collection", nil, nil); msg == "" {
-		t.Error("expected error for missing name")
-	}
-	if msg := ValidateRPC("create_variable_collection", nil, map[string]any{"name": "Brand"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_AddVariableMode(t *testing.T) {
-	if msg := ValidateRPC("add_variable_mode", nil, nil); msg == "" {
-		t.Error("expected error for missing collectionId")
-	}
-	if msg := ValidateRPC("add_variable_mode", nil, map[string]any{"collectionId": "c1"}); msg == "" {
-		t.Error("expected error for missing modeName")
-	}
-	if msg := ValidateRPC("add_variable_mode", nil, map[string]any{"collectionId": "c1", "modeName": "Dark"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
-func TestValidateRPC_SetVariableValue(t *testing.T) {
-	if msg := ValidateRPC("set_variable_value", nil, nil); msg == "" {
-		t.Error("expected error for missing variableId")
-	}
-	if msg := ValidateRPC("set_variable_value", nil, map[string]any{"variableId": "v1"}); msg == "" {
-		t.Error("expected error for missing modeId")
-	}
-	if msg := ValidateRPC("set_variable_value", nil, map[string]any{"variableId": "v1", "modeId": "m1"}); msg == "" {
-		t.Error("expected error for missing value")
-	}
-	if msg := ValidateRPC("set_variable_value", nil, map[string]any{"variableId": "v1", "modeId": "m1", "value": "#fff"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
-	}
-}
-
 func TestValidateRPC_ApplyStyleToNode(t *testing.T) {
 	if msg := ValidateRPC("apply_style_to_node", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
@@ -427,24 +476,6 @@ func TestValidateRPC_ApplyStyleToNode(t *testing.T) {
 		if msg := ValidateRPC("apply_style_to_node", []string{"1:1"}, map[string]any{"styleId": "S:abc", "target": target}); msg != "" {
 			t.Errorf("unexpected error for target %s: %s", target, msg)
 		}
-	}
-}
-
-func TestValidateRPC_BindVariableToNode(t *testing.T) {
-	if msg := ValidateRPC("bind_variable_to_node", nil, nil); msg == "" {
-		t.Error("expected error for missing nodeId")
-	}
-	if msg := ValidateRPC("bind_variable_to_node", []string{"bad"}, nil); msg == "" {
-		t.Error("expected error for invalid nodeId")
-	}
-	if msg := ValidateRPC("bind_variable_to_node", []string{"1:1"}, nil); msg == "" {
-		t.Error("expected error for missing variableId")
-	}
-	if msg := ValidateRPC("bind_variable_to_node", []string{"1:1"}, map[string]any{"variableId": "v1"}); msg == "" {
-		t.Error("expected error for missing field")
-	}
-	if msg := ValidateRPC("bind_variable_to_node", []string{"1:1"}, map[string]any{"variableId": "v1", "field": "fill"}); msg != "" {
-		t.Errorf("unexpected error: %s", msg)
 	}
 }
 

@@ -13,7 +13,7 @@ Open-source Figma MCP server with full read/write access via plugin. Turn text i
 **Highlights**
 - Operates locally via the Figma Plugin API (no REST API token required)
 - Real-time execution directly on your local machine
-- **Read and Write** live Figma data via plugin bridge — 65 tools total
+- **Read and Write** live Figma data via plugin bridge — 60 tools total
 - Full design automation — styles, variables, components, prototypes, content, and transactional batch pipelines
 - Design strategies included — read_design_strategy, design_strategy, and more prompts built in
 
@@ -210,7 +210,7 @@ No tool changed its name or its arguments. Five things behave differently:
 
 ### Tool consolidation
 
-Thirteen tools were removed by folding each into one that already covered it.
+Eighteen tools were removed by folding each into one that already covered it.
 No capability was lost — everything possible before is still one call:
 
 | Removed | Replacement |
@@ -228,6 +228,12 @@ No capability was lost — everything possible before is still one call:
 | `remove_reactions` | `set_reactions({ nodeId, removeIndices })` |
 | `get_design_context` | `get_document({ scope: "selection", detail, dedupe_components })` |
 | `get_screenshot` / `save_screenshots` | `export_screenshots({ items })` — an item with an `outputPath` is written to disk, one without comes back as base64 |
+| `create_variable_collection` | `manage_variable({ action: "create_collection", name })` |
+| `add_variable_mode` | `manage_variable({ action: "add_mode", collectionId, modeName })` |
+| `create_variable` | `manage_variable({ action: "create", name, collectionId, type, value })` |
+| `set_variable_value` | `manage_variable({ action: "set_value", variableId, modeId, value })` |
+| `delete_variable` | `manage_variable({ action: "delete", variableId \| collectionId })` |
+| `bind_variable_to_node` | `manage_variable({ action: "bind", nodeId, variableId, field })` |
 
 Two of these gained something in the move. Moving and resizing a node is now
 one call and **one** undo entry rather than two, and `get_nodes_info` reports
@@ -372,14 +378,9 @@ because `type` names the kind of style. Gradients can only target a fill;
 
 ### Write — Variables
 
-| Tool                         | Description                                                                                                                                                    |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create_variable_collection` | Create a new local variable collection with an optional initial mode                                                                                           |
-| `add_variable_mode`          | Add a new mode to an existing collection (e.g. Light/Dark)                                                                                                     |
-| `create_variable`            | Create a variable (COLOR/FLOAT/STRING/BOOLEAN) in a collection                                                                                                 |
-| `set_variable_value`         | Set a variable's value for a specific mode                                                                                                                     |
-| `bind_variable_to_node`      | Bind a variable to a node property — supports `fillColor`, `strokeColor`, `visible`, `opacity`, `rotation`, `width`, `height`, corner radii, spacing, and more |
-| `delete_variable`            | Delete a variable or an entire collection                                                                                                                      |
+| Tool              | Description                                                                                                    |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| `manage_variable` | Create, change, delete and apply variables — `action` selects which: `create_collection`, `add_mode`, `create`, `set_value`, `delete`, `bind` |
 
 ### Write — Pages
 

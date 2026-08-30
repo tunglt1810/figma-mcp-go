@@ -150,16 +150,4 @@ var writeStyleSpecs = []toolSpec{
 			return ""
 		},
 	},
-	{
-		Name:       "bind_variable_to_node",
-		Desc:       "Bind a local variable to a node property so the property is driven by the variable's value. COLOR variables: use fillColor or strokeColor. BOOLEAN variables: use visible. FLOAT variables: use opacity, rotation, width, height, cornerRadius, topLeftRadius, topRightRadius, bottomLeftRadius, bottomRightRadius, strokeWeight, itemSpacing, paddingTop, paddingRight, paddingBottom, paddingLeft.",
-		NodeIDs:    nodeIDsSingle,
-		NodeIDsReq: true,
-		NodeIDDesc: "Target node ID in colon format e.g. 4029:12345",
-		Params: []paramSpec{
-			{Name: "variableId", Kind: kindString, Required: true, Desc: "Variable ID to bind (from get_variable_defs)"},
-			{Name: "field", Kind: kindString, Required: true,
-				Desc: "Property to bind: fillColor | strokeColor | visible | opacity | rotation | width | height | cornerRadius | topLeftRadius | topRightRadius | bottomLeftRadius | bottomRightRadius | strokeWeight | itemSpacing | paddingTop | paddingRight | paddingBottom | paddingLeft"},
-		},
-	},
 }

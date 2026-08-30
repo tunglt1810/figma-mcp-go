@@ -1,4 +1,4 @@
-import { hexToRgb } from "./write-helpers";
+import { hexToRgb, makeSolidPaint } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
 
 const parseVariableValue = (type: string, value: any): VariableValue => {
@@ -14,7 +14,31 @@ const parseVariableValue = (type: string, value: any): VariableValue => {
   return String(value); // STRING
 };
 
+// manage_variable replaced the six single-purpose variable tools on the MCP
+// surface. The implementations stay separate below; only the surface merged.
+const VARIABLE_ACTIONS: Record<string, string> = {
+  create_collection: "create_variable_collection",
+  add_mode: "add_variable_mode",
+  create: "create_variable",
+  set_value: "set_variable_value",
+  delete: "delete_variable",
+  bind: "bind_variable_to_node",
+};
+
 export const writeVariablesHandlers: HandlerMap = {
+  "manage_variable": async (request) => {
+    const { action, ...params } = request.params || {};
+    const type = VARIABLE_ACTIONS[action];
+    if (!type) {
+      throw new Error(
+        `action must be ${Object.keys(VARIABLE_ACTIONS).join(", ")}, got: ${action}`,
+      );
+    }
+    const result = await handleWriteVariableRequest({ ...request, type, params });
+    // Answer under the name the caller used, not the one we delegated to.
+    return { ...result, type: request.type };
+  },
+
   "create_variable_collection": async (request) => {
     const p = request.params || {};
     if (!p.name) throw new Error("name is required");
@@ -118,6 +142,40 @@ export const writeVariablesHandlers: HandlerMap = {
     } else {
       throw new Error("variableId or collectionId is required");
     }
+  },
+
+  "bind_variable_to_node": async (request) => {
+    const p = request.params || {};
+    const nodeId = request.nodeIds && request.nodeIds[0];
+    if (!nodeId) throw new Error("nodeId is required");
+    if (!p.variableId) throw new Error("variableId is required");
+    if (!p.field) throw new Error("field is required");
+    const node = await figma.getNodeByIdAsync(nodeId) as any;
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    const variable = await figma.variables.getVariableByIdAsync(p.variableId);
+    if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
+    if (p.field === "fillColor") {
+      if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
+      const fills = [...(node.fills as Paint[])];
+      const base = fills.length > 0 ? fills[0] : makeSolidPaint("#000000");
+      const paint = figma.variables.setBoundVariableForPaint(base as SolidPaint, "color", variable);
+      node.fills = [paint];
+    } else if (p.field === "strokeColor") {
+      if (!("strokes" in node)) throw new Error(`Node ${nodeId} does not support strokes`);
+      const strokes = [...(node.strokes as Paint[])];
+      const base = strokes.length > 0 ? strokes[0] : makeSolidPaint("#000000");
+      const paint = figma.variables.setBoundVariableForPaint(base as SolidPaint, "color", variable);
+      node.strokes = [paint];
+    } else {
+      if (!(p.field in node)) throw new Error(`Node ${nodeId} does not have field: ${p.field}`);
+      node.setBoundVariable(p.field, variable);
+    }
+    figma.commitUndo();
+    return {
+      type: request.type,
+      requestId: request.requestId,
+      data: { id: node.id, name: node.name, variableId: p.variableId, field: p.field },
+    };
   },
 };
 

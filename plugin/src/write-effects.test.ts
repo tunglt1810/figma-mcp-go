@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { handleWriteStyleRequest } from "./write-styles";
+import { handleWriteVariableRequest } from "./write-variables";
 
 // ── Figma global mock ─────────────────────────────────────────────────────────
 
@@ -252,6 +253,8 @@ describe("set_effects", () => {
 });
 
 // ── bind_variable_to_node – strokeColor ──────────────────────────────────────
+//
+// It moved to the variables module when manage_variable absorbed it.
 
 describe("bind_variable_to_node strokeColor", () => {
   const mockVariable = { id: "v1", name: "color/primary", resolvedType: "COLOR" };
@@ -266,7 +269,7 @@ describe("bind_variable_to_node strokeColor", () => {
 
   it("binds a variable to strokeColor", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Frame", strokes: [], setBoundVariable: () => {} };
-    const res = await handleWriteStyleRequest(makeRequest("bind_variable_to_node", ["1:1"], {
+    const res = await handleWriteVariableRequest(makeRequest("bind_variable_to_node", ["1:1"], {
       variableId: "v1", field: "strokeColor",
     }));
     expect(res?.data.field).toBe("strokeColor");
@@ -277,7 +280,7 @@ describe("bind_variable_to_node strokeColor", () => {
   it("uses existing stroke as base when binding strokeColor", async () => {
     const existingStroke = { type: "SOLID", color: { r: 0, g: 0, b: 0 } };
     mockNodes["1:1"] = { id: "1:1", strokes: [existingStroke], setBoundVariable: () => {} };
-    await handleWriteStyleRequest(makeRequest("bind_variable_to_node", ["1:1"], {
+    await handleWriteVariableRequest(makeRequest("bind_variable_to_node", ["1:1"], {
       variableId: "v1", field: "strokeColor",
     }));
     expect(mockNodes["1:1"].strokes).toHaveLength(1);
@@ -285,7 +288,7 @@ describe("bind_variable_to_node strokeColor", () => {
 
   it("throws if node does not support strokes", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Text" }; // no strokes
-    await expect(handleWriteStyleRequest(makeRequest("bind_variable_to_node", ["1:1"], {
+    await expect(handleWriteVariableRequest(makeRequest("bind_variable_to_node", ["1:1"], {
       variableId: "v1", field: "strokeColor",
     }))).rejects.toThrow("does not support strokes");
   });

@@ -40,6 +40,8 @@ const INTERNAL_DISPATCH_TARGETS = new Set([
   "create_frame", "create_rectangle", "create_ellipse", "create_star",
   "create_polygon", "create_line", "create_section",
   "add_page", "delete_page", "rename_page", "navigate_to_page",
+  "create_variable_collection", "add_variable_mode", "create_variable",
+  "set_variable_value", "delete_variable", "bind_variable_to_node",
   "create_paint_style", "create_text_style", "create_effect_style", "create_grid_style",
   "set_fills", "set_strokes", "set_gradient_fills",
   // export_screenshots calls this once per item, with params it builds itself.
