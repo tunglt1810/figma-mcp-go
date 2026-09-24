@@ -99,8 +99,8 @@ var writeModifySpecs = []toolSpec{
 		},
 	},
 	{
-		Name: "set_paint",
-		Desc: "Set a node's fill or stroke. SOLID: color, opacity. GRADIENT_LINEAR/GRADIENT_RADIAL: stops, geometry, opacity (fill only).",
+		Name:       "set_paint",
+		Desc:       "Set a node's fill or stroke. SOLID: color, opacity. GRADIENT_LINEAR/GRADIENT_RADIAL: stops, geometry, opacity (fill only).",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID",
@@ -281,8 +281,8 @@ var writeModifySpecs = []toolSpec{
 		},
 	},
 	{
-		Name: "batch_rename_nodes",
-		Desc: "Rename nodes: set `name`, or use find/replace (regex allowed) or prefix/suffix. `name` cannot mix with the others.",
+		Name:       "batch_rename_nodes",
+		Desc:       "Rename nodes: set `name`, or use find/replace (regex allowed) or prefix/suffix. `name` cannot mix with the others.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",

@@ -80,8 +80,8 @@ var writeComponentSpecs = []toolSpec{
 			"startNodeId", "endNodeId", "startPosition", "endPosition"),
 	},
 	{
-		Name: "set_annotations",
-		Desc: "Set Dev Mode annotations on nodes ([] clears). Needs a paid Dev Mode seat.",
+		Name:       "set_annotations",
+		Desc:       "Set Dev Mode annotations on nodes ([] clears). Needs a paid Dev Mode seat.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",

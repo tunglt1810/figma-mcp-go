@@ -111,8 +111,8 @@ var exportSpecs = []toolSpec{
 		NodeIDDesc: "Node IDs carrying image fills",
 	},
 	{
-		Name: "set_export_settings",
-		Desc: "Set the Export presets shown in a node's right panel. Does not export a file; use export_screenshots for that.",
+		Name:       "set_export_settings",
+		Desc:       "Set the Export presets shown in a node's right panel. Does not export a file; use export_screenshots for that.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",
