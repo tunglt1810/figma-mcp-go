@@ -119,6 +119,10 @@ type toolSpec struct {
 
 	Params []paramSpec
 
+	// ReadOnly marks a tool that changes nothing, advertised to clients as
+	// readOnlyHint. Set by allSpecs for the read groups, not per tool.
+	ReadOnly bool
+
 	// Validate expresses rules a paramSpec cannot: "at least one of x or y",
 	// mutually exclusive arguments, nested shapes.
 	Validate func(nodeIDs []string, params map[string]any) string
@@ -203,7 +207,15 @@ func buildTool(spec toolSpec) mcp.Tool {
 		opts = append(opts, p.toolOption())
 	}
 
-	return mcp.NewTool(spec.Name, opts...)
+	tool := mcp.NewTool(spec.Name, opts...)
+	// mcp-go fills in all four hints on every tool, each set to the value the
+	// MCP spec already defines as the default. Sixty copies of that are noise in
+	// every tools/list a client reads into context, so say only what differs.
+	tool.Annotations = mcp.ToolAnnotation{}
+	if spec.ReadOnly {
+		tool.Annotations.ReadOnlyHint = mcp.ToBoolPtr(true)
+	}
+	return tool
 }
 
 // ── Handler ──────────────────────────────────────────────────────────────────
@@ -553,8 +565,8 @@ func allSpecs() []toolSpec {
 	groups := [][]toolSpec{
 		{batchPipelineSpec},
 		exportSpecs,
-		readDocumentSpecs,
-		readStyleSpecs,
+		readOnly(readDocumentSpecs),
+		readOnly(readStyleSpecs),
 		writeComponentSpecs,
 		writeComponentPropertySpecs,
 		writeCreateSpecs,
@@ -572,6 +584,15 @@ func allSpecs() []toolSpec {
 		all = append(all, group...)
 	}
 	return all
+}
+
+// readOnly returns copies of specs marked as changing nothing.
+func readOnly(specs []toolSpec) []toolSpec {
+	out := slices.Clone(specs)
+	for i := range out {
+		out[i].ReadOnly = true
+	}
+	return out
 }
 
 // specRegistry maps tool name to spec so validation can find a tool's rules

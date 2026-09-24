@@ -25,7 +25,7 @@ var exportFramesToPDFSpec = toolSpec{
 	Desc:       "Export multiple frames as a single multi-page PDF file. Each frame becomes one page in order. Ideal for pitch decks, proposals, and slide exports.",
 	NodeIDs:    nodeIDsMulti,
 	NodeIDsReq: true,
-	NodeIDDesc: "Ordered list of frame node IDs to export as PDF pages, colon format e.g. '4029:12345'",
+	NodeIDDesc: "Ordered list of frame node IDs to export as PDF pages",
 	Params: []paramSpec{
 		{Name: "outputPath", Kind: kindString, Required: true,
 			Desc: "File path to write the PDF to, must end in .pdf (relative to working directory or absolute)"},
@@ -40,18 +40,17 @@ var exportFramesToPDFSpec = toolSpec{
 
 var exportScreenshotsSpec = toolSpec{
 	Name: "export_screenshots",
-	Desc: "Export nodes as images. An item with an outputPath is written to that file and answered with its metadata; " +
-		"one without comes back as base64 in the response, and both kinds can be in the same call. " +
-		"Omit items entirely to capture the current selection as base64. " +
-		"Prefer an outputPath when you only need the file — base64 is a lot of tokens to carry an image you are going to write to disk anyway.",
+	Desc: "Export nodes as images. An item with an outputPath is written to that file; one without comes back in the response " +
+		"(PNG/JPG as an image block, SVG as markup, PDF as base64). Both kinds can mix in one call. " +
+		"Omit items to capture the current selection. Prefer outputPath when you only need the file.",
 	Params: []paramSpec{
 		{Name: "items", Kind: kindObjectArray,
 			Desc: "List of {nodeId, outputPath?, format?, scale?} objects. Omit to export the current selection.",
 			ItemSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"nodeId":     map[string]any{"type": "string", "description": "Node ID in colon format e.g. '4029:12345'"},
-					"outputPath": map[string]any{"type": "string", "description": "File path to write the image to. Omit to get base64 in the response instead."},
+					"nodeId":     map[string]any{"type": "string", "description": "Node ID"},
+					"outputPath": map[string]any{"type": "string", "description": "File path to write the image to. Omit to get the image in the response."},
 					"format":     map[string]any{"type": "string", "description": "Export format: PNG, SVG, JPG, or PDF"},
 					"scale":      map[string]any{"type": "number", "description": "Export scale for raster formats"},
 				},
@@ -60,7 +59,7 @@ var exportScreenshotsSpec = toolSpec{
 		{Name: "format", Kind: kindString, Enum: exportFormats,
 			Desc: "Default export format: PNG (default), SVG, JPG, or PDF"},
 		{Name: "scale", Kind: kindNumber, Positive: true,
-			Desc: "Default export scale for raster formats (default 2)"},
+			Desc: "Default export scale for raster formats (default 2 for files, 1 in the response)"},
 	},
 	Validate: func(_ []string, params map[string]any) string {
 		items, hasItems := params["items"]
@@ -110,7 +109,7 @@ var exportSpecs = []toolSpec{
 		Desc:       "Read the original bytes of the images placed on nodes, as base64. This is the asset that was imported, not a re-render — use export_screenshots when you want a picture of how a node looks now. One image used on several nodes is returned once. Nodes with no image fill are reported under `skipped` rather than failing the call.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs carrying image fills, in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "Node IDs carrying image fills",
 	},
 	{
 		Name: "set_export_settings",
@@ -118,7 +117,7 @@ var exportSpecs = []toolSpec{
 			"This changes the document; it does not export anything. Use export_screenshots to actually produce a file.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "Node IDs",
 		Params: []paramSpec{
 			{Name: "settings", Kind: kindObjectArray, Required: true,
 				Desc: "Export presets, in the order they should appear. An empty array clears the node's presets.",

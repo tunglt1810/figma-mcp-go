@@ -8,7 +8,7 @@ var writeDocumentSpecs = []toolSpec{
 		Desc:       "Attach generated code to a node so it appears in Figma's Dev Mode Code panel. This is how code you write with the repository in front of you reaches the designers: it is stored in the file, so every teammate's Dev Mode shows it, not just this machine. Dev Mode looks at the node itself, then at the component an instance came from, then at its ancestors — so putting the code on a component covers every instance of it. Pass an empty blocks array to remove what is stored.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node ID to attach the code to, colon format e.g. '4029:12345'. A COMPONENT or COMPONENT_SET covers all its instances.",
+		NodeIDDesc: "Node ID to attach the code to. A COMPONENT or COMPONENT_SET covers all its instances.",
 		Params: []paramSpec{
 			{Name: "blocks", Kind: kindObjectArray, Required: true, AllowEmpty: true,
 				Desc: "Code blocks to show, one tab each. Empty removes the stored code.",
@@ -28,7 +28,7 @@ var writeDocumentSpecs = []toolSpec{
 		Desc:       "Read and write your own metadata on a node, stored in the Figma file itself. Use it to remember what a later session cannot re-derive — which source file a component maps to, which nodes were generated and from what, a token binding. Values are strings; encode anything richer as JSON. Stored as shared plugin data, so it travels with the file and any teammate can read it.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
+		NodeIDDesc: "Node ID",
 		Params: []paramSpec{
 			{Name: "action", Kind: kindString, Required: true,
 				Enum: []string{"get", "set", "delete", "keys"},

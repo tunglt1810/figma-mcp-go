@@ -7,7 +7,7 @@ var writeComponentSpecs = []toolSpec{
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		MinNodeIDs: 2,
-		NodeIDDesc: "Node IDs to group (minimum 2), in colon format e.g. ['4029:12345', '4029:12346']",
+		NodeIDDesc: "Node IDs to group (minimum 2)",
 		Params: []paramSpec{
 			{Name: "name", Kind: kindString, Desc: "Optional name for the new group"},
 		},
@@ -17,17 +17,17 @@ var writeComponentSpecs = []toolSpec{
 		Desc:       "Ungroup one or more GROUP nodes, moving their children to the parent and removing the group.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "GROUP node IDs in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "GROUP node IDs",
 	},
 	{
 		Name:       "swap_component",
 		Desc:       "Swap the main component of an existing INSTANCE node, replacing it with a different component while keeping position and size.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "INSTANCE node ID in colon format e.g. 4029:12345",
+		NodeIDDesc: "INSTANCE node ID",
 		Params: []paramSpec{
 			{Name: "componentId", Kind: kindString, Required: true, IsNodeID: true,
-				Desc: "Target COMPONENT node ID in colon format (from get_local_components)"},
+				Desc: "Target COMPONENT node ID (from get_local_components)"},
 		},
 	},
 	{
@@ -35,14 +35,14 @@ var writeComponentSpecs = []toolSpec{
 		Desc:       "Detach one or more component instances, converting them to plain frames. The link to the main component is broken; all visual properties are preserved.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "INSTANCE node IDs in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "INSTANCE node IDs",
 	},
 	{
 		Name: "create_component_instance",
 		Desc: "Create an instance of a Component. If the target is a ComponentSet (Variant Set), it automatically instantiates the default variant. It can instantiate local components or library components (using componentKey).",
 		Params: []paramSpec{
 			{Name: "componentId", Kind: kindString, IsNodeID: true,
-				Desc: "ID of the local component or component set in colon format e.g. 4029:12345. Preferred over componentKey if available."},
+				Desc: "ID of the local component or component set. Preferred over componentKey if available."},
 			{Name: "componentKey", Kind: kindString,
 				Desc: "Key of a component from a Team Library to import and instantiate."},
 			parentIDParam("Optional. Parent node ID to place the instance inside. If missing, places it on the current page."),
@@ -56,7 +56,7 @@ var writeComponentSpecs = []toolSpec{
 		Desc:       "Update Component Properties (variants, booleans, text) on a component instance. Will fail-fast if property name or type is invalid.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "INSTANCE node ID in colon format e.g. 4029:12345",
+		NodeIDDesc: "INSTANCE node ID",
 		Params: []paramSpec{
 			{Name: "properties", Kind: kindObject, Required: true,
 				Desc: "Map of property name to its new value. Example: {\"Size\": \"Large\", \"Show Icon\": true}"},
@@ -67,9 +67,9 @@ var writeComponentSpecs = []toolSpec{
 		Desc: "Create a Connector line in FigJam. NOTE: Only works in FigJam files!",
 		Params: []paramSpec{
 			{Name: "startNodeId", Kind: kindString, IsNodeID: true,
-				Desc: "Optional. Start node ID in colon format e.g. 1:1"},
+				Desc: "Optional. Start node ID"},
 			{Name: "endNodeId", Kind: kindString, IsNodeID: true,
-				Desc: "Optional. End node ID in colon format e.g. 2:2"},
+				Desc: "Optional. End node ID"},
 			{Name: "startPosition", Kind: kindObject, Desc: "Optional. Start coordinate {x, y}"},
 			{Name: "endPosition", Kind: kindObject, Desc: "Optional. End coordinate {x, y}"},
 			{Name: "lineType", Kind: kindString, Enum: []string{"STRAIGHT", "ELBOW"},
@@ -85,7 +85,7 @@ var writeComponentSpecs = []toolSpec{
 			"Every node gets the same annotations, and each reports its own outcome. Note: requires a paid Dev Mode seat.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Array of node IDs in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "Array of node IDs",
 		Params: []paramSpec{
 			{Name: "annotations", Kind: kindArray, Required: true, AllowEmpty: true,
 				Desc: "Array of annotation objects. Example: [{\"label\": \"Main Button\"}]. Empty clears every annotation on the nodes."},

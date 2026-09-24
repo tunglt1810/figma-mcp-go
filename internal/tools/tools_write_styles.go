@@ -114,7 +114,7 @@ var writeStyleSpecs = []toolSpec{
 		Desc:       "Apply an existing local style (paint, text, effect, or grid) to a node, linking the node to that style.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "Target node ID in colon format e.g. 4029:12345",
+		NodeIDDesc: "Target node ID",
 		Params: []paramSpec{
 			{Name: "styleId", Kind: kindString, Required: true, Desc: "Style ID to apply (from get_styles)"},
 			{Name: "target", Kind: kindString, Enum: []string{"fill", "stroke"},
@@ -126,7 +126,7 @@ var writeStyleSpecs = []toolSpec{
 		Desc:       "Apply one or more effects directly to a node. Replaces all existing effects. Pass an empty array to clear all effects. The shape matches what get_nodes_info reports under styles.effects, so effects can be read off one node and written to another unchanged.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "Target node ID in colon format e.g. 4029:12345",
+		NodeIDDesc: "Target node ID",
 		Params: []paramSpec{
 			{Name: "effects", Kind: kindObjectArray, Required: true,
 				Desc: "Array of effect objects, each keyed by `type`. " +

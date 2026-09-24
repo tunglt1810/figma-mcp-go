@@ -39,7 +39,7 @@ var writeModifySpecs = []toolSpec{
 		Desc:       "Update the text content of an existing TEXT node, and the settings that apply to the node as a whole — wrapping, truncation, alignment, and paragraph spacing. For styling that varies across the text (a bold word, a link, a bulleted list), use set_text_ranges.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "TEXT node ID in colon format e.g. '4029:12345'",
+		NodeIDDesc: "TEXT node ID",
 		Params: []paramSpec{
 			// An empty string is a legitimate value here: it clears the node.
 			{Name: "text", Kind: kindString, AllowEmpty: true, Desc: "New text content"},
@@ -70,7 +70,7 @@ var writeModifySpecs = []toolSpec{
 		Desc:       "Style parts of a TEXT node independently: a bold word, a coloured phrase, a hyperlink, a bulleted list. Each range is a half-open character span [start, end) over the node's existing text, so call set_text first to put the text there. Ranges may overlap; they are applied in text order, so a later one wins where they meet. Omit a property to leave it as it is.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "TEXT node ID in colon format e.g. '4029:12345'",
+		NodeIDDesc: "TEXT node ID",
 		Params: []paramSpec{
 			{Name: "ranges", Kind: kindObjectArray, Required: true,
 				Desc: "Character ranges to style. Each needs start and end; every other property is optional.",
@@ -107,7 +107,7 @@ var writeModifySpecs = []toolSpec{
 			"An argument belonging to a different kind is rejected rather than ignored.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
+		NodeIDDesc: "Node ID",
 		Params: []paramSpec{
 			{Name: "type", Kind: kindString, Required: true, Enum: variantKinds(paintVariants),
 				Desc: "Kind of paint: SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL"},
@@ -159,7 +159,7 @@ var writeModifySpecs = []toolSpec{
 		Desc:       "Clone an existing node, optionally repositioning it or placing it in a new parent.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "Source node ID in colon format e.g. '4029:12345'",
+		NodeIDDesc: "Source node ID",
 		Params: []paramSpec{
 			{Name: "x", Kind: kindNumber, Desc: "X position of the clone"},
 			{Name: "y", Kind: kindNumber, Desc: "Y position of the clone"},
@@ -171,7 +171,7 @@ var writeModifySpecs = []toolSpec{
 		Desc:       "Set the layout grids drawn over a frame — columns, rows, or a square grid. These are the guides a layout is built against, distinct from a saved grid style. Pass an empty grids array to remove the grids a frame already has.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Frame, component, or section node IDs in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "Frame, component, or section node IDs",
 		Params: []paramSpec{
 			{Name: "grids", Kind: kindObjectArray, Required: true, AllowEmpty: true,
 				Desc: "Grids to draw. Empty removes every grid on the node.",
@@ -203,7 +203,7 @@ var writeModifySpecs = []toolSpec{
 			"Each node reports its own outcome, so a sibling that cannot take the change does not stop the others.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Frame, component, component set, or instance node IDs in colon format e.g. ['4029:12345', '4029:67890']",
+		NodeIDDesc: "Frame, component, component set, or instance node IDs",
 		Params:     autoLayoutParams(),
 	},
 	{
@@ -214,7 +214,7 @@ var writeModifySpecs = []toolSpec{
 			"Moving and resizing in one call is one undo entry, not two.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "Node IDs",
 		Params: []paramSpec{
 			{Name: "x", Kind: kindNumber,
 				Desc: "Absolute X position on the canvas, applied to every node listed — not a relative offset from where each one is now"},
@@ -277,17 +277,17 @@ var writeModifySpecs = []toolSpec{
 		Desc:       "Delete one or more nodes. This cannot be undone via MCP — use with care.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs to delete in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "Node IDs to delete",
 	},
 	{
 		Name:       "reparent_nodes",
 		Desc:       "Move one or more nodes to a different parent frame, group, or section.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs to move in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "Node IDs to move",
 		Params: []paramSpec{
 			{Name: "parentId", Kind: kindString, Required: true, IsNodeID: true,
-				Desc: "Target parent node ID in colon format e.g. '4029:99'"},
+				Desc: "Target parent node ID"},
 		},
 	},
 	{
@@ -296,7 +296,7 @@ var writeModifySpecs = []toolSpec{
 			"`name` cannot be combined with the others — a literal name and a substitution in the same call have no defined order.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "Node IDs",
 		Params: []paramSpec{
 			{Name: "name", Kind: kindString,
 				Desc: "New name, applied as given to every node listed. Figma supports slash-separated path notation e.g. 'Icons/Arrow/Left' to organise nodes in component panels."},

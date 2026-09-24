@@ -10,7 +10,7 @@ var writeComponentPropertySpecs = []toolSpec{
 		Desc:       "Combine two or more COMPONENT nodes into a single COMPONENT_SET, so they become variants of one component. The components must already share a parent. Add VARIANT properties afterwards with manage_component_properties to say what distinguishes them.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "COMPONENT node IDs in colon format e.g. ['4029:12345', '4029:12346']",
+		NodeIDDesc: "COMPONENT node IDs",
 		Params: []paramSpec{
 			{Name: "name", Kind: kindString, Desc: "Name for the resulting component set"},
 		},
@@ -20,7 +20,7 @@ var writeComponentPropertySpecs = []toolSpec{
 		Desc:       "Define what a component exposes to its instances. `add` declares a property, `edit` renames it or changes its default, `delete` removes it, and `bind` points one of the component's own layers at a property so setting it actually does something — a BOOLEAN drives the layer's visibility, a TEXT its characters, an INSTANCE_SWAP its component. Properties may be named without the `#1:2` suffix Figma appends; the current id is resolved for you and returned. Use set_instance_overrides to set the values on an instance.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "COMPONENT or COMPONENT_SET node ID in colon format e.g. '4029:12345'",
+		NodeIDDesc: "COMPONENT or COMPONENT_SET node ID",
 		Params: []paramSpec{
 			{Name: "action", Kind: kindString, Required: true,
 				Enum: []string{"add", "edit", "delete", "bind"},
@@ -34,7 +34,7 @@ var writeComponentPropertySpecs = []toolSpec{
 			{Name: "property", Kind: kindString,
 				Desc: "Which property to edit, delete, or bind — its name e.g. 'Size', or its full id e.g. 'Size#1:2'"},
 			{Name: "targetNodeId", Kind: kindString, IsNodeID: true,
-				Desc: "For bind: the layer inside the component that the property should drive, colon format e.g. '4029:99'"},
+				Desc: "For bind: the layer inside the component that the property should drive"},
 			{Name: "preferredValues", Kind: kindObjectArray,
 				Desc: "For an INSTANCE_SWAP property: the components offered first in the picker",
 				ItemSchema: map[string]any{

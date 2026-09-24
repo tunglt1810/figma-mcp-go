@@ -7,7 +7,7 @@ var readDocumentSpecs = []toolSpec{
 		Name: "get_document",
 		Desc: "Get the node tree of the current selection, the current page, or every page in the file — `scope` chooses which. " +
 			"Answers {fileName, scope, currentPage, nodes: [...]}, one entry in `nodes` per root walked. " +
-			"A page or document walk is unbounded by default and can be very large; cap it with depth, maxNodes, or a lower `detail`. " +
+			"A full-detail walk stops after 500 nodes unless maxNodes says otherwise; narrow it with scope, depth, or a lower `detail`. " +
 			"A capped result sets `truncated`, and every node whose children were withheld reports `childCount`, so a short answer is never mistaken for a whole one.",
 		Params: []paramSpec{
 			{Name: "scope", Kind: kindString, Enum: []string{"selection", "page", "document"},
@@ -16,7 +16,7 @@ var readDocumentSpecs = []toolSpec{
 			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
 				Desc: "How many levels below each root to walk. 0 returns the root alone. Defaults to 2 for scope 'selection' and to no limit otherwise."},
 			{Name: "maxNodes", Kind: kindNumber, Min: floatPtr(1),
-				Desc: "Stop after this many nodes, walking in tree order so the result is the same every time. Omit for no limit. Applies to the full-detail walk; a `detail` level or dedupe_components trims by shape instead."},
+				Desc: "Stop after this many nodes, walking in tree order so the result is the same every time (default 500). Applies to the full-detail walk; a `detail` level or dedupe_components trims by shape instead."},
 			{Name: "detail", Kind: kindString, Enum: []string{"minimal", "compact", "full"},
 				Desc: "Property verbosity: minimal (id/name/type/bounds only), compact (+fills/strokes/opacity), full (everything, default). Lower it when exploring a large file."},
 			{Name: "dedupe_components", Wire: "dedupeComponents", Kind: kindBool,
@@ -41,10 +41,16 @@ var readDocumentSpecs = []toolSpec{
 		Desc: "Get full details for one or more nodes by ID in one round-trip. " +
 			"Answers {nodes: [...]}, plus a globalVars.styles map when a fill or stroke was shared by more than one node and collapsed to a ref. " +
 			"An ID that matches nothing is reported under `missing` rather than dropped, so a typo cannot read as a node with no content. " +
-			"Node IDs must use colon format e.g. '4029:12345', never hyphens.",
+			"Children are included; a capped result sets `truncated` and each node whose children were withheld reports `childCount`.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "List of node IDs in colon format e.g. ['4029:12345', '4029:67890']",
+		NodeIDDesc: "List of node IDs",
+		Params: []paramSpec{
+			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
+				Desc: "How many levels below each node to include. 0 returns the nodes alone. Default no limit."},
+			{Name: "maxNodes", Kind: kindNumber, Min: floatPtr(1),
+				Desc: "Stop after this many descendants across all requested nodes (default 500)."},
+		},
 	},
 	{
 		Name: "search_nodes",
@@ -56,7 +62,7 @@ var readDocumentSpecs = []toolSpec{
 			{Name: "query", Kind: kindString,
 				Desc: "Name substring to match (case-insensitive). Omit to match every node, which is how you take all nodes of a type."},
 			{Name: "nodeId", Kind: kindString, IsNodeID: true,
-				Desc: "Scope search to this subtree, colon format e.g. '4029:12345'. Overrides scope."},
+				Desc: "Scope search to this subtree. Overrides scope."},
 			{Name: "scope", Kind: kindString, Enum: []string{"page", "document"},
 				Desc: "Where to search when no nodeId is given: 'page' for the current page (default), or 'document' for every page in the file. Use 'document' when a node may live on another page — a page search reports nothing rather than looking there."},
 			{Name: "types", Kind: kindStringArray,
@@ -77,7 +83,7 @@ var readDocumentSpecs = []toolSpec{
 		Desc:       "Get the prototype reactions defined on a node. Returns an array of reaction objects — each has a trigger (e.g. ON_CLICK, ON_HOVER, AFTER_TIMEOUT) and an actions array (navigate to node, open URL, go back, etc.). Use set_reactions to add or replace them, or set_reactions with removeIndices to delete them.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node ID in colon format e.g. '4029:12345'",
+		NodeIDDesc: "Node ID",
 	},
 	{
 		Name: "get_viewport",
@@ -92,6 +98,6 @@ var readDocumentSpecs = []toolSpec{
 		Desc:       "Get the component properties (variants, booleans, text) of a component instance. Includes their current values and type information. Use this before set_instance_overrides to know what properties exist.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "INSTANCE node ID in colon format e.g. 4029:12345",
+		NodeIDDesc: "INSTANCE node ID",
 	},
 }

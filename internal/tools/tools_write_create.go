@@ -7,7 +7,7 @@ func parentIDParam(desc string) paramSpec {
 	return paramSpec{Name: "parentId", Kind: kindString, IsNodeID: true, Desc: desc}
 }
 
-var defaultParentDesc = "Parent node ID in colon format. Defaults to current page."
+var defaultParentDesc = "Parent node ID. Defaults to current page."
 
 // positionParams are the x/y arguments every create tool shares.
 func positionParams() []paramSpec {
@@ -169,7 +169,7 @@ var writeCreateSpecs = []toolSpec{
 			{Name: "imageUrl", Kind: kindString, Desc: "URL of the image to fetch. Preferred over imageData."},
 			{Name: "imageData", Kind: kindString, Desc: "Base64-encoded image data (PNG or JPG), when there is no URL to fetch"},
 			{Name: "nodeId", Kind: kindString, IsNodeID: true,
-				Desc: "Paint the image onto this existing node instead of creating a rectangle, colon format e.g. '4029:12345'"},
+				Desc: "Paint the image onto this existing node instead of creating a rectangle"},
 		}, append(positionParams(),
 			paramSpec{Name: "width", Kind: kindNumber, Positive: true,
 				Desc: "Width in pixels. Omit to use the image's own size, scaled to fit 1000px."},
@@ -239,7 +239,7 @@ var writeCreateSpecs = []toolSpec{
 		Desc:       "Convert an existing FRAME node into a reusable COMPONENT. The frame is replaced in place by the new component.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
-		NodeIDDesc: "FRAME node ID to convert, in colon format e.g. '4029:12345'",
+		NodeIDDesc: "FRAME node ID to convert",
 		Params: []paramSpec{
 			{Name: "name", Kind: kindString, Desc: "Optional name for the component. Defaults to the frame's current name."},
 		},

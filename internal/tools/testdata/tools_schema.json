@@ -1,16 +1,11 @@
 {
   "apply_style_to_node": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Apply an existing local style (paint, text, effect, or grid) to a node, linking the node to that style.",
     "inputSchema": {
       "properties": {
         "nodeId": {
-          "description": "Target node ID in colon format e.g. 4029:12345",
+          "description": "Target node ID",
           "type": "string"
         },
         "styleId": {
@@ -31,12 +26,7 @@
     "name": "apply_style_to_node"
   },
   "batch_execute_pipeline": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Execute a batch pipeline of mutation steps in Figma, passing values between steps via $variables. On failure with stop_on_error, rollback removes nodes the pipeline created and restores properties it changed on existing nodes (position, size, fills, strokes, opacity, visibility, name, text, blend mode, constraints). Rollback CANNOT undo deletions (delete_nodes, delete_page), structural changes (group/ungroup, detach_instance, reparent), or steps that target a node by name instead of id.",
     "inputSchema": {
       "properties": {
@@ -81,12 +71,7 @@
     "name": "batch_execute_pipeline"
   },
   "batch_rename_nodes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Rename one or more nodes: pass `name` to set the name outright, or find/replace, regex substitution, or prefix/suffix to derive it from the current one. `name` cannot be combined with the others — a literal name and a substitution in the same call have no defined order.",
     "inputSchema": {
       "properties": {
@@ -99,7 +84,7 @@
           "type": "string"
         },
         "nodeIds": {
-          "description": "Node IDs in colon format e.g. ['4029:12345']",
+          "description": "Node IDs",
           "items": {
             "type": "string"
           },
@@ -134,12 +119,7 @@
     "name": "batch_rename_nodes"
   },
   "boolean_operation": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Combine two or more shapes into one: UNION merges them, SUBTRACT cuts the later shapes out of the first, INTERSECT keeps the overlap, EXCLUDE keeps everything but the overlap. Node order is meaningful for SUBTRACT and EXCLUDE. All nodes must share a parent. This consumes the shapes and cannot be rolled back by a pipeline — call save_version_checkpoint first if the shapes matter.",
     "inputSchema": {
       "properties": {
@@ -148,7 +128,7 @@
           "type": "string"
         },
         "nodeIds": {
-          "description": "Shape node IDs in colon format e.g. ['4029:12345', '4029:12346']; for SUBTRACT and EXCLUDE the first is the shape the others are cut from",
+          "description": "Shape node IDs; for SUBTRACT and EXCLUDE the first is the shape the others are cut from",
           "items": {
             "type": "string"
           },
@@ -168,17 +148,12 @@
     "name": "boolean_operation"
   },
   "clone_node": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Clone an existing node, optionally repositioning it or placing it in a new parent.",
     "inputSchema": {
       "properties": {
         "nodeId": {
-          "description": "Source node ID in colon format e.g. '4029:12345'",
+          "description": "Source node ID",
           "type": "string"
         },
         "parentId": {
@@ -202,12 +177,7 @@
     "name": "clone_node"
   },
   "combine_as_variants": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Combine two or more COMPONENT nodes into a single COMPONENT_SET, so they become variants of one component. The components must already share a parent. Add VARIANT properties afterwards with manage_component_properties to say what distinguishes them.",
     "inputSchema": {
       "properties": {
@@ -216,7 +186,7 @@
           "type": "string"
         },
         "nodeIds": {
-          "description": "COMPONENT node IDs in colon format e.g. ['4029:12345', '4029:12346']",
+          "description": "COMPONENT node IDs",
           "items": {
             "type": "string"
           },
@@ -231,12 +201,7 @@
     "name": "combine_as_variants"
   },
   "create_component": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Convert an existing FRAME node into a reusable COMPONENT. The frame is replaced in place by the new component.",
     "inputSchema": {
       "properties": {
@@ -245,7 +210,7 @@
           "type": "string"
         },
         "nodeId": {
-          "description": "FRAME node ID to convert, in colon format e.g. '4029:12345'",
+          "description": "FRAME node ID to convert",
           "type": "string"
         }
       },
@@ -257,17 +222,12 @@
     "name": "create_component"
   },
   "create_component_instance": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Create an instance of a Component. If the target is a ComponentSet (Variant Set), it automatically instantiates the default variant. It can instantiate local components or library components (using componentKey).",
     "inputSchema": {
       "properties": {
         "componentId": {
-          "description": "ID of the local component or component set in colon format e.g. 4029:12345. Preferred over componentKey if available.",
+          "description": "ID of the local component or component set. Preferred over componentKey if available.",
           "type": "string"
         },
         "componentKey": {
@@ -293,17 +253,12 @@
     "name": "create_component_instance"
   },
   "create_connector": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Create a Connector line in FigJam. NOTE: Only works in FigJam files!",
     "inputSchema": {
       "properties": {
         "endNodeId": {
-          "description": "Optional. End node ID in colon format e.g. 2:2",
+          "description": "Optional. End node ID",
           "type": "string"
         },
         "endPosition": {
@@ -316,7 +271,7 @@
           "type": "string"
         },
         "startNodeId": {
-          "description": "Optional. Start node ID in colon format e.g. 1:1",
+          "description": "Optional. Start node ID",
           "type": "string"
         },
         "startPosition": {
@@ -331,12 +286,7 @@
     "name": "create_connector"
   },
   "create_node": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Create a shape on the current page or inside a parent. `type` selects which, and each takes its own arguments — FRAME: width, height, fillColor, and the auto-layout arguments. RECTANGLE: width, height, fillColor, cornerRadius. ELLIPSE: width, height, fillColor, startAngle, endAngle, innerRadiusRatio (the last three make arcs and rings). STAR: pointCount, outerRadius, innerRadius, fillColor, cornerRadius. POLYGON: pointCount, radius, fillColor, cornerRadius. LINE: length, rotation, strokeColor, strokeWeight. SECTION: width, height — and no parent, sections live on the page. x, y and name apply to all of them. An argument belonging to a different shape is rejected rather than ignored. Use create_text for text and create_component_instance for components.",
     "inputSchema": {
       "properties": {
@@ -461,7 +411,7 @@
           "type": "number"
         },
         "parentId": {
-          "description": "Parent node ID in colon format. Defaults to current page. Not accepted for SECTION.",
+          "description": "Parent node ID. Defaults to current page. Not accepted for SECTION.",
           "type": "string"
         },
         "pointCount": {
@@ -525,12 +475,7 @@
     "name": "create_node"
   },
   "create_style": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Create a local style. `type` selects what kind, and each kind takes its own arguments — PAINT: color. TEXT: fontSize, fontFamily, fontStyle, textDecoration, lineHeightValue/Unit, letterSpacingValue/Unit. EFFECT: effectType, color, opacity, radius, offsetX, offsetY, spread. GRID: pattern, count, gutterSize, offset, alignment, sectionSize, color, opacity. An argument belonging to a different kind is rejected rather than ignored. Returns the new style's ID; apply it with apply_style_to_node.",
     "inputSchema": {
       "properties": {
@@ -640,12 +585,7 @@
     "name": "create_style"
   },
   "create_text": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Create a new text node on the current page or inside a parent node. The font is loaded automatically before insertion. Returns the created node ID and bounds. Use set_text to update the content of an existing text node.",
     "inputSchema": {
       "properties": {
@@ -670,7 +610,7 @@
           "type": "string"
         },
         "parentId": {
-          "description": "Parent node ID in colon format. Defaults to current page.",
+          "description": "Parent node ID. Defaults to current page.",
           "type": "string"
         },
         "text": {
@@ -694,12 +634,7 @@
     "name": "create_text"
   },
   "create_vector": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Create a vector node from SVG markup — the way to bring in an icon. An SVG with a single path becomes the vector itself; one with several becomes a frame containing them. Returns the created node ID and bounds.",
     "inputSchema": {
       "properties": {
@@ -712,7 +647,7 @@
           "type": "number"
         },
         "parentId": {
-          "description": "Parent node ID to insert into, colon format e.g. '4029:99' (default: current page)",
+          "description": "Parent node ID to insert into (default: current page)",
           "type": "string"
         },
         "svg": {
@@ -740,17 +675,12 @@
     "name": "create_vector"
   },
   "delete_nodes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Delete one or more nodes. This cannot be undone via MCP — use with care.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
-          "description": "Node IDs to delete in colon format e.g. ['4029:12345']",
+          "description": "Node IDs to delete",
           "items": {
             "type": "string"
           },
@@ -765,12 +695,7 @@
     "name": "delete_nodes"
   },
   "delete_style": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Delete a style (paint, text, effect, or grid) by its ID.",
     "inputSchema": {
       "properties": {
@@ -787,17 +712,12 @@
     "name": "delete_style"
   },
   "detach_instance": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Detach one or more component instances, converting them to plain frames. The link to the main component is broken; all visual properties are preserved.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
-          "description": "INSTANCE node IDs in colon format e.g. ['4029:12345']",
+          "description": "INSTANCE node IDs",
           "items": {
             "type": "string"
           },
@@ -812,17 +732,12 @@
     "name": "detach_instance"
   },
   "export_frames_to_pdf": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Export multiple frames as a single multi-page PDF file. Each frame becomes one page in order. Ideal for pitch decks, proposals, and slide exports.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
-          "description": "Ordered list of frame node IDs to export as PDF pages, colon format e.g. '4029:12345'",
+          "description": "Ordered list of frame node IDs to export as PDF pages",
           "items": {
             "type": "string"
           },
@@ -842,13 +757,8 @@
     "name": "export_frames_to_pdf"
   },
   "export_screenshots": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Export nodes as images. An item with an outputPath is written to that file and answered with its metadata; one without comes back as base64 in the response, and both kinds can be in the same call. Omit items entirely to capture the current selection as base64. Prefer an outputPath when you only need the file — base64 is a lot of tokens to carry an image you are going to write to disk anyway.",
+    "annotations": {},
+    "description": "Export nodes as images. An item with an outputPath is written to that file; one without comes back in the response (PNG/JPG as an image block, SVG as markup, PDF as base64). Both kinds can mix in one call. Omit items to capture the current selection. Prefer outputPath when you only need the file.",
     "inputSchema": {
       "properties": {
         "format": {
@@ -864,11 +774,11 @@
                 "type": "string"
               },
               "nodeId": {
-                "description": "Node ID in colon format e.g. '4029:12345'",
+                "description": "Node ID",
                 "type": "string"
               },
               "outputPath": {
-                "description": "File path to write the image to. Omit to get base64 in the response instead.",
+                "description": "File path to write the image to. Omit to get the image in the response.",
                 "type": "string"
               },
               "scale": {
@@ -884,7 +794,7 @@
           "type": "array"
         },
         "scale": {
-          "description": "Default export scale for raster formats (default 2)",
+          "description": "Default export scale for raster formats (default 2 for files, 1 in the response)",
           "type": "number"
         }
       },
@@ -895,10 +805,7 @@
   },
   "export_tokens": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Export all design tokens (variables and paint styles) as JSON or CSS custom properties. Ideal for bridging Figma variables into your codebase.",
     "inputSchema": {
@@ -914,12 +821,7 @@
     "name": "export_tokens"
   },
   "find_replace_text": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Find and replace text content across all TEXT nodes in a subtree. Searches the entire current page if no nodeId is given.",
     "inputSchema": {
       "properties": {
@@ -953,12 +855,7 @@
     "name": "find_replace_text"
   },
   "flatten_nodes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Flatten nodes into a single vector, merging their geometry and discarding the layer structure. Use it to simplify a finished icon. All nodes must share a parent. This consumes the nodes and cannot be rolled back by a pipeline.",
     "inputSchema": {
       "properties": {
@@ -967,7 +864,7 @@
           "type": "string"
         },
         "nodeIds": {
-          "description": "Node IDs to flatten in colon format e.g. ['4029:12345']",
+          "description": "Node IDs to flatten",
           "items": {
             "type": "string"
           },
@@ -983,16 +880,13 @@
   },
   "get_annotations": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Get dev-mode annotations in the current document or scoped to a specific node. Returns annotation objects with label text, measurement type, and the ID of the annotated node. Omit nodeId to retrieve all annotations on the current page.",
     "inputSchema": {
       "properties": {
         "nodeId": {
-          "description": "Optional — scope results to annotations on this node and its descendants, colon format e.g. '4029:12345'",
+          "description": "Optional — scope results to annotations on this node and its descendants",
           "type": "string"
         }
       },
@@ -1003,12 +897,9 @@
   },
   "get_document": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
-    "description": "Get the node tree of the current selection, the current page, or every page in the file — `scope` chooses which. Answers {fileName, scope, currentPage, nodes: [...]}, one entry in `nodes` per root walked. A page or document walk is unbounded by default and can be very large; cap it with depth, maxNodes, or a lower `detail`. A capped result sets `truncated`, and every node whose children were withheld reports `childCount`, so a short answer is never mistaken for a whole one.",
+    "description": "Get the node tree of the current selection, the current page, or every page in the file — `scope` chooses which. Answers {fileName, scope, currentPage, nodes: [...]}, one entry in `nodes` per root walked. A full-detail walk stops after 500 nodes unless maxNodes says otherwise; narrow it with scope, depth, or a lower `detail`. A capped result sets `truncated`, and every node whose children were withheld reports `childCount`, so a short answer is never mistaken for a whole one.",
     "inputSchema": {
       "properties": {
         "dedupe_components": {
@@ -1024,7 +915,7 @@
           "type": "string"
         },
         "maxNodes": {
-          "description": "Stop after this many nodes, walking in tree order so the result is the same every time. Omit for no limit. Applies to the full-detail walk; a `detail` level or dedupe_components trims by shape instead.",
+          "description": "Stop after this many nodes, walking in tree order so the result is the same every time (default 500). Applies to the full-detail walk; a `detail` level or dedupe_components trims by shape instead.",
           "type": "number"
         },
         "scope": {
@@ -1039,10 +930,7 @@
   },
   "get_fonts": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "List all fonts used in the current page, sorted by usage frequency. Useful for understanding typography without scanning all text nodes.",
     "inputSchema": {
@@ -1053,17 +941,12 @@
     "name": "get_fonts"
   },
   "get_image_bytes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Read the original bytes of the images placed on nodes, as base64. This is the asset that was imported, not a re-render — use export_screenshots when you want a picture of how a node looks now. One image used on several nodes is returned once. Nodes with no image fill are reported under `skipped` rather than failing the call.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
-          "description": "Node IDs carrying image fills, in colon format e.g. ['4029:12345']",
+          "description": "Node IDs carrying image fills",
           "items": {
             "type": "string"
           },
@@ -1079,16 +962,13 @@
   },
   "get_instance_overrides": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Get the component properties (variants, booleans, text) of a component instance. Includes their current values and type information. Use this before set_instance_overrides to know what properties exist.",
     "inputSchema": {
       "properties": {
         "nodeId": {
-          "description": "INSTANCE node ID in colon format e.g. 4029:12345",
+          "description": "INSTANCE node ID",
           "type": "string"
         }
       },
@@ -1101,10 +981,7 @@
   },
   "get_local_components": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Get all components defined in the current Figma file.",
     "inputSchema": {
@@ -1116,10 +993,7 @@
   },
   "get_metadata": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Get metadata about the current Figma document: file name, page count, which page is open, and every page in the file with its ID and name. Loads no node trees, so it is the cheap way to find a page ID before working on it.",
     "inputSchema": {
@@ -1131,16 +1005,21 @@
   },
   "get_nodes_info": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
-    "description": "Get full details for one or more nodes by ID in one round-trip. Answers {nodes: [...]}, plus a globalVars.styles map when a fill or stroke was shared by more than one node and collapsed to a ref. An ID that matches nothing is reported under `missing` rather than dropped, so a typo cannot read as a node with no content. Node IDs must use colon format e.g. '4029:12345', never hyphens.",
+    "description": "Get full details for one or more nodes by ID in one round-trip. Answers {nodes: [...]}, plus a globalVars.styles map when a fill or stroke was shared by more than one node and collapsed to a ref. An ID that matches nothing is reported under `missing` rather than dropped, so a typo cannot read as a node with no content. Children are included; a capped result sets `truncated` and each node whose children were withheld reports `childCount`.",
     "inputSchema": {
       "properties": {
+        "depth": {
+          "description": "How many levels below each node to include. 0 returns the nodes alone. Default no limit.",
+          "type": "number"
+        },
+        "maxNodes": {
+          "description": "Stop after this many descendants across all requested nodes (default 500).",
+          "type": "number"
+        },
         "nodeIds": {
-          "description": "List of node IDs in colon format e.g. ['4029:12345', '4029:67890']",
+          "description": "List of node IDs",
           "items": {
             "type": "string"
           },
@@ -1156,16 +1035,13 @@
   },
   "get_reactions": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Get the prototype reactions defined on a node. Returns an array of reaction objects — each has a trigger (e.g. ON_CLICK, ON_HOVER, AFTER_TIMEOUT) and an actions array (navigate to node, open URL, go back, etc.). Use set_reactions to add or replace them, or set_reactions with removeIndices to delete them.",
     "inputSchema": {
       "properties": {
         "nodeId": {
-          "description": "Node ID in colon format e.g. '4029:12345'",
+          "description": "Node ID",
           "type": "string"
         }
       },
@@ -1178,10 +1054,7 @@
   },
   "get_selection": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_document with scope 'selection', or get_nodes_info, to retrieve deeper detail about specific nodes by ID.",
     "inputSchema": {
@@ -1198,10 +1071,7 @@
   },
   "get_styles": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Get all local styles in the document (paint, text, effect, and grid). Returns each style's ID, name, type, and properties. Use the style ID with apply_style_to_node or update_paint_style. For design tokens (variables), use get_variable_defs instead.",
     "inputSchema": {
@@ -1213,10 +1083,7 @@
   },
   "get_variable_defs": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Get all local variable definitions: collections, modes, and values. Variables are Figma's design token system.",
     "inputSchema": {
@@ -1228,10 +1095,7 @@
   },
   "get_viewport": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Get the current Figma viewport: scroll center, zoom level, and visible bounds.",
     "inputSchema": {
@@ -1242,12 +1106,7 @@
     "name": "get_viewport"
   },
   "group_nodes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Group two or more nodes into a GROUP. All nodes must share the same parent.",
     "inputSchema": {
       "properties": {
@@ -1256,7 +1115,7 @@
           "type": "string"
         },
         "nodeIds": {
-          "description": "Node IDs to group (minimum 2), in colon format e.g. ['4029:12345', '4029:12346']",
+          "description": "Node IDs to group (minimum 2)",
           "items": {
             "type": "string"
           },
@@ -1271,12 +1130,7 @@
     "name": "group_nodes"
   },
   "import_image": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Place an image in Figma, from a URL or from base64 data. Prefer imageUrl: base64 pushes the whole file through the plugin connection, which is the expensive half of placing an image. By default the image lands as a new rectangle sized to the image itself; pass nodeId to paint it onto a node that already exists instead — an avatar or a hero slot usually does.",
     "inputSchema": {
       "properties": {
@@ -1357,11 +1211,11 @@
           "type": "string"
         },
         "nodeId": {
-          "description": "Paint the image onto this existing node instead of creating a rectangle, colon format e.g. '4029:12345'",
+          "description": "Paint the image onto this existing node instead of creating a rectangle",
           "type": "string"
         },
         "parentId": {
-          "description": "Parent node ID in colon format. Defaults to current page.",
+          "description": "Parent node ID. Defaults to current page.",
           "type": "string"
         },
         "scaleMode": {
@@ -1387,12 +1241,7 @@
     "name": "import_image"
   },
   "manage_component_properties": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Define what a component exposes to its instances. `add` declares a property, `edit` renames it or changes its default, `delete` removes it, and `bind` points one of the component's own layers at a property so setting it actually does something — a BOOLEAN drives the layer's visibility, a TEXT its characters, an INSTANCE_SWAP its component. Properties may be named without the `#1:2` suffix Figma appends; the current id is resolved for you and returned. Use set_instance_overrides to set the values on an instance.",
     "inputSchema": {
       "properties": {
@@ -1408,7 +1257,7 @@
           "type": "string"
         },
         "nodeId": {
-          "description": "COMPONENT or COMPONENT_SET node ID in colon format e.g. '4029:12345'",
+          "description": "COMPONENT or COMPONENT_SET node ID",
           "type": "string"
         },
         "preferredValues": {
@@ -1440,7 +1289,7 @@
           "type": "string"
         },
         "targetNodeId": {
-          "description": "For bind: the layer inside the component that the property should drive, colon format e.g. '4029:99'",
+          "description": "For bind: the layer inside the component that the property should drive",
           "type": "string"
         },
         "type": {
@@ -1457,12 +1306,7 @@
     "name": "manage_component_properties"
   },
   "manage_page": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Add, delete, rename, or navigate to a page. `action` selects which, and each takes its own arguments — add: name, index. delete: pageId or pageName. rename: pageId or pageName, plus newName. navigate: pageId or pageName. An argument belonging to a different action is rejected rather than ignored. Use get_metadata to list page IDs and names.",
     "inputSchema": {
       "properties": {
@@ -1483,7 +1327,7 @@
           "type": "string"
         },
         "pageId": {
-          "description": "Page node ID in colon format e.g. '0:2' (delete, rename, navigate)",
+          "description": "Page node ID (delete, rename, navigate)",
           "type": "string"
         },
         "pageName": {
@@ -1499,12 +1343,7 @@
     "name": "manage_page"
   },
   "manage_plugin_data": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Read and write your own metadata on a node, stored in the Figma file itself. Use it to remember what a later session cannot re-derive — which source file a component maps to, which nodes were generated and from what, a token binding. Values are strings; encode anything richer as JSON. Stored as shared plugin data, so it travels with the file and any teammate can read it.",
     "inputSchema": {
       "properties": {
@@ -1521,7 +1360,7 @@
           "type": "string"
         },
         "nodeId": {
-          "description": "Node ID in colon format e.g. '4029:12345'",
+          "description": "Node ID",
           "type": "string"
         },
         "value": {
@@ -1538,12 +1377,7 @@
     "name": "manage_plugin_data"
   },
   "manage_variable": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Create, change, delete and apply variables — Figma's design tokens. `action` selects what, and each takes its own arguments — create_collection: name, initialModeName. add_mode: collectionId, modeName. create: name, collectionId, type, value. set_value: variableId, modeId, value. delete: variableId, or collectionId to remove a whole collection and every variable in it. bind: nodeId, variableId, field — points a node property at the variable so its value drives the property. An argument belonging to a different action is rejected rather than ignored. Use get_variable_defs to find collection, mode and variable IDs. NOTE — the Figma free plan limits each collection to 1 mode, so add_mode fails there with 'Limited to 1 modes only'. Do not retry: keep the single default mode and prefix each variable name with its mode instead, e.g. 'light/color-bg' and 'dark/color-bg' in one collection. Tell the user that native multi-mode variables need a paid plan (Professional or above).",
     "inputSchema": {
       "properties": {
@@ -1576,7 +1410,7 @@
           "type": "string"
         },
         "nodeId": {
-          "description": "bind: the node whose property the variable should drive, in colon format e.g. '4029:12345'",
+          "description": "bind: the node whose property the variable should drive",
           "type": "string"
         },
         "type": {
@@ -1600,17 +1434,12 @@
     "name": "manage_variable"
   },
   "outline_stroke": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Convert each node's stroke into a filled vector, so the outline can be edited as a shape. Nodes with no visible stroke are reported under `skipped` rather than failing the call.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
-          "description": "Node IDs whose strokes to outline, in colon format e.g. ['4029:12345']",
+          "description": "Node IDs whose strokes to outline",
           "items": {
             "type": "string"
           },
@@ -1625,24 +1454,19 @@
     "name": "outline_stroke"
   },
   "reparent_nodes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Move one or more nodes to a different parent frame, group, or section.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
-          "description": "Node IDs to move in colon format e.g. ['4029:12345']",
+          "description": "Node IDs to move",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
         "parentId": {
-          "description": "Target parent node ID in colon format e.g. '4029:99'",
+          "description": "Target parent node ID",
           "type": "string"
         }
       },
@@ -1655,12 +1479,7 @@
     "name": "reparent_nodes"
   },
   "save_version_checkpoint": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Save a named version in the Figma file's version history. Use this before a large or risky change — batch_execute_pipeline's rollback lives only in the running plugin, so a named version is the only way back once the session ends. Figma design files only; FigJam and Slides have no version history.",
     "inputSchema": {
       "properties": {
@@ -1682,10 +1501,7 @@
   },
   "search_nodes": {
     "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
+      "readOnlyHint": true
     },
     "description": "Find nodes by name substring, by type, or both — omit query to take every node of the given types, omit types to search by name alone. Searches the current page by default; pass scope 'document' to search every page, or nodeId to search one subtree. Pass includeText to read the content of the TEXT nodes it finds, and includeHidden false to skip hidden nodes. The result reports `truncated` when the limit cut the answer short — raise `limit` when you mean to sweep a whole subtree, as it defaults to 50.",
     "inputSchema": {
@@ -1703,7 +1519,7 @@
           "type": "number"
         },
         "nodeId": {
-          "description": "Scope search to this subtree, colon format e.g. '4029:12345'. Overrides scope.",
+          "description": "Scope search to this subtree. Overrides scope.",
           "type": "string"
         },
         "query": {
@@ -1728,12 +1544,7 @@
     "name": "search_nodes"
   },
   "set_annotations": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Set Dev Mode Annotations on one or more nodes. Pass an empty annotations array to clear the ones a node already has. Every node gets the same annotations, and each reports its own outcome. Note: requires a paid Dev Mode seat.",
     "inputSchema": {
       "properties": {
@@ -1742,7 +1553,7 @@
           "type": "array"
         },
         "nodeIds": {
-          "description": "Array of node IDs in colon format e.g. ['4029:12345']",
+          "description": "Array of node IDs",
           "items": {
             "type": "string"
           },
@@ -1758,12 +1569,7 @@
     "name": "set_annotations"
   },
   "set_auto_layout": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Set or update auto-layout (flex) properties on frames, components, component sets, or instances. Covers the frame's own layout (direction, padding, gap, alignment) and how it sizes itself — use layoutSizingHorizontal/layoutSizingVertical for HUG and FILL, with minWidth/maxWidth/minHeight/maxHeight to bound them. layoutPositioning, layoutAlign, and layoutGrow describe how a node sits inside its parent's auto layout instead — pass several node IDs to put the same sizing on a whole row of siblings in one call. Each node reports its own outcome, so a sibling that cannot take the change does not stop the others.",
     "inputSchema": {
       "properties": {
@@ -1836,7 +1642,7 @@
           "type": "number"
         },
         "nodeIds": {
-          "description": "Frame, component, component set, or instance node IDs in colon format e.g. ['4029:12345', '4029:67890']",
+          "description": "Frame, component, component set, or instance node IDs",
           "items": {
             "type": "string"
           },
@@ -1879,12 +1685,7 @@
     "name": "set_auto_layout"
   },
   "set_codegen_result": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Attach generated code to a node so it appears in Figma's Dev Mode Code panel. This is how code you write with the repository in front of you reaches the designers: it is stored in the file, so every teammate's Dev Mode shows it, not just this machine. Dev Mode looks at the node itself, then at the component an instance came from, then at its ancestors — so putting the code on a component covers every instance of it. Pass an empty blocks array to remove what is stored.",
     "inputSchema": {
       "properties": {
@@ -1913,7 +1714,7 @@
           "type": "array"
         },
         "nodeId": {
-          "description": "Node ID to attach the code to, colon format e.g. '4029:12345'. A COMPONENT or COMPONENT_SET covers all its instances.",
+          "description": "Node ID to attach the code to. A COMPONENT or COMPONENT_SET covers all its instances.",
           "type": "string"
         }
       },
@@ -1926,12 +1727,7 @@
     "name": "set_codegen_result"
   },
   "set_effects": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Apply one or more effects directly to a node. Replaces all existing effects. Pass an empty array to clear all effects. The shape matches what get_nodes_info reports under styles.effects, so effects can be read off one node and written to another unchanged.",
     "inputSchema": {
       "properties": {
@@ -1943,7 +1739,7 @@
           "type": "array"
         },
         "nodeId": {
-          "description": "Target node ID in colon format e.g. 4029:12345",
+          "description": "Target node ID",
           "type": "string"
         }
       },
@@ -1956,17 +1752,12 @@
     "name": "set_effects"
   },
   "set_export_settings": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Set the export presets on nodes — the entries a designer sees under Export in the right-hand panel, and what a Figma export or a handoff pipeline uses. This changes the document; it does not export anything. Use export_screenshots to actually produce a file.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
-          "description": "Node IDs in colon format e.g. ['4029:12345']",
+          "description": "Node IDs",
           "items": {
             "type": "string"
           },
@@ -2033,17 +1824,12 @@
     "name": "set_export_settings"
   },
   "set_instance_overrides": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Update Component Properties (variants, booleans, text) on a component instance. Will fail-fast if property name or type is invalid.",
     "inputSchema": {
       "properties": {
         "nodeId": {
-          "description": "INSTANCE node ID in colon format e.g. 4029:12345",
+          "description": "INSTANCE node ID",
           "type": "string"
         },
         "properties": {
@@ -2061,12 +1847,7 @@
     "name": "set_instance_overrides"
   },
   "set_layout_grids": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Set the layout grids drawn over a frame — columns, rows, or a square grid. These are the guides a layout is built against, distinct from a saved grid style. Pass an empty grids array to remove the grids a frame already has.",
     "inputSchema": {
       "properties": {
@@ -2131,7 +1912,7 @@
           "type": "string"
         },
         "nodeIds": {
-          "description": "Frame, component, or section node IDs in colon format e.g. ['4029:12345']",
+          "description": "Frame, component, or section node IDs",
           "items": {
             "type": "string"
           },
@@ -2147,12 +1928,7 @@
     "name": "set_layout_grids"
   },
   "set_node_properties": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Set one or more properties on nodes in a single call: position, size, corner radius, visibility, lock state, opacity, rotation, blend mode, constraints, z-order, masking, and stroke geometry. Every property is optional and independent — supply only the ones you want to change. Each node reports which properties were applied; a property the node type does not support is reported against that property alone, leaving the others applied. Moving and resizing in one call is one undo entry, not two.",
     "inputSchema": {
       "properties": {
@@ -2201,7 +1977,7 @@
           "type": "string"
         },
         "nodeIds": {
-          "description": "Node IDs in colon format e.g. ['4029:12345']",
+          "description": "Node IDs",
           "items": {
             "type": "string"
           },
@@ -2272,12 +2048,7 @@
     "name": "set_node_properties"
   },
   "set_paint": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Paint a node's fill or stroke. `type` selects the kind of paint and each takes its own arguments — SOLID: color, opacity. GRADIENT_LINEAR / GRADIENT_RADIAL: stops, geometry, opacity. `target` chooses fill (default) or stroke; gradients can only target fill. An argument belonging to a different kind is rejected rather than ignored.",
     "inputSchema": {
       "properties": {
@@ -2293,7 +2064,7 @@
           "type": "string"
         },
         "nodeId": {
-          "description": "Node ID in colon format e.g. '4029:12345'",
+          "description": "Node ID",
           "type": "string"
         },
         "opacity": {
@@ -2325,13 +2096,8 @@
     "name": "set_paint"
   },
   "set_reactions": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
-    "description": "Set or remove prototype reactions on a node. Use mode \"replace\" (default) to overwrite all reactions, or \"append\" to add to existing ones.\n\nTo remove instead, pass removeIndices rather than reactions: a zero-based list of the reactions to drop (get_reactions first to see the indices), or an empty array to remove them all.\n\nSupported triggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT, MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN\nSupported action types: NODE (navigation), BACK, CLOSE, URL\n  NODE navigation values: NAVIGATE, OVERLAY, SCROLL_TO, SWAP, CHANGE_TO\nTransition types: DISSOLVE, SMART_ANIMATE, MOVE_IN, MOVE_OUT, PUSH, SLIDE_IN, SLIDE_OUT\n  DISSOLVE / SMART_ANIMATE: {\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}}\n  Directional (PUSH, MOVE_IN, MOVE_OUT, SLIDE_IN, SLIDE_OUT): also require \"direction\" (LEFT|RIGHT|TOP|BOTTOM) and \"matchLayers\" (bool):\n    {\"type\":\"PUSH\",\"direction\":\"LEFT\",\"matchLayers\":false,\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}}\n\nEach reaction has a \"trigger\" and an \"actions\" array (plural). Each action in the array is an Action object.\n\nExample — on-click navigate with dissolve:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}\n\nExample — on-click navigate with push (directional transition):\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"PUSH\",\"direction\":\"LEFT\",\"matchLayers\":false,\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}\n\nExample — open URL on hover:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_HOVER\"},\"actions\":[{\"type\":\"URL\",\"url\":\"https://example.com\"}]}]}\n\nExample — auto-advance after 3 seconds:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"AFTER_TIMEOUT\",\"timeout\":3000},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:4\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}\n\nExample — go back on click:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"BACK\"}]}]}",
+    "annotations": {},
+    "description": "Set or remove prototype reactions on a node. mode \"replace\" (default) overwrites all reactions, \"append\" adds to them. To remove, pass removeIndices instead of reactions: zero-based indices from get_reactions, or [] to remove all.\n\nEach reaction is {\"trigger\":{...},\"actions\":[...]} (\"actions\" is plural).\nTriggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT (+ \"timeout\" in ms), MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN\nAction types: NODE (+ destinationId, navigation: NAVIGATE|OVERLAY|SCROLL_TO|SWAP|CHANGE_TO, transition, preserveScrollPosition), BACK, CLOSE, URL (+ url)\nTransitions: DISSOLVE, SMART_ANIMATE: {\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}}. PUSH, MOVE_IN, MOVE_OUT, SLIDE_IN, SLIDE_OUT also require \"direction\" (LEFT|RIGHT|TOP|BOTTOM) and \"matchLayers\" (bool).\n\nExample — navigate on click:\n{\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"PUSH\",\"direction\":\"LEFT\",\"matchLayers\":false,\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}\nExample — back on click: {\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"BACK\"}]}]}",
     "inputSchema": {
       "properties": {
         "mode": {
@@ -2339,7 +2105,7 @@
           "type": "string"
         },
         "nodeId": {
-          "description": "Node ID in colon format e.g. '4029:12345'",
+          "description": "Node ID",
           "type": "string"
         },
         "reactions": {
@@ -2365,17 +2131,12 @@
     "name": "set_reactions"
   },
   "set_selection": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Select nodes in Figma and scroll the viewport to them, switching pages if needed. Use this to show the user what you just created or changed, or to point at the nodes a question is about. Pass no node IDs to clear the selection. All nodes must be on the same page — a Figma selection cannot span pages.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
-          "description": "Node IDs to select in colon format e.g. ['4029:12345']; omit or pass an empty list to clear the selection",
+          "description": "Node IDs to select; omit or pass an empty list to clear the selection",
           "items": {
             "type": "string"
           },
@@ -2396,12 +2157,7 @@
     "name": "set_selection"
   },
   "set_text": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Update the text content of an existing TEXT node, and the settings that apply to the node as a whole — wrapping, truncation, alignment, and paragraph spacing. For styling that varies across the text (a bold word, a link, a bulleted list), use set_text_ranges.",
     "inputSchema": {
       "properties": {
@@ -2410,7 +2166,7 @@
           "type": "number"
         },
         "nodeId": {
-          "description": "TEXT node ID in colon format e.g. '4029:12345'",
+          "description": "TEXT node ID",
           "type": "string"
         },
         "paragraphIndent": {
@@ -2450,17 +2206,12 @@
     "name": "set_text"
   },
   "set_text_ranges": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Style parts of a TEXT node independently: a bold word, a coloured phrase, a hyperlink, a bulleted list. Each range is a half-open character span [start, end) over the node's existing text, so call set_text first to put the text there. Ranges may overlap; they are applied in text order, so a later one wins where they meet. Omit a property to leave it as it is.",
     "inputSchema": {
       "properties": {
         "nodeId": {
-          "description": "TEXT node ID in colon format e.g. '4029:12345'",
+          "description": "TEXT node ID",
           "type": "string"
         },
         "ranges": {
@@ -2572,21 +2323,16 @@
     "name": "set_text_ranges"
   },
   "swap_component": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Swap the main component of an existing INSTANCE node, replacing it with a different component while keeping position and size.",
     "inputSchema": {
       "properties": {
         "componentId": {
-          "description": "Target COMPONENT node ID in colon format (from get_local_components)",
+          "description": "Target COMPONENT node ID (from get_local_components)",
           "type": "string"
         },
         "nodeId": {
-          "description": "INSTANCE node ID in colon format e.g. 4029:12345",
+          "description": "INSTANCE node ID",
           "type": "string"
         }
       },
@@ -2599,17 +2345,12 @@
     "name": "swap_component"
   },
   "ungroup_nodes": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Ungroup one or more GROUP nodes, moving their children to the parent and removing the group.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
-          "description": "GROUP node IDs in colon format e.g. ['4029:12345']",
+          "description": "GROUP node IDs",
           "items": {
             "type": "string"
           },
@@ -2624,12 +2365,7 @@
     "name": "ungroup_nodes"
   },
   "update_paint_style": {
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
-      "openWorldHint": true
-    },
+    "annotations": {},
     "description": "Update an existing paint style's name, color, or description. Only paint styles support in-place updates — to modify text, effect, or grid styles, use delete_style and recreate them.",
     "inputSchema": {
       "properties": {

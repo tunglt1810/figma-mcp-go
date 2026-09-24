@@ -13,7 +13,7 @@ var writeVectorSpecs = []toolSpec{
 		Desc:       "Combine two or more shapes into one: UNION merges them, SUBTRACT cuts the later shapes out of the first, INTERSECT keeps the overlap, EXCLUDE keeps everything but the overlap. Node order is meaningful for SUBTRACT and EXCLUDE. All nodes must share a parent. This consumes the shapes and cannot be rolled back by a pipeline — call save_version_checkpoint first if the shapes matter.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Shape node IDs in colon format e.g. ['4029:12345', '4029:12346']; for SUBTRACT and EXCLUDE the first is the shape the others are cut from",
+		NodeIDDesc: "Shape node IDs; for SUBTRACT and EXCLUDE the first is the shape the others are cut from",
 		Params: []paramSpec{
 			{Name: "operation", Kind: kindString, Required: true,
 				Enum: []string{"UNION", "SUBTRACT", "INTERSECT", "EXCLUDE"},
@@ -26,7 +26,7 @@ var writeVectorSpecs = []toolSpec{
 		Desc:       "Flatten nodes into a single vector, merging their geometry and discarding the layer structure. Use it to simplify a finished icon. All nodes must share a parent. This consumes the nodes and cannot be rolled back by a pipeline.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs to flatten in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "Node IDs to flatten",
 		Params: []paramSpec{
 			{Name: "name", Kind: kindString, Desc: "Name for the resulting vector"},
 		},
@@ -36,7 +36,7 @@ var writeVectorSpecs = []toolSpec{
 		Desc:       "Convert each node's stroke into a filled vector, so the outline can be edited as a shape. Nodes with no visible stroke are reported under `skipped` rather than failing the call.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Node IDs whose strokes to outline, in colon format e.g. ['4029:12345']",
+		NodeIDDesc: "Node IDs whose strokes to outline",
 	},
 	{
 		Name: "create_vector",
@@ -50,7 +50,7 @@ var writeVectorSpecs = []toolSpec{
 			paramSpec{Name: "fillColor", Kind: kindString, IsHexColor: true,
 				Desc: "Override the fill colour as hex e.g. '#FF5733'"},
 			paramSpec{Name: "parentId", Kind: kindString, IsNodeID: true,
-				Desc: "Parent node ID to insert into, colon format e.g. '4029:99' (default: current page)"},
+				Desc: "Parent node ID to insert into (default: current page)"},
 		)...),
 		Validate: func(_ []string, params map[string]any) string {
 			// Figma's resize takes both dimensions; one alone would silently do

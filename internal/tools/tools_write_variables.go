@@ -28,7 +28,7 @@ var writeVariableSpecs = []toolSpec{
 			"Do not retry: keep the single default mode and prefix each variable name with its mode instead, e.g. 'light/color-bg' and 'dark/color-bg' in one collection. " +
 			"Tell the user that native multi-mode variables need a paid plan (Professional or above).",
 		NodeIDs:    nodeIDsSingle,
-		NodeIDDesc: "bind: the node whose property the variable should drive, in colon format e.g. '4029:12345'",
+		NodeIDDesc: "bind: the node whose property the variable should drive",
 		Params: []paramSpec{
 			{Name: "action", Kind: kindString, Required: true, Enum: variantKinds(variableVariants),
 				Desc: "What to do: create_collection, add_mode, create, set_value, delete, or bind"},

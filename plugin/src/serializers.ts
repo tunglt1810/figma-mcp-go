@@ -432,12 +432,18 @@ export const serializeText = async (node: any, base: any) => {
           : undefined,
       lineHeight: serializeLineHeight(node.lineHeight),
       letterSpacing: serializeLetterSpacing(node.letterSpacing),
+      // LEFT and TOP are Figma's defaults; reporting them on every text node
+      // in a tree costs tokens and says nothing.
       textAlignHorizontal: isMixed(node.textAlignHorizontal)
         ? "mixed"
-        : node.textAlignHorizontal,
+        : node.textAlignHorizontal !== "LEFT"
+          ? node.textAlignHorizontal
+          : undefined,
       textAlignVertical: isMixed(node.textAlignVertical)
         ? "mixed"
-        : node.textAlignVertical,
+        : node.textAlignVertical !== "TOP"
+          ? node.textAlignVertical
+          : undefined,
     }),
   });
 };

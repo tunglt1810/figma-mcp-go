@@ -34,7 +34,7 @@ var writePageSpecs = []toolSpec{
 			{Name: "action", Kind: kindString, Required: true, Enum: variantKinds(pageVariants),
 				Desc: "What to do: add, delete, rename, or navigate"},
 			{Name: "pageId", Kind: kindString,
-				Desc: "Page node ID in colon format e.g. '0:2' (delete, rename, navigate)"},
+				Desc: "Page node ID (delete, rename, navigate)"},
 			{Name: "pageName", Kind: kindString,
 				Desc: "Exact page name, an alternative to pageId (delete, rename, navigate)"},
 			{Name: "name", Kind: kindString, Desc: "add: name for the new page (default 'Page')"},

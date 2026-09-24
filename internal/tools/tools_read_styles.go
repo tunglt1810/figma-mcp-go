@@ -19,7 +19,7 @@ var readStyleSpecs = []toolSpec{
 		// The plugin reads this from params, not from the nodeIDs field.
 		Params: []paramSpec{
 			{Name: "nodeId", Kind: kindString, IsNodeID: true,
-				Desc: "Optional — scope results to annotations on this node and its descendants, colon format e.g. '4029:12345'"},
+				Desc: "Optional — scope results to annotations on this node and its descendants"},
 		},
 	},
 	{

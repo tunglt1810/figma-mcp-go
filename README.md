@@ -186,6 +186,23 @@ through `npx`, but the Figma plugin is installed by hand, so the two can drift
 apart. A plugin older than the server will reject commands it does not know with
 `Unknown request type`.
 
+### Token usage (unreleased)
+
+Changes that cut how much context the server costs a model:
+
+- `export_screenshots` returns an in-memory PNG or JPG as an MCP image block
+  and an SVG as its markup, instead of base64 inside the JSON summary. The
+  summary's result points at its block with `contentIndex`. PDF stays base64.
+  In-memory exports default to scale 1; files keep scale 2.
+- `get_document` stops after 500 nodes unless `maxNodes` says otherwise, and
+  scope `selection` now really stops at 2 levels by default.
+- `get_nodes_info` takes `depth` and `maxNodes` (default 500) and reports
+  `truncated` when it stopped short.
+- Text nodes omit `textAlignHorizontal: LEFT` and `textAlignVertical: TOP`.
+- `tools/list` is about 11% smaller: tool annotations only state what differs
+  from the MCP defaults (read tools now carry `readOnlyHint`), and shorter
+  descriptions.
+
 ### Behaviour changes in 0.3.0
 
 No tool changed its name or its arguments. Five things behave differently:
@@ -226,7 +243,7 @@ No capability was lost — everything possible before is still one call:
 | `set_corner_radius` | `set_node_properties({ nodeIds, cornerRadius })` |
 | `remove_reactions` | `set_reactions({ nodeId, removeIndices })` |
 | `get_design_context` | `get_document({ scope: "selection", detail, dedupe_components })` |
-| `get_screenshot` / `save_screenshots` | `export_screenshots({ items })` — an item with an `outputPath` is written to disk, one without comes back as base64 |
+| `get_screenshot` / `save_screenshots` | `export_screenshots({ items })` — an item with an `outputPath` is written to disk, one without comes back in the response |
 | `create_variable_collection` | `manage_variable({ action: "create_collection", name })` |
 | `add_variable_mode` | `manage_variable({ action: "add_mode", collectionId, modeName })` |
 | `create_variable` | `manage_variable({ action: "create", name, collectionId, type, value })` |
@@ -403,7 +420,7 @@ because `type` names the kind of style. Gradients can only target a fill;
 | `get_document`        | Node tree of the selection, the current page, or the whole file — `scope` chooses; `detail`, `depth`, `maxNodes` and `dedupe_components` cap it |
 | `get_metadata`        | File name, page count, current page, and every page with its ID     |
 | `get_selection`       | Currently selected nodes, or the set pinned in the panel with `source: "pinned"` |
-| `get_nodes_info`      | One or more nodes by ID; an ID that matches nothing is reported under `missing` |
+| `get_nodes_info`      | One or more nodes by ID; an ID that matches nothing is reported under `missing`; `depth` and `maxNodes` cap the subtree |
 | `search_nodes`        | Find nodes by name substring and/or type — current page, a subtree, or the whole document; `includeText` reads the copy, `includeHidden: false` skips hidden nodes |
 | `get_viewport`        | Current viewport center, zoom, and visible bounds                   |
 
