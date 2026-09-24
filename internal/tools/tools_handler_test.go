@@ -61,7 +61,16 @@ func callTool(t *testing.T, s *server.MCPServer, name string, args map[string]an
 // toolResult is the part of a tools/call response a test asserts on.
 type toolResult struct {
 	IsError bool
-	Text    string
+	Text    string // every block's text, joined
+	Blocks  []contentBlock
+}
+
+// contentBlock is one entry of a tool result's content, text or image.
+type contentBlock struct {
+	Type     string `json:"type"`
+	Text     string `json:"text"`
+	Data     string `json:"data"`
+	MimeType string `json:"mimeType"`
 }
 
 // callToolResult dispatches a tool call and returns the parsed result, so a
@@ -85,10 +94,8 @@ func callToolResult(t *testing.T, s *server.MCPServer, name string, args map[str
 	}
 	var envelope struct {
 		Result struct {
-			IsError bool `json:"isError"`
-			Content []struct {
-				Text string `json:"text"`
-			} `json:"content"`
+			IsError bool           `json:"isError"`
+			Content []contentBlock `json:"content"`
 		} `json:"result"`
 	}
 	if err := json.Unmarshal(b, &envelope); err != nil {
@@ -98,7 +105,7 @@ func callToolResult(t *testing.T, s *server.MCPServer, name string, args map[str
 	for _, c := range envelope.Result.Content {
 		texts = append(texts, c.Text)
 	}
-	return toolResult{IsError: envelope.Result.IsError, Text: strings.Join(texts, "\n")}
+	return toolResult{IsError: envelope.Result.IsError, Text: strings.Join(texts, "\n"), Blocks: envelope.Result.Content}
 }
 
 // ── Registration smoke tests ──────────────────────────────────────────────────

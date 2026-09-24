@@ -180,9 +180,10 @@ func TestExportScreenshots_BothDestinationsInOneCall(t *testing.T) {
 			OutputPath   string `json:"outputPath"`
 			Base64       string `json:"base64"`
 			BytesWritten int    `json:"bytesWritten"`
+			ContentIndex int    `json:"contentIndex"`
 		} `json:"results"`
 	}
-	if err := json.Unmarshal([]byte(result.Text), &answer); err != nil {
+	if err := json.Unmarshal([]byte(result.Blocks[0].Text), &answer); err != nil {
 		t.Fatalf("unmarshal result: %v", err)
 	}
 	if answer.Failed != 0 || answer.Succeeded != 2 {
@@ -198,8 +199,16 @@ func TestExportScreenshots_BothDestinationsInOneCall(t *testing.T) {
 	if written.Base64 != "" {
 		t.Error("an item written to disk should not carry base64 as well")
 	}
-	if inMemory.Base64 != "aGVsbG8=" {
-		t.Errorf("the item without an outputPath should carry base64, got %+v", inMemory)
+	// The in-memory picture travels as an image block, not as base64 text
+	// inside the summary, which a model would have to read token by token.
+	if inMemory.Base64 != "" {
+		t.Errorf("an in-memory PNG should not be base64 in the summary, got %+v", inMemory)
+	}
+	if len(result.Blocks) != 2 || inMemory.ContentIndex != 1 {
+		t.Fatalf("want the summary plus one image block at index 1, got %d blocks, contentIndex %d", len(result.Blocks), inMemory.ContentIndex)
+	}
+	if img := result.Blocks[1]; img.Type != "image" || img.Data != "aGVsbG8=" || img.MimeType != "image/png" {
+		t.Errorf("want a PNG image block carrying the export, got %+v", img)
 	}
 	if inMemory.OutputPath != "" {
 		t.Errorf("an in-memory item should have no outputPath, got %q", inMemory.OutputPath)
@@ -207,6 +216,28 @@ func TestExportScreenshots_BothDestinationsInOneCall(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(dir, "out", "card.png")); err != nil {
 		t.Errorf("expected the file on disk: %v", err)
+	}
+}
+
+// SVG is markup, so it comes back as a text block of that markup rather than as
+// base64 of it.
+func TestExportScreenshots_SVGComesBackAsMarkup(t *testing.T) {
+	s, fake := newTestServer(t)
+	fake.data = map[string]any{
+		"exports": []any{map[string]any{"nodeId": "1:1", "base64": "PHN2Zy8+"}}, // <svg/>
+	}
+
+	result := callToolResult(t, s, "export_screenshots", map[string]any{
+		"items": []any{map[string]any{"nodeId": "1:1", "format": "SVG"}},
+	})
+	if result.IsError {
+		t.Fatalf("unexpected error result: %s", result.Text)
+	}
+	if len(result.Blocks) != 2 || result.Blocks[1].Type != "text" || result.Blocks[1].Text != "<svg/>" {
+		t.Fatalf("want a text block with the SVG markup, got %+v", result.Blocks)
+	}
+	if strings.Contains(result.Blocks[0].Text, "PHN2Zy8+") {
+		t.Error("the summary should not repeat the SVG as base64")
 	}
 }
 

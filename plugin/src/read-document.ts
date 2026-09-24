@@ -4,6 +4,11 @@ import { throwIfCancelled } from "./cancellation";
 import { getPinned } from "./pinned";
 import { reportProgress, stepProgress } from "./progress";
 
+// How many nodes get_document serializes when the caller sets no maxNodes. A
+// full-detail node costs on the order of a hundred tokens, so this keeps an
+// unscoped walk well inside a model's context while still covering a screen.
+export const DEFAULT_MAX_NODES = 500;
+
 export const readDocumentHandlers: HandlerMap = {
 
   "get_selection": async (request) => {
@@ -79,7 +84,14 @@ export const readDocumentHandlers: HandlerMap = {
       if (!node) { missing.push(id); return; }
       if (node.type !== "DOCUMENT") found.push(node);
     });
-    const serialized = await Promise.all(found.map((n) => serializeNode(n)));
+    // One budget across every requested node, as get_document shares one across
+    // pages: asking for a top-level frame by id otherwise returned its whole
+    // subtree with no ceiling. Sequential, so the budget is spent in the order
+    // the ids were given and the same call always answers the same way.
+    const p = request.params || {};
+    const budget = makeBudget(p.maxNodes ?? DEFAULT_MAX_NODES, p.depth);
+    const serialized: any[] = [];
+    for (const n of found) serialized.push(await serializeNode(n, budget, 0));
     // Fetching several nodes at once is exactly when the same fill repeats, so
     // the dedupe get_document has always done applies here too.
     //
@@ -89,6 +101,7 @@ export const readDocumentHandlers: HandlerMap = {
     const { tree, globalVars } = deduplicateStyles({ children: serialized });
     const data: any = { nodes: tree.children };
     if (globalVars) data.globalVars = globalVars;
+    if (budget.truncated) data.truncated = true;
     if (missing.length > 0) data.missing = missing;
     return { type: request.type, requestId: request.requestId, data };
   },
@@ -109,7 +122,15 @@ export const readDocumentHandlers: HandlerMap = {
     // looking at" scope. A page or document walk stays unbounded, which is what
     // get_document has always meant.
     const depth = p.depth != null ? Number(p.depth) : scope === "selection" ? 2 : Infinity;
-    const budget = makeBudget(p.maxNodes, p.depth);
+    // The budget carries the selection's default depth too: without it the plain
+    // walk below, which only reads the budget, returned the whole subtree for a
+    // scope that promises two levels. maxNodes defaults to a cap for the same
+    // reason a result says `truncated` — an unbounded page walk can run to
+    // hundreds of thousands of tokens, which no caller wants by accident.
+    const budget = makeBudget(
+      p.maxNodes ?? DEFAULT_MAX_NODES,
+      p.depth ?? (scope === "selection" ? 2 : undefined),
+    );
     const componentDefs = new Map<string, any>();
 
     const serializeForDetail = async (n: any) => {

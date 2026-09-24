@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "bun:test";
-import { readDocumentHandlers } from "./read-document";
+import { DEFAULT_MAX_NODES, readDocumentHandlers } from "./read-document";
 import { clearPinned, setPinned } from "./pinned";
 
 // ── Figma mock ────────────────────────────────────────────────────────────────
@@ -283,6 +283,31 @@ describe("get_document", () => {
     expect(result.data.nodes[0].children[0].id).toBe("1:1");
   });
 
+  it("walks a selection two levels deep by default", async () => {
+    const leaf = makeNode("1:12", "Leaf", "RECTANGLE");
+    const inner = makeNode("1:11", "Inner", "FRAME", [leaf]);
+    const outer = makeNode("1:10", "Outer", "FRAME", [inner]);
+    const top = makeNode("1:9", "Top", "FRAME", [outer]);
+    currentPage.selection = [top];
+    const result = await getDocument({ scope: "selection" });
+    const reachedOuter = result.data.nodes[0].children[0];
+    const reachedInner = reachedOuter.children[0];
+    expect(reachedInner.id).toBe("1:11");
+    expect(reachedInner.children).toBeUndefined();
+    expect(reachedInner.childCount).toBe(1);
+    expect(result.data.truncated).toBe(true);
+  });
+
+  it("caps an unscoped walk at DEFAULT_MAX_NODES", async () => {
+    const many = Array.from({ length: DEFAULT_MAX_NODES + 5 }, (_, i) =>
+      makeNode(`7:${i}`, `N${i}`, "RECTANGLE"),
+    );
+    currentPage.children.push(...many);
+    const result = await getDocument();
+    expect(result.data.truncated).toBe(true);
+    expect(result.data.nodes[0].children.length).toBe(DEFAULT_MAX_NODES);
+  });
+
   it("stops at the requested depth and says how many children it withheld", async () => {
     const result = await getDocument({ detail: "minimal", depth: 0 });
     expect(result.data.nodes[0].children).toBeUndefined();
@@ -316,6 +341,18 @@ describe("get_nodes_info", () => {
     });
     expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:1"]);
     expect(result.data.missing).toEqual(["9:9"]);
+  });
+
+  it("honours depth and says what it withheld", async () => {
+    const result = await readDocumentHandlers["get_nodes_info"]({
+      type: "get_nodes_info",
+      requestId: "r8",
+      params: { depth: 0 },
+      nodeIds: ["1:0"],
+    });
+    expect(result.data.nodes[0].children).toBeUndefined();
+    expect(result.data.nodes[0].childCount).toBe(2);
+    expect(result.data.truncated).toBe(true);
   });
 
   it("says nothing about missing when every id resolved", async () => {

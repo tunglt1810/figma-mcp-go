@@ -83,9 +83,19 @@ type exportResult struct {
 	Width        float64 `json:"width,omitzero"`
 	Height       float64 `json:"height,omitzero"`
 	BytesWritten int     `json:"bytesWritten,omitzero"`
-	Success      bool    `json:"success"`
-	Error        string  `json:"error,omitempty"`
+	// ContentIndex points at the content block carrying this item's picture:
+	// an image block for PNG and JPG, a text block of markup for SVG. Zero
+	// means none, because block zero is always this summary.
+	ContentIndex int    `json:"contentIndex,omitzero"`
+	Success      bool   `json:"success"`
+	Error        string `json:"error,omitempty"`
 }
+
+// inMemoryScale is the default scale of a picture handed back in the response
+// rather than written to disk. A model looking at a design gains little from
+// retina pixels and pays for every one of them, so it gets 1x unless it asks;
+// a file keeps the plugin's 2x default, since that is usually an asset.
+const inMemoryScale = 1
 
 func executeExportScreenshots(ctx context.Context, sender Sender, params map[string]any) (*mcp.CallToolResult, error) {
 	rawItems, _ := params["items"].([]any)
@@ -126,6 +136,8 @@ func executeExportScreenshots(ctx context.Context, sender Sender, params map[str
 		}
 	}
 
+	blocks := inlineExports(results)
+
 	out, err := json.Marshal(map[string]any{
 		"total":     len(results),
 		"succeeded": succeeded,
@@ -136,7 +148,42 @@ func executeExportScreenshots(ctx context.Context, sender Sender, params map[str
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
 	}
-	return mcp.NewToolResultText(string(out)), nil
+	return &mcp.CallToolResult{Content: append([]mcp.Content{mcp.NewTextContent(string(out))}, blocks...)}, nil
+}
+
+// inlineExports moves in-memory pictures out of the JSON summary and into
+// content blocks of their own. Base64 inside a JSON string is the most
+// expensive way to hand a model an image: it is read as text, token by token,
+// where an image block is read as a picture at a fraction of the cost. SVG is
+// markup already, so it goes back as plain text rather than as base64 of it.
+// PDF has no content type a client can show, so it stays base64.
+func inlineExports(results []exportResult) []mcp.Content {
+	var blocks []mcp.Content
+	for i := range results {
+		r := &results[i]
+		if r.Base64 == "" {
+			continue
+		}
+		var block mcp.Content
+		switch strings.ToUpper(r.Format) {
+		case "PNG":
+			block = mcp.NewImageContent(r.Base64, "image/png")
+		case "JPG":
+			block = mcp.NewImageContent(r.Base64, "image/jpeg")
+		case "SVG":
+			markup, err := base64.StdEncoding.DecodeString(r.Base64)
+			if err != nil {
+				continue // leave it as base64 rather than lose it
+			}
+			block = mcp.NewTextContent(string(markup))
+		default:
+			continue
+		}
+		blocks = append(blocks, block)
+		r.Base64 = ""
+		r.ContentIndex = len(blocks) // block 0 is the summary
+	}
+	return blocks
 }
 
 // exportSelection captures whatever the user has selected, in memory. The
@@ -146,10 +193,10 @@ func exportSelection(ctx context.Context, sender Sender, format string, scale fl
 	if format == "" {
 		format = "PNG"
 	}
-	params := map[string]any{"format": format}
-	if scale > 0 {
-		params["scale"] = scale
+	if scale <= 0 {
+		scale = inMemoryScale
 	}
+	params := map[string]any{"format": format, "scale": scale}
 	data, err := sender.Send(ctx, "get_screenshot", nil, params)
 	if err != nil {
 		return nil, err
@@ -196,6 +243,9 @@ func exportScreenshotItem(ctx context.Context, sender Sender, item exportItem, i
 	scale := item.Scale
 	if scale <= 0 {
 		scale = defaultScale
+	}
+	if scale <= 0 && !toDisk {
+		scale = inMemoryScale
 	}
 
 	params := map[string]any{"format": format}

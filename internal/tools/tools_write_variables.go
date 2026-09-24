@@ -16,38 +16,36 @@ var variableVariants = map[string]variantSpec{
 var writeVariableSpecs = []toolSpec{
 	{
 		Name: "manage_variable",
-		Desc: "Create, change, delete and apply variables — Figma's design tokens. `action` selects what, and each takes its own arguments — " +
+		Desc: "Manage variables (design tokens). Arguments per `action`: " +
 			"create_collection: name, initialModeName. " +
 			"add_mode: collectionId, modeName. " +
 			"create: name, collectionId, type, value. " +
 			"set_value: variableId, modeId, value. " +
-			"delete: variableId, or collectionId to remove a whole collection and every variable in it. " +
-			"bind: nodeId, variableId, field — points a node property at the variable so its value drives the property. " +
-			"An argument belonging to a different action is rejected rather than ignored. Use get_variable_defs to find collection, mode and variable IDs. " +
-			"NOTE — the Figma free plan limits each collection to 1 mode, so add_mode fails there with 'Limited to 1 modes only'. " +
-			"Do not retry: keep the single default mode and prefix each variable name with its mode instead, e.g. 'light/color-bg' and 'dark/color-bg' in one collection. " +
-			"Tell the user that native multi-mode variables need a paid plan (Professional or above).",
+			"delete: variableId, or collectionId (deletes all its variables). " +
+			"bind: nodeId, variableId, field (link a node property to the variable). Get IDs from get_variable_defs. " +
+			"Free plan allows 1 mode per collection: if add_mode fails with 'Limited to 1 modes only', do not retry; " +
+			"put the mode in the name instead (e.g. 'light/bg', 'dark/bg') and tell the user multi-mode needs a paid plan.",
 		NodeIDs:    nodeIDsSingle,
-		NodeIDDesc: "bind: the node whose property the variable should drive, in colon format e.g. '4029:12345'",
+		NodeIDDesc: "bind: the node",
 		Params: []paramSpec{
 			{Name: "action", Kind: kindString, Required: true, Enum: variantKinds(variableVariants),
-				Desc: "What to do: create_collection, add_mode, create, set_value, delete, or bind"},
+				Desc: "create_collection, add_mode, create, set_value, delete, or bind"},
 			{Name: "name", Kind: kindString,
-				Desc: "create_collection: the collection's name. create: the variable's name — use slash notation to group e.g. 'Color/Primary', 'Spacing/MD'."},
+				Desc: "Collection or variable name; slashes group e.g. 'Color/Primary'"},
 			{Name: "initialModeName", Kind: kindString,
-				Desc: "create_collection: name for the initial mode (default 'Mode 1')"},
+				Desc: "First mode name (default 'Mode 1')"},
 			{Name: "collectionId", Kind: kindString,
-				Desc: "add_mode and create: the collection to work in. delete: the collection to remove, along with every variable in it. From get_variable_defs."},
-			{Name: "modeName", Kind: kindString, Desc: "add_mode: name for the new mode e.g. 'Dark'"},
+				Desc: "Collection ID"},
+			{Name: "modeName", Kind: kindString, Desc: "New mode name e.g. 'Dark'"},
 			{Name: "type", Kind: kindString, Enum: []string{"COLOR", "FLOAT", "STRING", "BOOLEAN"},
-				Desc: "create: COLOR (hex color), FLOAT (numeric dimension/spacing), STRING (text), or BOOLEAN (true/false toggle)"},
+				Desc: "COLOR, FLOAT, STRING, or BOOLEAN"},
 			{Name: "value", Kind: kindString,
-				Desc: "create: initial value for the first mode. set_value: the value for the given mode. COLOR: hex e.g. #FF5733. FLOAT: number e.g. 16. STRING: text. BOOLEAN: true or false."},
+				Desc: "COLOR: hex. FLOAT: number. STRING: text. BOOLEAN: true/false. For create, sets the first mode."},
 			{Name: "variableId", Kind: kindString,
-				Desc: "set_value, delete and bind: the variable, from get_variable_defs"},
-			{Name: "modeId", Kind: kindString, Desc: "set_value: which mode of the collection to set"},
+				Desc: "Variable ID"},
+			{Name: "modeId", Kind: kindString, Desc: "Mode ID"},
 			{Name: "field", Kind: kindString,
-				Desc: "bind: the property to drive. COLOR variables: fillColor, strokeColor. BOOLEAN: visible. " +
+				Desc: "Property to bind. COLOR: fillColor, strokeColor. BOOLEAN: visible. " +
 					"FLOAT: opacity, rotation, width, height, cornerRadius, topLeftRadius, topRightRadius, bottomLeftRadius, bottomRightRadius, strokeWeight, itemSpacing, paddingTop, paddingRight, paddingBottom, paddingLeft."},
 		},
 		Validate: func(nodeIDs []string, params map[string]any) string {

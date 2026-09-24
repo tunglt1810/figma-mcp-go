@@ -815,6 +815,22 @@ describe("serializeText", () => {
     expect(result.styles.textAlignVertical).toBe("BOTTOM");
   });
 
+  it("omits default text alignment", async () => {
+    const node = {
+      fontName: { family: "Inter", style: "Regular" },
+      fontSize: 14,
+      fontWeight: 400,
+      textDecoration: "NONE",
+      lineHeight: { unit: "AUTO" },
+      letterSpacing: { value: 0, unit: "PIXELS" },
+      textAlignHorizontal: "LEFT",
+      textAlignVertical: "TOP",
+      characters: "plain",
+    };
+    const result = await serializeText(node, makeBase());
+    expect(JSON.stringify(result)).not.toContain("textAlign");
+  });
+
   it("includes textStyle when textStyleId resolves", async () => {
     mockGetStyleByIdAsync = async (id) => (id === "ts-1" ? { name: "Heading 1" } : null);
     const node = {

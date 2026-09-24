@@ -8,14 +8,14 @@ Figma MCP — Local Plugin Integration [![tunglt1810/figma-mcp-go server](https:
   <a href="https://github.com/tunglt1810/figma-mcp-go/stargazers"><img src="https://img.shields.io/github/stars/tunglt1810/figma-mcp-go?style=social" alt="GitHub stars" /></a>
 </p>
 
-Open-source Figma MCP server with full read/write access via plugin. Turn text into designs and designs into real code. Works with Cursor, Claude, GitHub Copilot, and any MCP-compatible AI tool.
+Open-source Figma MCP server with full read and write access through a Figma plugin. Turn text into designs and designs into code. Works with Claude, Cursor, GitHub Copilot, and any MCP client.
 
 **Highlights**
-- Operates locally via the Figma Plugin API (no REST API token required)
-- Real-time execution directly on your local machine
-- **Read and Write** live Figma data via plugin bridge — 60 tools total
-- Full design automation — styles, variables, components, prototypes, content, and transactional batch pipelines
-- Design strategies included — read_design_strategy, design_strategy, and more prompts built in
+- Runs locally through the Figma Plugin API. No REST API token needed.
+- Reads and edits the open Figma file live — 60 tools.
+- Covers styles, variables, components, prototypes, text, and multi-step batches with undo.
+- Built-in prompts such as `read_design_strategy` and `design_strategy`.
+- Lean on tokens: short tool descriptions, capped node trees, and images returned as images.
 
 **Styles, Variables, Components, Prototypes, and Content**
 
@@ -29,21 +29,19 @@ https://github.com/user-attachments/assets/17bda971-0e83-4f18-8758-8ac2b8dcba62
 
 ## Why this exists
 
-Most Figma MCP servers rely on the cloud-based **Figma REST API**.
+Most Figma MCP servers use the cloud **Figma REST API**. AI tools make hundreds of quick calls per session, and every cloud round trip adds delay.
 
-While the REST API is excellent for server-to-server integrations, experimenting with AI tools often involves making hundreds of rapid tool calls per session. A cloud-based approach can introduce network latency and overhead.
-
-This project takes a different approach by running as a local **Figma Plugin**. By bridging directly to the Figma Plugin API on your desktop, it provides instant, real-time read/write access to your active documents without relying on external cloud APIs or requiring an API token.
+This server talks to a **Figma plugin** on your own machine instead. You get fast, live read and write access to the open file, with no API token.
 
 ---
 
-## Installation & Setup
+## Setup
 
-Install via `npx` or `bunx` — no build step required. Watch the setup video or follow the steps below.
+Install with `npx` or `bunx`. No build step. Watch the setup video or follow the steps below.
 
 [![Watch the video](https://img.youtube.com/vi/DjqyU0GKv9k/sddefault.jpg)](https://youtu.be/DjqyU0GKv9k)
 
-### 1. Configure your AI tool
+### 1. Add the server to your AI tool
 
 **Claude Code CLI**
 ```bash
@@ -91,62 +89,19 @@ codex mcp add figma-mcp-go -- bunx @tunglt1810/figma-mcp-go@latest
 }
 ```
 
-### Plugin panel
-
-The panel shows the connected file, the current selection, and what the AI is
-doing right now. Three controls sit above the connection row:
-
-| Control | What it does |
-| ------- | ------------ |
-| **Guard** | `off` runs every request (default, and how the plugin has always behaved). `confirm` holds deletes and bulk rewrites until you allow them. `read-only` blocks every change while still answering reads. |
-| **Undo** | Reverses the last change. A whole `batch_execute_pipeline` run is one undo step, not one per action. |
-| **Log** | Opens the activity log — every request with its tool name, duration, and error. `Copy` dumps it as text for a bug report. |
-| **Pin** | Holds the current selection still. `get_selection(source: "pinned")` then returns those nodes however the selection moves, so a conversation keeps the same context without copying node ids by hand. |
-
-Guard, log, and the panel's size are remembered per machine. Drag the corner to
-resize it. The panel follows Figma's light and dark themes.
-
-### Dev Mode
-
-Figma's Dev Mode Code panel shows the code you attach to a node with
-`set_codegen_result`. The code lives in the Figma file, so every teammate's Dev
-Mode shows it — not only the machine that generated it.
-
-The panel looks for code on the node itself, then on the component an instance
-came from, then on its ancestors. Attaching code to a `COMPONENT` or
-`COMPONENT_SET` therefore covers every instance of it.
-
-This is deliberately not live generation. Generating on demand would mean the
-Code panel asking your editor for a completion mid-render, which needs MCP
-sampling — optional in the protocol, and not implemented by the clients this
-server targets. Writing the code from your editor, where the repository is in
-front of it, produces better code anyway.
-
-The Code panel has a **Language** selector. A node often carries several blocks
-— the component, its styles, the query behind it — and picking a language shows
-only those. A language with nothing stored for the node falls back to showing
-everything, so the setting never reads as "this node has no code".
-
 ### 2. Install the Figma plugin
 
 1. In Figma Desktop: **Plugins → Development → Import plugin from manifest**
-2. Select `manifest.json` from the [plugin.zip](https://github.com/tunglt1810/figma-mcp-go/releases)
-3. Run the plugin inside any Figma file
+2. Pick `manifest.json` from [plugin.zip](https://github.com/tunglt1810/figma-mcp-go/releases)
+3. Run the plugin in any Figma file
 
-### 3. Running more than one AI tool at once (optional)
+### 3. Use more than one AI tool (optional)
 
-Every MCP client starts its own copy of the server, but only one process can
-hold the plugin connection on a given port. There are two ways to share, and
-they do different things.
+Each AI tool starts its own server, but only one can hold the plugin connection on a port.
 
-**Same Figma file, no configuration.** Leave the default config everywhere. The
-first process to bind port 1994 owns the WebSocket to the plugin; the others
-detect the port is taken and proxy their tool calls to it over HTTP. Every
-client drives the one file the plugin is open in. If the process holding the
-port exits, another takes over within a few seconds.
+**Same file:** change nothing. The first server takes port 1994; the others forward their calls to it. If it stops, another takes over in a few seconds.
 
-**Different Figma files, one port each.** Give each client its own port and
-point a separate plugin instance at it:
+**Different files:** give each tool its own port, and set the same port in that file's plugin (settings gear):
 
 ```json
 {
@@ -159,62 +114,162 @@ point a separate plugin instance at it:
 }
 ```
 
-Then open the plugin in the second Figma file and set the port to match under
-the settings gear. Each client now talks to its own file, with no proxying.
+The plugin remembers the last port for all files, so check it when you open the plugin elsewhere.
 
-Note that the plugin stores host and port in `figma.clientStorage`, which is
-shared across files — changing the port makes it the default the next time you
-open the plugin anywhere, so expect to set it on whichever instance should use
-1994.
+`--ip 0.0.0.0` accepts connections from other machines.
 
-`--ip` moves the listener off `127.0.0.1` (use `0.0.0.0` to accept connections
-from another machine).
+> **Security:** the plugin connection has no login. On the default `127.0.0.1` only your machine can reach it. On any other address, anyone who can reach the port can read and edit your open file. The server warns you and the plugin turns on `confirm` mode. Prefer an SSH tunnel.
 
-**The plugin connection is not authenticated.** On the default `127.0.0.1` bind
-that costs nothing: only this machine can reach it. Move it off loopback and
-anyone who can reach the port can read and edit whatever file the plugin is open
-in. The server warns at startup when you do, and the plugin panel turns its
-`confirm` guard on and says so, which gates the destructive tools rather than
-the connection. Prefer an SSH tunnel to opening the port.
+### Plugin panel
+
+The panel shows the connected file, the selection, and what the AI is doing.
+
+| Control | What it does |
+| ------- | ------------ |
+| **Guard** | `off` (default) runs everything. `confirm` asks before deletes and bulk changes. `read-only` blocks all changes. |
+| **Undo** | Undoes the last change. A whole `batch_execute_pipeline` run is one undo step. |
+| **Log** | Shows every request with tool, time, and error. `Copy` exports it for bug reports. |
+| **Pin** | Saves the current selection. `get_selection(source: "pinned")` returns it even after the user clicks elsewhere. |
+
+Settings and panel size are saved per machine. The panel follows Figma's light and dark theme.
+
+### Dev Mode
+
+`set_codegen_result` saves code on a node. It shows in Dev Mode's **Code** panel for everyone on the file. Code on a component shows for all its instances. The **Language** menu filters blocks; if a language has no block, all blocks show.
+
+---
+
+## Tools
+
+### Read
+
+| Tool | What it does |
+| ---- | ------------ |
+| `get_document` | Node tree of the selection, page, or whole file. Stops at 500 nodes by default; `depth`, `maxNodes`, `detail`, `dedupe_components` control size |
+| `get_nodes_info` | Full details of nodes by ID. Unknown IDs go in `missing`; `depth` and `maxNodes` limit children |
+| `get_selection` | Selected nodes, or pinned ones with `source: "pinned"` |
+| `get_metadata` | File name, current page, and all pages |
+| `search_nodes` | Find nodes by name and/or type on a page, in a node, or in the whole file |
+| `get_viewport` | View center, zoom, and visible area |
+| `get_styles` | Paint, text, effect, and grid styles |
+| `get_variable_defs` | Variable collections, modes, and values |
+| `get_local_components` | All components and component sets |
+| `get_instance_overrides` | An instance's component properties and values |
+| `get_annotations` | Dev Mode annotations |
+| `get_fonts` | Fonts on the current page, most used first |
+| `get_reactions` | A node's prototype reactions |
+
+### Export
+
+| Tool | What it does |
+| ---- | ------------ |
+| `export_screenshots` | Export nodes as images: saved to a file with `outputPath`, or returned (PNG/JPG as image, SVG as text). No items = the selection |
+| `export_frames_to_pdf` | Save frames as one multi-page PDF |
+| `get_image_bytes` | Original image files from image fills, as base64 |
+| `export_tokens` | Variables and paint styles as JSON or CSS |
+| `set_export_settings` | Set a node's Export presets |
+
+### Create
+
+| Tool | What it does |
+| ---- | ------------ |
+| `create_node` | FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION |
+| `create_text` | Text node (loads the font) |
+| `create_vector` | Vector from SVG, e.g. an icon |
+| `import_image` | Image from a URL or base64, as a new rectangle or into a node |
+| `create_component` | Turn a frame into a component |
+| `create_component_instance` | Instance of a local or library component |
+| `combine_as_variants` | Combine components into a variant set |
+| `manage_component_properties` | Add, edit, delete, or bind component properties |
+| `create_connector` | Connector line (FigJam only) |
+| `boolean_operation` | UNION, SUBTRACT, INTERSECT, or EXCLUDE shapes |
+| `flatten_nodes` | Merge nodes into one vector |
+| `outline_stroke` | Turn a stroke into a filled shape |
+
+### Edit
+
+| Tool | What it does |
+| ---- | ------------ |
+| `set_node_properties` | Position, size, radius, visibility, lock, opacity, rotation, blend, constraints, layer order, mask, stroke |
+| `set_paint` | Solid or gradient fill, or solid stroke |
+| `set_auto_layout` | Auto layout: direction, padding, gap, align, HUG/FILL sizing, min/max |
+| `set_layout_grids` | Column, row, or square grids |
+| `set_effects` | Shadows, blurs, noise, texture, glass |
+| `set_text` | Text content and whole-node text settings |
+| `set_text_ranges` | Style part of a text: bold, color, link, list |
+| `find_replace_text` | Find and replace text, regex allowed |
+| `set_instance_overrides` | Set an instance's component properties |
+| `swap_component` | Swap an instance to another component |
+| `detach_instance` | Turn instances into plain frames |
+| `clone_node` | Copy a node |
+| `reparent_nodes` | Move nodes into another parent |
+| `group_nodes` / `ungroup_nodes` | Group or ungroup |
+| `batch_rename_nodes` | Rename by name, find/replace, regex, prefix, or suffix |
+| `set_annotations` | Dev Mode annotations (paid seat) |
+| `set_reactions` | Prototype reactions: set, append, or remove |
+| `delete_nodes` | Delete nodes |
+
+### Styles, variables, pages
+
+| Tool | What it does |
+| ---- | ------------ |
+| `create_style` | PAINT, TEXT, EFFECT, or GRID style |
+| `update_paint_style` | Rename or recolor a paint style |
+| `apply_style_to_node` | Apply a style to a node |
+| `delete_style` | Delete a style |
+| `manage_variable` | Create collections, modes, and variables; set values; delete; bind to nodes |
+| `manage_page` | Add, delete, rename, or go to a page |
+
+### Workflow
+
+| Tool | What it does |
+| ---- | ------------ |
+| `batch_execute_pipeline` | Run many write steps in one call, pass results between steps, undo on error |
+| `set_selection` | Select and zoom to nodes to show the user |
+| `save_version_checkpoint` | Save a named version before big changes |
+| `set_codegen_result` | Save code for Dev Mode's Code panel |
+| `manage_plugin_data` | Store key/value notes on a node in the file |
+
+### Prompts
+
+| Prompt | What it does |
+| ------ | ------------ |
+| `read_design_strategy` | How to read designs well |
+| `design_strategy` | How to create and edit designs |
+| `text_replacement_strategy` | Replace text across a design in chunks |
+| `annotation_conversion_strategy` | Turn manual notes into Figma annotations |
+| `swap_overrides_instances` | Copy overrides between instances |
+| `reaction_to_connector_strategy` | Turn prototype links into flow diagrams |
 
 ---
 
 ## Upgrading
 
-**Re-download the plugin when you update the server.** The server updates itself
-through `npx`, but the Figma plugin is installed by hand, so the two can drift
-apart. A plugin older than the server will reject commands it does not know with
-`Unknown request type`.
+**Update the plugin when you update the server.** `npx` updates the server, but the plugin is installed by hand. An old plugin rejects new commands with `Unknown request type`.
 
-### Behaviour changes in 0.3.0
+### Unreleased — token savings
 
-No tool changed its name or its arguments. Five things behave differently:
+- `export_screenshots` returns PNG/JPG as MCP image blocks and SVG as text, not base64 in JSON. Each result's `contentIndex` points to its block. PDF stays base64. Returned images default to scale 1; files stay at 2.
+- `get_document` stops at 500 nodes by default. Scope `selection` now really stops at 2 levels.
+- `get_nodes_info` accepts `depth` and `maxNodes` (default 500) and sets `truncated`.
+- Text nodes no longer report default alignment (`LEFT`, `TOP`).
+- `tools/list` is about 40% smaller: shorter descriptions, and annotations only where they differ from MCP defaults (read tools now have `readOnlyHint`).
 
-- **Log format.** Server logs are now structured
-  (`time=… level=INFO msg=… component=bridge …`) rather than prefixed
-  (`[bridge] …`). Anything grepping for `[bridge]` needs updating. Logs still go
-  to stderr; stdout still carries only the MCP protocol.
-- **Log level.** Set `FIGMA_MCP_LOG` to `debug`, `info`, `warn` or `error`. The
-  default is `info`, and tool parameters — your text, colours and names — now
-  appear only at `debug`.
-- **Starting up.** A call made before the server has settled on a leader now
-  says so, instead of failing with `connection refused`. A call made while the
-  plugin is reconnecting after a leader handover waits for it rather than
-  reporting the plugin as absent.
-- **Large requests.** Sending a large payload — an image, a long pipeline — no
-  longer risks the plugin being disconnected mid-transfer, and no longer blocks
-  other calls that have a shorter deadline of their own.
-- **`/ping`** returns `role`, `connected`, `pending` and `uptimeSeconds`
-  alongside `status` and `version`.
+### 0.3.0
 
-### Tool consolidation
+No tool names or arguments changed.
 
-Eighteen tools were removed by folding each into one that already covered it.
-No capability was lost — everything possible before is still one call:
+- **Logs** are structured (`time=… level=INFO msg=… component=bridge`) instead of `[bridge] …`. They still go to stderr.
+- **Log level:** `FIGMA_MCP_LOG=debug|info|warn|error` (default `info`). Tool parameters only show at `debug`.
+- **Startup:** calls made before the server is ready say so, instead of `connection refused`. Calls during a plugin reconnect wait for it.
+- **Large requests** no longer disconnect the plugin or block other calls.
+- **`/ping`** also returns `role`, `connected`, `pending`, and `uptimeSeconds`.
 
-| Removed | Replacement |
+Removed tools and their replacements:
+
+| Removed | Use instead |
 | ------- | ----------- |
-| `set_layout_sizing` | `set_auto_layout({ nodeIds, … })` — it takes several nodes now |
+| `set_layout_sizing` | `set_auto_layout({ nodeIds, … })` |
 | `get_node` | `get_nodes_info({ nodeIds: [id] })` |
 | `get_pages` | `get_metadata()` |
 | `scan_nodes_by_types` | `search_nodes({ nodeId, types, includeHidden: false })` |
@@ -226,7 +281,7 @@ No capability was lost — everything possible before is still one call:
 | `set_corner_radius` | `set_node_properties({ nodeIds, cornerRadius })` |
 | `remove_reactions` | `set_reactions({ nodeId, removeIndices })` |
 | `get_design_context` | `get_document({ scope: "selection", detail, dedupe_components })` |
-| `get_screenshot` / `save_screenshots` | `export_screenshots({ items })` — an item with an `outputPath` is written to disk, one without comes back as base64 |
+| `get_screenshot` / `save_screenshots` | `export_screenshots({ items })` |
 | `create_variable_collection` | `manage_variable({ action: "create_collection", name })` |
 | `add_variable_mode` | `manage_variable({ action: "add_mode", collectionId, modeName })` |
 | `create_variable` | `manage_variable({ action: "create", name, collectionId, type, value })` |
@@ -234,30 +289,11 @@ No capability was lost — everything possible before is still one call:
 | `delete_variable` | `manage_variable({ action: "delete", variableId \| collectionId })` |
 | `bind_variable_to_node` | `manage_variable({ action: "bind", nodeId, variableId, field })` |
 
-Two of these gained something in the move. Moving and resizing a node is now
-one call and **one** undo entry rather than two, and `get_nodes_info` reports
-an ID that matched nothing under `missing` instead of dropping it — which used
-to read as "that node has no content".
+Changed responses: `set_auto_layout` and `set_annotations` return `{results}` (one per node); `get_document` returns `{fileName, scope, currentPage, nodes}` for every scope; `export_screenshots` returns `{total, succeeded, failed, results}`.
 
-`detail` and `dedupe_components` were selection-only under
-`get_design_context`; they apply to a page or document walk too now.
+### 0.1.0
 
-Four responses changed shape:
-
-- `set_auto_layout` and `set_annotations` answer `{results: [...]}`, one entry
-  per node, like every other multi-node tool.
-- `get_document` answers `{fileName, scope, currentPage, nodes: [...]}` for all
-  three scopes, instead of a bare page tree for one and a `DOCUMENT` wrapper
-  for another.
-- `export_screenshots` answers `{total, succeeded, failed, results: [...]}`,
-  each result carrying either an `outputPath` or a `base64`.
-
-### Breaking changes in 0.1.0
-
-Eight single-purpose tools were replaced by one. Each took `nodeIds` plus a
-single property, and they are now combinations of `set_node_properties`:
-
-| Removed | Replacement |
+| Removed | Use instead |
 | ------- | ----------- |
 | `set_visible` | `set_node_properties({ nodeIds, visible })` |
 | `lock_nodes` / `unlock_nodes` | `set_node_properties({ nodeIds, locked })` |
@@ -266,195 +302,26 @@ single property, and they are now combinations of `set_node_properties`:
 | `set_blend_mode` | `set_node_properties({ nodeIds, blendMode })` |
 | `set_constraints` | `set_node_properties({ nodeIds, constraints: { horizontal, vertical } })` |
 | `reorder_nodes` | `set_node_properties({ nodeIds, order })` |
-
-Properties can be combined, so what used to take several calls and several undo
-entries now takes one of each.
-
-Eighteen more tools were merged into four, each selecting between the old tools
-with one argument. An argument belonging to a different variant is rejected with
-a message naming it, rather than being ignored:
-
-| Removed | Replacement |
-| ------- | ----------- |
-| `create_frame` | `create_node({ type: "FRAME", … })` |
-| `create_rectangle` | `create_node({ type: "RECTANGLE", … })` |
-| `create_ellipse` | `create_node({ type: "ELLIPSE", … })` |
-| `create_star` | `create_node({ type: "STAR", … })` |
-| `create_polygon` | `create_node({ type: "POLYGON", … })` |
-| `create_line` | `create_node({ type: "LINE", … })` |
-| `create_section` | `create_node({ type: "SECTION", … })` |
+| `create_frame`, `create_rectangle`, `create_ellipse`, `create_star`, `create_polygon`, `create_line`, `create_section` | `create_node({ type, … })` |
 | `set_fills` | `set_paint({ type: "SOLID", color })` |
 | `set_strokes` | `set_paint({ type: "SOLID", target: "stroke", color, strokeWeight })` |
 | `set_gradient_fills` | `set_paint({ type: "GRADIENT_LINEAR" \| "GRADIENT_RADIAL", stops, geometry })` |
-| `create_paint_style` | `create_style({ type: "PAINT", name, color })` |
-| `create_text_style` | `create_style({ type: "TEXT", name, … })` |
-| `create_effect_style` | `create_style({ type: "EFFECT", name, effectType, … })` |
-| `create_grid_style` | `create_style({ type: "GRID", name, … })` |
-| `add_page` | `manage_page({ action: "add", name, index })` |
-| `delete_page` | `manage_page({ action: "delete", pageId \| pageName })` |
-| `rename_page` | `manage_page({ action: "rename", pageId \| pageName, newName })` |
-| `navigate_to_page` | `manage_page({ action: "navigate", pageId \| pageName })` |
+| `create_paint_style`, `create_text_style`, `create_effect_style`, `create_grid_style` | `create_style({ type: "PAINT" \| "TEXT" \| "EFFECT" \| "GRID", name, … })` |
+| `add_page`, `delete_page`, `rename_page`, `navigate_to_page` | `manage_page({ action: "add" \| "delete" \| "rename" \| "navigate", … })` |
 
-Two things changed behaviour rather than just name. `create_node({type:"ELLIPSE"})`
-honours `startAngle`, `endAngle` and `innerRadiusRatio`, which `create_ellipse`
-declared but ignored — arcs and rings came out as plain ellipses. And `name` now
-works on stars, polygons and lines, which read it but never declared it.
-
-`create_effect_style`'s `type` argument is `effectType` under `create_style`,
-because `type` names the kind of style. Gradients can only target a fill;
-`set_paint` says so rather than accepting `target: "stroke"` and doing nothing.
-
----
-
-## Available Tools
-
-### Write — Batch & Transactions
-
-| Tool                     | Description                                                                                                    |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `batch_execute_pipeline` | Execute a transactional batch pipeline of mutation steps in Figma with stateful variable binding and rollback |
-
-### Write — Create
-
-| Tool                        | Description                                                |
-| --------------------------- | ---------------------------------------------------------- |
-| `create_node`               | Create a FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION |
-| `create_text`               | Create a text node (font loaded automatically)             |
-| `import_image`              | Place an image from a URL or base64 — as a new rectangle, or onto an existing node |
-| `create_component`          | Convert an existing FRAME node into a reusable component   |
-| `combine_as_variants`       | Combine components into one COMPONENT_SET of variants      |
-| `manage_component_properties` | Declare what a component exposes — add, edit, delete, and bind properties to its layers |
-| `create_component_instance` | Create an instance of a component (local or library)       |
-| `create_connector`          | Create a Connector line between nodes (FigJam only)        |
-| `create_vector`             | Create a vector node from SVG markup — how an icon gets in |
-| `boolean_operation`         | UNION, SUBTRACT, INTERSECT, or EXCLUDE two or more shapes  |
-| `flatten_nodes`             | Flatten nodes into a single vector                         |
-| `outline_stroke`            | Turn a node's stroke into an editable filled vector        |
-
-### Write — Modify
-
-| Tool                     | Description                                                                      |
-| ------------------------ | -------------------------------------------------------------------------------- |
-| `set_text`               | Update a TEXT node's content and node-wide settings — wrapping, truncation, alignment, paragraph spacing |
-| `set_text_ranges`        | Style parts of a TEXT node independently — a bold word, a coloured phrase, a hyperlink, a bulleted list |
-| `set_paint`              | Paint a node's fill or stroke — solid, linear gradient, or radial gradient       |
-| `set_auto_layout`        | Set or update auto-layout (flex) on frames, components, or instances — direction, padding, gap, alignment, HUG/FILL sizing, min/max bounds, and how each node sits in its parent's layout. Takes several nodes, for a whole row of siblings in one call |
-| `set_layout_grids`       | Set the column, row, or square grids drawn over a frame                          |
-| `set_node_properties`    | Set any combination of position, size, corner radius, visibility, lock, opacity, rotation, blend mode, constraints, z-order, masking, and stroke geometry (weight, alignment, caps, joins, miter limit, dash pattern) on one or more nodes |
-| `set_instance_overrides` | Update Component Properties (variants, booleans, text) on a component instance   |
-| `set_annotations`        | Set Dev Mode Annotations on one or more nodes; an empty array clears them (requires paid Dev Mode seat) |
-| `clone_node`             | Clone a node, optionally repositioning or reparenting                            |
-| `reparent_nodes`         | Move nodes to a different parent frame, group, or section                        |
-| `batch_rename_nodes`     | Rename nodes — a literal `name`, or find/replace, regex, prefix, or suffix       |
-| `find_replace_text`      | Find and replace text across all TEXT nodes in a subtree or page; supports regex |
-| `set_selection`          | Select nodes and scroll the viewport to them, switching pages if needed — use it to show the user what changed |
-| `save_version_checkpoint` | Save a named version in the file's version history — a way back that survives the session |
-| `set_codegen_result`     | Attach generated code to a node so it shows in Figma's Dev Mode Code panel      |
-| `manage_plugin_data`     | Read and write your own metadata on a node, stored in the Figma file            |
-| `set_export_settings`    | Set the export presets on nodes — the entries under Export in the right-hand panel |
-
-### Write — Delete
-
-| Tool           | Description                          |
-| -------------- | ------------------------------------ |
-| `delete_nodes` | Delete one or more nodes permanently |
-
-### Write — Prototype
-
-| Tool            | Description                                                                                                       |
-| --------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `set_reactions` | Set prototype reactions (triggers + actions) on a node; mode `replace` or `append`, or `removeIndices` to delete them |
-
-### Write — Styles
-
-| Tool                  | Description                                                             |
-| --------------------- | ----------------------------------------------------------------------- |
-| `set_effects`         | Apply drop shadow / blur effects directly on a node (no style required) |
-| `create_style`        | Create a named PAINT, TEXT, EFFECT, or GRID style                       |
-| `update_paint_style`  | Rename or recolor an existing paint style                               |
-| `apply_style_to_node` | Apply an existing local style to a node, linking it to that style       |
-| `delete_style`        | Delete any style (paint, text, effect, or grid) by ID                   |
-
-### Write — Variables
-
-| Tool              | Description                                                                                                    |
-| ----------------- | -------------------------------------------------------------------------------------------------------------- |
-| `manage_variable` | Create, change, delete and apply variables — `action` selects which: `create_collection`, `add_mode`, `create`, `set_value`, `delete`, `bind` |
-
-### Write — Pages
-
-| Tool          | Description                                                         |
-| ------------- | ------------------------------------------------------------------- |
-| `manage_page` | Add, delete, rename, or navigate to a page (`action` selects which) |
-
-### Write — Components & Navigation
-
-| Tool               | Description                                                 |
-| ------------------ | ----------------------------------------------------------- |
-| `group_nodes`      | Group two or more nodes into a GROUP                        |
-| `ungroup_nodes`    | Ungroup GROUP nodes, moving children to the parent          |
-| `swap_component`   | Swap the main component of an INSTANCE node                 |
-| `detach_instance`  | Detach component instances, converting them to plain frames |
-
-### Read — Document & Selection
-
-| Tool                  | Description                                                         |
-| --------------------- | ------------------------------------------------------------------- |
-| `get_document`        | Node tree of the selection, the current page, or the whole file — `scope` chooses; `detail`, `depth`, `maxNodes` and `dedupe_components` cap it |
-| `get_metadata`        | File name, page count, current page, and every page with its ID     |
-| `get_selection`       | Currently selected nodes, or the set pinned in the panel with `source: "pinned"` |
-| `get_nodes_info`      | One or more nodes by ID; an ID that matches nothing is reported under `missing` |
-| `search_nodes`        | Find nodes by name substring and/or type — current page, a subtree, or the whole document; `includeText` reads the copy, `includeHidden: false` skips hidden nodes |
-| `get_viewport`        | Current viewport center, zoom, and visible bounds                   |
-
-### Read — Styles & Variables
-
-| Tool                     | Description                                                |
-| ------------------------ | ---------------------------------------------------------- |
-| `get_styles`             | Paint, text, effect, and grid styles                       |
-| `get_variable_defs`      | Variable collections and values                            |
-| `get_local_components`   | All components + component sets with variant properties    |
-| `get_instance_overrides` | Get component properties and current values of an instance |
-| `get_annotations`        | Dev-mode annotations                                       |
-| `get_fonts`              | All fonts used on the current page, sorted by frequency    |
-| `get_reactions`          | Prototype/interaction reactions on a node                  |
-
-### Export
-
-| Tool                   | Description                                                          |
-| ---------------------- | -------------------------------------------------------------------- |
-| `get_image_bytes`      | Original bytes of the images placed on nodes, as base64              |
-| `export_screenshots`   | Export nodes as images — to disk with an `outputPath`, as base64 without one, or the current selection with no items at all |
-| `export_frames_to_pdf` | Export multiple frames as a single multi-page PDF file saved to disk |
-| `export_tokens`        | Export design tokens (variables + paint styles) as JSON or CSS       |
-
-### MCP Prompts
-
-| Prompt                           | Description                                            |
-| -------------------------------- | ------------------------------------------------------ |
-| `read_design_strategy`           | Best practices for reading Figma designs               |
-| `design_strategy`                | Best practices for creating and modifying designs      |
-| `text_replacement_strategy`      | Chunked approach for replacing text across a design    |
-| `annotation_conversion_strategy` | Convert manual annotations to native Figma annotations |
-| `swap_overrides_instances`       | Transfer overrides between component instances         |
-| `reaction_to_connector_strategy` | Map prototype reactions into interaction flow diagrams |
+Notes: `create_effect_style`'s `type` is now `effectType`. Gradients work on fills only. Ellipse arcs and rings (`startAngle`, `endAngle`, `innerRadiusRatio`) now work.
 
 ---
 
 ## Development
 
-- **Go Server**: Go 1.27+ (`make test-go`, `make build-go`)
-- **Plugin UI**: Bun 1.4+ (`cd plugin && bun install && bun run build`)
-- **Testing**: `make test` (runs Go tests + `bun test` in plugin)
-- **Logs**: stderr, structured. `FIGMA_MCP_LOG=debug` to see tool parameters and wire traffic
-- **Layering**: `make deps-check` fails the build on an import that crosses the
-  package boundaries the wrong way. `internal/` is four packages — `bridge` (the
-  plugin WebSocket), `cluster` (leader election and routing), `figma` (domain
-  rules) and `tools` (the tool table) — and the arrows only point one way:
-  `tools → figma`, `cluster → bridge`
+- **Server:** Go 1.27+ (`make test-go`, `make build-go`)
+- **Plugin:** Bun 1.4+ (`cd plugin && bun install && bun run build`)
+- **All tests:** `make test`
+- **Logs:** stderr. `FIGMA_MCP_LOG=debug` shows tool parameters and traffic.
+- **Package rules:** `make deps-check` fails on wrong-way imports. `internal/` has `bridge` (plugin WebSocket), `cluster` (leader election), `figma` (rules), and `tools` (tool table). Allowed: `tools → figma`, `cluster → bridge`.
 
-On macOS the published binaries require macOS 13 Ventura or later — Go 1.27
-dropped support for earlier versions.
+macOS binaries need macOS 13 or later (Go 1.27).
 
 ## Contributing
 
