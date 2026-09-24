@@ -7,14 +7,14 @@ package tools
 var writeViewportSpecs = []toolSpec{
 	{
 		Name:       "set_selection",
-		Desc:       "Select nodes in Figma and scroll the viewport to them, switching pages if needed. Use this to show the user what you just created or changed, or to point at the nodes a question is about. Pass no node IDs to clear the selection. All nodes must be on the same page — a Figma selection cannot span pages.",
+		Desc:       "Select nodes and zoom to them, switching page if needed. Use it to show the user your work. No IDs clears the selection. Nodes must be on one page.",
 		NodeIDs:    nodeIDsMulti,
-		NodeIDDesc: "Node IDs to select; omit or pass an empty list to clear the selection",
+		NodeIDDesc: "Node IDs; empty clears",
 		Params: []paramSpec{
 			{Name: "select", Kind: kindBool,
-				Desc: "Change the selection (default true). Pass false with zoom to move the camera without disturbing what the user has selected."},
+				Desc: "Change selection (default true). false + zoom only moves the view."},
 			{Name: "zoom", Kind: kindBool,
-				Desc: "Scroll and zoom the viewport to fit the nodes (default true)"},
+				Desc: "Zoom to fit (default true)"},
 		},
 		Validate: func(nodeIDs []string, params map[string]any) string {
 			// Clearing the selection is the only call that takes no nodes, and

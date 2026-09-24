@@ -22,13 +22,13 @@ var exportFormats = []string{"PNG", "SVG", "JPG", "PDF"}
 
 var exportFramesToPDFSpec = toolSpec{
 	Name:       "export_frames_to_pdf",
-	Desc:       "Export multiple frames as a single multi-page PDF file. Each frame becomes one page in order. Ideal for pitch decks, proposals, and slide exports.",
+	Desc:       "Export frames as one PDF file, one page per frame, in order.",
 	NodeIDs:    nodeIDsMulti,
 	NodeIDsReq: true,
-	NodeIDDesc: "Ordered list of frame node IDs to export as PDF pages",
+	NodeIDDesc: "Frame IDs, in page order",
 	Params: []paramSpec{
 		{Name: "outputPath", Kind: kindString, Required: true,
-			Desc: "File path to write the PDF to, must end in .pdf (relative to working directory or absolute)"},
+			Desc: "Path of the .pdf file, inside the working directory"},
 	},
 	Custom: func(sender Sender) customHandler {
 		return func(ctx context.Context, nodeIDs []string, params map[string]any) (*mcp.CallToolResult, error) {
@@ -40,26 +40,25 @@ var exportFramesToPDFSpec = toolSpec{
 
 var exportScreenshotsSpec = toolSpec{
 	Name: "export_screenshots",
-	Desc: "Export nodes as images. An item with an outputPath is written to that file; one without comes back in the response " +
-		"(PNG/JPG as an image block, SVG as markup, PDF as base64). Both kinds can mix in one call. " +
-		"Omit items to capture the current selection. Prefer outputPath when you only need the file.",
+	Desc: "Export nodes as images. Items with outputPath are saved to file; others are returned " +
+		"(PNG/JPG as image, SVG as text, PDF as base64). Omit items to export the selection. Use outputPath if you only need the file.",
 	Params: []paramSpec{
 		{Name: "items", Kind: kindObjectArray,
-			Desc: "List of {nodeId, outputPath?, format?, scale?} objects. Omit to export the current selection.",
+			Desc: "{nodeId, outputPath?, format?, scale?}. Omit to export the selection.",
 			ItemSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"nodeId":     map[string]any{"type": "string", "description": "Node ID"},
-					"outputPath": map[string]any{"type": "string", "description": "File path to write the image to. Omit to get the image in the response."},
-					"format":     map[string]any{"type": "string", "description": "Export format: PNG, SVG, JPG, or PDF"},
-					"scale":      map[string]any{"type": "number", "description": "Export scale for raster formats"},
+					"outputPath": map[string]any{"type": "string", "description": "File to save to. Omit to return the image."},
+					"format":     map[string]any{"type": "string", "description": "PNG, SVG, JPG, or PDF"},
+					"scale":      map[string]any{"type": "number", "description": "Scale for PNG/JPG"},
 				},
 				"required": []string{"nodeId"},
 			}},
 		{Name: "format", Kind: kindString, Enum: exportFormats,
-			Desc: "Default export format: PNG (default), SVG, JPG, or PDF"},
+			Desc: "Default format: PNG (default), SVG, JPG, PDF"},
 		{Name: "scale", Kind: kindNumber, Positive: true,
-			Desc: "Default export scale for raster formats (default 2 for files, 1 in the response)"},
+			Desc: "Default scale for PNG/JPG (2 for files, 1 when returned)"},
 	},
 	Validate: func(_ []string, params map[string]any) string {
 		items, hasItems := params["items"]
@@ -79,7 +78,7 @@ var exportScreenshotsSpec = toolSpec{
 			// caller got wrong, and silently returning base64 would hide it.
 			if raw, present := m["outputPath"]; present {
 				if path, _ := raw.(string); path == "" {
-					return fmt.Sprintf("items[%d].outputPath is empty — omit it to get base64 instead", i)
+					return fmt.Sprintf("items[%d].outputPath is empty — omit it to get the image in the response", i)
 				}
 			}
 			// The per-item format is nested a level below anything a paramSpec
@@ -106,36 +105,35 @@ var exportScreenshotsSpec = toolSpec{
 var exportSpecs = []toolSpec{
 	{
 		Name:       "get_image_bytes",
-		Desc:       "Read the original bytes of the images placed on nodes, as base64. This is the asset that was imported, not a re-render — use export_screenshots when you want a picture of how a node looks now. One image used on several nodes is returned once. Nodes with no image fill are reported under `skipped` rather than failing the call.",
+		Desc:       "Get the original image files used in nodes' image fills, as base64. For a picture of how a node looks, use export_screenshots. Each image is returned once; nodes without images are listed in `skipped`.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs carrying image fills",
 	},
 	{
 		Name: "set_export_settings",
-		Desc: "Set the export presets on nodes — the entries a designer sees under Export in the right-hand panel, and what a Figma export or a handoff pipeline uses. " +
-			"This changes the document; it does not export anything. Use export_screenshots to actually produce a file.",
+		Desc: "Set the Export presets shown in a node's right panel. Does not export a file; use export_screenshots for that.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",
 		Params: []paramSpec{
 			{Name: "settings", Kind: kindObjectArray, Required: true,
-				Desc: "Export presets, in the order they should appear. An empty array clears the node's presets.",
+				Desc: "Presets in order. [] clears them.",
 				ItemSchema: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"format": map[string]any{"type": "string", "enum": exportFormats, "description": "PNG, JPG, SVG, or PDF"},
-						"suffix": map[string]any{"type": "string", "description": "Appended to the file name, e.g. '@2x' or '-dark'"},
+						"suffix": map[string]any{"type": "string", "description": "File name suffix e.g. '@2x'"},
 						"constraint": map[string]any{
 							"type":        "object",
-							"description": "Raster size: {type: SCALE|WIDTH|HEIGHT, value}. SCALE 2 is @2x; WIDTH 512 fixes the width. Ignored for SVG and PDF.",
+							"description": "Size for PNG/JPG: {type: SCALE|WIDTH|HEIGHT, value}. SCALE 2 = @2x.",
 							"properties": map[string]any{
 								"type":  map[string]any{"type": "string", "enum": []string{"SCALE", "WIDTH", "HEIGHT"}},
 								"value": map[string]any{"type": "number"},
 							},
 						},
-						"contentsOnly":      map[string]any{"type": "boolean", "description": "Exclude overlapping content outside the node (default true)"},
-						"useAbsoluteBounds": map[string]any{"type": "boolean", "description": "Export the full node bounds even when it is clipped by its parent"},
+						"contentsOnly":      map[string]any{"type": "boolean", "description": "Skip content that overlaps from outside (default true)"},
+						"useAbsoluteBounds": map[string]any{"type": "boolean", "description": "Use full bounds even if the parent clips the node"},
 					},
 					"required": []string{"format"},
 				}},

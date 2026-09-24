@@ -5,74 +5,68 @@ package tools
 var readDocumentSpecs = []toolSpec{
 	{
 		Name: "get_document",
-		Desc: "Get the node tree of the current selection, the current page, or every page in the file — `scope` chooses which. " +
-			"Answers {fileName, scope, currentPage, nodes: [...]}, one entry in `nodes` per root walked. " +
-			"A full-detail walk stops after 500 nodes unless maxNodes says otherwise; narrow it with scope, depth, or a lower `detail`. " +
-			"A capped result sets `truncated`, and every node whose children were withheld reports `childCount`, so a short answer is never mistaken for a whole one.",
+		Desc: "Get the node tree of the selection, the current page, or the whole file (`scope`). " +
+			"Returns {fileName, scope, currentPage, nodes}. Full detail stops at 500 nodes by default. " +
+			"If cut short, the result has `truncated`, and nodes with hidden children show `childCount`.",
 		Params: []paramSpec{
 			{Name: "scope", Kind: kindString, Enum: []string{"selection", "page", "document"},
-				Desc: "'page' (default) walks the current page. 'document' walks every page in the file, sharing one maxNodes budget across them. " +
-					"'selection' walks what the user has selected, 2 levels deep unless you say otherwise — the scope to reach for when exploring — and falls back to the current page when nothing is selected."},
+				Desc: "page (default): current page. document: every page, one shared maxNodes limit. " +
+					"selection: selected nodes, 2 levels deep by default; uses the page if nothing is selected. Best for exploring."},
 			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
-				Desc: "How many levels below each root to walk. 0 returns the root alone. Defaults to 2 for scope 'selection' and to no limit otherwise."},
+				Desc: "Levels below each root. 0 = root only. Default 2 for selection, no limit otherwise."},
 			{Name: "maxNodes", Kind: kindNumber, Min: floatPtr(1),
-				Desc: "Stop after this many nodes, walking in tree order so the result is the same every time (default 500). Applies to the full-detail walk; a `detail` level or dedupe_components trims by shape instead."},
+				Desc: "Max nodes in full detail (default 500). Not used with `detail` or dedupe_components."},
 			{Name: "detail", Kind: kindString, Enum: []string{"minimal", "compact", "full"},
-				Desc: "Property verbosity: minimal (id/name/type/bounds only), compact (+fills/strokes/opacity), full (everything, default). Lower it when exploring a large file."},
+				Desc: "minimal: id/name/type/bounds. compact: + fills/strokes/opacity. full (default): everything. Use lower levels for big files."},
 			{Name: "dedupe_components", Wire: "dedupeComponents", Kind: kindBool,
-				Desc: "When true, INSTANCE nodes are serialized compactly (mainComponentId + componentProperties + overrides array of differing text/nested content) and unique component definitions are collected once in a top-level componentDefs map. Highly token-efficient for screens with many repeated component instances."},
+				Desc: "Show instances in short form (mainComponentId, componentProperties, overrides) and list each component once in `componentDefs`. Saves tokens on screens with many instances."},
 		},
 	},
 	{
 		Name: "get_metadata",
-		Desc: "Get metadata about the current Figma document: file name, page count, which page is open, " +
-			"and every page in the file with its ID and name. Loads no node trees, so it is the cheap way to find a page ID before working on it.",
+		Desc: "Get file name, current page, and every page's ID and name. Cheap: loads no node trees.",
 	},
 	{
 		Name: "get_selection",
-		Desc: "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel. Returns an empty array if nothing is selected or pinned. Use get_document with scope 'selection', or get_nodes_info, to retrieve deeper detail about specific nodes by ID.",
+		Desc: "Get the selected nodes, or the nodes pinned in the plugin panel. Empty array if none. For more detail use get_nodes_info.",
 		Params: []paramSpec{
 			{Name: "source", Kind: kindString, Enum: []string{"selection", "pinned"},
-				Desc: "'selection' (default) follows what is selected right now, which moves the moment the user clicks elsewhere. 'pinned' reads the set they pinned in the panel, which holds still across a conversation — prefer it when you need the same nodes over several calls."},
+				Desc: "selection (default): what is selected now; changes when the user clicks. pinned: set saved in the panel; stays the same across calls."},
 		},
 	},
 	{
 		Name: "get_nodes_info",
-		Desc: "Get full details for one or more nodes by ID in one round-trip. " +
-			"Answers {nodes: [...]}, plus a globalVars.styles map when a fill or stroke was shared by more than one node and collapsed to a ref. " +
-			"An ID that matches nothing is reported under `missing` rather than dropped, so a typo cannot read as a node with no content. " +
-			"Children are included; a capped result sets `truncated` and each node whose children were withheld reports `childCount`.",
+		Desc: "Get full details of nodes by ID. Returns {nodes}, plus globalVars.styles when fills or strokes repeat. " +
+			"Unknown IDs are listed in `missing`. Stops at 500 descendants by default; if cut short, has `truncated` and `childCount`.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "List of node IDs",
+		NodeIDDesc: "Node IDs",
 		Params: []paramSpec{
 			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
-				Desc: "How many levels below each node to include. 0 returns the nodes alone. Default no limit."},
+				Desc: "Levels below each node. 0 = the nodes only. Default no limit."},
 			{Name: "maxNodes", Kind: kindNumber, Min: floatPtr(1),
-				Desc: "Stop after this many descendants across all requested nodes (default 500)."},
+				Desc: "Max descendants across all nodes (default 500)."},
 		},
 	},
 	{
 		Name: "search_nodes",
-		Desc: "Find nodes by name substring, by type, or both — omit query to take every node of the given types, omit types to search by name alone. " +
-			"Searches the current page by default; pass scope 'document' to search every page, or nodeId to search one subtree. " +
-			"Pass includeText to read the content of the TEXT nodes it finds, and includeHidden false to skip hidden nodes. " +
-			"The result reports `truncated` when the limit cut the answer short — raise `limit` when you mean to sweep a whole subtree, as it defaults to 50.",
+		Desc: "Find nodes by name, type, or both. Searches the current page by default. " +
+			"Returns up to `limit` (default 50) and sets `truncated` if there were more.",
 		Params: []paramSpec{
 			{Name: "query", Kind: kindString,
-				Desc: "Name substring to match (case-insensitive). Omit to match every node, which is how you take all nodes of a type."},
+				Desc: "Text to find in node names (case-insensitive). Omit to match all nodes of `types`."},
 			{Name: "nodeId", Kind: kindString, IsNodeID: true,
-				Desc: "Scope search to this subtree. Overrides scope."},
+				Desc: "Search only inside this node. Overrides scope."},
 			{Name: "scope", Kind: kindString, Enum: []string{"page", "document"},
-				Desc: "Where to search when no nodeId is given: 'page' for the current page (default), or 'document' for every page in the file. Use 'document' when a node may live on another page — a page search reports nothing rather than looking there."},
+				Desc: "page (default) or document (every page). A page search does not look at other pages."},
 			{Name: "types", Kind: kindStringArray,
-				Desc: "Filter by Figma node type e.g. ['TEXT', 'FRAME', 'COMPONENT']"},
+				Desc: "Node types e.g. ['TEXT', 'FRAME']"},
 			{Name: "includeText", Kind: kindBool,
-				Desc: "Add characters, fontSize and fontName to every TEXT node in the answer (default false). Costs nothing on the other node types."},
+				Desc: "Add characters, fontSize and fontName to TEXT results (default false)."},
 			{Name: "includeHidden", Kind: kindBool,
-				Desc: "Whether hidden nodes are searched (default true). Pass false to skip a hidden node and everything under it, which is what a designer usually means by 'what is on this screen'."},
+				Desc: "Search hidden nodes (default true). false skips hidden nodes and their children."},
 			{Name: "limit", Kind: kindNumber, Min: floatPtr(1),
-				Desc: "Maximum results to return (default: 50)"},
+				Desc: "Max results (default 50)"},
 		},
 		Validate: requireAnyOf(
 			"at least one of query or types is required — a search with neither would return every node on the page",
@@ -80,22 +74,22 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name:       "get_reactions",
-		Desc:       "Get the prototype reactions defined on a node. Returns an array of reaction objects — each has a trigger (e.g. ON_CLICK, ON_HOVER, AFTER_TIMEOUT) and an actions array (navigate to node, open URL, go back, etc.). Use set_reactions to add or replace them, or set_reactions with removeIndices to delete them.",
+		Desc:       "Get a node's prototype reactions: each has a trigger (e.g. ON_CLICK) and actions. Change them with set_reactions.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID",
 	},
 	{
 		Name: "get_viewport",
-		Desc: "Get the current Figma viewport: scroll center, zoom level, and visible bounds.",
+		Desc: "Get the viewport center, zoom, and visible bounds.",
 	},
 	{
 		Name: "get_fonts",
-		Desc: "List all fonts used in the current page, sorted by usage frequency. Useful for understanding typography without scanning all text nodes.",
+		Desc: "List fonts used on the current page, most used first.",
 	},
 	{
 		Name:       "get_instance_overrides",
-		Desc:       "Get the component properties (variants, booleans, text) of a component instance. Includes their current values and type information. Use this before set_instance_overrides to know what properties exist.",
+		Desc:       "Get an instance's component properties (variant, boolean, text) with types and current values. Use before set_instance_overrides.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "INSTANCE node ID",

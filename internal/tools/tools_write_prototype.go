@@ -6,16 +6,12 @@ import (
 	"github.com/tunglt1810/figma-mcp-go/internal/figma"
 )
 
-const setReactionsDesc = `Set or remove prototype reactions on a node. mode "replace" (default) overwrites all reactions, "append" adds to them. To remove, pass removeIndices instead of reactions: zero-based indices from get_reactions, or [] to remove all.
-
-Each reaction is {"trigger":{...},"actions":[...]} ("actions" is plural).
-Triggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT (+ "timeout" in ms), MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN
-Action types: NODE (+ destinationId, navigation: NAVIGATE|OVERLAY|SCROLL_TO|SWAP|CHANGE_TO, transition, preserveScrollPosition), BACK, CLOSE, URL (+ url)
-Transitions: DISSOLVE, SMART_ANIMATE: {"type":"DISSOLVE","duration":0.3,"easing":{"type":"EASE_OUT"}}. PUSH, MOVE_IN, MOVE_OUT, SLIDE_IN, SLIDE_OUT also require "direction" (LEFT|RIGHT|TOP|BOTTOM) and "matchLayers" (bool).
-
-Example — navigate on click:
-{"nodeId":"1:2","reactions":[{"trigger":{"type":"ON_CLICK"},"actions":[{"type":"NODE","destinationId":"1:3","navigation":"NAVIGATE","transition":{"type":"PUSH","direction":"LEFT","matchLayers":false,"duration":0.3,"easing":{"type":"EASE_OUT"}},"preserveScrollPosition":false}]}]}
-Example — back on click: {"nodeId":"1:2","reactions":[{"trigger":{"type":"ON_CLICK"},"actions":[{"type":"BACK"}]}]}`
+const setReactionsDesc = `Set or remove prototype reactions. mode: replace (default) or append. To remove, pass removeIndices (from get_reactions; [] = all) instead of reactions.
+Reaction: {"trigger":{"type":...},"actions":[...]}.
+Triggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT (+timeout ms), MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN.
+Actions: NODE (+destinationId, navigation NAVIGATE|OVERLAY|SCROLL_TO|SWAP|CHANGE_TO, transition, preserveScrollPosition), BACK, CLOSE, URL (+url).
+Transitions: DISSOLVE, SMART_ANIMATE, or PUSH, MOVE_IN, MOVE_OUT, SLIDE_IN, SLIDE_OUT (these also need direction LEFT|RIGHT|TOP|BOTTOM and matchLayers).
+Example: {"nodeId":"1:2","reactions":[{"trigger":{"type":"ON_CLICK"},"actions":[{"type":"NODE","destinationId":"1:3","navigation":"NAVIGATE","transition":{"type":"DISSOLVE","duration":0.3,"easing":{"type":"EASE_OUT"}},"preserveScrollPosition":false}]}]}`
 
 var writePrototypeSpecs = []toolSpec{
 	{
@@ -26,11 +22,11 @@ var writePrototypeSpecs = []toolSpec{
 		NodeIDDesc: "Node ID",
 		Params: []paramSpec{
 			{Name: "reactions", Kind: kindObjectArray,
-				Desc: "Array of reaction objects. Each has a 'trigger' and an 'actions' array (plural) of Action objects."},
+				Desc: "Reactions: {trigger, actions}"},
 			{Name: "mode", Kind: kindString, Enum: []string{"replace", "append"},
-				Desc: `"replace" (default) overwrites all existing reactions; "append" adds to them`},
+				Desc: "replace (default) or append"},
 			{Name: "removeIndices", Kind: kindNumberArray,
-				Desc: "Zero-based indices of the reactions to remove. An empty array removes all of them. Cannot be combined with reactions."},
+				Desc: "Indices to remove; [] removes all. Not with reactions."},
 		},
 		Validate: func(_ []string, params map[string]any) string {
 			_, hasReactions := params["reactions"]

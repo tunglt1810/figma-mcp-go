@@ -23,24 +23,23 @@ func requirePageTarget(_ []string, params map[string]any) string {
 var writePageSpecs = []toolSpec{
 	{
 		Name: "manage_page",
-		Desc: "Add, delete, rename, or navigate to a page. `action` selects which, and each takes its own arguments — " +
+		Desc: "Add, delete, rename, or go to a page. Arguments per `action`: " +
 			"add: name, index. " +
 			"delete: pageId or pageName. " +
 			"rename: pageId or pageName, plus newName. " +
 			"navigate: pageId or pageName. " +
-			"An argument belonging to a different action is rejected rather than ignored. " +
-			"Use get_metadata to list page IDs and names.",
+			"List pages with get_metadata.",
 		Params: []paramSpec{
 			{Name: "action", Kind: kindString, Required: true, Enum: variantKinds(pageVariants),
-				Desc: "What to do: add, delete, rename, or navigate"},
+				Desc: "add, delete, rename, or navigate"},
 			{Name: "pageId", Kind: kindString,
-				Desc: "Page node ID (delete, rename, navigate)"},
+				Desc: "Page ID"},
 			{Name: "pageName", Kind: kindString,
-				Desc: "Exact page name, an alternative to pageId (delete, rename, navigate)"},
-			{Name: "name", Kind: kindString, Desc: "add: name for the new page (default 'Page')"},
+				Desc: "Exact page name, instead of pageId"},
+			{Name: "name", Kind: kindString, Desc: "New page name (default 'Page')"},
 			{Name: "index", Kind: kindNumber, Min: floatPtr(0),
-				Desc: "add: position to insert at (0 = first). Defaults to last."},
-			{Name: "newName", Kind: kindString, Desc: "rename: the page's new name"},
+				Desc: "Position, 0 = first (default last)"},
+			{Name: "newName", Kind: kindString, Desc: "New name"},
 		},
 		Validate: func(nodeIDs []string, params map[string]any) string {
 			if msg := requireVariant("action", pageVariants)(nodeIDs, params); msg != "" {
