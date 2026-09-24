@@ -247,7 +247,7 @@ Settings and panel size are saved per machine. The panel follows Figma's light a
 
 **Update the plugin when you update the server.** `npx` updates the server, but the plugin is installed by hand. An old plugin rejects new commands with `Unknown request type`.
 
-### Unreleased — token savings
+### 0.4.0 — token savings
 
 - `export_screenshots` returns PNG/JPG as MCP image blocks and SVG as text, not base64 in JSON. Each result's `contentIndex` points to its block. PDF stays base64. Returned images default to scale 1; files stay at 2.
 - `get_document` stops at 500 nodes by default. Scope `selection` now really stops at 2 levels.
