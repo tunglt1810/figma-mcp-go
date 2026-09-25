@@ -87,7 +87,14 @@ jobs:
         run: |
           cp ../README.md .
           npm version "$VERSION" --no-git-tag-version --allow-same-version
-          npm publish --access public --provenance
+          # Skip if this version is already out, so re-running a release
+          # whose later steps failed does not die on "cannot publish over".
+          NAME=$(jq -r .name package.json)
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION already on npm, skipping publish"
+          else
+            npm publish --access public --provenance
+          fi
 
       - name: Set version in server.json
         env:
@@ -99,8 +106,19 @@ jobs:
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
 
-      - name: Authenticate to MCP Registry
-        run: ./mcp-publisher login github-oidc
-
+      # The registry validates the package against npm, and a version
+      # published seconds ago can still 404 there while it propagates.
+      # Retry with backoff instead of failing the release on that race.
+      # Log in on every attempt: the registry token is short-lived and the
+      # backoff can outlast it.
       - name: Publish to MCP Registry
-        run: ./mcp-publisher publish
+        run: |
+          for delay in 15 30 60 120 240; do
+            if ./mcp-publisher login github-oidc && ./mcp-publisher publish; then
+              exit 0
+            fi
+            echo "Publish failed, retrying in ${delay}s..."
+            sleep "$delay"
+          done
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
