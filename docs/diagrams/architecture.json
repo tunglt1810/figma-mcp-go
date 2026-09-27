@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "figma-mcp-go architecture",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "tool-call", "label": "Tool call path", "focus": ["client", "tools", "leader", "bridge", "ui", "main", "figma"], "note": "One MCP tool call from the AI client down to the Figma document." },
+      { "id": "cluster", "label": "Leader and follower", "focus": ["client2", "follower", "leader"], "note": "A second server process forwards its calls to the leader over HTTP." }
+    ]
+  },
+  "components": [
+    { "id": "client2", "type": "external", "label": "2nd MCP client", "sublabel": "another session", "pos": [40, 120], "size": [140, 60] },
+    { "id": "follower", "type": "backend", "label": "Follower", "sublabel": "tools + HTTP proxy", "pos": [260, 120], "size": [150, 60] },
+    { "id": "client", "type": "external", "label": "MCP client", "sublabel": "Claude, Cursor, ...", "pos": [40, 320], "size": [140, 60] },
+    { "id": "tools", "type": "backend", "label": "tools", "sublabel": "60 tools, Check", "pos": [260, 320], "size": [150, 60] },
+    { "id": "leader", "type": "backend", "label": "cluster.Leader", "sublabel": ":1994 /rpc /ws /ping", "pos": [490, 320], "size": [170, 60] },
+    { "id": "bridge", "type": "backend", "label": "bridge", "sublabel": "request/response match", "pos": [740, 320], "size": [170, 60] },
+    { "id": "ui", "type": "frontend", "label": "Plugin UI", "sublabel": "Svelte iframe", "pos": [1000, 320], "size": [150, 60] },
+    { "id": "main", "type": "frontend", "label": "Plugin main", "sublabel": "dispatch handlers", "pos": [1000, 540], "size": [150, 60] },
+    { "id": "figma", "type": "external", "label": "Figma document", "sublabel": "Plugin API", "pos": [740, 540], "size": [170, 60], "brand": "figma" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Leader process (npx figma-mcp-go)", "wraps": ["tools", "leader", "bridge"] },
+    { "kind": "region", "label": "Figma plugin", "wraps": ["ui", "main"] }
+  ],
+  "connections": [
+    { "id": "stdio", "from": "client", "to": "tools", "label": "stdio", "variant": "emphasis" },
+    { "id": "send", "from": "tools", "to": "leader", "label": "Send" },
+    { "id": "to-bridge", "from": "leader", "to": "bridge" },
+    { "id": "ws", "from": "bridge", "to": "ui", "label": "WebSocket", "variant": "emphasis" },
+    { "id": "post", "from": "ui", "to": "main", "label": "postMessage", "labelAt": [1075, 460] },
+    { "id": "api", "from": "main", "to": "figma", "label": "read / write" },
+    { "id": "stdio2", "from": "client2", "to": "follower", "label": "stdio" },
+    { "id": "rpc", "from": "follower", "to": "leader", "label": "POST /rpc", "variant": "dashed", "fromSide": "right", "toSide": "top" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "One leader", "items": ["First process to bind :1994 becomes leader", "Only the leader holds the plugin WebSocket", "A follower takes over if the leader dies"] },
+    { "dot": "emerald", "title": "Layers", "items": ["cmd wires tools, cluster, prompts", "tools never imports cluster or bridge", "make deps-check enforces the edges"] },
+    { "dot": "violet", "title": "Plugin", "items": ["UI iframe owns the WebSocket", "Main thread calls the Figma Plugin API"] }
+  ]
+}

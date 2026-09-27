@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "figma-mcp-go tool call data flow",
+    "viewBox": [1060, 640],
+    "column_fit": "spread",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "server-side", "label": "Server side", "focus": ["client", "tools", "cluster", "bridge"], "note": "Arguments are checked once, then routed to the process that holds the plugin." },
+      { "id": "plugin-side", "label": "Plugin side", "focus": ["bridge", "ui", "main", "figma"], "note": "The UI iframe relays the request to the main thread, which calls the Figma API." }
+    ]
+  },
+  "participants": [
+    { "id": "client", "type": "external", "label": "MCP client", "sublabel": "AI agent" },
+    { "id": "tools", "type": "backend", "label": "tools", "sublabel": "handler + Check" },
+    { "id": "cluster", "type": "backend", "label": "cluster", "sublabel": "Node / Leader" },
+    { "id": "bridge", "type": "backend", "label": "bridge", "sublabel": "WebSocket owner" },
+    { "id": "ui", "type": "frontend", "label": "Plugin UI", "sublabel": "Svelte iframe" },
+    { "id": "main", "type": "frontend", "label": "Plugin main", "sublabel": "dispatch" },
+    { "id": "figma", "type": "external", "label": "Figma", "sublabel": "Plugin API", "brand": "figma" }
+  ],
+  "segments": [
+    { "from": 150, "to": 356, "label": "Request" },
+    { "from": 370, "to": 566, "label": "Response" }
+  ],
+  "messages": [
+    { "id": "call", "from": "client", "to": "tools", "y": 176, "label": "tools/call (stdio)", "variant": "emphasis" },
+    { "id": "send", "from": "tools", "to": "cluster", "y": 208, "label": "Send after Check" },
+    { "id": "route", "from": "cluster", "to": "bridge", "y": 240, "label": "leader: direct", "note": "A follower first sends POST /rpc to the leader." },
+    { "id": "ws-out", "from": "bridge", "to": "ui", "y": 272, "label": "WebSocket request", "variant": "emphasis" },
+    { "id": "post", "from": "ui", "to": "main", "y": 304, "label": "postMessage" },
+    { "id": "api", "from": "main", "to": "figma", "y": 336, "label": "read / write nodes" },
+    { "id": "result", "from": "figma", "to": "main", "y": 388, "label": "nodes", "variant": "return" },
+    { "id": "post-back", "from": "main", "to": "ui", "y": 420, "label": "response", "variant": "return" },
+    { "id": "ws-back", "from": "ui", "to": "bridge", "y": 452, "label": "WebSocket reply", "variant": "return" },
+    { "id": "match", "from": "bridge", "to": "cluster", "y": 484, "label": "matched by id", "variant": "return" },
+    { "id": "value", "from": "cluster", "to": "tools", "y": 516, "label": "(any, error)", "variant": "return" },
+    { "id": "done", "from": "tools", "to": "client", "y": 548, "label": "tool result", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "tools", "from": 176, "to": 553 },
+    { "participant": "cluster", "from": 208, "to": 521 },
+    { "participant": "bridge", "from": 240, "to": 489 },
+    { "participant": "ui", "from": 272, "to": 457 },
+    { "participant": "main", "from": 304, "to": 425 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Checked once", "items": ["tools.Check validates arguments on the calling process", "The leader's /rpc runs the same Check for followers"] },
+    { "dot": "emerald", "title": "Matching", "items": ["Each request carries an id", "bridge pairs the reply with its waiting caller", "Timeouts depend on the tool"] },
+    { "dot": "violet", "title": "Plugin", "items": ["UI iframe holds the socket", "Main thread owns the Figma API"] }
+  ]
+}

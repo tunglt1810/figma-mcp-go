@@ -139,6 +139,59 @@ Settings and panel size are saved per machine. The panel follows Figma's light a
 
 ---
 
+## How it works
+
+The first server to start becomes the leader and holds the only WebSocket to the plugin. Other servers are followers and forward their calls to the leader.
+
+```mermaid
+flowchart LR
+    client([MCP client]) -- stdio --> tools
+    client2([2nd MCP client]) -- stdio --> follower[Follower]
+
+    subgraph leaderProc [Leader process]
+        tools[tools<br/>60 tools, Check] -- Send --> leader[cluster.Leader<br/>:1994 /rpc /ws /ping]
+        leader --> bridge[bridge<br/>request/response match]
+    end
+
+    follower -. POST /rpc .-> leader
+
+    subgraph plugin [Figma plugin]
+        ui[Plugin UI<br/>Svelte iframe] -- postMessage --> main[Plugin main<br/>dispatch handlers]
+    end
+
+    bridge == WebSocket ==> ui
+    main -- read / write --> figma[(Figma document)]
+```
+
+One tool call, end to end:
+
+```mermaid
+sequenceDiagram
+    participant C as MCP client
+    participant T as tools
+    participant L as cluster
+    participant B as bridge
+    participant U as Plugin UI
+    participant M as Plugin main
+    participant F as Figma
+
+    C->>T: tools/call (stdio)
+    T->>L: Send after Check
+    Note over L: A follower first sends POST /rpc to the leader
+    L->>B: forward
+    B->>U: WebSocket request
+    U->>M: postMessage
+    M->>F: read / write nodes
+    F-->>M: nodes
+    M-->>U: response
+    U-->>B: WebSocket reply
+    B-->>L: matched by id
+    L-->>T: (any, error)
+    T-->>C: tool result
+```
+
+---
+
 ## Tools
 
 ### Read
