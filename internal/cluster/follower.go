@@ -25,8 +25,8 @@ type Follower struct {
 func NewFollower(leaderURL string) *Follower {
 	return &Follower{
 		leaderURL: leaderURL,
-		// No client-wide Timeout: one number cannot serve tools whose budgets
-		// differ. Send sets a per-request deadline from the shared table.
+		// No client-wide Timeout: tools have different time budgets, so one number
+		// cannot fit them all. Send sets a deadline per request from the shared table.
 		client: &http.Client{},
 	}
 }
@@ -37,8 +37,8 @@ func (f *Follower) Send(ctx context.Context, tool string, nodeIDs []string, para
 	followerLog().Debug("proxy params", "tool", tool, "params", params)
 	start := time.Now()
 
-	// Outlast the leader's own timeout so its error reaches the caller instead
-	// of a transport deadline that says nothing about what failed.
+	// Wait longer than the leader's own timeout, so the caller gets the leader's
+	// error instead of a transport deadline that says nothing about what failed.
 	ctx, cancel := context.WithTimeout(ctx, bridge.FollowerTimeoutFor(tool))
 	defer cancel()
 
@@ -88,7 +88,7 @@ func (f *Follower) Send(ctx context.Context, tool string, nodeIDs []string, para
 	}, nil
 }
 
-// Ping checks if the leader is alive. Returns true if healthy.
+// Ping checks whether the leader is alive. It returns true if healthy.
 func (f *Follower) Ping(ctx context.Context) bool {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()

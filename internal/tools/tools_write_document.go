@@ -5,7 +5,7 @@ package tools
 var writeDocumentSpecs = []toolSpec{
 	{
 		Name:       "set_codegen_result",
-		Desc:       "Save code on a node to show in Dev Mode's Code panel for the whole team. Code on a component shows for all its instances. [] removes it.",
+		Desc:       "Save code on a node for Dev Mode's Code panel, seen by the whole team. Code on a component shows on its instances. [] removes it.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID",
@@ -25,7 +25,7 @@ var writeDocumentSpecs = []toolSpec{
 	},
 	{
 		Name:       "manage_plugin_data",
-		Desc:       "Store string key/values on a node, saved in the file (e.g. which source file a component maps to). Use JSON for complex values.",
+		Desc:       "Store string key/values on a node, saved in the file. Use JSON for complex values.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID",
@@ -58,7 +58,8 @@ var writeDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "save_version_checkpoint",
-		Desc: "Save a named version in the file history. Use before big or risky changes. Design files only.",
+		Desc: "Save a named version in file history, before big or risky changes. Design files only.",
+
 		Params: []paramSpec{
 			{Name: "title", Kind: kindString, Required: true,
 				Desc: "Version name"},

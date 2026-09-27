@@ -27,7 +27,7 @@ describe("enqueueWrite", () => {
     const a = enqueueWrite(async () => { order.push("a:start"); await first.promise; order.push("a:end"); });
     const b = enqueueWrite(async () => { order.push("b:start"); await second.promise; order.push("b:end"); });
 
-    // b must not have started while a is still in flight.
+    // b must not start while a is still running.
     await Promise.resolve();
     expect(order).toEqual(["a:start"]);
 
@@ -41,8 +41,8 @@ describe("enqueueWrite", () => {
     expect(order).toEqual(["a:start", "a:end", "b:start", "b:end"]);
   });
 
-  // A rejected predecessor has already reported its own failure; it must not
-  // take the next request down with it.
+  // A rejected earlier request has already reported its own failure. It must
+  // not make the next request fail too.
   it("keeps serving after a failure", async () => {
     const failed = enqueueWrite(async () => { throw new Error("boom"); });
     await failed.catch(() => {});

@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { handleWriteStyleRequest } from "./write-styles";
 
-// create_style replaced four create_*_style tools on the MCP surface. These
-// check the router reaches each of the four implementations, and that the
-// arguments survive the trip — in particular effectType, which is unwrapped
-// back to the `type` the effect implementation reads.
+// create_style replaced four create_*_style tools in the MCP tool list. These
+// check that the router reaches each of the four implementations, and that the
+// arguments arrive intact. In particular effectType, which is mapped back to
+// the `type` the effect implementation reads.
 
 let created: Record<string, any>;
 

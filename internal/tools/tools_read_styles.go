@@ -3,11 +3,11 @@ package tools
 var readStyleSpecs = []toolSpec{
 	{
 		Name: "get_styles",
-		Desc: "Get all local styles (paint, text, effect, grid) with ID, name, type and values. For variables use get_variable_defs.",
+		Desc: "Get local styles (paint, text, effect, grid) with ID, name, type, values. Variables: get_variable_defs.",
 	},
 	{
 		Name: "get_variable_defs",
-		Desc: "Get all local variables (design tokens): collections, modes and values.",
+		Desc: "Get local variables (design tokens): collections, modes, values.",
 	},
 	{
 		Name: "get_local_components",
@@ -15,7 +15,8 @@ var readStyleSpecs = []toolSpec{
 	},
 	{
 		Name: "get_annotations",
-		Desc: "Get Dev Mode annotations on the current page, or on one node and its children.",
+		Desc: "Get Dev Mode annotations on the page, or on one node and its children.",
+
 		// The plugin reads this from params, not from the nodeIDs field.
 		Params: []paramSpec{
 			{Name: "nodeId", Kind: kindString, IsNodeID: true,

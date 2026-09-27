@@ -18,8 +18,8 @@ import (
 	"github.com/tunglt1810/figma-mcp-go/internal/tools"
 )
 
-// logLevelFor maps FIGMA_MCP_LOG to a level. Anything unrecognised is info — a
-// typo in an environment variable should not silence the server.
+// logLevelFor maps FIGMA_MCP_LOG to a level. Any unknown value means info, so
+// a typo in an environment variable does not silence the server.
 func logLevelFor(s string) slog.Level {
 	switch strings.ToLower(s) {
 	case "debug":
@@ -33,8 +33,8 @@ func logLevelFor(s string) slog.Level {
 	}
 }
 
-// setupLogging installs the default logger. Stderr, because stdout carries the
-// MCP protocol and has to stay clean.
+// setupLogging installs the default logger. It writes to stderr, because
+// stdout carries the MCP protocol and must stay clean.
 func setupLogging() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: logLevelFor(os.Getenv("FIGMA_MCP_LOG")),

@@ -12,8 +12,8 @@ func fillModeParam(desc string) paramSpec {
 	return paramSpec{Name: "mode", Kind: kindString, Enum: []string{"replace", "append"}, Desc: desc}
 }
 
-// nodePropertyKeys are the properties set_node_properties understands. They are
-// all optional and independent; at least one must be supplied.
+// nodePropertyKeys are the properties set_node_properties understands. Each is
+// optional and independent, but at least one must be given.
 var nodePropertyKeys = []string{
 	"visible", "locked", "opacity", "rotation", "blendMode", "constraints", "order",
 	"isMask", "maskType",
@@ -23,8 +23,8 @@ var nodePropertyKeys = []string{
 }
 
 // paintVariants say which arguments belong to which kind of paint. set_fills,
-// set_gradient_fills and set_strokes became one tool; without this the
-// arguments of the other kinds would be accepted and silently dropped.
+// set_gradient_fills and set_strokes became one tool. Without this, arguments
+// for the other kinds would be accepted and quietly dropped.
 var paintVariants = map[string]variantSpec{
 	"SOLID":           {Allowed: []string{"color", "opacity"}, Required: []string{"color"}},
 	"GRADIENT_LINEAR": {Allowed: []string{"stops", "geometry", "opacity"}, Required: []string{"stops", "geometry"}},
@@ -36,12 +36,12 @@ var validNodeOrders = []string{"bringToFront", "sendToBack", "bringForward", "se
 var writeModifySpecs = []toolSpec{
 	{
 		Name:       "set_text",
-		Desc:       "Change a TEXT node's text and whole-node settings (resize, truncation, alignment, spacing). To style part of the text use set_text_ranges.",
+		Desc:       "Change a TEXT node's text and whole-node settings (resize, truncation, alignment, spacing). Style parts with set_text_ranges.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "TEXT node ID",
 		Params: []paramSpec{
-			// An empty string is a legitimate value here: it clears the node.
+			// An empty string is a valid value here: it clears the node.
 			{Name: "text", Kind: kindString, AllowEmpty: true, Desc: "New text"},
 			{Name: "textAutoResize", Kind: kindString,
 				Enum: []string{"NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"},
@@ -67,7 +67,7 @@ var writeModifySpecs = []toolSpec{
 	},
 	{
 		Name:       "set_text_ranges",
-		Desc:       "Style parts of a TEXT node (bold word, color, link, list). Each range covers characters [start, end) of the current text. Later ranges win where they overlap. Omitted properties stay the same.",
+		Desc:       "Style parts of a TEXT node (bold, color, link, list). Each range is characters [start, end). Later ranges win on overlap; omitted properties stay.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "TEXT node ID",
@@ -133,8 +133,8 @@ var writeModifySpecs = []toolSpec{
 			if _, ok := params["strokeWeight"]; ok && target != "stroke" {
 				return "strokeWeight applies only when target is stroke"
 			}
-			// The stops carry colors of their own, one level down from anything
-			// a paramSpec can reach.
+			// The stops have their own colors, one level deeper than a
+			// paramSpec can reach.
 			if kind != "SOLID" {
 				stops, _ := params["stops"].([]any)
 				for i, raw := range stops {
@@ -164,7 +164,7 @@ var writeModifySpecs = []toolSpec{
 	},
 	{
 		Name:       "set_layout_grids",
-		Desc:       "Set layout grids (columns, rows, or square grid) on frames. [] removes them.",
+		Desc:       "Set layout grids (columns, rows, square) on frames. [] removes them.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Frame, component, or section IDs",
@@ -191,8 +191,8 @@ var writeModifySpecs = []toolSpec{
 	},
 	{
 		Name: "set_auto_layout",
-		Desc: "Set auto layout (flexbox) on frames, components or instances: direction, padding, gap, align, and sizing (HUG/FILL via layoutSizing*). " +
-			"layoutPositioning, layoutAlign and layoutGrow set how a node sits in its parent. Each node reports its own result.",
+		Desc: "Set auto layout (flexbox) on frames, components or instances: direction, padding, gap, align, sizing (HUG/FILL via layoutSizing*). " +
+			"layoutPositioning, layoutAlign, layoutGrow set how a node sits in its parent. Results are per node.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Frame, component, or instance IDs",
@@ -200,8 +200,8 @@ var writeModifySpecs = []toolSpec{
 	},
 	{
 		Name: "set_node_properties",
-		Desc: "Set any node properties: position, size, radius, visibility, lock, opacity, rotation, blend, constraints, z-order, mask, stroke. " +
-			"Pass only what to change. Each node reports what was applied.",
+		Desc: "Set node properties: position, size, radius, visibility, lock, opacity, rotation, blend, constraints, z-order, mask, stroke. " +
+			"Pass only what changes. Results are per node.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",
@@ -281,8 +281,9 @@ var writeModifySpecs = []toolSpec{
 		},
 	},
 	{
-		Name:       "batch_rename_nodes",
-		Desc:       "Rename nodes: set `name`, or use find/replace (regex allowed) or prefix/suffix. `name` cannot mix with the others.",
+		Name: "batch_rename_nodes",
+		Desc: "Rename nodes: set `name`, or find/replace (regex allowed), or prefix/suffix. `name` cannot mix with the others.",
+
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",
@@ -307,8 +308,8 @@ var writeModifySpecs = []toolSpec{
 			if !hasName && !hasFind && !hasReplace && !hasPrefix && !hasSuffix {
 				return "at least one of name, find/replace, prefix, or suffix is required"
 			}
-			// Silently picking one is exactly the failure this validation exists
-			// to prevent: the caller would get a name it did not ask for.
+			// Quietly picking one is exactly what this check exists to
+			// prevent: the caller would get a name it did not ask for.
 			if hasName && (hasFind || hasReplace || hasPrefix || hasSuffix) {
 				return "name sets the name outright and cannot be combined with find/replace, prefix, or suffix"
 			}

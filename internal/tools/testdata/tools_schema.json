@@ -27,7 +27,7 @@
   },
   "batch_execute_pipeline": {
     "annotations": {},
-    "description": "Run several write steps in order. A step can use an earlier step's result via $variables. With stop_on_error, a failure undoes created nodes and changed properties. It cannot undo deletes, group/ungroup, detach, reparent, or steps that target nodes by name.",
+    "description": "Run write steps in order; a step can use earlier results via $variables. With stop_on_error, a failure undoes created nodes and changed properties, but not deletes, group/ungroup, detach, reparent, or steps that target nodes by name.",
     "inputSchema": {
       "properties": {
         "steps": {
@@ -72,7 +72,7 @@
   },
   "batch_rename_nodes": {
     "annotations": {},
-    "description": "Rename nodes: set `name`, or use find/replace (regex allowed) or prefix/suffix. `name` cannot mix with the others.",
+    "description": "Rename nodes: set `name`, or find/replace (regex allowed), or prefix/suffix. `name` cannot mix with the others.",
     "inputSchema": {
       "properties": {
         "find": {
@@ -178,7 +178,7 @@
   },
   "combine_as_variants": {
     "annotations": {},
-    "description": "Combine 2+ components (same parent) into a component set of variants. Then add VARIANT properties with manage_component_properties.",
+    "description": "Combine 2+ components (same parent) into a variant set. Add VARIANT properties with manage_component_properties.",
     "inputSchema": {
       "properties": {
         "name": {
@@ -223,7 +223,7 @@
   },
   "create_component_instance": {
     "annotations": {},
-    "description": "Create an instance of a local component (componentId) or library component (componentKey). A component set uses its default variant.",
+    "description": "Create an instance of a local (componentId) or library (componentKey) component. A component set uses its default variant.",
     "inputSchema": {
       "properties": {
         "componentId": {
@@ -287,7 +287,7 @@
   },
   "create_node": {
     "annotations": {},
-    "description": "Create a shape. Arguments per `type`: FRAME: width, height, fillColor, auto layout args. RECTANGLE: width, height, fillColor, cornerRadius. ELLIPSE: width, height, fillColor, startAngle, endAngle, innerRadiusRatio. STAR: pointCount, outerRadius, innerRadius, fillColor, cornerRadius. POLYGON: pointCount, radius, fillColor, cornerRadius. LINE: length, rotation, strokeColor, strokeWeight. SECTION: width, height (no parent). All: x, y, name. Wrong args for the type are rejected. For text use create_text.",
+    "description": "Create a shape. Args per `type`: FRAME: width, height, fillColor, auto layout args. RECTANGLE: width, height, fillColor, cornerRadius. ELLIPSE: width, height, fillColor, startAngle, endAngle, innerRadiusRatio. STAR: pointCount, outerRadius, innerRadius, fillColor, cornerRadius. POLYGON: pointCount, radius, fillColor, cornerRadius. LINE: length, rotation, strokeColor, strokeWeight. SECTION: width, height (no parent). All: x, y, name. Other args are rejected. For text use create_text.",
     "inputSchema": {
       "properties": {
         "clipsContent": {
@@ -476,7 +476,7 @@
   },
   "create_style": {
     "annotations": {},
-    "description": "Create a local style. Arguments per `type`: PAINT: color. TEXT: fontSize, fontFamily, fontStyle, textDecoration, lineHeightValue/Unit, letterSpacingValue/Unit. EFFECT: effectType, color, opacity, radius, offsetX, offsetY, spread. GRID: pattern, count, gutterSize, offset, alignment, sectionSize, color, opacity. Returns the style ID; apply with apply_style_to_node.",
+    "description": "Create a local style. Args per `type`: PAINT: color. TEXT: fontSize, fontFamily, fontStyle, textDecoration, lineHeightValue/Unit, letterSpacingValue/Unit. EFFECT: effectType, color, opacity, radius, offsetX, offsetY, spread. GRID: pattern, count, gutterSize, offset, alignment, sectionSize, color, opacity. Returns the style ID; apply with apply_style_to_node.",
     "inputSchema": {
       "properties": {
         "alignment": {
@@ -586,7 +586,7 @@
   },
   "create_text": {
     "annotations": {},
-    "description": "Create a text node. Loads the font for you. To edit existing text use set_text.",
+    "description": "Create a text node (loads the font). To edit text use set_text.",
     "inputSchema": {
       "properties": {
         "fillColor": {
@@ -635,7 +635,7 @@
   },
   "create_vector": {
     "annotations": {},
-    "description": "Create a vector from SVG markup, e.g. an icon. Several paths become a frame of vectors.",
+    "description": "Create a vector from SVG markup (e.g. an icon). Several paths become a frame of vectors.",
     "inputSchema": {
       "properties": {
         "fillColor": {
@@ -713,7 +713,7 @@
   },
   "detach_instance": {
     "annotations": {},
-    "description": "Detach instances into plain frames. Looks the same, no link to the component.",
+    "description": "Detach instances into plain frames (same look, no component link).",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -733,7 +733,7 @@
   },
   "export_frames_to_pdf": {
     "annotations": {},
-    "description": "Export frames as one PDF file, one page per frame, in order.",
+    "description": "Export frames as one PDF, one page per frame, in order.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -758,7 +758,7 @@
   },
   "export_screenshots": {
     "annotations": {},
-    "description": "Export nodes as images. Items with outputPath are saved to file; others are returned (PNG/JPG as image, SVG as text, PDF as base64). Omit items to export the selection. Use outputPath if you only need the file.",
+    "description": "Export nodes as images. Items with outputPath are saved to file; others are returned (PNG/JPG as image, SVG as text, PDF as base64). No items = selection. Prefer outputPath if you only need the file.",
     "inputSchema": {
       "properties": {
         "format": {
@@ -882,7 +882,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get Dev Mode annotations on the current page, or on one node and its children.",
+    "description": "Get Dev Mode annotations on the page, or on one node and its children.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -899,7 +899,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get the node tree of the selection, the current page, or the whole file (`scope`). Returns {fileName, scope, currentPage, nodes}. Full detail stops at 500 nodes by default. If cut short, the result has `truncated`, and nodes with hidden children show `childCount`.",
+    "description": "Get the node tree of the selection, page, or file (`scope`). Returns {fileName, scope, currentPage, nodes}. Stops at 500 nodes by default; then sets `truncated`, and nodes with hidden children show `childCount`.",
     "inputSchema": {
       "properties": {
         "dedupe_components": {
@@ -942,7 +942,7 @@
   },
   "get_image_bytes": {
     "annotations": {},
-    "description": "Get the original image files used in nodes' image fills, as base64. For a picture of how a node looks, use export_screenshots. Each image is returned once; nodes without images are listed in `skipped`.",
+    "description": "Get the original image files in nodes' image fills, as base64. Each image once; nodes without images in `skipped`. To see how a node looks, use export_screenshots.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -964,7 +964,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get an instance's component properties (variant, boolean, text) with types and current values. Use before set_instance_overrides.",
+    "description": "Get an instance's component properties with type and value. Use before set_instance_overrides.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -995,7 +995,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get file name, current page, and every page's ID and name. Cheap: loads no node trees.",
+    "description": "Get file name, current page, and all pages (ID, name). Loads no node trees.",
     "inputSchema": {
       "properties": {},
       "required": [],
@@ -1007,7 +1007,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get full details of nodes by ID. Returns {nodes}, plus globalVars.styles when fills or strokes repeat. Unknown IDs are listed in `missing`. Stops at 500 descendants by default; if cut short, has `truncated` and `childCount`.",
+    "description": "Get full node details by ID. Returns {nodes}, plus globalVars.styles for repeated fills/strokes. Unknown IDs go in `missing`. Stops at 500 descendants by default; then sets `truncated` and `childCount`.",
     "inputSchema": {
       "properties": {
         "depth": {
@@ -1037,7 +1037,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get a node's prototype reactions: each has a trigger (e.g. ON_CLICK) and actions. Change them with set_reactions.",
+    "description": "Get a node's prototype reactions (trigger + actions). Edit with set_reactions.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -1056,7 +1056,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get the selected nodes, or the nodes pinned in the plugin panel. Empty array if none. For more detail use get_nodes_info.",
+    "description": "Get selected nodes, or nodes pinned in the plugin panel. [] if none. For detail use get_nodes_info.",
     "inputSchema": {
       "properties": {
         "source": {
@@ -1073,7 +1073,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get all local styles (paint, text, effect, grid) with ID, name, type and values. For variables use get_variable_defs.",
+    "description": "Get local styles (paint, text, effect, grid) with ID, name, type, values. Variables: get_variable_defs.",
     "inputSchema": {
       "properties": {},
       "required": [],
@@ -1085,7 +1085,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get all local variables (design tokens): collections, modes and values.",
+    "description": "Get local variables (design tokens): collections, modes, values.",
     "inputSchema": {
       "properties": {},
       "required": [],
@@ -1097,7 +1097,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get the viewport center, zoom, and visible bounds.",
+    "description": "Get viewport center, zoom, and visible bounds.",
     "inputSchema": {
       "properties": {},
       "required": [],
@@ -1131,7 +1131,7 @@
   },
   "import_image": {
     "annotations": {},
-    "description": "Add an image from a URL (preferred) or base64. Creates a rectangle sized to the image, or fills an existing node if nodeId is set.",
+    "description": "Add an image from a URL (preferred) or base64, as a rectangle sized to the image, or as nodeId's fill.",
     "inputSchema": {
       "properties": {
         "crop": {
@@ -1236,7 +1236,7 @@
   },
   "manage_component_properties": {
     "annotations": {},
-    "description": "Add, edit, delete, or bind a component's properties. bind links a layer to a property: BOOLEAN shows/hides it, TEXT sets its text, INSTANCE_SWAP swaps it. Names work without the '#1:2' suffix.",
+    "description": "Add, edit, delete, or bind component properties. bind links a layer: BOOLEAN shows/hides it, TEXT sets its text, INSTANCE_SWAP swaps it. Names work without the '#1:2' suffix.",
     "inputSchema": {
       "properties": {
         "action": {
@@ -1301,7 +1301,7 @@
   },
   "manage_page": {
     "annotations": {},
-    "description": "Add, delete, rename, or go to a page. Arguments per `action`: add: name, index. delete: pageId or pageName. rename: pageId or pageName, plus newName. navigate: pageId or pageName. List pages with get_metadata.",
+    "description": "Add, delete, rename, or go to a page. Args per `action`: add: name, index. delete, navigate: pageId or pageName. rename: pageId or pageName, newName. List pages with get_metadata.",
     "inputSchema": {
       "properties": {
         "action": {
@@ -1338,7 +1338,7 @@
   },
   "manage_plugin_data": {
     "annotations": {},
-    "description": "Store string key/values on a node, saved in the file (e.g. which source file a component maps to). Use JSON for complex values.",
+    "description": "Store string key/values on a node, saved in the file. Use JSON for complex values.",
     "inputSchema": {
       "properties": {
         "action": {
@@ -1372,7 +1372,7 @@
   },
   "manage_variable": {
     "annotations": {},
-    "description": "Manage variables (design tokens). Arguments per `action`: create_collection: name, initialModeName. add_mode: collectionId, modeName. create: name, collectionId, type, value. set_value: variableId, modeId, value. delete: variableId, or collectionId (deletes all its variables). bind: nodeId, variableId, field (link a node property to the variable). Get IDs from get_variable_defs. Free plan allows 1 mode per collection: if add_mode fails with 'Limited to 1 modes only', do not retry; put the mode in the name instead (e.g. 'light/bg', 'dark/bg') and tell the user multi-mode needs a paid plan.",
+    "description": "Manage variables (design tokens). Args per `action`: create_collection: name, initialModeName. add_mode: collectionId, modeName. create: name, collectionId, type, value. set_value: variableId, modeId, value. delete: variableId, or collectionId (deletes all its variables). bind: nodeId, variableId, field (node property to link). IDs from get_variable_defs. Free plan: 1 mode per collection. If add_mode fails with 'Limited to 1 modes only', do not retry; put the mode in the name (e.g. 'light/bg') and tell the user multi-mode needs a paid plan.",
     "inputSchema": {
       "properties": {
         "action": {
@@ -1474,7 +1474,7 @@
   },
   "save_version_checkpoint": {
     "annotations": {},
-    "description": "Save a named version in the file history. Use before big or risky changes. Design files only.",
+    "description": "Save a named version in file history, before big or risky changes. Design files only.",
     "inputSchema": {
       "properties": {
         "description": {
@@ -1497,7 +1497,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Find nodes by name, type, or both. Searches the current page by default. Returns up to `limit` (default 50) and sets `truncated` if there were more.",
+    "description": "Find nodes by name, type, or both; current page by default. Returns up to `limit` (default 50); sets `truncated` if more.",
     "inputSchema": {
       "properties": {
         "includeHidden": {
@@ -1564,7 +1564,7 @@
   },
   "set_auto_layout": {
     "annotations": {},
-    "description": "Set auto layout (flexbox) on frames, components or instances: direction, padding, gap, align, and sizing (HUG/FILL via layoutSizing*). layoutPositioning, layoutAlign and layoutGrow set how a node sits in its parent. Each node reports its own result.",
+    "description": "Set auto layout (flexbox) on frames, components or instances: direction, padding, gap, align, sizing (HUG/FILL via layoutSizing*). layoutPositioning, layoutAlign, layoutGrow set how a node sits in its parent. Results are per node.",
     "inputSchema": {
       "properties": {
         "clipsContent": {
@@ -1680,7 +1680,7 @@
   },
   "set_codegen_result": {
     "annotations": {},
-    "description": "Save code on a node to show in Dev Mode's Code panel for the whole team. Code on a component shows for all its instances. [] removes it.",
+    "description": "Save code on a node for Dev Mode's Code panel, seen by the whole team. Code on a component shows on its instances. [] removes it.",
     "inputSchema": {
       "properties": {
         "blocks": {
@@ -1722,7 +1722,7 @@
   },
   "set_effects": {
     "annotations": {},
-    "description": "Replace a node's effects. [] clears them. Same shape as styles.effects from get_nodes_info.",
+    "description": "Replace a node's effects ([] clears), in the shape of get_nodes_info's styles.effects.",
     "inputSchema": {
       "properties": {
         "effects": {
@@ -1747,7 +1747,7 @@
   },
   "set_export_settings": {
     "annotations": {},
-    "description": "Set the Export presets shown in a node's right panel. Does not export a file; use export_screenshots for that.",
+    "description": "Set a node's Export presets. Does not export; use export_screenshots.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -1819,7 +1819,7 @@
   },
   "set_instance_overrides": {
     "annotations": {},
-    "description": "Set component properties (variant, boolean, text) on an instance. Fails on unknown names or wrong types.",
+    "description": "Set an instance's component properties. Fails on unknown names or wrong types.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -1842,7 +1842,7 @@
   },
   "set_layout_grids": {
     "annotations": {},
-    "description": "Set layout grids (columns, rows, or square grid) on frames. [] removes them.",
+    "description": "Set layout grids (columns, rows, square) on frames. [] removes them.",
     "inputSchema": {
       "properties": {
         "grids": {
@@ -1923,7 +1923,7 @@
   },
   "set_node_properties": {
     "annotations": {},
-    "description": "Set any node properties: position, size, radius, visibility, lock, opacity, rotation, blend, constraints, z-order, mask, stroke. Pass only what to change. Each node reports what was applied.",
+    "description": "Set node properties: position, size, radius, visibility, lock, opacity, rotation, blend, constraints, z-order, mask, stroke. Pass only what changes. Results are per node.",
     "inputSchema": {
       "properties": {
         "blendMode": {
@@ -2091,7 +2091,7 @@
   },
   "set_reactions": {
     "annotations": {},
-    "description": "Set or remove prototype reactions. mode: replace (default) or append. To remove, pass removeIndices (from get_reactions; [] = all) instead of reactions.\nReaction: {\"trigger\":{\"type\":...},\"actions\":[...]}.\nTriggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT (+timeout ms), MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN.\nActions: NODE (+destinationId, navigation NAVIGATE|OVERLAY|SCROLL_TO|SWAP|CHANGE_TO, transition, preserveScrollPosition), BACK, CLOSE, URL (+url).\nTransitions: DISSOLVE, SMART_ANIMATE, or PUSH, MOVE_IN, MOVE_OUT, SLIDE_IN, SLIDE_OUT (these also need direction LEFT|RIGHT|TOP|BOTTOM and matchLayers).\nExample: {\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}",
+    "description": "Set or remove prototype reactions. mode: replace (default) or append. To remove, pass removeIndices (from get_reactions; [] = all), not reactions.\n\nReaction: {\"trigger\":{\"type\":...},\"actions\":[...]}.\nTriggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT (+timeout ms), MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN.\nActions: NODE (+destinationId, navigation NAVIGATE|OVERLAY|SCROLL_TO|SWAP|CHANGE_TO, transition, preserveScrollPosition), BACK, CLOSE, URL (+url).\nTransitions: DISSOLVE, SMART_ANIMATE, or PUSH, MOVE_IN, MOVE_OUT, SLIDE_IN, SLIDE_OUT (these also need direction LEFT|RIGHT|TOP|BOTTOM and matchLayers).\nExample: {\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}",
     "inputSchema": {
       "properties": {
         "mode": {
@@ -2126,7 +2126,7 @@
   },
   "set_selection": {
     "annotations": {},
-    "description": "Select nodes and zoom to them, switching page if needed. Use it to show the user your work. No IDs clears the selection. Nodes must be on one page.",
+    "description": "Select and zoom to nodes (switches page if needed) to show the user your work. No IDs clears the selection. Nodes must share a page.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -2152,7 +2152,7 @@
   },
   "set_text": {
     "annotations": {},
-    "description": "Change a TEXT node's text and whole-node settings (resize, truncation, alignment, spacing). To style part of the text use set_text_ranges.",
+    "description": "Change a TEXT node's text and whole-node settings (resize, truncation, alignment, spacing). Style parts with set_text_ranges.",
     "inputSchema": {
       "properties": {
         "maxLines": {
@@ -2201,7 +2201,7 @@
   },
   "set_text_ranges": {
     "annotations": {},
-    "description": "Style parts of a TEXT node (bold word, color, link, list). Each range covers characters [start, end) of the current text. Later ranges win where they overlap. Omitted properties stay the same.",
+    "description": "Style parts of a TEXT node (bold, color, link, list). Each range is characters [start, end). Later ranges win on overlap; omitted properties stay.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -2360,7 +2360,7 @@
   },
   "update_paint_style": {
     "annotations": {},
-    "description": "Update a paint style's name, color, or description. Other style types: delete and create again.",
+    "description": "Update a paint style's name, color, or description. Other types: delete and recreate.",
     "inputSchema": {
       "properties": {
         "color": {

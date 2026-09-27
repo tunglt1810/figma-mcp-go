@@ -1,10 +1,10 @@
 import { makeSolidPaint, hexToRgb, makeEffect, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
 
-// create_style replaced four create_*_style tools on the MCP surface. The four
-// implementations stay separate below, because they genuinely are: only the
-// surface merged. `effectType` is unwrapped back to `type`, which the style kind
-// took over at the outer level.
+// create_style replaced four create_*_style tools in the MCP tool list. The four
+// implementations below stay separate, because they really are different.
+// Only the tool surface merged. `effectType` is mapped back to `type`, since
+// the style kind now uses `type` at the outer level.
 const STYLE_ACTIONS: Record<string, string> = {
   PAINT: "create_paint_style",
   TEXT: "create_text_style",
@@ -21,7 +21,7 @@ export const writeStylesHandlers: HandlerMap = {
   }
   const params = effectType != null ? { ...rest, type: effectType } : rest;
   const result = await handleWriteStyleRequest({ ...request, type: action, params });
-  // Answer under the name the caller used, not the one we delegated to.
+  // Answer with the name the caller used, not the one we delegated to.
   return { ...result, type: request.type }
   },
 

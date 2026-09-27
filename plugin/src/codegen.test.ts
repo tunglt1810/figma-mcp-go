@@ -45,7 +45,7 @@ describe("parseBlocks", () => {
     expect(parseBlocks(JSON.stringify([{ title: "x" }, { code: "y" }])).length).toBe(1);
   });
 
-  // Throwing inside Figma's render path surfaces as a broken panel.
+  // Throwing inside Figma's render path shows up as a broken panel.
   it("returns nothing for junk rather than throwing", () => {
     expect(parseBlocks("not json")).toEqual([]);
     expect(parseBlocks(JSON.stringify({ nope: true }))).toEqual([]);
@@ -134,7 +134,7 @@ describe("selectBlocks", () => {
     expect(selectBlocks(blocks, "CSS").map(b => b.title)).toEqual(["Styles"]);
   });
 
-  // A standing preference must not read as "this node has no code".
+  // A usual preference must not look like "this node has no code".
   it("falls back to everything when the node has nothing in that language", () => {
     expect(selectBlocks(blocks, "PYTHON")).toEqual(blocks);
   });
@@ -164,7 +164,7 @@ describe("registerCodegen", () => {
   });
 });
 
-// Figma validates the manifest itself and only reports the failure inside the
+// Figma checks the manifest itself, and only reports a failure inside the
 // desktop app, where no test run would see it. These are the two rules it
 // applied to this plugin: a codegen provider needs the capability, and a
 // codegen plugin must offer at least one language.
@@ -179,14 +179,14 @@ describe("manifest", () => {
     expect(manifest.codegenLanguages.length).toBeGreaterThan(0);
     for (const { label, value } of manifest.codegenLanguages) {
       expect(label).toBeTruthy();
-      // Anything else would filter every block out and fall back to all of
-      // them, making the dropdown entry a no-op.
+      // Any other value would filter out every block and fall back to all of
+      // them, so the dropdown entry would do nothing.
       if (value !== ALL_LANGUAGES) expect(normalizeLanguage(value)).toBe(value);
     }
   });
 
-  // Figma takes the first entry as the default, and "show everything" is the
-  // only honest default for a panel that serves whatever was stored.
+  // Figma uses the first entry as the default. "Show everything" is the only
+  // honest default for a panel that shows whatever was stored.
   it("defaults to all languages", () => {
     expect(manifest.codegenLanguages[0].value).toBe(ALL_LANGUAGES);
   });

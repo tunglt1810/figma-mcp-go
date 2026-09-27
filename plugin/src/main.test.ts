@@ -2,9 +2,9 @@ import { describe, expect, it, beforeEach } from "bun:test";
 import { markCancelled, resetCancellations } from "./cancellation";
 import { resetWriteQueue } from "./write-queue";
 
-// main.ts runs startPanel() at import time, so the globals it touches have to
+// main.ts runs startPanel() at import time, so the globals it uses must
 // exist before the import. Vite defines __html__ and __APP_VERSION__ at build
-// time; here they are plain globals.
+// time. Here they are plain globals.
 const posted: any[] = [];
 let uiHandler: ((message: any) => any) | null = null;
 let shownWith: any = null;
@@ -39,19 +39,19 @@ beforeEach(() => {
 });
 
 describe("startPanel", () => {
-  // The dark palette is a `figma-dark` class Figma adds only for plugins that
-  // opt in here, so dropping this option silently leaves the panel light in a
-  // dark editor — nothing throws and no other test would notice.
+  // The dark palette depends on a `figma-dark` class that Figma adds only for
+  // plugins that opt in here. Dropping this option silently leaves the panel
+  // light in a dark editor. Nothing throws, and no other test would notice.
   it("opts into Figma's theme classes", () => {
     expect(shownWith?.themeColors).toBe(true);
   });
 });
 
 describe("handleRequest", () => {
-  // The plugin queue is invisible to the server's clock: a write waiting behind
-  // a long pipeline emits no progress, so its 30s timer runs out, the caller is
-  // told it failed, and a cancel arrives. Running it anyway lands the edit for a
-  // caller that has already been told it did not happen, and has retried.
+  // The server's clock cannot see the plugin queue. A write waiting behind a
+  // long pipeline sends no progress, so its 30s timer runs out, the caller is
+  // told it failed, and a cancel arrives. Running it anyway applies the edit
+  // for a caller that was told it did not happen, and has already retried.
   it("does not run a queued write the server has cancelled", async () => {
     markCancelled("r1");
     const response = await handleRequest({
@@ -70,8 +70,8 @@ describe("handleRequest", () => {
       nodeIds: ["1:1"],
       params: { text: "hello" },
     });
-    // The mock has no such node, so it fails on the node lookup — which is proof
-    // the handler was reached rather than skipped.
+    // The mock has no such node, so it fails on the node lookup. That proves
+    // the handler was reached, not skipped.
     expect(response.error).not.toBe("Request cancelled");
   });
 });
@@ -85,10 +85,10 @@ describe("plugin-capabilities", () => {
   });
 
   // The panel's message listener is not installed yet when showUI returns, so
-  // the first post can land in the gap. sendStatus is already sent twice for
-  // that reason; the capability list needs the same second chance, or the server
-  // is left thinking the plugin announced nothing — which it reads as "old
-  // plugin, allow everything".
+  // the first post can arrive in that gap. sendStatus is already sent twice for
+  // that reason. The capability list needs the same second chance. Otherwise the
+  // server thinks the plugin announced nothing, which it reads as "old plugin,
+  // allow everything".
   it("is re-sent when the panel says it is ready", async () => {
     const before = capabilityMessages().length;
     expect(before).toBe(1);

@@ -3,9 +3,9 @@ import { mergeHandlers } from "./dispatch";
 import { readHandlers } from "./read-handlers";
 import { writeHandlers } from "./write-handlers";
 
-// The modules used to be chained, so two of them claiming the same request name
-// meant whichever came first in the chain quietly won and the other was dead
-// code. Merging the maps makes that a thrown error instead.
+// The modules used to be chained. If two of them claimed the same request
+// name, whichever came first quietly won, and the other was dead code.
+// Merging the maps turns that into a thrown error.
 describe("mergeHandlers", () => {
   const noop = async () => null;
 
@@ -20,8 +20,8 @@ describe("mergeHandlers", () => {
   });
 });
 
-// Building the real maps is itself the check that no two modules collide —
-// importing them here would already have thrown.
+// Building the real maps is itself the check that no two modules collide.
+// Importing them here would already have thrown.
 describe("the real handler maps", () => {
   it("cover reads and writes without colliding", () => {
     expect(Object.keys(readHandlers).length).toBeGreaterThan(0);
@@ -31,8 +31,8 @@ describe("the real handler maps", () => {
   });
 
   it("answers in one lookup, not by walking every module", () => {
-    // A write request used to traverse three read switches before reaching its
-    // own module. Now it is a property access.
+    // A write request used to go through three read switches before reaching
+    // its own module. Now it is a property access.
     expect(writeHandlers["set_paint"]).toBeTypeOf("function");
     expect(readHandlers["get_nodes_info"]).toBeTypeOf("function");
     expect(writeHandlers["get_nodes_info"]).toBeUndefined();

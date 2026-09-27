@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// Check is the one place both entry points — an MCP tool call and a follower's
-// /rpc post — agree on what a valid call looks like. Normalisation has to come
-// first: the hyphen format LLMs emit must be accepted, not rejected by the very
-// validation that exists to tolerate it.
+// Check is the one place where both entry points (an MCP tool call and a
+// follower's /rpc post) agree on what a valid call is. Normalization must come
+// first: the hyphen format LLMs produce must be accepted, not rejected by the
+// validation that exists to accept it.
 
 func TestCheck_NormalizesBeforeValidating(t *testing.T) {
 	ids, params, err := Check("set_text", []string{"4029-12345"}, map[string]any{"text": "hi"})
@@ -35,7 +35,7 @@ func TestCheck_RejectsInvalidArguments(t *testing.T) {
 
 func TestCheck_UnknownToolIsNotRejected(t *testing.T) {
 	// A tool with no spec has no rules to break. ValidateRPC has always
-	// returned "" for one, and Check must not turn that into an error.
+	// returned "" for one, and Check must not make that an error.
 	if _, _, err := Check("not_a_tool", nil, nil); err != nil {
 		t.Errorf("unknown tool should pass through, got %v", err)
 	}
@@ -51,7 +51,7 @@ func TestCheck_DoesNotMutateCallerArguments(t *testing.T) {
 	}
 }
 
-// Node IDs travel inside params too, not only in the dedicated field.
+// Node IDs also appear inside params, not only in the dedicated field.
 func TestCheck_NormalizesIDsInParams(t *testing.T) {
 	_, params, err := Check("clone_node", []string{"1-1"}, map[string]any{
 		"nodeId":   "100-200",
@@ -68,9 +68,9 @@ func TestCheck_NormalizesIDsInParams(t *testing.T) {
 	}
 }
 
-// A pipeline step carries a whole parameter set of its own, one level below
-// anything the top-level pass reached — so hyphen IDs inside a pipeline went
-// to the plugin unconverted and the step failed to find its node.
+// A pipeline step has its own parameter set, one level deeper than the
+// top-level pass reached. So hyphen IDs inside a pipeline reached the plugin
+// unconverted, and the step could not find its node.
 func TestCheck_NormalizesIDsInsidePipelineSteps(t *testing.T) {
 	steps := []any{
 		map[string]any{
@@ -113,8 +113,8 @@ func TestCheck_NormalizesIDsInsidePipelineSteps(t *testing.T) {
 	}
 }
 
-// Normalizing must copy rather than edit: the nested maps belong to the caller
-// too (P2-12).
+// Normalizing must copy, not edit: the nested maps belong to the caller too
+// (P2-12).
 func TestCheck_DoesNotMutateNestedCallerArgs(t *testing.T) {
 	inner := map[string]any{"nodeId": "100-200"}
 	steps := []any{map[string]any{"action": "clone_node", "params": inner}}

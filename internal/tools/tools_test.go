@@ -10,9 +10,9 @@ import (
 
 // ── renderResponse ────────────────────────────────────────────────────────────
 
-// A transport failure and a plugin-reported failure arrive as the same thing —
-// the sender turns the second into an error at the cluster boundary — so there
-// is one branch here rather than two that did the same work.
+// A transport failure and a plugin failure arrive the same way: the sender
+// turns the second into an error at the cluster boundary. So there is one
+// branch here, not two that did the same work.
 func TestRenderResponse_Error(t *testing.T) {
 	for _, msg := range []string{"connection failed", "node not found"} {
 		result, err := renderResponse(nil, fmt.Errorf("%s", msg))
@@ -205,8 +205,8 @@ func TestParseExportItem_Valid(t *testing.T) {
 	}
 }
 
-// An absent outputPath is what makes an item answer in memory, so it must not
-// arrive as an empty string that reads as a path.
+// An absent outputPath makes an item answer in memory, so it must not arrive
+// as an empty string that looks like a path.
 func TestParseExportItem_AbsentOutputPathStaysNil(t *testing.T) {
 	item, err := parseExportItem(map[string]any{"nodeId": "1:1"})
 	if err != nil {
@@ -301,8 +301,8 @@ func TestWriteBase64_CreatesIntermediateDirs(t *testing.T) {
 	}
 }
 
-// Screenshotting the same node twice is the normal loop — capture, adjust the
-// design, capture again. Refusing to overwrite meant the second capture failed
+// Screenshotting the same node twice is the normal loop: capture, adjust the
+// design, capture again. Refusing to overwrite made the second capture fail
 // until the user deleted the file by hand.
 func TestWriteBase64_OverwritesExistingFile(t *testing.T) {
 	dir := t.TempDir()
@@ -324,8 +324,8 @@ func TestWriteBase64_OverwritesExistingFile(t *testing.T) {
 	}
 }
 
-// Overwriting must truncate: a shorter image must not leave the tail of the
-// longer one behind it.
+// Overwriting must truncate: a shorter image must not leave the end of the
+// longer one behind.
 func TestWriteBase64_TruncatesOnOverwrite(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "existing.png")

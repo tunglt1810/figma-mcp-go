@@ -40,7 +40,7 @@ describe("compareVersions", () => {
   });
 
   test("a major gap outranks the minor numbers", () => {
-    // 1.9 vs 2.0: the plugin's higher minor must not read as "server-old".
+    // 1.9 vs 2.0: the plugin's higher minor must not count as "server-old".
     expect(compareVersions("1.9.0", "2.0.0")).toBe("plugin-old");
   });
 
@@ -81,8 +81,8 @@ describe("versionWarningSummary", () => {
     expect(summary).toContain("v0.3.0");
     expect(summary).toContain("v0.4.0");
     expect(summary).toContain("re-import");
-    // The panel is 320px wide; a headline much longer than this wraps past the
-    // two lines the banner has room for.
+    // The panel is 320px wide. A headline much longer than this wraps past
+    // the two lines the banner has room for.
     expect(summary.length).toBeLessThanOrEqual(70);
   });
 

@@ -2,15 +2,15 @@
 
 ## 1. Introduction
 
-Dev Mode Annotations are a special Figma feature for handoff from design to development. Users with a Dev Mode seat can attach annotations to the design surface containing properties such as dimensions, colors, and border radius.
+Dev Mode annotations are a Figma feature for handing off designs to developers. Users with a Dev Mode seat can attach annotations to a design, showing properties such as dimensions, colors, and border radius.
 
-The MCP Plugin supports writing (creating or replacing) and deleting annotations.
-*(The `get_annotations` read API has been implemented independently.)*
+The MCP plugin can write (create or replace) and delete annotations.
+*(Reading them, through `get_annotations`, was built separately.)*
 
 ## 2. Environment Constraints (Paid Users / Dev Mode Seat)
 
-- **UI visibility**: Only users with a paid license and Dev Mode access can see Annotations in the interface.
-- **API layer (technical behavior)**: The Figma Plugin API (`node.annotations`) still allows reading and writing internal data on a Node even when the user does not have permission to display it. MCP uses this behavior so LLMs can prepare technical documentation on a design without encountering an error.
+- **UI visibility**: Only users with a paid license and Dev Mode access can see annotations in the interface.
+- **API behavior**: The Figma Plugin API (`node.annotations`) can still read and write this data on a node, even when the user cannot see it. MCP relies on this, so LLMs can add technical notes to a design without an error.
 
 ## 3. Write Annotations (`set_annotations`)
 
@@ -34,17 +34,17 @@ The MCP Plugin supports writing (creating or replacing) and deleting annotations
 
 ### Replacement Logic
 
-The Figma API defines a Node's `annotations` property as a `ReadonlyArray<Annotation>`. Adding annotations requires assigning the complete array rather than calling `.push()`:
+The Figma API types a node's `annotations` property as `ReadonlyArray<Annotation>`. To add annotations, assign the whole array. `.push()` does not work:
 
 ```typescript
 (node as any).annotations = p.annotations;
 ```
 
-*Note:* This assignment replaces all existing Annotations on the Node.
+*Note:* This assignment replaces all existing annotations on the node.
 
 ## 4. Delete Annotations
 
-Deleting is the same call with an empty array — there is no separate tool.
+To delete, make the same call with an empty array. There is no separate tool.
 
 ### Input Payload
 
@@ -57,4 +57,5 @@ Deleting is the same call with an empty array — there is no separate tool.
 
 ### Logic
 
-Iterate over the list of IDs, check whether each node supports the `annotations` property (`"annotations" in node`), and then assign the array through. A node that does not support annotations, or a seat without Dev Mode — which Figma reports by throwing — is reported against that node in `results` rather than failing the whole call.
+For each ID, check that the node supports the `annotations` property (`"annotations" in node`), then assign the array. Some nodes do not support annotations, and a seat without Dev Mode makes Figma throw. Either case is reported for that node in `results`, instead of failing the whole call.
+

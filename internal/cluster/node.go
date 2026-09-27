@@ -12,14 +12,14 @@ import (
 
 func nodeLog() *slog.Logger { return slog.Default().With("component", "node") }
 
-// sender is anything that can carry a tool call to the plugin — the Leader's
+// sender is anything that can carry a tool call to the plugin: the Leader's
 // Bridge (direct WebSocket) or a Follower (HTTP proxy to the leader).
 type sender interface {
 	Send(ctx context.Context, tool string, nodeIDs []string, params map[string]any) (bridge.Response, error)
 }
 
-// Node dynamically routes MCP tool calls to either the Leader bridge
-// or the Follower HTTP proxy, depending on the current role.
+// Node routes MCP tool calls to either the Leader bridge or the Follower HTTP
+// proxy, depending on the current role.
 type Node struct {
 	mu       sync.RWMutex
 	role     Role
@@ -62,13 +62,13 @@ func (n *Node) RoleName() string {
 	}
 }
 
-// Send routes a tool call to the plugin: the leader writes to its own bridge,
-// a follower proxies to the leader over HTTP. Arguments arrive already
-// normalized and checked — the tool layer does that for a local call, and the
-// leader's /rpc guard does it for one that came from another process.
+// Send routes a tool call to the plugin. The leader writes to its own bridge.
+// A follower forwards to the leader over HTTP. Arguments arrive already
+// normalized and checked: the tool layer does that for a local call, and the
+// leader's /rpc guard does it for a call from another process.
 //
-// A plugin-reported error and a transport error become the same thing here.
-// Every caller already treated them identically; keeping them apart only
+// A plugin error and a transport error become the same error here. Every
+// caller already treated them the same way, and keeping them apart only
 // duplicated the branch.
 func (n *Node) Send(ctx context.Context, tool string, nodeIDs []string, params map[string]any) (any, error) {
 	n.mu.RLock()
@@ -89,9 +89,9 @@ func (n *Node) Send(ctx context.Context, tool string, nodeIDs []string, params m
 	case role == RoleFollower:
 		resp, err = follower.Send(ctx, tool, nodeIDs, params)
 	default:
-		// The election has not settled. Say so: proxying to a port nobody holds
-		// only produces "connection refused", which describes the symptom and
-		// not the situation.
+		// The election has not settled, so say that. Forwarding to a port nobody
+		// holds only gives "connection refused", which describes the symptom, not
+		// the cause.
 		return nil, errors.New("no leader yet — the server is still electing one, retry in a moment")
 	}
 	if err != nil {
@@ -103,8 +103,8 @@ func (n *Node) Send(ctx context.Context, tool string, nodeIDs []string, params m
 	return resp.Data, nil
 }
 
-// BecomeLeader attempts to bind the port and transition to Leader role.
-// Returns an error if the port is already in use.
+// BecomeLeader tries to bind the port and switch to the Leader role.
+// It returns an error if the port is already in use.
 func (n *Node) BecomeLeader() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -124,7 +124,7 @@ func (n *Node) BecomeLeader() error {
 	return nil
 }
 
-// BecomeFollower transitions to Follower role, stopping the leader if running.
+// BecomeFollower switches to the Follower role, stopping the leader if it is running.
 func (n *Node) BecomeFollower() {
 	n.mu.Lock()
 	defer n.mu.Unlock()

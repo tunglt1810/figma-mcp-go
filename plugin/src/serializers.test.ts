@@ -152,10 +152,10 @@ describe("serializePaints", () => {
       ]
     }];
     const result = serializePaints(paints) as any[];
-    // stops[] must stay writable back through set_paint, which takes opacity separately.
+    // stops[] must stay writable through set_paint, which takes opacity separately.
     expect(result[0].stops[0].color).toBe("#ff0000");
     expect(result[0].stops[1].color).toBe("#0000ff80");
-    // cssString renders, so it carries the opacity: 1*0.5 = 0x80, 0.5*0.5 = 0x40.
+    // cssString is for rendering, so it includes the opacity: 1*0.5 = 0x80, 0.5*0.5 = 0x40.
     expect(result[0].cssString).toBe("linear-gradient(90deg, #ff000080 0%, #0000ff40 100%)");
   });
   it("leaves cssString unchanged for a fully opaque gradient", () => {
@@ -516,8 +516,8 @@ describe("serializeStyles", () => {
     expect(result.strokes).toEqual(["#000000"]);
   });
 
-  // cornerRadius now lives only under geometry, which already owns the per-corner
-  // variants. Reporting it in both places was duplication.
+  // cornerRadius now lives only under geometry, which already holds the
+  // per-corner values. Reporting it in both places was duplication.
   it("does not report cornerRadius, which belongs to geometry", async () => {
     const result = await serializeStyles({ cornerRadius: 8 });
     expect(result.cornerRadius).toBeUndefined();
@@ -616,14 +616,14 @@ describe("serializeEffects", () => {
   });
 
   // This file's "Cosun Glass" style is a GLASS effect. Listing only the parameters of
-  // shadows and blurs would report it as a bare radius and lose the whole effect.
+  // shadows and blurs would report it as a bare radius and lose the rest of the effect.
   it("keeps the parameters of effect types beyond shadows and blurs", () => {
     const glass = {
       type: "GLASS", radius: 4, depth: 20, dispersion: 0.5, lightAngle: -45,
       lightIntensity: 0.800000011920929, refraction: 0.800000011920929, splay: 0,
       visible: true, boundVariables: {},
     };
-    // splay is 0, the identity for that parameter, so it is omitted like any default.
+    // splay is 0, the neutral value for that parameter, so it is omitted like any default.
     expect(serializeEffects([glass])).toEqual([{
       type: "GLASS", radius: 4, depth: 20, dispersion: 0.5, lightAngle: -45,
       lightIntensity: 0.8, refraction: 0.8,
@@ -636,8 +636,8 @@ describe("serializeEffects", () => {
     ]);
   });
 
-  // NoiseEffectMultitone has an effect-level opacity of its own. Reporting it as
-  // `opacity` would overwrite the alpha lifted out of `color`.
+  // NoiseEffectMultitone has its own effect-level opacity. Reporting it as
+  // `opacity` would overwrite the alpha taken from `color`.
   it("keeps multitone noise opacity apart from the colour's alpha", () => {
     const noise = {
       type: "NOISE", noiseType: "MULTITONE", radius: 0, density: 0.5, noiseSize: 2,
@@ -689,8 +689,8 @@ describe("serializeEffects", () => {
     ];
 
     const first = serializeEffects(figmaEffects) as any[];
-    // Feeding a read result back through the write path and reading it again must
-    // land on the same thing, or effects cannot be copied between nodes.
+    // A read result fed back through the write path and read again must give
+    // the same result, or effects cannot be copied between nodes.
     const second = serializeEffects(first.map((e: any) => makeEffect(e)));
     expect(second).toEqual(first);
   });
@@ -1141,8 +1141,8 @@ describe("serializeComponentPropertyDefinitions", () => {
     expect(serializeComponentPropertyDefinitions({ type: "COMPONENT" })).toBeUndefined();
   });
 
-  // The suffixed key is what every write has to quote back; the bare name is
-  // what a reader recognises.
+  // Every write must quote the suffixed key back. The bare name is what a
+  // reader recognises.
   it("keeps the full id as the key and the bare name alongside", () => {
     const defs = serializeComponentPropertyDefinitions({
       type: "COMPONENT_SET",
@@ -1224,7 +1224,7 @@ describe("serializeNode budget", () => {
   });
 
   // Spending the budget in tree order is what makes a truncated answer
-  // reproducible rather than a race between promises.
+  // repeatable, instead of a race between promises.
   it("spends the budget in tree order", async () => {
     const budget = makeBudget(2);
     const tree = await serializeNode(makeTree(2, 2), budget);

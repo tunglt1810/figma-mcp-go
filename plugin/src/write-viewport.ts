@@ -1,9 +1,9 @@
 import { HandlerMap } from "./dispatch";
 import { getBounds } from "./serializers";
 
-// Selection and viewport. Neither touches the document, so neither commits an
-// undo step — putting a camera move on the undo stack would make Ctrl+Z scroll
-// the canvas instead of reversing the user's last real edit.
+// Selection and viewport. Neither changes the document, so neither commits an
+// undo step. A camera move on the undo stack would make Ctrl+Z scroll the
+// canvas instead of undoing the user's last real edit.
 
 /** The page a node lives on, or null for a node detached from the tree. */
 export const pageOf = (node: any): any => {
@@ -22,8 +22,8 @@ export const writeViewportHandlers: HandlerMap = {
     const zoom = p.zoom !== false;
     const nodeIds: string[] = request.nodeIds || [];
 
-    // No ids at all means "deselect everything". Only meaningful for select;
-    // there is nothing to zoom to.
+    // No ids at all means "deselect everything". This only makes sense for
+    // select. There is nothing to zoom to.
     if (nodeIds.length === 0) {
       if (!select) {
         throw new Error("nodeIds is required unless select is true and you are clearing the selection");
@@ -49,8 +49,8 @@ export const writeViewportHandlers: HandlerMap = {
       }
     }
 
-    // A selection belongs to one page, so mixed pages cannot be honoured. Say
-    // so rather than silently selecting whichever subset happens to survive.
+    // A selection belongs to one page, so nodes from several pages cannot be
+    // selected together. Say so, instead of quietly selecting whichever part remains.
     const pages = nodes.map(pageOf);
     const detached = nodes.filter((_, i) => pages[i] === null);
     if (detached.length > 0) {

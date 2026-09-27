@@ -1,13 +1,13 @@
 package tools
 
-// Component properties and variants — the half of the component surface that
-// was missing. The plugin could read a design system and make a component, but
-// not declare what that component exposes, so it could never build one.
+// Component properties and variants: the missing half of the component tools.
+// The plugin could read a design system and make a component, but could not
+// declare what that component exposes, so it could never build a real one.
 
 var writeComponentPropertySpecs = []toolSpec{
 	{
 		Name:       "combine_as_variants",
-		Desc:       "Combine 2+ components (same parent) into a component set of variants. Then add VARIANT properties with manage_component_properties.",
+		Desc:       "Combine 2+ components (same parent) into a variant set. Add VARIANT properties with manage_component_properties.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "COMPONENT node IDs",
@@ -16,8 +16,9 @@ var writeComponentPropertySpecs = []toolSpec{
 		},
 	},
 	{
-		Name:       "manage_component_properties",
-		Desc:       "Add, edit, delete, or bind a component's properties. bind links a layer to a property: BOOLEAN shows/hides it, TEXT sets its text, INSTANCE_SWAP swaps it. Names work without the '#1:2' suffix.",
+		Name: "manage_component_properties",
+		Desc: "Add, edit, delete, or bind component properties. bind links a layer: BOOLEAN shows/hides it, TEXT sets its text, INSTANCE_SWAP swaps it. Names work without the '#1:2' suffix.",
+
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "COMPONENT or COMPONENT_SET node ID",

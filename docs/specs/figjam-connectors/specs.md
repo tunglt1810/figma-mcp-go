@@ -2,11 +2,11 @@
 
 ## 1. Introduction
 
-Connectors are a FigJam-specific feature that lets users connect points or Nodes (such as sticky notes and shapes) to create diagrams, flowcharts, and mind maps. The MCP Plugin provides the `create_connector` tool for manipulating these connectors directly.
+Connectors are a FigJam feature. They link points or nodes (such as sticky notes and shapes) to build diagrams, flowcharts, and mind maps. The MCP plugin provides the `create_connector` tool to create them.
 
 ## 2. Environment Constraints (FigJam Only)
 
-The Figma API requires Connector operations to run only in a FigJam file (`figma.editorType === "figjam"`). If a user attempts to call the tool from a regular Figma Design file, the MCP Plugin checks the editor type and returns the error:
+The Figma API only allows connectors in a FigJam file (`figma.editorType === "figjam"`). If the tool is called from a regular Figma Design file, the MCP plugin checks the editor type and returns this error:
 
 > "create_connector is only supported in FigJam files"
 
@@ -24,21 +24,22 @@ The Figma API requires Connector operations to run only in a FigJam file (`figma
 }
 ```
 
-*Note*: At least one start point and one end point must be provided. Each can be specified either by Node ID or by coordinates.
+*Note*: You must give a start point and an end point. Each one can be a node ID or coordinates.
 
 ### Initialization and Geometry Logic
 
 1. **Initialize**: Call `const connector = figma.createConnector()`.
 2. **Configure the start point (`connectorStart`)**:
-   - If `startNodeId` is provided, set `endpointNodeId` and use the magnetic anchor `magnet = "AUTO"` so Figma automatically selects the best attachment point on the Node's edge:
+   - If `startNodeId` is provided, set `endpointNodeId` and use `magnet = "AUTO"`, so Figma picks the best attachment point on the node's edge:
      ```typescript
      connector.connectorStart = { endpointNodeId: startNode.id, magnet: "AUTO" };
      ```
-   - If `startPosition` is provided, assign the coordinates directly on the canvas:
+   - If `startPosition` is provided, set the canvas coordinates directly:
      ```typescript
      connector.connectorStart = { position: p.startPosition };
      ```
 3. **Configure the end point (`connectorEnd`)**:
-   - As with the start point, support either `endNodeId` or `endPosition`.
+   - Same as the start point: accept either `endNodeId` or `endPosition`.
 4. **Set the line shape (`connectorLineType`)**:
-   - A Connector can use a straight (`STRAIGHT`) or elbow (`ELBOW`) line. If `lineType` is provided, assign `connector.connectorLineType = p.lineType`.
+   - A connector can be a straight (`STRAIGHT`) or elbow (`ELBOW`) line. If `lineType` is provided, set `connector.connectorLineType = p.lineType`.
+

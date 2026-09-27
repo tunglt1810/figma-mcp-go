@@ -14,23 +14,22 @@ func TestValidateRPC_GetNodesInfo(t *testing.T) {
 	if msg := ValidateRPC("get_nodes_info", []string{"bad"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
-	// ValidateRPC is the check after normalization, so a hyphen reaching it
-	// means nothing normalized it and it is not a node id.
+	// ValidateRPC runs after normalization. A hyphen that reaches it means
+	// nothing normalized it, so it is not a node id.
 	if msg := ValidateRPC("get_nodes_info", []string{"4029-12345"}, nil); msg == "" {
 		t.Error("expected error for hyphen nodeId")
 	}
 	if msg := ValidateRPC("get_nodes_info", []string{"1:1", "2:2"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-	// This absorbed get_node, so one node is a normal call, not a degenerate one.
+	// This tool took over get_node, so one node is a normal call, not an edge case.
 	if msg := ValidateRPC("get_nodes_info", []string{"4029:12345"}, nil); msg != "" {
 		t.Errorf("a single node was rejected: %s", msg)
 	}
 }
 
-// get_screenshot and save_screenshots became export_screenshots, where the
-// outputPath is what decides whether a capture goes to disk or comes back as
-// base64.
+// get_screenshot and save_screenshots became export_screenshots. The
+// outputPath decides whether a capture goes to disk or comes back as base64.
 func TestValidateRPC_ExportScreenshots(t *testing.T) {
 	// no items at all is the "capture the selection" call, not an error
 	if msg := ValidateRPC("export_screenshots", nil, nil); msg != "" {
@@ -55,20 +54,20 @@ func TestValidateRPC_ExportScreenshots(t *testing.T) {
 	}); msg == "" {
 		t.Error("expected error for bad nodeId in item")
 	}
-	// no outputPath is base64, not an error — this is the get_screenshot half
+	// no outputPath means base64, not an error: this is the get_screenshot part
 	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
 		"items": []any{map[string]any{"nodeId": "1:1"}},
 	}); msg != "" {
 		t.Errorf("an item without outputPath was rejected: %s", msg)
 	}
-	// an empty outputPath is a path the caller got wrong, and must not quietly
-	// become the base64 answer
+	// an empty outputPath is a path the caller got wrong, and must not
+	// quietly become the base64 answer
 	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
 		"items": []any{map[string]any{"nodeId": "1:1", "outputPath": ""}},
 	}); msg == "" {
 		t.Error("expected error for an empty outputPath")
 	}
-	// the per-item format is a level below any paramSpec enum
+	// the per-item format is deeper than any paramSpec enum can reach
 	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
 		"items": []any{map[string]any{"nodeId": "1:1", "format": "GIF"}},
 	}); msg == "" {
@@ -90,8 +89,8 @@ func TestValidateRPC_ExportScreenshots(t *testing.T) {
 	}
 }
 
-// get_document absorbed get_design_context, so detail, dedupe_components and a
-// selection scope are arguments to it now.
+// get_document took over get_design_context, so detail, dedupe_components and
+// a selection scope are now arguments to it.
 func TestValidateRPC_GetDocument(t *testing.T) {
 	// negative depth
 	if msg := ValidateRPC("get_document", nil, map[string]any{"depth": float64(-1)}); msg == "" {
@@ -116,7 +115,7 @@ func TestValidateRPC_GetDocument(t *testing.T) {
 	if msg := ValidateRPC("get_document", nil, map[string]any{"scope": "everything"}); msg == "" {
 		t.Error("expected error for an unknown scope")
 	}
-	// what get_design_context was, now on a document walk
+	// what get_design_context did, now on a document walk
 	if msg := ValidateRPC("get_document", nil, map[string]any{
 		"scope": "document", "detail": "minimal", "dedupeComponents": true, "maxNodes": float64(500),
 	}); msg != "" {
@@ -125,8 +124,8 @@ func TestValidateRPC_GetDocument(t *testing.T) {
 }
 
 func TestValidateRPC_SearchNodes(t *testing.T) {
-	// neither query nor types: this absorbed scan_nodes_by_types, so types alone
-	// is a whole search now — but neither would be "every node on the page".
+	// neither query nor types. This tool took over scan_nodes_by_types, so
+	// types alone is a full search now. But neither would mean "every node on the page".
 	if msg := ValidateRPC("search_nodes", nil, nil); msg == "" {
 		t.Error("expected error when neither query nor types is given")
 	}
@@ -190,10 +189,10 @@ func TestValidateRPC_SetText(t *testing.T) {
 	}
 }
 
-// manage_variable absorbed the six single-purpose variable tools. Each action
-// keeps the arguments its tool required, and an argument from a different
-// action is rejected rather than dropped — the trade a merged tool makes is
-// only worth it if the wrong argument is reported.
+// manage_variable took over the six single-purpose variable tools. Each action
+// keeps the arguments its old tool required. An argument from a different
+// action is rejected, not dropped: merging tools is only worth it if the wrong
+// argument is reported.
 func TestValidateRPC_ManageVariable(t *testing.T) {
 	call := func(nodeIDs []string, params map[string]any) string {
 		return ValidateRPC("manage_variable", nodeIDs, params)
@@ -276,7 +275,7 @@ func TestValidateRPC_ManageVariable(t *testing.T) {
 		}
 	})
 
-	// The node travels in its own field, which requireVariant cannot see.
+	// The node goes in its own field, which requireVariant cannot see.
 	t.Run("bind", func(t *testing.T) {
 		if msg := call(nil, map[string]any{"action": "bind", "variableId": "v1", "field": "fillColor"}); msg == "" {
 			t.Error("expected error for missing nodeId")
@@ -297,7 +296,7 @@ func TestValidateRPC_ManageVariable(t *testing.T) {
 		}
 	})
 
-	// An argument from another action is named rather than silently dropped.
+	// An argument from another action is named, not quietly dropped.
 	t.Run("a stray argument is reported", func(t *testing.T) {
 		msg := call(nil, map[string]any{"action": "create_collection", "name": "Brand", "modeId": "m1"})
 		if !strings.Contains(msg, "modeId") {
@@ -382,8 +381,8 @@ func TestValidateRPC_DeleteNodes(t *testing.T) {
 	}
 }
 
-// batch_rename_nodes absorbed rename_node, so a literal name is one of the ways
-// it derives a name — and the one that cannot be mixed with the others.
+// batch_rename_nodes took over rename_node, so a literal name is one of the ways
+// it builds a name. It is the one way that cannot be mixed with the others.
 func TestValidateRPC_BatchRenameNodes_Name(t *testing.T) {
 	if msg := ValidateRPC("batch_rename_nodes", nil, map[string]any{"name": "Frame 1"}); msg == "" {
 		t.Error("expected error for missing nodeIds")
@@ -491,9 +490,9 @@ func TestValidateRPC_DetachInstance(t *testing.T) {
 	}
 }
 
-// set_node_properties absorbed move_nodes, resize_nodes and set_corner_radius,
-// so position, size and radii are now properties among the rest — each of them
-// enough on its own to make the call meaningful.
+// set_node_properties took over move_nodes, resize_nodes and set_corner_radius.
+// So position, size and radii are now properties like the rest, and each one
+// alone is enough for a valid call.
 func TestValidateRPC_SetNodeProperties_GeometryAbsorbed(t *testing.T) {
 	if msg := ValidateRPC("set_node_properties", nil, map[string]any{"cornerRadius": float64(8)}); msg == "" {
 		t.Error("expected error for missing nodeIds")
@@ -516,7 +515,7 @@ func TestValidateRPC_SetNodeProperties_GeometryAbsorbed(t *testing.T) {
 			t.Errorf("expected a non-numeric %s to be rejected", param)
 		}
 	}
-	// Move and resize together, which used to be two calls and two undo entries
+	// Move and resize together, which used to take two calls and two undo entries
 	if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{
 		"x": float64(10), "y": float64(20), "width": float64(300), "height": float64(200),
 	}); msg != "" {
@@ -789,7 +788,7 @@ func TestValidateRPC_SetReactions_RemoveIndices(t *testing.T) {
 		t.Error("expected error when neither reactions nor removeIndices is given")
 	}
 	// both at once: an empty removeIndices means "remove all", so a call
-	// carrying reactions too is ambiguous in the worst direction
+	// that also has reactions is ambiguous in the worst way
 	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{}, "removeIndices": []any{},
 	}); msg == "" {
@@ -807,7 +806,7 @@ func TestValidateRPC_SetReactions_RemoveIndices(t *testing.T) {
 	}); msg == "" {
 		t.Error("expected error for a negative index")
 	}
-	// empty means remove all — valid, and not the same as omitting it
+	// empty means remove all: valid, and not the same as omitting it
 	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
 		"removeIndices": []any{},
 	}); msg != "" {
@@ -925,8 +924,8 @@ func TestValidateRPC_SetEffects(t *testing.T) {
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-	// get_nodes_info reports GLASS, NOISE and TEXTURE effects, so set_effects has to take
-	// them back or effects cannot be copied from one node to another.
+	// get_nodes_info reports GLASS, NOISE and TEXTURE effects, so set_effects must accept
+	// them back, or effects cannot be copied from one node to another.
 	for _, kind := range []string{"NOISE", "TEXTURE", "GLASS"} {
 		if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]any{
 			"effects": []any{map[string]any{"type": kind}},
@@ -1029,9 +1028,9 @@ func TestValidateRPC_SetAnnotations(t *testing.T) {
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-	// This absorbed clear_annotations: an empty array over several nodes is how
-	// annotations are cleared now, so it has to reach the plugin rather than
-	// being read as an absent argument.
+	// This tool took over clear_annotations. An empty array over several nodes
+	// is now how annotations are cleared, so it must reach the plugin instead
+	// of being read as an absent argument.
 	if msg := ValidateRPC("set_annotations", []string{"1:1", "2:2"}, map[string]any{
 		"annotations": []any{},
 	}); msg != "" {
@@ -1114,8 +1113,8 @@ func TestValidateRPC_SetNodeProperties(t *testing.T) {
 }
 
 func TestValidateRPC_HexColor(t *testing.T) {
-	// The plugin used to turn an unreadable color into NaN channels and paint a
-	// broken fill silently. These are rejected before the round-trip now.
+	// The plugin used to turn an unreadable color into NaN channels and quietly
+	// paint a broken fill. Now these are rejected before the round trip.
 	bad := []string{"red", "rgb(255,0,0)", "#ff", "#12345", "#gggggg"}
 	for _, color := range bad {
 		if msg := ValidateRPC("set_paint", []string{"1:1"}, map[string]any{"type": "SOLID", "color": color}); msg == "" {
@@ -1123,7 +1122,7 @@ func TestValidateRPC_HexColor(t *testing.T) {
 		}
 	}
 
-	// Shorthand is real CSS and the plugin expands it, so it must pass here.
+	// Shorthand is valid CSS and the plugin expands it, so it must pass here.
 	good := []string{"#f00", "#f00a", "#ff0000", "#ff0000aa", "ff0000"}
 	for _, color := range good {
 		if msg := ValidateRPC("set_paint", []string{"1:1"}, map[string]any{"type": "SOLID", "color": color}); msg != "" {
@@ -1148,9 +1147,9 @@ func TestValidateRPC_HexColor(t *testing.T) {
 	}
 }
 
-// create_style merged four tools behind a `type` discriminator. The risk that
-// buys is the model reaching for an argument that belongs to a different kind
-// of style, so those are rejected rather than dropped.
+// create_style merged four tools behind a `type` discriminator. The risk is
+// that the model uses an argument that belongs to a different kind of style,
+// so those arguments are rejected, not dropped.
 func TestValidateRPC_CreateStyle(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -1268,8 +1267,8 @@ func TestValidateRPC_SetPaint(t *testing.T) {
 		{"linear gradient", map[string]any{
 			"type": "GRADIENT_LINEAR", "stops": linearStops, "geometry": geometry,
 		}, ""},
-		// get_nodes_info reports a gradient's paint-level opacity, so set_paint has to
-		// accept it back or the read cannot be written again.
+		// get_nodes_info reports a gradient's paint-level opacity, so set_paint must
+		// accept it back, or what was read cannot be written again.
 		{"gradient with opacity", map[string]any{
 			"type": "GRADIENT_RADIAL", "stops": linearStops, "geometry": geometry, "opacity": 0.6,
 		}, ""},
@@ -1315,9 +1314,9 @@ func TestValidateRPC_SetPaint(t *testing.T) {
 	}
 }
 
-// create_node merged seven shape tools behind a `type` discriminator. This is
-// the merge the review called riskiest, because the shapes genuinely differ:
-// a star takes pointCount, a line takes length, a section takes no parent.
+// create_node merged seven shape tools behind a `type` discriminator. The review
+// called this the riskiest merge, because the shapes really do differ: a star
+// takes pointCount, a line takes length, a section takes no parent.
 func TestValidateRPC_CreateNode(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -1379,8 +1378,8 @@ func TestValidateRPC_CreateNode(t *testing.T) {
 	}
 }
 
-// A crop is in fractions of the image, so a rect running past its edge is a
-// mistake rather than something to clamp.
+// A crop is in fractions of the image, so a rect that runs past the edge is a
+// mistake, not something to clamp.
 func TestImportImage_CropBounds(t *testing.T) {
 	base := map[string]any{"imageUrl": "https://example.com/a.png"}
 	with := func(crop map[string]any) map[string]any {
@@ -1436,8 +1435,8 @@ func TestImportImage_FilterRange(t *testing.T) {
 	}
 }
 
-// Figma throws on a malformed preset rather than skipping it, which would leave
-// a node half-updated — so the whole array is checked before any of it is sent.
+// Figma throws on a bad preset instead of skipping it, which would leave a node
+// half-updated. So the whole array is checked before any of it is sent.
 func TestSetExportSettings_ValidatesEveryPreset(t *testing.T) {
 	ok := map[string]any{"settings": []any{
 		map[string]any{"format": "PNG", "constraint": map[string]any{"type": "SCALE", "value": 2.0}},

@@ -8,22 +8,22 @@ import (
 // effectTypes are the kinds create_style can build a reusable effect style from.
 var effectTypes = []string{"DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"}
 
-// nodeEffectTypes covers Figma's whole Effect union apart from SHADER, which needs a
-// shader imported by id before it can be applied and so cannot come from parameters.
-// get_nodes_info reports all of these, so set_effects has to accept them back.
+// nodeEffectTypes covers Figma's whole Effect union except SHADER. A shader must
+// be imported by id before it can be applied, so it cannot come from parameters.
+// get_nodes_info reports all of these, so set_effects must accept them back.
 var nodeEffectTypes = []string{
 	"DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR",
 	"NOISE", "TEXTURE", "GLASS",
 }
 
-// styleDescriptionParam is the optional blurb shown in Figma's style panel.
+// styleDescriptionParam is the optional text shown in Figma's style panel.
 func styleDescriptionParam(desc string) paramSpec {
 	return paramSpec{Name: "description", Kind: kindString, Desc: desc}
 }
 
 // styleVariants say which arguments belong to which kind of style. Four
-// create_*_style tools became one; without this the arguments of the other
-// three would be accepted and silently dropped.
+// create_*_style tools became one. Without this, arguments for the other three
+// would be accepted and quietly dropped.
 var styleVariants = map[string]variantSpec{
 	"PAINT": {Allowed: []string{"color"}, Required: []string{"color"}},
 	"TEXT": {Allowed: []string{
@@ -39,7 +39,7 @@ var styleVariants = map[string]variantSpec{
 var writeStyleSpecs = []toolSpec{
 	{
 		Name: "create_style",
-		Desc: "Create a local style. Arguments per `type`: " +
+		Desc: "Create a local style. Args per `type`: " +
 			"PAINT: color. " +
 			"TEXT: fontSize, fontFamily, fontStyle, textDecoration, lineHeightValue/Unit, letterSpacingValue/Unit. " +
 			"EFFECT: effectType, color, opacity, radius, offsetX, offsetY, spread. " +
@@ -91,7 +91,7 @@ var writeStyleSpecs = []toolSpec{
 	},
 	{
 		Name: "update_paint_style",
-		Desc: "Update a paint style's name, color, or description. Other style types: delete and create again.",
+		Desc: "Update a paint style's name, color, or description. Other types: delete and recreate.",
 		Params: []paramSpec{
 			{Name: "styleId", Kind: kindString, Required: true, Desc: "Paint style ID"},
 			{Name: "name", Kind: kindString, Desc: "New style name"},
@@ -121,8 +121,9 @@ var writeStyleSpecs = []toolSpec{
 		},
 	},
 	{
-		Name:       "set_effects",
-		Desc:       "Replace a node's effects. [] clears them. Same shape as styles.effects from get_nodes_info.",
+		Name: "set_effects",
+		Desc: "Replace a node's effects ([] clears), in the shape of get_nodes_info's styles.effects.",
+
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Target node ID",

@@ -1,13 +1,13 @@
-// A Figma mock that behaves the way documentAccess "dynamic-page" actually
-// does: a page that has not been loaded reports NO children.
+// A Figma mock that behaves like documentAccess "dynamic-page" really does:
+// a page that has not been loaded reports NO children.
 //
-// This is the trap that made search_nodes answer "not found" for every node on
-// every page but the current one. A mock whose pages are always populated
-// cannot catch it — the handler passes whether or not it calls loadAsync. Here,
-// forgetting loadAsync produces the same empty answer it produces in Figma, so
-// the test fails instead of the user.
+// This is the trap that made search_nodes answer "not found" for every node
+// on every page except the current one. A mock whose pages always have their
+// children cannot catch it: the handler passes whether or not it calls
+// loadAsync. Here, forgetting loadAsync gives the same empty answer as in
+// Figma, so the test fails instead of the user.
 //
-// Test support only; nothing imports it from the plugin entry points.
+// For tests only. Nothing in the plugin entry points imports it.
 
 export interface FixtureNode {
   id: string;
@@ -51,9 +51,9 @@ export const makeNode = (
 /**
  * Install a `figma` global whose pages start unloaded.
  *
- * Every node is still reachable through getNodeByIdAsync, which is how Figma
- * behaves for an id you already hold; what an unloaded page withholds is its
- * children, and that is what this reproduces.
+ * Every node can still be reached through getNodeByIdAsync, as in Figma for
+ * an id you already have. What an unloaded page hides is its children, and
+ * that is what this mock reproduces.
  */
 export function installDynamicDocument(
   pageSpecs: Array<{ id: string; name: string; children: FixtureNode[] }>,
@@ -76,7 +76,7 @@ export function installDynamicDocument(
       type: "PAGE",
       selection: [],
       get children() {
-        // The whole point of the fixture.
+        // This is the whole point of the fixture.
         return loaded ? spec.children : [];
       },
       loadAsync: async () => {

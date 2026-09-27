@@ -84,9 +84,9 @@ func TestLeaderHandleRPC_InvalidJSON(t *testing.T) {
 	}
 }
 
-// What the leader owes the guard: run it, and turn a rejection into a 400 that
-// carries the reason. What the rejection means is the tool table's business,
-// tested where the table lives.
+// The leader's job with the guard: run it, and turn a rejection into a 400
+// with the reason. What a rejection means belongs to the tool table, and is
+// tested there.
 func TestLeaderHandleRPC_GuardRejectionBecomes400(t *testing.T) {
 	rejecting := func(string, []string, map[string]any) ([]string, map[string]any, error) {
 		return nil, nil, errors.New("text is required")
@@ -115,13 +115,13 @@ func TestLeaderHandleRPC_GuardRejectionBecomes400(t *testing.T) {
 func TestLeaderHandleRPC_BridgeNotConnected(t *testing.T) {
 	l := NewLeader("127.0.0.1", 0, "", passthroughGuard)
 
-	// get_document has no required params — passes validation, hits bridge
+	// get_document has no required params, so it passes validation and reaches the bridge.
 	body, _ := json.Marshal(RPCRequest{Tool: "get_document"})
 	req := httptest.NewRequest(http.MethodPost, "/rpc", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	l.handleRPC(w, req)
 
-	// Bridge returns "plugin not connected" error → 200 with error field
+	// The bridge returns a "plugin not connected" error, so we expect 200 with an error field.
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", w.Code)
 	}
@@ -160,7 +160,7 @@ func TestLeaderStop_FreesPort(t *testing.T) {
 	}
 	l.Stop()
 
-	// Allow OS to release the port.
+	// Give the OS time to release the port.
 	time.Sleep(20 * time.Millisecond)
 
 	l2 := NewLeader("127.0.0.1", port, "", passthroughGuard)
@@ -193,9 +193,9 @@ func TestLeaderPingEndpoint(t *testing.T) {
 	}
 }
 
-// A WebSocket has to outlive the header deadline: the handshake is an ordinary
-// HTTP request, so ReadHeaderTimeout applies to it, and the long-lived socket
-// that follows must not inherit anything from it.
+// A WebSocket must outlive the header deadline. The handshake is a normal
+// HTTP request, so ReadHeaderTimeout applies to it. The long-lived socket that
+// follows must not inherit anything from it.
 func TestLeaderStart_WebSocketOutlivesTheHeaderTimeout(t *testing.T) {
 	port := freePort(t)
 	leader := NewLeader("127.0.0.1", port, "test", passthroughGuard)
@@ -240,7 +240,7 @@ func TestLeaderStart_SetsAHeaderTimeoutAndNoWriteTimeout(t *testing.T) {
 }
 
 // /ping is the only thing a user can query when something is wrong. "ok" alone
-// does not distinguish a leader with no plugin from a healthy one.
+// does not tell a leader with no plugin apart from a healthy one.
 func TestLeaderPing_ReportsState(t *testing.T) {
 	port := freePort(t)
 	leader := NewLeader("127.0.0.1", port, "9.9.9", passthroughGuard)
@@ -273,10 +273,10 @@ func TestLeaderPing_ReportsState(t *testing.T) {
 	}
 }
 
-// --ip is how a user drives Figma on one machine from an editor on another, and
-// the socket it opens carries no authentication. Which binds count as exposed
-// decides whether the plugin panel raises its confirm guard, so it is worth a
-// test rather than a glance at the string.
+// --ip lets a user drive Figma on one machine from an editor on another, and
+// the socket it opens has no authentication. Which binds count as exposed
+// decides whether the plugin panel turns on its confirm guard. That is worth a
+// test, not just a look at the string.
 func TestExposed(t *testing.T) {
 	for _, ip := range []string{"", "127.0.0.1", "localhost", "::1"} {
 		if Exposed(ip) {

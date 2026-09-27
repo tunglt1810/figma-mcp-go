@@ -39,7 +39,7 @@ describe("cancellation", () => {
   });
 
   // A cancel for a request that already finished is never cleared, so the set
-  // has to bound itself or it grows for the life of the session.
+  // must limit its own size, or it grows for the whole session.
   it("evicts the oldest ids past its cap", () => {
     for (let i = 0; i < 300; i++) markCancelled(`r${i}`);
     expect(isCancelled("r0")).toBe(false);

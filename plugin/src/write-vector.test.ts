@@ -118,7 +118,7 @@ describe("boolean_operation", () => {
     expect(opCalls[0].name).toBe("union");
   });
 
-  // SUBTRACT cuts the later shapes out of the first, so order is meaning.
+  // SUBTRACT cuts the later shapes out of the first, so the order matters.
   it("keeps the caller's node order", async () => {
     await call("boolean_operation", ["1:2", "1:1"], { operation: "SUBTRACT" });
     expect(opCalls[0].ids).toEqual(["1:2", "1:1"]);
@@ -173,8 +173,8 @@ describe("outline_stroke", () => {
     expect(res.data.skipped).toEqual([]);
   });
 
-  // Figma returns null for a node whose stroke is empty; that is a no-op, and
-  // one such node must not cost the caller the ones that worked.
+  // Figma returns null for a node whose stroke is empty. That is a no-op, and
+  // one such node must not cost the caller the nodes that worked.
   it("reports a node with no visible stroke without failing the call", async () => {
     makeNode("1:1", page, { outlineStroke: () => resultNode("Outline", "VECTOR") });
     makeNode("1:2", page, { outlineStroke: () => null });

@@ -22,7 +22,7 @@ var exportFormats = []string{"PNG", "SVG", "JPG", "PDF"}
 
 var exportFramesToPDFSpec = toolSpec{
 	Name:       "export_frames_to_pdf",
-	Desc:       "Export frames as one PDF file, one page per frame, in order.",
+	Desc:       "Export frames as one PDF, one page per frame, in order.",
 	NodeIDs:    nodeIDsMulti,
 	NodeIDsReq: true,
 	NodeIDDesc: "Frame IDs, in page order",
@@ -41,7 +41,7 @@ var exportFramesToPDFSpec = toolSpec{
 var exportScreenshotsSpec = toolSpec{
 	Name: "export_screenshots",
 	Desc: "Export nodes as images. Items with outputPath are saved to file; others are returned " +
-		"(PNG/JPG as image, SVG as text, PDF as base64). Omit items to export the selection. Use outputPath if you only need the file.",
+		"(PNG/JPG as image, SVG as text, PDF as base64). No items = selection. Prefer outputPath if you only need the file.",
 	Params: []paramSpec{
 		{Name: "items", Kind: kindObjectArray,
 			Desc: "{nodeId, outputPath?, format?, scale?}. Omit to export the selection.",
@@ -74,16 +74,16 @@ var exportScreenshotsSpec = toolSpec{
 			if nodeID, _ := m["nodeId"].(string); !figma.ValidNodeID(nodeID) {
 				return fmt.Sprintf("items[%d].nodeId must use colon format e.g. 4029:12345", i)
 			}
-			// Absent means "answer in memory"; present and empty is a path the
-			// caller got wrong, and silently returning base64 would hide it.
+			// Absent means "answer in memory". Present but empty is a path the
+			// caller got wrong, and quietly returning base64 would hide that.
 			if raw, present := m["outputPath"]; present {
 				if path, _ := raw.(string); path == "" {
 					return fmt.Sprintf("items[%d].outputPath is empty — omit it to get the image in the response", i)
 				}
 			}
-			// The per-item format is nested a level below anything a paramSpec
-			// enum can reach, and the plugin is the only thing that would have
-			// rejected it — after the round trip.
+			// The per-item format is nested deeper than a paramSpec enum can
+			// reach. Without this check only the plugin would reject it, after
+			// the round trip.
 			if format, present := m["format"].(string); present && !containsString(exportFormats, format) {
 				return fmt.Sprintf("items[%d].format must be one of %v, got: %s", i, exportFormats, format)
 			}
@@ -101,18 +101,19 @@ var exportScreenshotsSpec = toolSpec{
 }
 
 // exportSpecs are validated from the table like every other tool, but their
-// handlers write files rather than simply forwarding to the plugin.
+// handlers write files instead of just forwarding to the plugin.
 var exportSpecs = []toolSpec{
 	{
 		Name:       "get_image_bytes",
-		Desc:       "Get the original image files used in nodes' image fills, as base64. For a picture of how a node looks, use export_screenshots. Each image is returned once; nodes without images are listed in `skipped`.",
+		Desc:       "Get the original image files in nodes' image fills, as base64. Each image once; nodes without images in `skipped`. To see how a node looks, use export_screenshots.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs carrying image fills",
 	},
 	{
-		Name:       "set_export_settings",
-		Desc:       "Set the Export presets shown in a node's right panel. Does not export a file; use export_screenshots for that.",
+		Name: "set_export_settings",
+		Desc: "Set a node's Export presets. Does not export; use export_screenshots.",
+
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",
@@ -179,8 +180,8 @@ func executeExportFramesToPDF(ctx context.Context, sender Sender, nodeIDs []stri
 	if err := os.MkdirAll(filepath.Dir(resolvedPath), 0o755); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("mkdir: %v", err)), nil
 	}
-	// Overwrite, as export_screenshots does: re-exporting after a design change is
-	// the normal loop. The path is already confined to the working directory.
+	// Overwrite, as export_screenshots does: exporting again after a design change
+	// is the normal loop. The path is already limited to the working directory.
 	_, statErr := os.Stat(resolvedPath)
 	replaced := statErr == nil
 	if err := os.WriteFile(resolvedPath, merged, 0o644); err != nil {

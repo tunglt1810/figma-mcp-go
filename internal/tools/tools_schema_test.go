@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// toolsListResponse mirrors the subset of the MCP tools/list JSON-RPC response
-// that we need to inspect for schema correctness.
+// toolsListResponse mirrors the part of the MCP tools/list JSON-RPC response
+// that we inspect for schema correctness.
 type toolsListResponse struct {
 	Result struct {
 		Tools []struct {
@@ -48,10 +48,10 @@ func listTools(t *testing.T) toolsListResponse {
 	return resp
 }
 
-// TestToolSchemas_ArrayItemsHaveType ensures every array-typed parameter across
-// all registered tools declares an items.type.  Missing items (or items without
-// a type) is the exact class of bug that causes GitHub Copilot MCP validation to
-// fail (see commit af0325c).
+// TestToolSchemas_ArrayItemsHaveType checks that every array parameter of every
+// registered tool declares an items.type. Missing items, or items without a
+// type, is exactly the bug that makes GitHub Copilot MCP validation fail (see
+// commit af0325c).
 func TestToolSchemas_ArrayItemsHaveType(t *testing.T) {
 	resp := listTools(t)
 
@@ -105,8 +105,8 @@ func TestToolSchemas_ArrayItemsHaveType(t *testing.T) {
 }
 
 // expectedTools is the exact set of tools the server advertises, sorted.
-// Changing the tool surface is a breaking change for every MCP client, so it
-// must be a deliberate edit here rather than a silently drifting count.
+// Changing the set of tools is a breaking change for every MCP client, so it
+// must be a deliberate edit here, not a count that drifts unnoticed.
 var expectedTools = []string{
 	"apply_style_to_node",
 	"batch_execute_pipeline",
@@ -171,7 +171,7 @@ var expectedTools = []string{
 }
 
 // TestToolSchemas_ExpectedToolSet pins the advertised tool names. A count alone
-// hides a rename or a swap; comparing names reports exactly what moved.
+// hides a rename or a swap. Comparing names shows exactly what changed.
 func TestToolSchemas_ExpectedToolSet(t *testing.T) {
 	resp := listTools(t)
 

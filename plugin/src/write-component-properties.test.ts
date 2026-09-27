@@ -10,7 +10,7 @@ describe("resolvePropertyId", () => {
     expect(resolvePropertyId(defs, "Size#1:0")).toBe("Size#1:0");
   });
 
-  // Figma mints a new id on every rename, so callers work in names.
+  // Figma creates a new id on every rename, so callers use names.
   it("resolves a bare name to its current id", () => {
     expect(resolvePropertyId(defs, "Size")).toBe("Size#1:0");
   });

@@ -13,17 +13,17 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// Most tools are the same shape: read a few arguments, copy them into a params
-// map, forward them to the plugin. Writing that out per tool meant the argument
-// list appeared twice — once as an MCP schema, once as validation — with nothing
-// keeping the two in step. A toolSpec states it once; the schema, the handler
-// and the validation are all derived from it.
+// Most tools have the same shape: read a few arguments, copy them into a params
+// map, and forward them to the plugin. Writing that out per tool meant the
+// argument list appeared twice, once as an MCP schema and once as validation,
+// with nothing keeping the two in step. A toolSpec states it once. The schema,
+// the handler and the validation all come from it.
 //
 // Tools that do real work in Go (export_screenshots, export_frames_to_pdf) keep
 // hand-written handlers.
 
 // Sender carries a tool call to the Figma plugin. The tool layer does not know
-// how — a leader writes to its WebSocket, a follower proxies over HTTP.
+// how: a leader writes to its WebSocket, a follower forwards over HTTP.
 type Sender interface {
 	Send(ctx context.Context, tool string, nodeIDs []string, params map[string]any) (any, error)
 }
@@ -45,47 +45,48 @@ const (
 // paramSpec describes one tool argument.
 type paramSpec struct {
 	Name string
-	// Wire overrides the parameter name sent to the plugin when it differs
-	// from the argument name exposed to the client.
+	// Wire is the parameter name sent to the plugin, when it differs from
+	// the argument name shown to the client.
 	Wire     string
 	Kind     paramKind
 	Required bool
 	Desc     string
 
-	// Enum restricts a string argument to a fixed set. Used for validation;
-	// spell the options out in Desc for the client to read.
+	// Enum limits a string argument to a fixed set. It is used for
+	// validation. List the options in Desc too, so the client can read them.
 	Enum []string
 
-	// Min and Max bound a numeric argument, inclusive.
+	// Min and Max limit a numeric argument, inclusive.
 	Min, Max *float64
 
-	// Positive requires a numeric argument to be greater than zero. Distinct
-	// from Min: sizes and radii reject zero, which an inclusive bound cannot say.
+	// Positive requires a numeric argument to be greater than zero. This is
+	// not the same as Min: sizes and radii reject zero, which an inclusive
+	// bound cannot express.
 	Positive bool
 
-	// IsNodeID marks a string argument that carries a Figma node ID, so it is
-	// checked for the colon format like the dedicated nodeIDs field is.
+	// IsNodeID marks a string argument that holds a Figma node ID. It is
+	// checked for the colon format, like the nodeIDs field.
 	IsNodeID bool
 
-	// IsHexColor marks a string argument that carries a hex color.
+	// IsHexColor marks a string argument that holds a hex color.
 	IsHexColor bool
 
 	// AllowEmpty forwards an empty string instead of treating it as absent.
 	// Replacement strings and text bodies use "" to mean "clear this".
 	AllowEmpty bool
 
-	// Nullable lets an explicit null through the kind check. Used where the
-	// plugin distinguishes "leave this alone" (argument absent) from "clear it"
-	// (argument null) — an auto-layout min/max constraint, for one.
+	// Nullable lets an explicit null pass the kind check. Used where the
+	// plugin tells "leave this alone" (argument absent) apart from "clear it"
+	// (argument null), for example an auto-layout min/max constraint.
 	Nullable bool
 
-	// ObjectSchema spells out an object parameter's properties. Without it the
-	// schema says only "an object", and a caller has to guess the keys from the
-	// description.
+	// ObjectSchema lists an object parameter's properties. Without it the
+	// schema only says "an object", and a caller has to guess the keys from
+	// the description.
 	ObjectSchema map[string]any
 
-	// ItemSchema spells out an array's element schema where "an object" is too
-	// vague to be useful to the client.
+	// ItemSchema gives an array's element schema, where "an object" is too
+	// vague to help the client.
 	ItemSchema map[string]any
 }
 
@@ -96,8 +97,8 @@ func (p paramSpec) wireName() string {
 	return p.Name
 }
 
-// nodeIDMode says how a tool receives the nodes it acts on. Node IDs travel in
-// their own field on the wire rather than inside params.
+// nodeIDMode says how a tool receives the nodes it acts on. Node IDs go in
+// their own field on the wire, not inside params.
 type nodeIDMode int
 
 const (
@@ -119,18 +120,18 @@ type toolSpec struct {
 
 	Params []paramSpec
 
-	// ReadOnly marks a tool that changes nothing, advertised to clients as
-	// readOnlyHint. Set by allSpecs for the read groups, not per tool.
+	// ReadOnly marks a tool that changes nothing. Clients see it as
+	// readOnlyHint. allSpecs sets it for the read groups, not per tool.
 	ReadOnly bool
 
-	// Validate expresses rules a paramSpec cannot: "at least one of x or y",
-	// mutually exclusive arguments, nested shapes.
+	// Validate holds rules a paramSpec cannot express: "at least one of x or
+	// y", mutually exclusive arguments, nested shapes.
 	Validate func(nodeIDs []string, params map[string]any) string
 
 	// Custom, when set, replaces the default forwarder. It takes the Sender
-	// because a spec is a package-level variable and cannot capture one at
-	// declaration time. The schema and the checking still come from the table,
-	// so a tool that does work in Go cannot drift from it either.
+	// as an argument, because a spec is a package-level variable and cannot
+	// hold one when declared. The schema and the checks still come from the
+	// table, so a tool that does work in Go cannot drift from it either.
 	Custom func(Sender) customHandler
 }
 
@@ -171,8 +172,8 @@ func (p paramSpec) toolOption() mcp.ToolOption {
 	case kindArray:
 		return mcp.WithArray(p.Name, opts...)
 	case kindObject:
-		// Only the properties: mcp-go has no per-object "required" option, and a
-		// missing key is caught by the spec's Validate instead.
+		// Only the properties. mcp-go has no per-object "required" option,
+		// so the spec's Validate catches a missing key instead.
 		if props, ok := p.ObjectSchema["properties"].(map[string]any); ok {
 			opts = append(opts, mcp.Properties(props))
 		}
@@ -184,7 +185,7 @@ func (p paramSpec) toolOption() mcp.ToolOption {
 	}
 }
 
-// buildTool turns a spec into the MCP tool definition. Node IDs come first so
+// buildTool turns a spec into the MCP tool definition. Node IDs come first, so
 // the generated schema matches how these tools have always been declared.
 func buildTool(spec toolSpec) mcp.Tool {
 	opts := []mcp.ToolOption{mcp.WithDescription(spec.Desc)}
@@ -208,9 +209,9 @@ func buildTool(spec toolSpec) mcp.Tool {
 	}
 
 	tool := mcp.NewTool(spec.Name, opts...)
-	// mcp-go fills in all four hints on every tool, each set to the value the
-	// MCP spec already defines as the default. Sixty copies of that are noise in
-	// every tools/list a client reads into context, so say only what differs.
+	// mcp-go sets all four hints on every tool, each to the value the MCP spec
+	// already defines as the default. Sixty copies of that are noise in every
+	// tools/list a client reads into context, so only state what differs.
 	tool.Annotations = mcp.ToolAnnotation{}
 	if spec.ReadOnly {
 		tool.Annotations.ReadOnlyHint = mcp.ToBoolPtr(true)
@@ -221,7 +222,7 @@ func buildTool(spec toolSpec) mcp.Tool {
 // ── Handler ──────────────────────────────────────────────────────────────────
 
 // specArgs splits a request's arguments into node IDs and plugin params.
-// Arguments the caller omitted are left out entirely so the plugin can apply
+// Arguments the caller left out stay out entirely, so the plugin can apply
 // its own defaults.
 func specArgs(spec toolSpec, args map[string]any) ([]string, map[string]any) {
 	var nodeIDs []string
@@ -242,10 +243,10 @@ func specArgs(spec toolSpec, args map[string]any) ([]string, map[string]any) {
 			continue
 		}
 		if v == nil {
-			// A null is normally indistinguishable from an absent argument and
-			// is dropped. Nullable parameters are the exception: the plugin
-			// reads null as "clear this", which it cannot tell from "leave it
-			// alone" once the key is gone.
+			// A null normally counts as an absent argument and is dropped.
+			// Nullable parameters are the exception: the plugin reads null as
+			// "clear this". Once the key is gone, it cannot tell that apart
+			// from "leave it alone".
 			if p.Nullable {
 				params[p.wireName()] = nil
 			}
@@ -272,18 +273,17 @@ func specArgs(spec toolSpec, args map[string]any) ([]string, map[string]any) {
 
 // ── Normalization ────────────────────────────────────────────────────────────
 
-// nodeIDParams are the parameter names that carry a Figma node ID and so need
-// the same hyphen→colon normalization as the nodeIDs slice.
-// nodeIDParams name the arguments that carry a single node ID. They are
-// matched at any depth: a pipeline step nests a whole parameter set of its own
-// under steps[].params, and a reaction nests a destination below that again.
+// nodeIDParams name the arguments that hold a single Figma node ID. Like the
+// nodeIDs slice, they need hyphen-to-colon normalization. They are matched at
+// any depth: a pipeline step nests its own parameter set under steps[].params,
+// and a reaction nests a destination one level below that.
 var nodeIDParams = map[string]bool{
 	"nodeId": true, "parentId": true, "pageId": true, "componentId": true,
 	"startNodeId": true, "endNodeId": true, "destinationId": true,
 }
 
 // normalizeArgs returns copies of the arguments with node IDs normalized.
-// Copies, not in-place edits: the caller's slice and map belong to the caller.
+// It returns copies, not in-place edits: the caller's slice and map belong to the caller.
 func normalizeArgs(nodeIDs []string, params map[string]any) ([]string, map[string]any) {
 	var ids []string
 	if nodeIDs != nil {
@@ -302,8 +302,8 @@ func normalizeArgs(nodeIDs []string, params map[string]any) ([]string, map[strin
 }
 
 // normalizeValue rebuilds v with every node ID it can find normalized. Maps and
-// slices are rebuilt rather than edited, so nothing the caller passed in
-// changes underfoot.
+// slices are rebuilt, not edited, so nothing the caller passed in changes
+// under it.
 func normalizeValue(v any) any {
 	switch t := v.(type) {
 	case map[string]any:
@@ -334,8 +334,8 @@ func normalizeValue(v any) any {
 	}
 }
 
-// normalizeIDList handles a "nodeIds" value, which is a list of ids rather than
-// a nested structure.
+// normalizeIDList handles a "nodeIds" value, which is a list of ids, not a
+// nested structure.
 func normalizeIDList(v any) any {
 	list, ok := v.([]any)
 	if !ok {
@@ -354,8 +354,8 @@ func normalizeIDList(v any) any {
 
 // ── Validation ───────────────────────────────────────────────────────────────
 
-// validateSpec applies the rules the spec states directly. Cross-field rules
-// live in spec.Validate.
+// validateSpec applies the rules the spec states directly. Rules that span
+// several fields live in spec.Validate.
 func validateSpec(spec toolSpec, nodeIDs []string, params map[string]any) string {
 	if spec.NodeIDs != nodeIDsNone {
 		if spec.NodeIDsReq && len(nodeIDs) == 0 {
@@ -433,8 +433,8 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]any) string
 	return ""
 }
 
-// validateArrayParam checks an array argument and, where the spec states an
-// element type, each of its elements.
+// validateArrayParam checks an array argument. When the spec gives an element
+// type, it also checks each element.
 func validateArrayParam(p paramSpec, v any) string {
 	items, ok := v.([]any)
 	if !ok {
@@ -462,12 +462,12 @@ func validateArrayParam(p paramSpec, v any) string {
 }
 
 // Check normalizes a tool call's arguments and validates them against the
-// tool's spec. Both entry points call it — the handlers this package builds,
-// and the leader's /rpc endpoint, which receives another process's input — so
+// tool's spec. Both entry points call it: the handlers this package builds, and
+// the leader's /rpc endpoint, which receives input from another process. So
 // there is one answer to "is this call valid", not one per path.
 func Check(tool string, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
-	// Normalize first: the hyphen format LLMs emit must be accepted, not
-	// rejected by the validation that exists to tolerate it.
+	// Normalize first. The hyphen format LLMs produce must be accepted, not
+	// rejected by the validation that exists to accept it.
 	nodeIDs, params = normalizeArgs(nodeIDs, params)
 	if msg := ValidateRPC(tool, nodeIDs, params); msg != "" {
 		return nil, nil, errors.New(msg)
@@ -483,20 +483,20 @@ type variantSpec struct {
 }
 
 // requireVariant builds a Validate for a tool that merged several tools behind
-// a discriminator argument.
+// one discriminator argument.
 //
-// Merging tools trades one failure for another: the model stops picking the
-// wrong tool and starts picking the wrong argument. That trade is only worth
-// making if the wrong argument is reported rather than quietly ignored, so an
-// argument belonging to a different variant is an error here, named and
-// attributed to the variant it belongs to.
+// Merging tools swaps one failure for another: the model stops picking the
+// wrong tool and starts picking the wrong argument. That is only worth it if
+// the wrong argument is reported, not quietly ignored. So an argument that
+// belongs to a different variant is an error here, and the error names the
+// variant it belongs to.
 func requireVariant(discriminator string, variants map[string]variantSpec, common ...string) func([]string, map[string]any) string {
 	return func(_ []string, params map[string]any) string {
 		kind, _ := params[discriminator].(string)
 		variant, known := variants[kind]
 		if !known {
 			// The discriminator's Enum has already reported an unknown value,
-			// and a missing one is reported by Required.
+			// and Required reports a missing one.
 			return ""
 		}
 
@@ -539,8 +539,8 @@ func variantKinds(variants map[string]variantSpec) []string {
 	return kinds
 }
 
-// requireAnyOf builds a Validate rejecting a request that supplies none of the
-// listed arguments. Several tools accept a choice of fields but need one.
+// requireAnyOf builds a Validate that rejects a request with none of the listed
+// arguments. Several tools accept a choice of fields but need at least one.
 func requireAnyOf(msg string, keys ...string) func([]string, map[string]any) string {
 	return func(_ []string, params map[string]any) string {
 		for _, k := range keys {
@@ -559,8 +559,8 @@ func containsString(haystack []string, needle string) bool {
 // ── Registry ─────────────────────────────────────────────────────────────────
 
 // allSpecs is every tool the server offers. Registration and validation both
-// read this one list, so a tool cannot be in the registry without reaching
-// clients, or reach clients without rules.
+// read this one list. So a tool cannot be registered without reaching clients,
+// or reach clients without rules.
 func allSpecs() []toolSpec {
 	groups := [][]toolSpec{
 		{batchPipelineSpec},
@@ -595,9 +595,9 @@ func readOnly(specs []toolSpec) []toolSpec {
 	return out
 }
 
-// specRegistry maps tool name to spec so validation can find a tool's rules
-// from its name alone. Built once from the declarations, independent of how
-// many servers get built — tests construct several.
+// specRegistry maps a tool name to its spec, so validation can find a tool's
+// rules from its name alone. It is built once from the declarations, no matter
+// how many servers are built. Tests build several.
 var specRegistry = buildSpecRegistry()
 
 func buildSpecRegistry() map[string]toolSpec {
@@ -613,16 +613,16 @@ func buildSpecRegistry() map[string]toolSpec {
 
 // handlerFor builds a tool's MCP handler: split the arguments, check them, then
 // run either the tool's own Go code or the plain forwarder. Both paths check,
-// which is what makes "every call is validated exactly once" true by
-// construction rather than by remembering to do it.
+// so "every call is validated exactly once" holds by design, not by
+// remembering to do it.
 func handlerFor(sender Sender, spec toolSpec) server.ToolHandlerFunc {
 	var handle customHandler
 	if spec.Custom != nil {
-		// A Custom handler is free to call a different tool than the one it was
-		// invoked as — export_screenshots calls get_screenshot once per item, with
-		// params it builds itself. Checking the arguments this handler received
-		// says nothing about those, so give it a Sender that checks each call
-		// against the spec of whatever tool the call actually names.
+		// A Custom handler may call a different tool than the one it was called
+		// as. export_screenshots calls get_screenshot once per item, with params
+		// it builds itself. Checking this handler's own arguments says nothing
+		// about those calls. So give it a Sender that checks each call against
+		// the spec of the tool that call names.
 		handle = spec.Custom(checkedSender{sender})
 	} else {
 		handle = forwarder(spec.Name)(sender)
@@ -638,10 +638,10 @@ func handlerFor(sender Sender, spec toolSpec) server.ToolHandlerFunc {
 	}
 }
 
-// checkedSender applies Check to every call passing through it, by the name of
-// the tool actually being called. The invariant is about Sender calls, not about
-// entry points: a handler that reaches the plugin under a second tool's name has
-// to satisfy that tool's spec too.
+// checkedSender runs Check on every call that passes through it, using the name
+// of the tool actually being called. The rule is about Sender calls, not entry
+// points: a handler that reaches the plugin under another tool's name must meet
+// that tool's spec too.
 type checkedSender struct{ inner Sender }
 
 func (c checkedSender) Send(ctx context.Context, tool string, nodeIDs []string, params map[string]any) (any, error) {
@@ -652,7 +652,7 @@ func (c checkedSender) Send(ctx context.Context, tool string, nodeIDs []string, 
 	return c.inner.Send(ctx, tool, nodeIDs, params)
 }
 
-// forwarder is the default body: hand the arguments to the plugin and render
+// forwarder is the default body: pass the arguments to the plugin and render
 // whatever comes back.
 func forwarder(tool string) func(Sender) customHandler {
 	return func(sender Sender) customHandler {
@@ -663,9 +663,9 @@ func forwarder(tool string) func(Sender) customHandler {
 	}
 }
 
-// customHandler is the handler of a tool that does work in Go — writing files,
-// merging PDFs — around its call to the plugin. It is handed arguments already
-// split, normalized and checked against the spec.
+// customHandler is the handler of a tool that does work in Go (writing files,
+// merging PDFs) around its call to the plugin. It gets arguments that are
+// already split, normalized and checked against the spec.
 type customHandler func(ctx context.Context, nodeIDs []string, params map[string]any) (*mcp.CallToolResult, error)
 
 func floatPtr(f float64) *float64 { return new(f) }

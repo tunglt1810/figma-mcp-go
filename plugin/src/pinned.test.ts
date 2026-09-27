@@ -14,7 +14,7 @@ describe("the pinned context set", () => {
     expect(getPinned()).toEqual(["2:1"]);
   });
 
-  // A designer shift-clicking the same node twice should not make it count twice.
+  // A designer shift-clicking the same node twice should not add it twice.
   it("drops duplicates and blanks", () => {
     setPinned(["1:1", "1:1", "  ", "", "1:2", 7, null]);
     expect(getPinned()).toEqual(["1:1", "1:2"]);

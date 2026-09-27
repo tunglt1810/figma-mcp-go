@@ -4,10 +4,10 @@ import { readDocumentHandlers } from "./read-document";
 import { readStylesHandlers } from "./read-styles";
 import { clearPinned } from "./pinned";
 
-// Every handler that walks pages rather than the current one. Under
-// documentAccess "dynamic-page" each of them has to call loadAsync first, and
-// the fixture's pages report no children until it does — so a handler that
-// forgets returns an empty answer here exactly as it would in Figma.
+// Every handler that walks other pages, not just the current one. Under
+// documentAccess "dynamic-page", each must call loadAsync first, and the
+// fixture's pages report no children until it does. So a handler that
+// forgets returns an empty answer here, just as it would in Figma.
 
 let doc: ReturnType<typeof installDynamicDocument>;
 
@@ -51,7 +51,7 @@ describe("handlers that walk every page", () => {
   it("get_document with scope document reaches every page", async () => {
     const result = await call(readDocumentHandlers, "get_document", { scope: "document" });
     expect(result.data.nodes.map((p: any) => p.id)).toEqual(["1:0", "2:0", "3:0"]);
-    // Not just the pages: their contents, which is what an unloaded page hides.
+    // Not just the pages, but their contents, which is what an unloaded page hides.
     expect(result.data.nodes[1].children.map((n: any) => n.id)).toEqual(["2:1"]);
     expect(doc.loadedPages).toEqual(["1:0", "2:0", "3:0"]);
   });
@@ -64,7 +64,7 @@ describe("handlers that walk every page", () => {
 });
 
 describe("handlers scoped to the current page", () => {
-  // The current page is already loaded in Figma; these must not pay to load
+  // The current page is already loaded in Figma. These must not pay to load
   // every other page just to answer about this one.
   it("get_document defaults to the current page and loads nothing", async () => {
     doc.pages[0].loadAsync();

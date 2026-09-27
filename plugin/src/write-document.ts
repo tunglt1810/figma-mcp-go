@@ -1,9 +1,9 @@
 import { HandlerMap } from "./dispatch";
 import { CODEGEN_KEY, PLUGIN_DATA_NAMESPACE, normalizeLanguage } from "./codegen";
 
-// File-level operations. The pipeline's rollback lives in memory and dies with
-// the plugin, so a checkpoint here is the only safety net that survives a
-// crashed run or a change noticed an hour later.
+// File-level operations. The pipeline's rollback lives in memory and is lost
+// when the plugin stops. So a checkpoint here is the only safety net that
+// survives a crashed run, or a problem noticed an hour later.
 
 const getNode = async (nodeId: string | undefined) => {
   if (!nodeId) throw new Error("nodeId is required");
@@ -26,8 +26,8 @@ export const writeDocumentHandlers: HandlerMap = {
       }
     }
 
-    // Shared rather than private plugin data: the point is that the whole team
-    // sees the code in Dev Mode, not only the machine that generated it.
+    // Shared, not private, plugin data: the point is that the whole team sees
+    // the code in Dev Mode, not only the machine that generated it.
     const stored = blocks.map((block: any) => ({
       title: String(block.title ?? "Code"),
       language: normalizeLanguage(block.language),
@@ -36,13 +36,13 @@ export const writeDocumentHandlers: HandlerMap = {
     node.setSharedPluginData(
       PLUGIN_DATA_NAMESPACE,
       CODEGEN_KEY,
-      // An empty array would still read back as "has code"; an empty string is
-      // how shared plugin data is cleared.
+      // An empty array would still read back as "has code". An empty string
+      // is how shared plugin data is cleared.
       stored.length > 0 ? JSON.stringify(stored) : "",
     );
 
-    // A node carrying code gets a button in Figma's own UI, so a designer can
-    // reopen the plugin from the layer rather than hunting through the menu.
+    // A node with code gets a button in Figma's own UI, so a designer can
+    // reopen the plugin from the layer instead of searching the menu.
     if (typeof node.setRelaunchData === "function") {
       node.setRelaunchData(
         stored.length > 0 ? { open: `${stored.length} code block(s) from your AI tool` } : {},
@@ -87,8 +87,8 @@ export const writeDocumentHandlers: HandlerMap = {
       return {
         type: request.type,
         requestId: request.requestId,
-        // "" is both "not set" and "set to empty" in Figma's model; reporting
-        // null for it is the closest honest answer.
+        // In Figma's model, "" means both "not set" and "set to empty".
+        // Reporting null for it is the closest honest answer.
         data: { id: node.id, namespace, key: p.key, value: value === "" ? null : value },
       };
     }

@@ -6,7 +6,8 @@ import (
 	"github.com/tunglt1810/figma-mcp-go/internal/figma"
 )
 
-const setReactionsDesc = `Set or remove prototype reactions. mode: replace (default) or append. To remove, pass removeIndices (from get_reactions; [] = all) instead of reactions.
+const setReactionsDesc = `Set or remove prototype reactions. mode: replace (default) or append. To remove, pass removeIndices (from get_reactions; [] = all), not reactions.
+
 Reaction: {"trigger":{"type":...},"actions":[...]}.
 Triggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT (+timeout ms), MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN.
 Actions: NODE (+destinationId, navigation NAVIGATE|OVERLAY|SCROLL_TO|SWAP|CHANGE_TO, transition, preserveScrollPosition), BACK, CLOSE, URL (+url).
@@ -34,9 +35,9 @@ var writePrototypeSpecs = []toolSpec{
 			if !hasReactions && !hasRemove {
 				return "one of reactions or removeIndices is required"
 			}
-			// Absorbed remove_reactions. Setting and removing in one call has no
-			// defined order, and an empty removeIndices means "remove them all" —
-			// so a call carrying both would be ambiguous in the worst direction.
+			// This tool took over remove_reactions. Setting and removing in one
+			// call has no defined order, and an empty removeIndices means "remove
+			// them all". So a call with both would be ambiguous in the worst way.
 			if hasReactions && hasRemove {
 				return "reactions and removeIndices cannot be combined — removing is its own call"
 			}
@@ -50,7 +51,7 @@ var writePrototypeSpecs = []toolSpec{
 			}
 			reactions, _ := params["reactions"].([]any)
 			for i, raw := range reactions {
-				// The element type is already checked; only the contents remain.
+				// The element type is already checked. Only the contents are left.
 				r, _ := raw.(map[string]any)
 				if msg := figma.ValidateReaction(i, r); msg != "" {
 					return msg

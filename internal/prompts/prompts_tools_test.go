@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// The prompts tell the model which tools to call. A prompt naming a tool that
-// no longer exists is worse than a stale comment: it walks the model straight
-// into "Unknown request type". Renaming a tool has to rename it here too.
+// The prompts tell the model which tools to call. A prompt that names a removed
+// tool is worse than a stale comment: it leads the model straight into
+// "Unknown request type". When a tool is renamed, rename it here too.
 var promptToolCall = regexp.MustCompile(`\b([a-z][a-z0-9_]{3,})\s*\(`)
 
 func TestPromptsOnlyNameRealTools(t *testing.T) {
@@ -40,8 +40,8 @@ func TestPromptsOnlyNameRealTools(t *testing.T) {
 			if ignore[word] || !strings.Contains(word, "_") {
 				continue
 			}
-			// Only flag words that look like tool names: a retired tool is one
-			// that used to be in the registry, so require the shape.
+			// Only flag words shaped like tool names. A retired tool used to be in
+			// the registry, so it must have that shape.
 			if ok := retiredTools[word]; ok {
 				t.Errorf("%s: prompt names %q, which is no longer a tool", e.Name(), word)
 			}
@@ -49,8 +49,8 @@ func TestPromptsOnlyNameRealTools(t *testing.T) {
 	}
 }
 
-// retiredTools are names that were tools once. Keeping the list means a prompt
-// still using one is caught by name rather than by a user hitting it.
+// retiredTools are names that used to be tools. With this list, a prompt that
+// still uses one is caught by name, not by a user running into it.
 var retiredTools = map[string]bool{
 	"set_visible": true, "lock_nodes": true, "unlock_nodes": true,
 	"set_opacity": true, "rotate_nodes": true, "set_blend_mode": true,

@@ -44,7 +44,7 @@ describe("get_screenshot progress", () => {
     expect(result.data.exports.map((e: any) => e.nodeId)).toEqual(["1:1", "1:2", "1:3"]);
     expect(updates().length).toBe(3);
     expect(updates()[0].message).toBe("Exporting Cover (1/3)");
-    // The response says the work finished; a progress message never claims it.
+    // The response says the work finished. A progress message never does.
     expect(updates().every((u: any) => u.progress < 100)).toBe(true);
   });
 

@@ -12,13 +12,13 @@ import (
 
 // updateGolden rewrites the snapshot instead of comparing against it:
 //
-//	go test ./internal/ -run TestToolSchemas_Golden -update
+//	go test ./internal/tools/ -run TestToolSchemas_Golden -update
 var updateGolden = flag.Bool("update", false, "rewrite the tools/list golden snapshot")
 
 const goldenPath = "testdata/tools_schema.json"
 
 // toolsListJSON returns the tools/list result as indented JSON. Deterministic
-// sorts map keys, so the output is stable across runs.
+// sorts map keys, so the output is the same on every run.
 func toolsListJSON(t *testing.T) []byte {
 	t.Helper()
 	s, _ := newTestServer(t)
@@ -40,7 +40,7 @@ func toolsListJSON(t *testing.T) []byte {
 		t.Fatalf("unmarshal tools/list: %v", err)
 	}
 
-	// Key by name so a reordering of registration calls is not a diff.
+	// Key by name, so reordering the registration calls does not cause a diff.
 	byName := map[string]jsontext.Value{}
 	for _, tool := range envelope.Result.Tools {
 		var nm struct {
@@ -61,9 +61,9 @@ func toolsListJSON(t *testing.T) []byte {
 
 // TestToolSchemas_Golden pins the exact JSON schema advertised for every tool.
 //
-// This is the safety net for refactoring how tools are declared: the schema is
-// the contract every MCP client sees, so a refactor that changes it silently is
-// a breaking change. Any intended change shows up as a reviewable diff.
+// This is the safety net for changing how tools are declared. The schema is
+// the contract every MCP client sees, so a change that alters it silently is a
+// breaking change. Any intended change shows up as a diff to review.
 func TestToolSchemas_Golden(t *testing.T) {
 	got := toolsListJSON(t)
 

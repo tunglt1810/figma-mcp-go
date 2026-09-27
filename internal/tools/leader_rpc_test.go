@@ -23,8 +23,8 @@ func freePort(t *testing.T) int {
 	return port
 }
 
-// /rpc is where another process's input arrives, so it checks arguments itself
-// rather than trusting the follower that sent them. It normalizes too: a
+// Input from another process arrives at /rpc, so it checks arguments itself
+// instead of trusting the follower that sent them. It also normalizes: a
 // hyphen-format node ID posted here reaches the bridge in colon format.
 func TestLeaderRPC_NormalizesAndValidates(t *testing.T) {
 	port := freePort(t)
@@ -47,8 +47,8 @@ func TestLeaderRPC_NormalizesAndValidates(t *testing.T) {
 		t.Errorf("want 400 for invalid opacity, got %d", resp.StatusCode)
 	}
 
-	// A hyphen-format ID is accepted; with no plugin connected the call fails
-	// at the bridge, which is proof it got past the check.
+	// A hyphen-format ID is accepted. With no plugin connected, the call fails
+	// at the bridge, which proves it got past the check.
 	body = `{"tool":"set_text","nodeIds":["4029-12345"],"params":{"text":"hi"}}`
 	resp2, err := http.Post(base+"/rpc", "application/json", strings.NewReader(body))
 	if err != nil {

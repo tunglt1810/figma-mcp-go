@@ -111,15 +111,15 @@ describe("set_effects", () => {
     }))).rejects.toThrow("Unknown effect type");
   });
 
-  // Figma's Effect union covers more than shadows and blurs, and get_nodes_info reports all
-  // of it, so set_effects has to accept the whole set back.
+  // Figma's Effect union covers more than shadows and blurs, and get_nodes_info reports
+  // all of it, so set_effects must accept the whole set back.
 
   it("tags a plain blur with blurType NORMAL", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
     await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "LAYER_BLUR", radius: 6 }],
     }));
-    // blurType is part of the BlurEffect union; leaving it out underspecifies the effect.
+    // blurType is part of the BlurEffect union. Without it, the effect is incomplete.
     expect(mockNodes["1:1"].effects[0].blurType).toBe("NORMAL");
   });
 
@@ -164,9 +164,9 @@ describe("set_effects", () => {
     expect(noise.density).toBe(0.7);
   });
 
-  // NoiseEffectBase declares blendMode, but the Figma runtime rejects the key outright:
+  // NoiseEffectBase declares blendMode, but the Figma runtime rejects the key:
   // "Unrecognized key(s) in object: 'blendMode'". Sending a default would make every
-  // noise effect unwritable, so it only goes out when a caller asks for it.
+  // noise effect fail to write, so it is only sent when a caller asks for it.
   it("leaves blendMode off a noise effect unless asked", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
     await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
@@ -188,8 +188,8 @@ describe("set_effects", () => {
     expect(mockNodes["1:1"].effects[0].secondaryColor).toEqual({ r: 0, g: 1, b: 0, a: 1 });
   });
 
-  // NOISE MULTITONE has an effect-level opacity that is not the colour's alpha, so the
-  // two travel under different names.
+  // NOISE MULTITONE has an effect-level opacity that is separate from the colour's
+  // alpha, so the two use different names.
   it("keeps multitone noise opacity separate from colour alpha", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
     await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
@@ -254,7 +254,7 @@ describe("set_effects", () => {
 
 // ── bind_variable_to_node – strokeColor ──────────────────────────────────────
 //
-// It moved to the variables module when manage_variable absorbed it.
+// It moved to the variables module when manage_variable took it over.
 
 describe("bind_variable_to_node strokeColor", () => {
   const mockVariable = { id: "v1", name: "color/primary", resolvedType: "COLOR" };

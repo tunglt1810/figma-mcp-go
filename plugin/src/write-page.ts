@@ -1,6 +1,6 @@
 import { HandlerMap } from "./dispatch";
-// manage_page replaced add/delete/rename/navigate_to_page on the MCP surface.
-// The four implementations stay separate below; only the surface merged.
+// manage_page replaced add/delete/rename/navigate_to_page in the MCP tool list.
+// The four implementations below stay separate. Only the tool surface merged.
 const PAGE_ACTIONS: Record<string, string> = {
   add: "add_page",
   delete: "delete_page",
@@ -16,7 +16,7 @@ export const writePageHandlers: HandlerMap = {
     throw new Error(`action must be add, delete, rename, or navigate, got: ${action}`);
   }
   const result = await handleWritePageRequest({ ...request, type, params });
-  // Answer under the name the caller used, not the one we delegated to.
+  // Answer with the name the caller used, not the one we delegated to.
   return { ...result, type: request.type }
   },
 

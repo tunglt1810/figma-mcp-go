@@ -1,13 +1,12 @@
 package tools
 
-// Note which tools carry their node id in the nodeIDs field and which carry it
-// in params: the plugin handlers read one or the other, not both.
+// Note which tools send their node id in the nodeIDs field and which send it
+// in params. Each plugin handler reads one or the other, not both.
 var readDocumentSpecs = []toolSpec{
 	{
 		Name: "get_document",
-		Desc: "Get the node tree of the selection, the current page, or the whole file (`scope`). " +
-			"Returns {fileName, scope, currentPage, nodes}. Full detail stops at 500 nodes by default. " +
-			"If cut short, the result has `truncated`, and nodes with hidden children show `childCount`.",
+		Desc: "Get the node tree of the selection, page, or file (`scope`). Returns {fileName, scope, currentPage, nodes}. " +
+			"Stops at 500 nodes by default; then sets `truncated`, and nodes with hidden children show `childCount`.",
 		Params: []paramSpec{
 			{Name: "scope", Kind: kindString, Enum: []string{"selection", "page", "document"},
 				Desc: "page (default): current page. document: every page, one shared maxNodes limit. " +
@@ -24,11 +23,11 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "get_metadata",
-		Desc: "Get file name, current page, and every page's ID and name. Cheap: loads no node trees.",
+		Desc: "Get file name, current page, and all pages (ID, name). Loads no node trees.",
 	},
 	{
 		Name: "get_selection",
-		Desc: "Get the selected nodes, or the nodes pinned in the plugin panel. Empty array if none. For more detail use get_nodes_info.",
+		Desc: "Get selected nodes, or nodes pinned in the plugin panel. [] if none. For detail use get_nodes_info.",
 		Params: []paramSpec{
 			{Name: "source", Kind: kindString, Enum: []string{"selection", "pinned"},
 				Desc: "selection (default): what is selected now; changes when the user clicks. pinned: set saved in the panel; stays the same across calls."},
@@ -36,8 +35,8 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "get_nodes_info",
-		Desc: "Get full details of nodes by ID. Returns {nodes}, plus globalVars.styles when fills or strokes repeat. " +
-			"Unknown IDs are listed in `missing`. Stops at 500 descendants by default; if cut short, has `truncated` and `childCount`.",
+		Desc: "Get full node details by ID. Returns {nodes}, plus globalVars.styles for repeated fills/strokes. " +
+			"Unknown IDs go in `missing`. Stops at 500 descendants by default; then sets `truncated` and `childCount`.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",
@@ -50,8 +49,7 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "search_nodes",
-		Desc: "Find nodes by name, type, or both. Searches the current page by default. " +
-			"Returns up to `limit` (default 50) and sets `truncated` if there were more.",
+		Desc: "Find nodes by name, type, or both; current page by default. Returns up to `limit` (default 50); sets `truncated` if more.",
 		Params: []paramSpec{
 			{Name: "query", Kind: kindString,
 				Desc: "Text to find in node names (case-insensitive). Omit to match all nodes of `types`."},
@@ -74,22 +72,23 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name:       "get_reactions",
-		Desc:       "Get a node's prototype reactions: each has a trigger (e.g. ON_CLICK) and actions. Change them with set_reactions.",
+		Desc:       "Get a node's prototype reactions (trigger + actions). Edit with set_reactions.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID",
 	},
 	{
 		Name: "get_viewport",
-		Desc: "Get the viewport center, zoom, and visible bounds.",
+		Desc: "Get viewport center, zoom, and visible bounds.",
 	},
 	{
 		Name: "get_fonts",
 		Desc: "List fonts used on the current page, most used first.",
 	},
 	{
-		Name:       "get_instance_overrides",
-		Desc:       "Get an instance's component properties (variant, boolean, text) with types and current values. Use before set_instance_overrides.",
+		Name: "get_instance_overrides",
+		Desc: "Get an instance's component properties with type and value. Use before set_instance_overrides.",
+
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "INSTANCE node ID",

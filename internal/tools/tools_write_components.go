@@ -32,14 +32,14 @@ var writeComponentSpecs = []toolSpec{
 	},
 	{
 		Name:       "detach_instance",
-		Desc:       "Detach instances into plain frames. Looks the same, no link to the component.",
+		Desc:       "Detach instances into plain frames (same look, no component link).",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "INSTANCE node IDs",
 	},
 	{
 		Name: "create_component_instance",
-		Desc: "Create an instance of a local component (componentId) or library component (componentKey). A component set uses its default variant.",
+		Desc: "Create an instance of a local (componentId) or library (componentKey) component. A component set uses its default variant.",
 		Params: []paramSpec{
 			{Name: "componentId", Kind: kindString, IsNodeID: true,
 				Desc: "Local component or set ID (preferred)"},
@@ -52,8 +52,9 @@ var writeComponentSpecs = []toolSpec{
 		Validate: requireAnyOf("componentId or componentKey is required", "componentId", "componentKey"),
 	},
 	{
-		Name:       "set_instance_overrides",
-		Desc:       "Set component properties (variant, boolean, text) on an instance. Fails on unknown names or wrong types.",
+		Name: "set_instance_overrides",
+		Desc: "Set an instance's component properties. Fails on unknown names or wrong types.",
+
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "INSTANCE node ID",

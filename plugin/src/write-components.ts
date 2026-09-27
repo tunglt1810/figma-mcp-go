@@ -217,9 +217,9 @@ export const writeComponentsHandlers: HandlerMap = {
     };
   },
 
-  // Absorbed clear_annotations, which was this with an empty array — but over
-  // many nodes, where this took one. Clearing ten nodes must not cost ten calls,
-  // so the arity of the tool that clears is the one that survived.
+  // This took over clear_annotations, which did the same with an empty array,
+  // but on one node where this takes many. Clearing ten nodes must not take
+  // ten calls, so the tool that clears kept this one's multi-node form.
   "set_annotations": async (request) => {
     const nodeIds = request.nodeIds || [];
     const p = request.params || {};
@@ -239,8 +239,8 @@ export const writeComponentsHandlers: HandlerMap = {
         results.push({ nodeId: nid, success: true });
       } catch (e: any) {
         // Annotations need a paid Dev Mode seat, and Figma reports that by
-        // throwing. One node's refusal is every node's, but reporting it per
-        // node keeps the shape the same either way.
+        // throwing. If one node is refused, all are, but reporting it per node
+        // keeps the result shape the same either way.
         results.push({ nodeId: nid, error: e.message });
       }
     }

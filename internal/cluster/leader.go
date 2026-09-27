@@ -16,8 +16,8 @@ import (
 
 func leaderLog() *slog.Logger { return slog.Default().With("component", "leader") }
 
-// Guard checks and normalizes an incoming call. The leader holds one so /rpc
-// applies the same rules as a local tool call without this package having to
+// Guard checks and normalizes an incoming call. The leader holds one, so /rpc
+// applies the same rules as a local tool call. This package does not need to
 // know what the rules are.
 type Guard func(tool string, nodeIDs []string, params map[string]any) ([]string, map[string]any, error)
 
@@ -37,15 +37,15 @@ type Leader struct {
 	version string
 	guard   Guard
 
-	// readHeaderTimeout bounds how long a client may take to send its request
-	// headers. Overridable so tests need not wait seconds.
+	// readHeaderTimeout limits how long a client may take to send its request
+	// headers. Tests override it so they do not wait seconds.
 	readHeaderTimeout time.Duration
 
 	started time.Time
 }
 
-// loopbackAddresses are the binds that reach this machine only. Anything else
-// accepts connections from the network, on a socket with no authentication.
+// loopbackAddresses are the binds that only this machine can reach. Any other
+// bind accepts connections from the network, on a socket with no authentication.
 var loopbackAddresses = map[string]bool{
 	"127.0.0.1": true,
 	"localhost": true,
@@ -78,8 +78,8 @@ func (l *Leader) GetBridge() *bridge.Bridge {
 	return l.b
 }
 
-// Start binds the port and begins serving. Returns an error immediately
-// if the port is already in use (EADDRINUSE → caller detects another leader).
+// Start binds the port and begins serving. It returns an error at once if the
+// port is already in use (EADDRINUSE), which tells the caller another leader exists.
 func (l *Leader) Start() error {
 	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", l.ip, l.port))
 	if err != nil {
@@ -95,14 +95,13 @@ func (l *Leader) Start() error {
 		Handler:           mux,
 		ReadHeaderTimeout: l.readHeaderTimeout,
 		IdleTimeout:       60 * time.Second,
-		// No ReadTimeout or WriteTimeout, because both are wrong for what this
-		// server carries. A WriteTimeout would cap /rpc, where a
-		// batch_execute_pipeline response legitimately takes up to
-		// MaxToolTimeout; a ReadTimeout would cap reading a 32 MB body. The
-		// WebSocket is not the reason — net/http clears the deadline itself
-		// when a handler hijacks (server.go, hijackLocked). ReadHeaderTimeout
-		// is safe on every path: net/http restores the read deadline to the
-		// zero time after the headers when ReadTimeout is zero.
+		// No ReadTimeout or WriteTimeout, because both are wrong for this server.
+		// A WriteTimeout would cap /rpc, where a batch_execute_pipeline response
+		// can rightly take up to MaxToolTimeout. A ReadTimeout would cap reading
+		// a 32 MB body. The WebSocket is not the reason: net/http clears the
+		// deadline itself when a handler hijacks (server.go, hijackLocked).
+		// ReadHeaderTimeout is safe on every path: when ReadTimeout is zero,
+		// net/http resets the read deadline to zero after the headers.
 	}
 	l.server = srv
 
@@ -114,9 +113,9 @@ func (l *Leader) Start() error {
 
 	leaderLog().Info("listening", "ip", l.ip, "port", l.port)
 	if Exposed(l.ip) {
-		// Worth a warning rather than a refusal: moving the listener off
-		// loopback is a thing people do deliberately, to drive Figma on one
-		// machine from an editor on another. They should know what it costs.
+		// A warning, not a refusal. People move the listener off loopback on
+		// purpose, to drive Figma on one machine from an editor on another.
+		// They should know the risk.
 		leaderLog().Warn(
 			"the plugin connection is reachable from the network and is not authenticated — anyone who can reach this port can read and edit the open Figma file",
 			"ip", l.ip, "port", l.port,
@@ -143,7 +142,7 @@ func (l *Leader) handlePing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	// role is the literal LEADER: only a leader serves this endpoint.
+	// role is always LEADER: only a leader serves this endpoint.
 	err := json.MarshalWrite(w, map[string]any{
 		"status":        "ok",
 		"version":       l.version,
@@ -169,7 +168,7 @@ func (l *Leader) handleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A tool call carries params, not a file. 32 MB is generous and stops an
+	// A tool call carries params, not a file. 32 MB is plenty, and it stops an
 	// unbounded read.
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 32<<20))
 	if err != nil {

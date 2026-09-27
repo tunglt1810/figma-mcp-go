@@ -1,15 +1,15 @@
 // Panel strings.
 //
-// The panel carried a Vietnamese translation for a while, and the result read
-// half in one language and half in the other: tool names, the activity log, the
-// refusal text the server receives and the version-mismatch banner are English
-// by necessity — they are read by the MCP client, or by whoever a bug report
-// goes to, not by the person holding the mouse. One language throughout beats a
-// panel that switches mid-sentence, so the panel now speaks the same English as
+// The panel had a Vietnamese translation for a while, and it read half in one
+// language and half in the other. Tool names, the activity log, the refusal
+// text the server receives, and the version-mismatch banner must be English:
+// they are read by the MCP client, or by whoever gets the bug report, not by
+// the person holding the mouse. One language throughout is better than a
+// panel that switches mid-sentence, so the panel now uses the same English as
 // everything around it.
 //
-// Collecting the copy here rather than inline in the markup still earns its
-// keep: it is the one place to read every string the panel can show.
+// Keeping the text here instead of inline in the markup is still worth it:
+// this is the one place to read every string the panel can show.
 
 export const t = {
   file: "File",

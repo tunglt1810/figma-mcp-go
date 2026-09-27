@@ -25,8 +25,8 @@ describe('SymbolTable & resolveParams', () => {
     expect(() => resolveParams(params, table)).toThrow('Undefined pipeline variable: $missing_var');
   });
 
-  // Any string starting with $ used to be treated as a variable reference, so
-  // a price, a CSS variable or a shell-looking string aborted the pipeline.
+  // Any string that started with $ used to count as a variable reference, so a
+  // price, a CSS variable or a shell-like string stopped the pipeline.
   it.each(['$100', '$1,299.00', '$', '$ 50', '$--brand-color', '$3.50/mo'])(
     'leaves %o alone — it is not a variable name',
     (text) => {
@@ -117,7 +117,7 @@ describe('executeBatchPipeline', () => {
 //
 // Write handlers read `request.nodeIds[0]`, not `params.nodeId`. The pipeline
 // dispatcher used to build `{ type, requestId, params }` with no nodeIds field,
-// so every nodeIds-based tool failed with "nodeId is required".
+// so every tool that uses nodeIds failed with "nodeId is required".
 
 describe('handleBatchPipelineRequest — nodeIds wiring', () => {
   const runWithSpy = async (params: any) => {
@@ -158,9 +158,9 @@ describe('handleBatchPipelineRequest — nodeIds wiring', () => {
 
 // ── P0-1: rollback must never delete a node the pipeline did not create ───────
 //
-// The WAL used to record `{ type: 'CREATE' }` for any result carrying an `id`.
-// Modify handlers return the id of an EXISTING node, so a later failure had the
-// rollback delete the user's own nodes. `rename_page` is reachable today.
+// The WAL used to record `{ type: 'CREATE' }` for any result with an `id`.
+// Modify handlers return the id of an EXISTING node, so a later failure made
+// the rollback delete the user's own nodes. `rename_page` can do this today.
 
 describe('WAL — only true creates are rolled back', () => {
   const pipelineThatFailsAfter = async (firstStep: any, fakeNodes: Record<string, any>) => {
@@ -207,8 +207,8 @@ describe('WAL — only true creates are rolled back', () => {
 
 // ── P0-3: rollback must restore properties changed on existing nodes ──────────
 //
-// The design doc specified MODIFY snapshot/restore; only CREATE was implemented,
-// so "transactional" mutations on existing nodes were silently irreversible.
+// The design doc specified MODIFY snapshot and restore, but only CREATE was
+// built. So "transactional" changes to existing nodes silently could not be undone.
 
 describe('WAL — MODIFY snapshot and restore', () => {
   it('restores the previous properties of a modified node on rollback', async () => {
@@ -340,10 +340,10 @@ describe('executeBatchPipeline — results on failure', () => {
 
 // ── Integration: pipeline through the REAL write dispatcher ──────────────────
 //
-// The unit tests above drive executeBatchPipeline with a mock dispatcher, which
+// The unit tests above run executeBatchPipeline with a mock dispatcher. That
 // is exactly why P0-2 went unnoticed: the nodeIds were dropped in
-// handleBatchPipelineRequest, a layer the mocks never exercised. These tests go
-// through handleWriteRequest so the whole chain is covered.
+// handleBatchPipelineRequest, a layer the mocks never ran. These tests go
+// through handleWriteRequest, so the whole chain is covered.
 
 let progressMessages: any[] = [];
 
@@ -415,9 +415,9 @@ describe('batch pipeline → real write handlers', () => {
   });
 });
 
-// manage_page merged four page tools, so whether a step created something is no
-// longer decided by the action name alone. Getting this wrong either leaks a
-// page the pipeline created or, far worse, removes one the user already had.
+// manage_page merged four page tools, so the action name alone no longer
+// says whether a step created something. Getting this wrong either leaves
+// behind a page the pipeline created or, much worse, removes one the user had.
 describe('isCreateStep', () => {
   it('treats manage_page add as a create', () => {
     expect(isCreateStep('manage_page', { action: 'add', name: 'Specs' })).toBe(true);
@@ -488,8 +488,8 @@ describe('withSingleUndoCheckpoint', () => {
       expect(boom).rejects.toThrow('step failed');
       await boom.catch(() => {});
       expect(commits).toBe(1);
-      // A swallowing stub left behind would silently disable undo for the
-      // rest of the session.
+      // A leftover stub that ignores calls would silently disable undo for
+      // the rest of the session.
       expect((globalThis as any).figma.commitUndo).toBe(real);
     } finally {
       restore();
@@ -515,12 +515,12 @@ describe('withSingleUndoCheckpoint', () => {
     }
   });
 
-  // Two pipelines can be in flight at once: a pipeline whose every step reads is
-  // not classified as mutating, so it skips the write queue. Their scopes then
-  // interleave rather than nest, and a save/restore that assumes LIFO has the
-  // first to finish put the real function back while the second still runs, and
-  // the second put the first's stub back for good — after which every write in
-  // the session loses its checkpoint, silently.
+  // Two pipelines can run at once: a pipeline where every step reads does not
+  // count as mutating, so it skips the write queue. Their scopes then
+  // interleave instead of nesting. A save and restore that assumes LIFO has
+  // the first to finish put the real function back while the second still
+  // runs. Then the second puts the first's stub back for good, and from then
+  // on every write in the session silently loses its checkpoint.
   it('restores the real commitUndo after interleaved scopes', async () => {
     const deferred = () => {
       let resolve!: () => void;
@@ -593,7 +593,7 @@ describe('executeBatchPipeline cancellation', () => {
     const res = await executeBatchPipeline(
       twoSteps as any,
       async () => {
-        // Cancelled while the first step is in flight; it completes, and the
+        // Cancelled while the first step is running. It completes, and the
         // second never starts.
         cancelled = true;
         return { id: 'n1' };
@@ -609,8 +609,8 @@ describe('executeBatchPipeline cancellation', () => {
   });
 
   it('rolls back even when stop_on_error is off', async () => {
-    // stop_on_error tolerates a step that failed on its own terms; a cancelled
-    // run has no terms left to tolerate.
+    // stop_on_error accepts a step that failed by itself. A cancelled run
+    // is a different case.
     const res = await executeBatchPipeline(
       { ...twoSteps, stop_on_error: false } as any,
       async () => ({ id: 'n1' }),
@@ -682,7 +682,7 @@ describe('batch pipeline progress through handleWriteRequest', () => {
     expect(updates[0].requestId).toBe('req-progress');
   });
 
-  // The response lands at about the same moment, so a message would only add noise.
+  // The response arrives at about the same moment, so a message would only add noise.
   it('stays quiet for a one-step pipeline', async () => {
     await handleWriteRequest({
       type: 'batch_execute_pipeline',
@@ -696,13 +696,13 @@ describe('batch pipeline progress through handleWriteRequest', () => {
 // ── CREATE_ACTIONS must keep up with the write handlers ──────────────────────
 //
 // The comment above CREATE_ACTIONS warns that a create-style handler added
-// without a matching entry rolls back wrongly — but nothing enforced it, and
-// `rename_page` is the cautionary example in the other direction: it returns an
+// without a matching entry rolls back wrongly. But nothing enforced it.
+// `rename_page` is the warning example in the other direction: it returns an
 // id the user already had, so removing it destroys their page.
 //
-// So every write handler is listed here as CREATE or KEEPS. Adding a handler
-// fails this test until it is classified, which is the point: the decision is
-// cheap to make now and expensive to discover after a rollback removed
+// So every write handler is listed here as CREATE or KEEPS. A new handler
+// fails this test until it is classified, which is the point: the decision
+// is cheap to make now, and expensive to discover after a rollback removed
 // somebody's work.
 
 const KEEPS_EXISTING_NODES = [
@@ -741,8 +741,8 @@ const KEEPS_EXISTING_NODES = [
   'ungroup_nodes',
   'update_paint_style',
   'create_vector',
-  // Internal delegation targets — the names the merged tools dispatch to. They
-  // are real entries in the write handler map, so they need classifying too.
+  // Internal delegation targets: the names the merged tools dispatch to.
+  // They are real entries in the write handler map, so they need a class too.
   'set_fills',
   'set_gradient_fills',
   'set_strokes',
@@ -755,8 +755,8 @@ const KEEPS_EXISTING_NODES = [
   'set_variable_value',
   'delete_variable',
   'bind_variable_to_node',
-  // These create a style, not a node. Rollback removes by node id, so a style
-  // is not something it can take back — which is why they are not creates here.
+  // These create a style, not a node. Rollback removes by node id, so it
+  // cannot take a style back. That is why they are not creates here.
   'create_paint_style',
   'create_text_style',
   'create_effect_style',
@@ -772,15 +772,15 @@ describe('CREATE_ACTIONS', () => {
 
   it('lists nothing that is not a write handler', () => {
     const handlers = new Set(Object.keys(writeHandlers));
-    // The internal names the merged tools delegate to are not in the map, and
-    // are the ones CREATE_ACTIONS legitimately names (create_frame and friends
-    // behind create_node), so only the KEEPS side is checked here.
+    // The internal names the merged tools delegate to are not in the map.
+    // They are the ones CREATE_ACTIONS rightly names (create_frame and the
+    // others behind create_node), so only the KEEPS side is checked here.
     for (const name of KEEPS_EXISTING_NODES) {
       expect(handlers.has(name), `${name} is not a write handler`).toBe(true);
     }
   });
 
-  // These two are why the list exists at all.
+  // These two are the reason the list exists.
   it('does not treat a merged action as a create by its name alone', () => {
     expect(isCreateStep('manage_page', { action: 'add' })).toBe(true);
     expect(isCreateStep('manage_page', { action: 'rename' })).toBe(false);

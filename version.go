@@ -13,7 +13,7 @@ type serverConfig struct {
 }
 
 // GetVersion returns the version string embedded from server.json.
-// Falls back to "dev" if missing or unparseable.
+// It falls back to "dev" if the file is missing or cannot be parsed.
 func GetVersion() string {
 	var cfg serverConfig
 	if err := json.Unmarshal(serverJSON, &cfg); err == nil && cfg.Version != "" {

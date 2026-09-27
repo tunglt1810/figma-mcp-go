@@ -21,8 +21,8 @@ describe("copyTextToClipboard", () => {
     });
   });
 
-  // execCommand("copy") copies the document's selection, not `text`, so running
-  // it after the server already has the id can only overwrite it.
+  // execCommand("copy") copies the document's selection, not `text`. Running
+  // it after the server already has the id could only overwrite it.
   it("does not touch the browser clipboard once the server has the text", async () => {
     let execCalled = false;
     const result = await copyTextToClipboard("node-123", {

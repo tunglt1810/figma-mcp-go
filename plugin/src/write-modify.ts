@@ -4,13 +4,13 @@ import { HandlerMap } from "./dispatch";
 import { reportProgress, stepProgress } from "./progress";
 import { loadFonts } from "./fonts";
 
-// What Figma itself falls back to when a node's font is mixed.
+// The font Figma itself falls back to when a node's font is mixed.
 const FALLBACK_FONT = { family: "Inter", style: "Regular" };
 
 const REORDER_ORDERS = ["bringToFront", "sendToBack", "bringForward", "sendBackward"];
 
-// Directly assignable node properties, with the label used in the
-// "does not support X" message the eight predecessor tools produced.
+// Node properties that can be assigned directly, each with the label used in
+// the "does not support X" message of the eight tools this one replaced.
 const SIMPLE_NODE_PROPS: Array<{ key: string; label: string }> = [
   { key: "visible", label: "visibility" },
   { key: "locked", label: "locking" },
@@ -19,9 +19,9 @@ const SIMPLE_NODE_PROPS: Array<{ key: string; label: string }> = [
   { key: "blendMode", label: "blend mode" },
   { key: "isMask", label: "masking" },
   { key: "maskType", label: "mask type" },
-  // Stroke geometry. These describe the line itself rather than its paint, so
-  // they live on the node, not in a Paint — which is why they belong here and
-  // not on set_paint, whose arguments all describe one paint.
+  // Stroke geometry. These describe the line itself, not its paint, so they
+  // live on the node, not in a Paint. That is why they belong here and not on
+  // set_paint, whose arguments all describe one paint.
   { key: "strokeWeight", label: "stroke weight" },
   { key: "strokeAlign", label: "stroke alignment" },
   { key: "strokeCap", label: "stroke caps" },
@@ -30,8 +30,8 @@ const SIMPLE_NODE_PROPS: Array<{ key: string; label: string }> = [
   { key: "dashPattern", label: "dash pattern" },
 ];
 
-// The uniform radius first: a call carrying both means "these corners, that
-// default", and applying the uniform one afterwards would erase the specifics.
+// The uniform radius goes first. A call with both means "these corners, that
+// default", and applying the uniform one after would erase the specific ones.
 const CORNER_RADIUS_KEYS = [
   "cornerRadius",
   "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius",
@@ -48,9 +48,9 @@ const reorderIndex = (order: string, currentIndex: number, siblingCount: number)
 };
 
 /**
- * Apply every requested property to one node, collecting per-property outcomes.
- * A node can support opacity but not rotation, so failures are reported against
- * the individual property rather than the whole node.
+ * Apply every requested property to one node, and collect the result for each.
+ * A node can support opacity but not rotation, so each failure is reported for
+ * that property, not for the whole node.
  */
 const applyNodeProperties = (n: any, p: any) => {
   const applied: Record<string, any> = {};
@@ -62,11 +62,11 @@ const applyNodeProperties = (n: any, p: any) => {
       errors[key] = `Node does not support ${label}`;
       continue;
     }
-    // Figma rejects some values for a node's current shape rather than
-    // ignoring them — a dash pattern with a negative length, a stroke cap on a
-    // node whose caps are mixed. Reporting that against the one property keeps
-    // the others in the same call applied, which is what the per-property
-    // errors above already promise.
+    // Figma rejects some values for a node's current shape instead of
+    // ignoring them: a dash pattern with a negative length, a stroke cap on
+    // a node with mixed caps. Reporting that for the one property keeps the
+    // other properties in the same call applied, as the per-property errors
+    // above already promise.
     try {
       n[key] = p[key];
       applied[key] = n[key];
@@ -75,9 +75,9 @@ const applyNodeProperties = (n: any, p: any) => {
     }
   }
 
-  // Position, size and corner radius were move_nodes, resize_nodes and
+  // Position, size and corner radius used to be move_nodes, resize_nodes and
   // set_corner_radius. They report per property like everything above, and
-  // moving plus resizing is now one undo entry rather than two.
+  // moving plus resizing is now one undo entry instead of two.
   if (p.x !== undefined || p.y !== undefined) {
     if (!("x" in n)) {
       if (p.x !== undefined) errors.x = "Node does not support position";
@@ -94,8 +94,8 @@ const applyNodeProperties = (n: any, p: any) => {
       if (p.width !== undefined) errors.width = `Node does not support ${label}`;
       if (p.height !== undefined) errors.height = `Node does not support ${label}`;
     } else {
-      // One resize call, not one per axis: Figma takes both, and the axis the
-      // caller left out keeps the value it has.
+      // One resize call, not one per axis. Figma takes both, and the axis the
+      // caller left out keeps its current value.
       try {
         n.resize(p.width !== undefined ? p.width : n.width, p.height !== undefined ? p.height : n.height);
         if (p.width !== undefined) applied.width = n.width;
@@ -110,8 +110,8 @@ const applyNodeProperties = (n: any, p: any) => {
 
   for (const key of CORNER_RADIUS_KEYS) {
     if (p[key] === undefined) continue;
-    // Every per-corner property is gated on cornerRadius: a node that has the
-    // uniform one has the four, and one that has neither is not a shape.
+    // Every per-corner property depends on cornerRadius: a node with the
+    // uniform radius has all four, and a node with neither is not a shape.
     if (!("cornerRadius" in n)) {
       errors[key] = "Node does not support corner radius";
       continue;
@@ -151,20 +151,20 @@ const applyNodeProperties = (n: any, p: any) => {
   return { applied, errors };
 };
 
-// set_paint replaced set_fills, set_gradient_fills and set_strokes on the MCP
-// surface. The three implementations stay separate below; only the surface
-// merged. `type` names the kind of paint, which the gradient implementation
-// reads directly and the solid ones do not take at all.
+// set_paint replaced set_fills, set_gradient_fills and set_strokes in the MCP
+// tool list. The three implementations below stay separate. Only the tool surface
+// merged. `type` names the kind of paint. The gradient implementation reads it
+// directly, and the solid ones do not take it at all.
 /**
- * Text settings that belong to the whole node rather than a range.
+ * Text settings that belong to the whole node, not to a range.
  *
- * Range-level styling lives in set_text_ranges; these have no range form in
- * Figma at all, so they stay with the tool that owns the node's text.
+ * Range-level styling lives in set_text_ranges. These settings have no range
+ * form in Figma at all, so they stay with the tool that owns the node's text.
  */
 const applyParagraphProperties = (node: any, p: any) => {
   if (p.textAutoResize) node.textAutoResize = p.textAutoResize;
   if (p.textTruncation) node.textTruncation = p.textTruncation;
-  // maxLines only means anything with truncation on, and null clears the cap.
+  // maxLines only matters with truncation on. null removes the limit.
   if (p.maxLines !== undefined) {
     node.maxLines = p.maxLines === null ? null : Number(p.maxLines);
   }
@@ -190,7 +190,7 @@ export const writeModifyHandlers: HandlerMap = {
     throw new Error(`type must be SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL, got: ${type}`);
   }
   const result = await handleWriteModifyRequest({ ...request, type: action, params });
-  // Answer under the name the caller used, not the one we delegated to.
+  // Answer with the name the caller used, not the one we delegated to.
   return { ...result, type: request.type }
   },
 
@@ -236,8 +236,8 @@ export const writeModifyHandlers: HandlerMap = {
       ? { family: "Inter", style: "Regular" }
       : node.fontName;
     await loadFonts([fontName]);
-    // text is optional now that this tool also carries paragraph settings — a
-    // call that only changes the wrap mode should not blank the node.
+    // text is optional now that this tool also handles paragraph settings.
+    // A call that only changes the wrap mode should not empty the node.
     if (p.text != null) node.characters = p.text;
     applyParagraphProperties(node, p);
     figma.commitUndo();
@@ -361,9 +361,9 @@ export const writeModifyHandlers: HandlerMap = {
     return { type: request.type, requestId: request.requestId, data: { results } };
   },
 
-  // Absorbed set_layout_sizing, which was these same arguments over many nodes.
-  // A row of siblings that should all FILL is the case that made the plural form
-  // worth having: one round trip per sibling was the alternative.
+  // This took over set_layout_sizing, which had these same arguments over many
+  // nodes. The plural form is worth it for a row of siblings that should all
+  // FILL. Otherwise it would take one round trip per sibling.
   "set_auto_layout": async (request) => {
     const p = request.params || {};
     const nodeIds = request.nodeIds || [];
@@ -373,13 +373,13 @@ export const writeModifyHandlers: HandlerMap = {
     for (const nid of nodeIds) {
       const n = await figma.getNodeByIdAsync(nid) as any;
       if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
-      // Components, component sets and instances carry auto layout too, and the
-      // FRAME-only check used to turn a perfectly valid call on a component into
-      // an error. Ask for the property instead of the type.
+      // Components, component sets and instances have auto layout too, and
+      // the old FRAME-only check turned a valid call on a component into an
+      // error. So check for the property, not the type.
       //
-      // layoutMode is the frame's own layout; a node that only sizes itself
-      // inside its parent's layout does not have it, and that is what the
-      // layoutSizing/layoutAlign/layoutGrow arguments are for.
+      // layoutMode is the frame's own layout. A node that only sizes itself
+      // inside its parent's layout does not have it. The
+      // layoutSizing/layoutAlign/layoutGrow arguments are for that case.
       if (!("layoutMode" in n) && !("layoutSizingHorizontal" in n)) {
         results.push({
           nodeId: nid,
@@ -396,8 +396,8 @@ export const writeModifyHandlers: HandlerMap = {
           layoutSizingVertical: n.layoutSizingVertical,
         });
       } catch (e: any) {
-        // One sibling that cannot FILL — because its parent has no auto layout
-        // — must not undo the ones that could.
+        // One sibling that cannot FILL (because its parent has no auto layout)
+        // must not undo the ones that could.
         results.push({ nodeId: nid, error: e.message });
       }
     }
@@ -405,9 +405,9 @@ export const writeModifyHandlers: HandlerMap = {
     return { type: request.type, requestId: request.requestId, data: { results } };
   },
 
-  // Writes the presets, it does not export. export_screenshots still does the
-  // exporting; this is what a designer sees under Export in the right-hand
-  // panel, and what a handoff pipeline reads.
+  // This writes the presets. It does not export. export_screenshots still
+  // does the exporting. This is what a designer sees under Export in the
+  // right-hand panel, and what a handoff pipeline reads.
   "set_export_settings": async (request) => {
     const p = request.params || {};
     const nodeIds = request.nodeIds || [];
@@ -481,8 +481,8 @@ export const writeModifyHandlers: HandlerMap = {
       if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
       const oldName: string = n.name;
       let newName = oldName;
-      // Absorbed rename_node: a literal name wins outright, and the schema
-      // rejects it alongside a substitution rather than defining an order.
+      // This took over rename_node. A literal name always wins, and the
+      // schema rejects it together with a substitution instead of defining an order.
       if (p.name !== undefined) {
         n.name = p.name;
         results.push({ nodeId: nid, oldName, name: p.name });
@@ -525,11 +525,11 @@ export const writeModifyHandlers: HandlerMap = {
     };
     collect(root);
     const results: any[] = [];
-    // Collected first, written after every font has loaded.
+    // Collected first, then written after every font has loaded.
     const pending: Array<{ node: any; originalText: string; newText: string }> = [];
-    // A find-and-replace over a whole page is the write that most often runs
-    // past the server's timeout, and it is the one write where the caller
-    // cannot guess how much there is to do.
+    // A find-and-replace over a whole page is the write that most often goes
+    // past the server's timeout. It is also the one write where the caller
+    // cannot guess how much work there is.
     const reportEvery = Math.max(1, Math.floor(textNodes.length / 20));
     for (let i = 0; i < textNodes.length; i++) {
       const tn = textNodes[i];
@@ -558,9 +558,9 @@ export const writeModifyHandlers: HandlerMap = {
       }
     }
 
-    // Every font first, then every write. Loading inside the loop meant one node
-    // in a font the file lacks aborted the run after the nodes before it had
-    // already been rewritten — and reported one missing font per attempt.
+    // Load every font first, then do every write. Loading inside the loop meant
+    // one node in a font the file lacks stopped the run after earlier nodes had
+    // already been rewritten, and each attempt reported only one missing font.
     await loadFonts(
       pending.map(({ node }) =>
         typeof node.fontName === "symbol" ? FALLBACK_FONT : node.fontName,

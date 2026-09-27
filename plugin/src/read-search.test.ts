@@ -89,7 +89,7 @@ describe("search_nodes", () => {
   });
 
   // With documentAccess "dynamic-page", a page that is never loaded reports no
-  // children at all — the search would answer "not found" instead of failing.
+  // children at all. The search would answer "not found" instead of failing.
   it("loads every page before walking it", async () => {
     await search({ query: "button", scope: "document" });
     expect(loadedPages).toEqual(["1:0", "2:0"]);
@@ -103,8 +103,8 @@ describe("search_nodes", () => {
     expect(single.data.nodes[0].pageName).toBeUndefined();
   });
 
-  // The last page reports 99, not 100: 100 reads as "done", and the response
-  // itself is what says the work finished. See clampProgress.
+  // The last page reports 99, not 100: 100 means "done", and the response
+  // itself is what says the work is finished. See clampProgress.
   it("reports progress per page on a document search", async () => {
     await search({ query: "button", scope: "document" });
     const updates = progressMessages.filter((m) => m.type === "progress_update");
@@ -124,8 +124,8 @@ describe("search_nodes", () => {
 
   // ── what scan_nodes_by_types and scan_text_nodes used to do ────────────────
 
-  // scan_nodes_by_types skipped hidden nodes; this tool never has. Both
-  // behaviours have to be reachable, and the default has to stay the old one.
+  // scan_nodes_by_types skipped hidden nodes, and this tool never has. Both
+  // behaviours must be available, and the default must stay the old one.
   it("searches hidden nodes by default and skips them on request", async () => {
     const hidden = makeNode("1:3", "Button Hidden", "FRAME");
     hidden.visible = false;
@@ -146,7 +146,7 @@ describe("search_nodes", () => {
     expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:1"]);
   });
 
-  // scan_text_nodes returned the copy itself, which this tool did not.
+  // scan_text_nodes returned the text itself, which this tool did not.
   it("reads the text of TEXT hits when asked, and nothing extra otherwise", async () => {
     const text = makeNode("1:3", "Label", "TEXT");
     text.characters = "Hello";
@@ -232,7 +232,7 @@ describe("get_document", () => {
   });
 
   // The same trap search_nodes fell into: an unloaded page reports no children,
-  // so a document walk that skips loadAsync answers with empty pages.
+  // so a document walk that skips loadAsync returns empty pages.
   it("loads every page before serializing it", async () => {
     await getDocument({ scope: "document" });
     expect(loadedPages).toEqual(["1:0", "2:0"]);
@@ -243,7 +243,7 @@ describe("get_document", () => {
     expect(result.data.truncated).toBe(true);
   });
 
-  // 99 rather than 100 — see the note on the search_nodes case above.
+  // 99, not 100. See the note on the search_nodes case above.
   it("reports progress per page", async () => {
     await getDocument({ scope: "document" });
     const updates = progressMessages.filter((m) => m.type === "progress_update");
@@ -261,7 +261,7 @@ describe("get_document", () => {
   });
 
   // What get_design_context did with nothing selected. An empty array would be
-  // technically right and useless.
+  // technically right, but useless.
   it("falls back to the page when nothing is selected", async () => {
     currentPage.selection = [];
     const result = await getDocument({ scope: "selection" });
@@ -275,8 +275,8 @@ describe("get_document", () => {
     expect(Object.keys(page).sort()).toEqual(["bounds", "children", "id", "name", "type"]);
   });
 
-  // detail is no longer selection-only: it applies to a page and a document walk
-  // too, which is new reach rather than new code.
+  // detail is no longer selection-only. It now applies to page and document
+  // walks too, with no new code.
   it("applies a detail level to a document walk", async () => {
     const result = await getDocument({ scope: "document", detail: "minimal" });
     expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:0", "2:0"]);
@@ -329,9 +329,9 @@ describe("get_nodes_info", () => {
     expect(result.data.globalVars).toBeUndefined();
   });
 
-  // It absorbed get_node, whose one advantage was throwing on an id that
-  // matched nothing. Filtering such an id out in silence reads back as "that
-  // node has no content" rather than "there is no such node".
+  // It took over get_node, whose one advantage was throwing on an id that
+  // matched nothing. Silently dropping such an id reads back as "that node
+  // has no content" instead of "there is no such node".
   it("reports an id that matched nothing instead of dropping it", async () => {
     const result = await readDocumentHandlers["get_nodes_info"]({
       type: "get_nodes_info",
@@ -411,7 +411,7 @@ describe("get_selection", () => {
     expect(result.data.map((n: any) => n.id)).toEqual(["1:1"]);
   });
 
-  // The whole point of a pin: it holds still while the selection moves.
+  // The whole point of a pin: it stays fixed while the selection moves.
   it("reads the pinned set instead when asked for it", async () => {
     setPinned(["1:2"]);
     currentPage.selection = [nodes["1:1"]];

@@ -1,19 +1,19 @@
 // Dev Mode codegen.
 //
-// The manifest declared `capabilities: ["inspect"]` without ever registering a
-// codegen provider, so Dev Mode's Code panel showed Figma's generic output and
-// nothing this project knows. Registering the provider needs `"codegen"` in
-// capabilities, plus a `codegenLanguages` list — Figma rejects the manifest of a
-// codegen plugin that offers no language, and the entry the viewer picks from
-// that list is what arrives as the generate event's `language`.
+// The manifest declared `capabilities: ["inspect"]` but never registered a
+// codegen provider. So Dev Mode's Code panel showed Figma's generic output and
+// nothing from this project. Registering the provider needs `"codegen"` in
+// capabilities, plus a `codegenLanguages` list. Figma rejects the manifest of
+// a codegen plugin with no language, and the entry the viewer picks from that
+// list arrives as the generate event's `language`.
 //
-// Live generation on demand would mean the panel asking the MCP client for a
-// completion mid-render — a second request direction through the bridge, plus
-// MCP sampling, which is optional in the protocol and absent from the clients
-// this server targets. So the flow is inverted: the client generates code with
-// the whole repository in front of it and stores it on the node, and the panel
-// serves what is stored. The code is written into shared plugin data, so it
-// travels with the file and every teammate's Dev Mode sees it, not just the
+// Generating code live would mean the panel asking the MCP client for a
+// completion while it renders. That needs a second request direction through
+// the bridge, plus MCP sampling, which is optional in the protocol and missing
+// from the clients this server targets. So the flow is reversed: the client
+// generates code with the whole repository in view and stores it on the node,
+// and the panel shows what is stored. The code is saved as shared plugin data,
+// so it travels with the file. Every teammate's Dev Mode sees it, not just the
 // machine that generated it.
 
 export const PLUGIN_DATA_NAMESPACE = "figma-mcp-go";
@@ -36,7 +36,7 @@ export function normalizeLanguage(language: string | undefined): string {
   return KNOWN_LANGUAGES.has(upper) ? upper : "PLAINTEXT";
 }
 
-/** Parse stored blocks, tolerating anything that is not what we wrote. */
+/** Parse stored blocks, and ignore anything that is not what we wrote. */
 export function parseBlocks(raw: string | undefined): CodegenBlock[] {
   if (!raw) return [];
   try {
@@ -50,8 +50,8 @@ export function parseBlocks(raw: string | undefined): CodegenBlock[] {
         code: block.code,
       }));
   } catch {
-    // Written by an older version, or by hand. Showing nothing beats throwing
-    // inside Figma's render path, which surfaces as a broken panel.
+    // Written by an older version, or by hand. Showing nothing is better than
+    // throwing inside Figma's render path, which shows up as a broken panel.
     return [];
   }
 }
@@ -64,9 +64,10 @@ export function readBlocks(node: any): CodegenBlock[] {
 /**
  * Find the code to show for a selected node.
  *
- * A designer clicks the instance, not the component that defines it, and often
- * clicks a layer inside it. So: the node itself, then what it is an instance
- * of, then up through its ancestors — the first that carries code wins.
+ * A designer clicks the instance, not the component that defines it, and
+ * often clicks a layer inside it. So look at the node itself, then the
+ * component it is an instance of, then up through its ancestors. The first
+ * one that has code wins.
  */
 export async function resolveBlocks(node: any): Promise<{ blocks: CodegenBlock[]; source: any } | null> {
   let current = node;
@@ -93,17 +94,17 @@ export async function resolveBlocks(node: any): Promise<{ blocks: CodegenBlock[]
   return null;
 }
 
-/** First entry of the manifest's codegenLanguages, so Figma's default: show everything. */
+/** The first entry of the manifest's codegenLanguages, and so Figma's default: show everything. */
 export const ALL_LANGUAGES = "ALL";
 
 /**
- * Narrow the blocks to the language the viewer picked in the Code panel.
+ * Filter the blocks to the language the viewer picked in the Code panel.
  *
- * A node often carries several blocks — the component in TypeScript, its CSS,
- * the GraphQL query behind it — and a developer working in one of them does not
- * want the other two. A language with nothing stored for this node falls back
- * to everything rather than to an empty panel: the viewer's standing preference
- * should not read as "this node has no code".
+ * A node often has several blocks (the component in TypeScript, its CSS, the
+ * GraphQL query behind it), and a developer working in one of them does not
+ * want the other two. If nothing is stored in that language for this node,
+ * show everything instead of an empty panel: the viewer's usual preference
+ * should not look like "this node has no code".
  */
 export function selectBlocks(blocks: CodegenBlock[], language: string | undefined): CodegenBlock[] {
   const wanted = String(language ?? ALL_LANGUAGES).toUpperCase();
@@ -131,8 +132,8 @@ export function registerCodegen(): boolean {
         },
       ];
     }
-    // Figma re-runs this handler by itself when the viewer changes the language,
-    // so the event is the only place the current choice needs reading from.
+    // Figma runs this handler again by itself when the viewer changes the
+    // language, so the event is the only place to read the current choice from.
     return selectBlocks(found.blocks, event?.language).map((block) => ({
       title: block.title,
       language: block.language,

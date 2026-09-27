@@ -16,10 +16,10 @@ func TestTimeoutFor(t *testing.T) {
 	}
 }
 
-// The follower proxies to the leader over HTTP. If its deadline is shorter than
-// the leader's, a slow tool fails at the follower while the leader is still
-// working — batch_execute_pipeline gets 120s on the leader and used to get a
-// hardcoded 35s through the follower.
+// The follower forwards to the leader over HTTP. If its deadline is shorter
+// than the leader's, a slow tool fails at the follower while the leader is
+// still working. batch_execute_pipeline gets 120s on the leader, and used to
+// get a hardcoded 35s through the follower.
 func TestFollowerDeadline_OutlastsTheLeader(t *testing.T) {
 	for tool := range toolTimeouts {
 		leader := TimeoutFor(tool)
@@ -33,7 +33,7 @@ func TestFollowerDeadline_OutlastsTheLeader(t *testing.T) {
 }
 
 // A progress update should extend a request's life, never shorten it. Resetting
-// to a hardcoded 60s cut a 120s pipeline down to 70s if the plugin reported
+// to a hardcoded 60s cut a 120s pipeline down to 70s when the plugin reported
 // progress at the 10s mark.
 func TestProgressExtension_NeverShortensTheTimeout(t *testing.T) {
 	for tool := range toolTimeouts {

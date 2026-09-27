@@ -193,7 +193,7 @@ describe("export_tokens", () => {
     ];
 
     const res = await handleReadStyleRequest(makeRequest("export_tokens", { format: "json" }));
-    // No _styles key since nothing was added
+    // No _styles key, because nothing was added
     expect(res?.data.tokens["_styles"]).toBeUndefined();
   });
 });

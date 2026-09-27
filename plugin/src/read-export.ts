@@ -25,9 +25,9 @@ export const readExportHandlers: HandlerMap = {
       throw new Error(
         "No nodes to export. Select nodes or provide nodeIds.",
       );
-    // Sequential rather than Promise.all: exporting is the slowest read there
-    // is, and a caller that asked for twenty frames wants to know how far in it
-    // has got. Figma renders them one at a time regardless.
+    // One at a time, not Promise.all. Exporting is the slowest read, and a
+    // caller that asked for twenty frames wants to know how far along it is.
+    // Figma renders them one at a time anyway.
     const exports: any[] = [];
     for (let i = 0; i < targetNodes.length; i++) {
       const node: any = targetNodes[i];
@@ -100,9 +100,9 @@ export const readExportHandlers: HandlerMap = {
     const nodeIds: string[] = request.nodeIds || [];
     if (nodeIds.length === 0) throw new Error("nodeIds is required");
 
-    // The original bytes, not a re-render. get_screenshot rasterises what the
-    // node looks like now; this returns the asset that was placed, which is
-    // what a build needs to ship.
+    // The original bytes, not a new render. get_screenshot rasterises how the
+    // node looks now. This returns the asset that was placed, which is what a
+    // build needs to ship.
     const images: any[] = [];
     const skipped: { nodeId: string; reason: string }[] = [];
     const seen = new Set<string>();
@@ -122,7 +122,7 @@ export const readExportHandlers: HandlerMap = {
       }
       for (const fill of imageFills) {
         // One picture used in ten places is one asset. Sending it ten times
-        // would be the bulk of the response.
+        // would make up most of the response.
         if (seen.has(fill.imageHash)) continue;
         seen.add(fill.imageHash);
         const image = figma.getImageByHash(fill.imageHash);

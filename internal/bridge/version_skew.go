@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-// The plugin and the server ship from one version string, but they update
-// through different channels: the server refreshes itself on every `npx @latest`
-// while the plugin is imported by hand from a release zip. So the two drift by a
-// patch routinely and that means nothing. A major or minor gap is different —
-// that is where the tool surface moved, and where the user gets "Unknown request
-// type" from a plugin that predates the tool the server just called.
+// The plugin and the server share one version string, but they update in
+// different ways. The server updates itself on every `npx @latest`. The plugin
+// is imported by hand from a release zip. So they often differ by a patch, and
+// that means nothing. A major or minor gap is different. That is where the set
+// of tools changed, and where an older plugin answers a new tool with "Unknown
+// request type".
 
 var versionPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)`)
 
@@ -20,9 +20,9 @@ var versionPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)`)
 type VersionSkew int
 
 const (
-	// SkewUnknown means at least one version could not be read — a dev build,
-	// or a plugin old enough not to announce itself. Guessing a direction there
-	// would warn every contributor running from source, so it stays silent.
+	// SkewUnknown means at least one version could not be read: a dev build,
+	// or a plugin too old to announce itself. Guessing here would warn every
+	// contributor who runs from source, so it stays silent.
 	SkewUnknown VersionSkew = iota
 	SkewNone
 	SkewPluginOld
@@ -99,9 +99,9 @@ func (b *Bridge) setPluginInfo(version string, handlers []string) {
 	b.pluginHandlers = set
 }
 
-// unsupportedTool words the one answer a tool the plugin lacks should get,
-// wherever that is discovered — before the call from the announced handler
-// list, or after it from the plugin's own reply.
+// unsupportedTool builds the message for a tool the plugin lacks. The same
+// message is used wherever that is found: before the call, from the announced
+// handler list, or after it, from the plugin's own reply.
 func unsupportedTool(version, tool string) string {
 	where := "the Figma plugin"
 	if version != "" {
@@ -115,10 +115,11 @@ func unsupportedTool(version, tool string) string {
 
 // checkPluginSupports reports why a tool cannot run, or "" when it can.
 //
-// A plugin that announced nothing gets the benefit of the doubt: it predates
-// the announcement, and refusing its every call would break a setup that works.
-// One that did announce is taken at its word, so a tool it lacks fails here
-// with a remedy instead of reaching it and coming back "Unknown request type".
+// A plugin that announced nothing is trusted. It is older than the
+// announcement, and refusing all its calls would break a working setup. A
+// plugin that did announce is taken at its word. A tool it lacks fails here
+// with a fix, instead of reaching the plugin and coming back as "Unknown
+// request type".
 func (b *Bridge) checkPluginSupports(tool string) string {
 	b.mu.RLock()
 	handlers := b.pluginHandlers
@@ -131,15 +132,14 @@ func (b *Bridge) checkPluginSupports(tool string) string {
 	return unsupportedTool(version, tool)
 }
 
-// explainUnknownRequest gives the plugin's bare "Unknown request type" the
-// remedy it lacks.
+// explainUnknownRequest adds a fix to the plugin's bare "Unknown request type".
 //
-// This is what the fail-open path in checkPluginSupports costs: a plugin too
-// old to announce its handlers is not second-guessed, so a call for a tool it
-// has never heard of reaches it and comes back named but unexplained. The
-// caller is usually a model, which reads that as a transient failure and
-// retries a tool this plugin will never have. Only that one error is rewritten
-// — a handler's own failure is the useful answer.
+// This is the cost of trusting old plugins in checkPluginSupports. A plugin
+// too old to announce its handlers gets every call, so a call for a tool it
+// does not know comes back with no explanation. The caller is usually a model.
+// It reads that as a temporary failure and retries a tool this plugin will never
+// have. Only that one error is rewritten. A handler's own error is already the
+// useful answer.
 func (b *Bridge) explainUnknownRequest(tool, pluginErr string) string {
 	if !strings.HasPrefix(pluginErr, "Unknown request type") {
 		return pluginErr
@@ -147,8 +147,9 @@ func (b *Bridge) explainUnknownRequest(tool, pluginErr string) string {
 	return unsupportedTool(b.PluginVersion(), tool)
 }
 
-// PluginVersion returns the version the connected plugin announced, or "" when
-// none has connected or it is too old to announce one.
+// PluginVersion returns the version the connected plugin announced. It returns
+// "" when no plugin has connected, or when the plugin is too old to announce.
+
 func (b *Bridge) PluginVersion() string {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
