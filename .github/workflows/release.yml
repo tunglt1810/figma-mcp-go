@@ -57,23 +57,6 @@ jobs:
             done
           done
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.0
-
-      - name: Build plugin
-        working-directory: plugin
-        run: bun install --frozen-lockfile && bun run build
-
-      - name: Package plugin
-        run: zip -r plugin.zip plugin/manifest.json plugin/dist/
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: plugin.zip
-          generate_release_notes: true
-
       # npm Trusted Publishing: npm authenticates with the job's OIDC token
       # (id-token: write above), so there is no NPM_TOKEN to expire. It needs
       # npm 11.5.1 or later, which ships with Node 24.
@@ -82,6 +65,9 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
+      # Published right after the binaries are built. npm takes minutes to
+      # make a new version readable, and the plugin build and GitHub release
+      # below run during that time instead of after it.
       - name: Publish to npm
         working-directory: npm
         env:
@@ -98,6 +84,23 @@ jobs:
             npm publish --access public --provenance
           fi
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Build plugin
+        working-directory: plugin
+        run: bun install --frozen-lockfile && bun run build
+
+      - name: Package plugin
+        run: zip -r plugin.zip plugin/manifest.json plugin/dist/
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: plugin.zip
+          generate_release_notes: true
+
       - name: Set version in server.json
         env:
           VERSION: ${{ steps.version.outputs.value }}
@@ -108,14 +111,32 @@ jobs:
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
 
-      # The registry validates the package against npm, and a version
-      # published seconds ago can still 404 there while it propagates.
-      # Retry with backoff instead of failing the release on that race.
-      # Log in on every attempt: the registry token is short-lived, and
-      # the backoff can last longer than it.
+      # `npm publish` returns when npm accepts the upload, but the version can
+      # stay unreadable for minutes after that. The MCP Registry validates the
+      # package by reading that version, so wait for the same URL to answer
+      # before publishing. Checked every 5s, for up to 15 minutes.
+      - name: Wait for the version on npm
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          NAME=$(jq -r .name npm/package.json)
+          URL="https://registry.npmjs.org/$NAME/$VERSION"
+          for i in $(seq 180); do
+            if curl -sf -o /dev/null -H 'Cache-Control: no-cache' "$URL"; then
+              echo "$NAME@$VERSION is readable on npm"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::$NAME@$VERSION is still not readable on npm after 15 minutes"
+          exit 1
+
+      # npm sits behind a CDN, so the registry may still read a stale answer
+      # for a moment after the check above passes. A few short retries cover
+      # that. Log in on every attempt: the registry token is short-lived.
       - name: Publish to MCP Registry
         run: |
-          for delay in 15 30 60 120 240; do
+          for delay in 10 20 40; do
             if ./mcp-publisher login github-oidc && ./mcp-publisher publish; then
               exit 0
             fi
