@@ -74,15 +74,17 @@ jobs:
           files: plugin.zip
           generate_release_notes: true
 
+      # npm Trusted Publishing: npm authenticates with the job's OIDC token
+      # (id-token: write above), so there is no NPM_TOKEN to expire. It needs
+      # npm 11.5.1 or later, which ships with Node 24.
       - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Publish to npm
         working-directory: npm
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ steps.version.outputs.value }}
         run: |
           cp ../README.md .
