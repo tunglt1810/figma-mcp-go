@@ -1,13 +1,13 @@
 import { HandlerMap } from "./dispatch";
 
 function buildReaction(r: any): Reaction {
-  // `actions` (plural array) is the current API; `action` (singular) is deprecated.
-  // Accept either form so callers don't need to worry about the distinction.
+  // `actions` (plural array) is the current API. `action` (singular) is deprecated.
+  // Accept either form, so callers do not need to care about the difference.
   const actions: Action[] = r.actions ?? (r.action != null ? [r.action] : []);
   return { trigger: r.trigger ?? null, actions } as Reaction;
 }
 
-// The MCP framework may pass array params as a JSON string. Parse defensively.
+// The MCP framework may pass array params as a JSON string, so parse carefully.
 function parseArray(v: any): any[] {
   if (Array.isArray(v)) return v;
   if (typeof v === "string") {
@@ -17,7 +17,7 @@ function parseArray(v: any): any[] {
 }
 
 // setReactionsAsync is required when documentAccess is "dynamic-page".
-// Fall back to direct assignment only when setReactionsAsync is unavailable (older Figma).
+// Fall back to direct assignment only when setReactionsAsync is missing (older Figma).
 async function setReactions(node: any, reactions: Reaction[]): Promise<void> {
   if (typeof node.setReactionsAsync === "function") {
     await node.setReactionsAsync(reactions);
@@ -31,9 +31,9 @@ async function setReactions(node: any, reactions: Reaction[]): Promise<void> {
 }
 
 export const writePrototypeHandlers: HandlerMap = {
-  // Absorbed remove_reactions. Removing everything is set_reactions(replace, [])
-  // already, but removing #1 and #3 by index had no expression short of a
-  // get→filter→set round trip — so removeIndices is what came across.
+  // This took over remove_reactions. Removing everything is already
+  // set_reactions(replace, []). But removing #1 and #3 by index needed a
+  // get, filter, set round trip, so removeIndices is what was carried over.
   "set_reactions": async (request) => {
     const p = request.params || {};
     const nodeId = request.nodeIds && request.nodeIds[0];
@@ -50,7 +50,7 @@ export const writePrototypeHandlers: HandlerMap = {
       removing = true;
       const indices = parseArray(p.removeIndices);
       // An empty array means remove everything, not remove nothing. That is
-      // what remove_reactions did, and it is easy to invert in a rewrite.
+      // what remove_reactions did, and it is easy to flip by mistake in a rewrite.
       if (indices.length === 0) {
         final = [];
       } else {

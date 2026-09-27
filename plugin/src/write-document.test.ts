@@ -37,7 +37,7 @@ describe("save_version_checkpoint", () => {
     expect(call({})).rejects.toThrow(/title is required/);
   });
 
-  // FigJam and Slides have no version history; the API is simply absent there.
+  // FigJam and Slides have no version history. The API is just not there.
   it("explains itself when the editor has no version history", async () => {
     (globalThis as any).figma = {};
     expect(call({ title: "x" })).rejects.toThrow(/not available in this editor/);
@@ -171,7 +171,7 @@ describe("manage_plugin_data", () => {
     expect(res.data.value).toBe("src/Button.tsx");
   });
 
-  // Figma cannot tell "unset" from "set to empty"; null is the honest answer.
+  // Figma cannot tell "unset" from "set to empty", so null is the honest answer.
   it("reports an unset key as null", async () => {
     setup();
     expect((await call({ action: "get", key: "missing" })).data.value).toBeNull();

@@ -123,8 +123,8 @@ describe("ungroup_nodes", () => {
 
 // ── set_annotations ───────────────────────────────────────────────────────────
 
-// It absorbed clear_annotations, whose only advantage was taking several nodes.
-// Clearing ten nodes must not cost ten calls.
+// It took over clear_annotations, whose only advantage was taking several
+// nodes. Clearing ten nodes must not take ten calls.
 describe("set_annotations", () => {
   const annotatable = (id: string) => ({ id, type: "FRAME", annotations: [{ label: "old" }] });
 

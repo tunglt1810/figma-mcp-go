@@ -218,8 +218,8 @@ describe("navigate_to_page", () => {
   });
 });
 
-// manage_page replaced four page tools on the MCP surface. These check the
-// router reaches each implementation and the arguments survive the trip.
+// manage_page replaced four page tools in the MCP tool list. These check that
+// the router reaches each implementation and the arguments arrive intact.
 describe("manage_page", () => {
   const manage = (params: any) =>
     handleWritePageRequest({ type: "manage_page", requestId: "req-1", nodeIds: [], params });

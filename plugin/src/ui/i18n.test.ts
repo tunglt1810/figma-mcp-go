@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { t } from "./i18n";
 
-// The parity checks that used to live here compared the English table against
-// the Vietnamese one; with a single table there is nothing to compare. What
-// still needs guarding is that no key is a blank label, which renders as an
-// invisible control rather than as an obvious mistake.
+// The checks that used to live here compared the English table with the
+// Vietnamese one. With a single table there is nothing to compare. What still
+// needs checking is that no key has a blank label, which shows up as an
+// invisible control instead of an obvious mistake.
 describe("the string table", () => {
   it("leaves no string empty", () => {
     for (const [key, value] of Object.entries(t)) {

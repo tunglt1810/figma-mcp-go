@@ -1,8 +1,8 @@
 package cluster
 
-// Data uses omitzero rather than omitempty for the same reason the plugin wire
-// types do: under encoding/json/v2 omitempty would drop an any field holding ""
-// or an empty slice, while omitzero drops exactly the Go zero value.
+// Data uses omitzero, not omitempty, for the same reason as the plugin wire
+// types: in encoding/json/v2, omitempty would drop an any field that holds ""
+// or an empty slice. omitzero drops only the Go zero value.
 
 // RPCRequest is the wire format for follower → leader /rpc calls.
 type RPCRequest struct {

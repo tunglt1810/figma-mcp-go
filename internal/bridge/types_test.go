@@ -36,7 +36,7 @@ func TestResponseOmitsEmptyFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(b)
-	// omitempty fields must not appear when zero
+	// omitempty fields must not appear when they are zero
 	if strings.Contains(s, `"data"`) {
 		t.Errorf("expected 'data' to be omitted, got: %s", s)
 	}

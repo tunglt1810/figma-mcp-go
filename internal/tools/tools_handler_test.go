@@ -33,7 +33,7 @@ func (f *fakeSender) Send(_ context.Context, tool string, nodeIDs []string, para
 }
 
 // newTestServer returns an MCPServer with every tool registered against a fake
-// sender. No Node, no HTTP: a tool test has no business dialling anything.
+// sender. No Node and no HTTP: a tool test should not dial anything.
 func newTestServer(t *testing.T) (*server.MCPServer, *fakeSender) {
 	t.Helper()
 	s := server.NewMCPServer("test", "0.0.1")
@@ -42,9 +42,9 @@ func newTestServer(t *testing.T) (*server.MCPServer, *fakeSender) {
 	return s, fake
 }
 
-// callTool dispatches a tool call through the server's full HandleMessage path.
-// Against the fake sender every call succeeds at the MCP level; these tests are
-// about the handler reaching the sender at all, not about what comes back.
+// callTool sends a tool call through the server's full HandleMessage path.
+// With the fake sender, every call succeeds at the MCP level. These tests
+// check that the handler reaches the sender, not what comes back.
 func callTool(t *testing.T, s *server.MCPServer, name string, args map[string]any) {
 	t.Helper()
 	argsJSON, _ := json.Marshal(args)
@@ -73,10 +73,10 @@ type contentBlock struct {
 	MimeType string `json:"mimeType"`
 }
 
-// callToolResult dispatches a tool call and returns the parsed result, so a
-// test can assert on the message a rejected call produces. It parses into a
-// local struct rather than mcp.CallToolResult, whose Content is an interface
-// that will not unmarshal.
+// callToolResult sends a tool call and returns the parsed result, so a test
+// can check the message a rejected call produces. It parses into a local
+// struct, not mcp.CallToolResult, because that type's Content is an interface
+// and will not unmarshal.
 func callToolResult(t *testing.T, s *server.MCPServer, name string, args map[string]any) toolResult {
 	t.Helper()
 	argsJSON, _ := json.Marshal(args)
@@ -146,8 +146,8 @@ func TestHandlers_NoParamReadTools(t *testing.T) {
 
 func TestHandlers_GetNodesInfo(t *testing.T) {
 	s, _ := newTestServer(t)
-	// One node and several: this absorbed get_node, so the single-node call has
-	// to keep working through the plural argument.
+	// One node and several. This tool took over get_node, so the single-node
+	// call must keep working through the plural argument.
 	callTool(t, s, "get_nodes_info", map[string]any{"nodeIds": []any{"1:1"}})
 	callTool(t, s, "get_nodes_info", map[string]any{"nodeIds": []string{"1:1", "2:2"}})
 }
@@ -176,7 +176,7 @@ func TestHandlers_SearchNodes(t *testing.T) {
 	})
 	// minimal (query only)
 	callTool(t, s, "search_nodes", map[string]any{"query": "icon"})
-	// the two scans it absorbed
+	// the two scans this tool took over
 	callTool(t, s, "search_nodes", map[string]any{
 		"nodeId": "1:1", "types": []any{"FRAME", "COMPONENT"}, "includeHidden": false,
 	})
@@ -192,17 +192,17 @@ func TestHandlers_GetReactions(t *testing.T) {
 
 // ── Read – export tools ───────────────────────────────────────────────────────
 
-// TestHandlers_ExportScreenshots exercises executeExportScreenshots +
+// TestHandlers_ExportScreenshots runs executeExportScreenshots and
 // exportScreenshotItem. The fake sender returns no export data, so each item
-// ends up an error inside the result JSON rather than a panic.
+// ends up as an error inside the result JSON, not a panic.
 func TestHandlers_ExportScreenshots(t *testing.T) {
 	s, _ := newTestServer(t)
 
-	// no items at all – the current selection, in memory
+	// no items at all: the current selection, in memory
 	callTool(t, s, "export_screenshots", nil)
 	callTool(t, s, "export_screenshots", map[string]any{"format": "PNG", "scale": float64(2)})
 
-	// an item without an outputPath – base64 for one node
+	// an item without an outputPath: base64 for one node
 	callTool(t, s, "export_screenshots", map[string]any{
 		"items": []any{map[string]any{"nodeId": "1:1"}},
 	})
@@ -297,7 +297,7 @@ func TestHandlers_WriteModifyTools(t *testing.T) {
 	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "width": float64(300), "height": float64(200)})
 	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "height": float64(100)}) // width omitted
 
-	// One call where two used to be needed, and so one undo entry where two were.
+	// One call where two used to be needed, so one undo entry instead of two.
 	callTool(t, s, "set_node_properties", map[string]any{
 		"nodeIds": []any{"1:1"}, "x": float64(0), "width": float64(64), "cornerRadius": float64(8),
 	})
@@ -464,9 +464,9 @@ func TestHandlers_ReparentBatchRenameTextReplaceEffectsSection(t *testing.T) {
 	callTool(t, s, "create_section", map[string]any{"width": float64(1200), "height": float64(900)})
 }
 
-// TestToolCall_InvalidArgsRejected proves validation is reachable from the MCP
-// entry point, not just from Node.Send. Before validation moved into Node.Send
-// a leader process forwarded these straight to Figma.
+// TestToolCall_InvalidArgsRejected proves validation runs from the MCP entry
+// point, not only from Node.Send. Before validation moved into Node.Send, a
+// leader process sent these straight to Figma.
 func TestToolCall_InvalidArgsRejected(t *testing.T) {
 	s, _ := newTestServer(t)
 

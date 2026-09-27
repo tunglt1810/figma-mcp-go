@@ -4,10 +4,10 @@ import { FontName, loadFonts } from "./fonts";
 
 // Rich text.
 //
-// set_text writes the whole node in one font and one colour, which is all a
-// heading needs and nothing a paragraph does: a sentence with one bold word, a
-// link, or a bulleted list could not be expressed at all. Figma models these as
-// ranges over the characters, so the tool does too.
+// set_text writes the whole node in one font and one colour. That is enough
+// for a heading but not for a paragraph: a sentence with one bold word, a
+// link, or a bulleted list could not be written at all. Figma models these as
+// ranges over the characters, so this tool does too.
 
 export interface TextRange {
   start: number;
@@ -18,9 +18,9 @@ export interface TextRange {
 /**
  * Check a range against the node's text and return it as a pair.
  *
- * Figma throws a bare "Error: in setRangeFontName" for an out-of-bounds range,
- * naming neither the range nor the length, so the check happens here where both
- * are known.
+ * For an out-of-bounds range Figma throws a bare "Error: in setRangeFontName",
+ * which names neither the range nor the length. So the check happens here,
+ * where both are known.
  */
 export function resolveRange(range: TextRange, length: number): [number, number] {
   const start = Number(range.start);
@@ -44,10 +44,10 @@ export function resolveRange(range: TextRange, length: number): [number, number]
 /**
  * The font to apply to a range.
  *
- * Figma takes a complete {family, style} pair, but a caller usually means "make
+ * Figma takes a full {family, style} pair, but a caller usually means "make
  * this bold" and gives only the style. The missing half comes from the text
- * already in the range; when that range is itself mixed, Figma reports a symbol
- * and there is nothing to inherit, so the caller has to say.
+ * already in the range. When that range is itself mixed, Figma returns a
+ * symbol and there is nothing to inherit, so the caller must give both.
  */
 export function resolveRangeFont(
   range: TextRange,
@@ -65,7 +65,7 @@ export function resolveRangeFont(
   return { family, style };
 }
 
-/** Ranges sorted so overlapping edits apply left to right, as written. */
+/** Ranges sorted so overlapping edits apply left to right, in the order written. */
 export function sortRanges(ranges: TextRange[]): TextRange[] {
   return [...ranges].sort((a, b) => Number(a.start) - Number(b.start));
 }
@@ -73,10 +73,10 @@ export function sortRanges(ranges: TextRange[]): TextRange[] {
 const applyRange = async (node: any, range: TextRange, font: FontName | null) => {
   const [start, end] = resolveRange(range, node.characters.length);
 
-  // The font was resolved and loaded before the first range was written, and is
-  // applied exactly as resolved. Resolving it again here would read a node an
-  // earlier range has already changed, so the font written would be one that was
-  // never loaded — and Figma refuses it, half way through the edit.
+  // The font was resolved and loaded before the first range was written, and
+  // is applied exactly as resolved. Resolving it again here would read a node
+  // that an earlier range has already changed. The font written would then be
+  // one that was never loaded, and Figma would refuse it halfway through.
   if (font) node.setRangeFontName(start, end, font);
 
   if (range.fontSize != null) node.setRangeFontSize(start, end, Number(range.fontSize));
@@ -102,7 +102,7 @@ const applyRange = async (node: any, range: TextRange, font: FontName | null) =>
   if (range.indentation != null) {
     node.setRangeIndentation(start, end, Number(range.indentation));
   }
-  // null clears a link; a string sets one. Absent leaves it alone.
+  // null clears a link, a string sets one, and absent leaves it alone.
   if (range.hyperlink !== undefined) {
     node.setRangeHyperlink(
       start,
@@ -115,8 +115,8 @@ const applyRange = async (node: any, range: TextRange, font: FontName | null) =>
 /**
  * Load every font the node already uses.
  *
- * Any range edit rewrites part of a node whose other parts keep their fonts,
- * and Figma refuses to touch a text node while any font in it is unloaded.
+ * A range edit rewrites part of a node while the other parts keep their fonts,
+ * and Figma refuses to touch a text node while any of its fonts is unloaded.
  */
 export const loadNodeFonts = async (node: any) => {
   await loadFonts(node.getRangeAllFontNames(0, node.characters.length));
@@ -124,16 +124,16 @@ export const loadNodeFonts = async (node: any) => {
 
 /**
  * The font each range asks for, resolved against the node as the caller found
- * it — one entry per range, in the same order, null where the range asks for no
- * font change.
+ * it. One entry per range, in the same order, with null where the range asks
+ * for no font change.
  *
- * Resolved before anything is written, for two reasons. A range asking for a
- * font the file does not have used to fail on that range, after the ranges
- * before it had already been applied — so the node was left in a state nobody
- * asked for and the caller learned about one missing font at a time. And a range
- * that inherits half its font from the text would otherwise resolve differently
- * at load time and at write time, once an earlier range had changed that text,
- * so the font written was one that was never loaded.
+ * Fonts are resolved before anything is written, for two reasons. First, a
+ * range that asked for a font the file does not have used to fail only after
+ * the earlier ranges were applied. The node was left in a state nobody asked
+ * for, and the caller learned about one missing font at a time. Second, a
+ * range that inherits half its font from the text would resolve differently
+ * at load time and at write time once an earlier range changed that text, so
+ * the font written was one that was never loaded.
  */
 export const rangeFonts = (node: any, ranges: TextRange[]): (FontName | null)[] =>
   ranges.map(range => {
@@ -160,8 +160,8 @@ export const writeTextHandlers: HandlerMap = {
     }
 
     const sorted = sortRanges(ranges);
-    // One load for the node's existing fonts and every font the ranges ask for.
-    // Nothing is written until they are all in.
+    // One load for the node's current fonts and every font the ranges ask for.
+    // Nothing is written until all of them are loaded.
     const fonts = rangeFonts(node, sorted);
     await loadFonts([
       ...node.getRangeAllFontNames(0, node.characters.length),

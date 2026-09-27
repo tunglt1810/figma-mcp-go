@@ -4,248 +4,248 @@
     "tunglt1810"
   ],
   "name": "figma-mcp-go",
-  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 60 tools for design automation: styles, variables, components, prototypes, and content.",
+  "description": "Figma MCP server with full read/write access through a local plugin. No API token, no rate limits. 60 tools for styles, variables, components, prototypes, and content.",
   "license": "MIT",
   "tools": [
     {
       "name": "apply_style_to_node",
-      "description": "Apply an existing local style (paint, text, effect, or grid) to a node, linking the node to that style."
+      "description": "Apply a local style to a node."
     },
     {
       "name": "batch_execute_pipeline",
-      "description": "Execute a batch pipeline of mutation steps in Figma, passing values between steps via $variables."
+      "description": "Run write steps in order, passing earlier results via $variables, with undo on error."
     },
     {
       "name": "batch_rename_nodes",
-      "description": "Rename one or more nodes: pass `name` to set the name outright, or find/replace, regex substitution, or prefix/suffix to derive it from the current one."
+      "description": "Rename nodes: set a name, find/replace (regex allowed), or add a prefix/suffix."
     },
     {
       "name": "boolean_operation",
-      "description": "Combine two or more shapes into one: UNION merges them, SUBTRACT cuts the later shapes out of the first, INTERSECT keeps the overlap, EXCLUDE keeps everything but the overlap."
+      "description": "Combine 2+ shapes with UNION, SUBTRACT, INTERSECT, or EXCLUDE."
     },
     {
       "name": "clone_node",
-      "description": "Clone an existing node, optionally repositioning it or placing it in a new parent."
+      "description": "Copy a node, optionally to a new position or parent."
     },
     {
       "name": "combine_as_variants",
-      "description": "Combine two or more COMPONENT nodes into a single COMPONENT_SET, so they become variants of one component."
+      "description": "Combine 2+ components into a variant set."
     },
     {
       "name": "create_component",
-      "description": "Convert an existing FRAME node into a reusable COMPONENT."
+      "description": "Turn a FRAME into a COMPONENT, in place."
     },
     {
       "name": "create_component_instance",
-      "description": "Create an instance of a Component."
+      "description": "Create an instance of a local or library component."
     },
     {
       "name": "create_connector",
-      "description": "Create a Connector line in FigJam."
+      "description": "Create a connector line. FigJam only."
     },
     {
       "name": "create_node",
-      "description": "Create a shape on the current page or inside a parent."
+      "description": "Create a FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION."
     },
     {
       "name": "create_style",
-      "description": "Create a local style."
+      "description": "Create a PAINT, TEXT, EFFECT, or GRID style."
     },
     {
       "name": "create_text",
-      "description": "Create a new text node on the current page or inside a parent node."
+      "description": "Create a text node (loads the font)."
     },
     {
       "name": "create_vector",
-      "description": "Create a vector node from SVG markup — the way to bring in an icon."
+      "description": "Create a vector from SVG markup, e.g. an icon."
     },
     {
       "name": "delete_nodes",
-      "description": "Delete one or more nodes."
+      "description": "Delete nodes."
     },
     {
       "name": "delete_style",
-      "description": "Delete a style (paint, text, effect, or grid) by its ID."
+      "description": "Delete a style by ID."
     },
     {
       "name": "detach_instance",
-      "description": "Detach one or more component instances, converting them to plain frames."
+      "description": "Detach instances into plain frames."
     },
     {
       "name": "export_frames_to_pdf",
-      "description": "Export multiple frames as a single multi-page PDF file."
+      "description": "Export frames as one PDF, one page per frame."
     },
     {
       "name": "export_screenshots",
-      "description": "Export nodes as images."
+      "description": "Export nodes as images, saved to file or returned inline."
     },
     {
       "name": "export_tokens",
-      "description": "Export all design tokens (variables and paint styles) as JSON or CSS custom properties."
+      "description": "Export variables and paint styles as JSON or CSS variables."
     },
     {
       "name": "find_replace_text",
-      "description": "Find and replace text content across all TEXT nodes in a subtree."
+      "description": "Find and replace text in TEXT nodes."
     },
     {
       "name": "flatten_nodes",
-      "description": "Flatten nodes into a single vector, merging their geometry and discarding the layer structure."
+      "description": "Merge nodes into one vector."
     },
     {
       "name": "get_annotations",
-      "description": "Get dev-mode annotations in the current document or scoped to a specific node."
+      "description": "Get Dev Mode annotations on the page or on one node."
     },
     {
       "name": "get_document",
-      "description": "Get the node tree of the current selection, the current page, or every page in the file — `scope` chooses which."
+      "description": "Get the node tree of the selection, page, or whole file."
     },
     {
       "name": "get_fonts",
-      "description": "List all fonts used in the current page, sorted by usage frequency."
+      "description": "List fonts used on the current page, most used first."
     },
     {
       "name": "get_image_bytes",
-      "description": "Read the original bytes of the images placed on nodes, as base64."
+      "description": "Get the original image files in nodes' image fills, as base64."
     },
     {
       "name": "get_instance_overrides",
-      "description": "Get the component properties (variants, booleans, text) of a component instance."
+      "description": "Get an instance's component properties and values."
     },
     {
       "name": "get_local_components",
-      "description": "Get all components defined in the current Figma file."
+      "description": "Get all components in the file."
     },
     {
       "name": "get_metadata",
-      "description": "Get metadata about the current Figma document: file name, page count, which page is open, and every page in the file with its ID and name."
+      "description": "Get file name, current page, and all pages."
     },
     {
       "name": "get_nodes_info",
-      "description": "Get full details for one or more nodes by ID in one round-trip."
+      "description": "Get full node details by ID."
     },
     {
       "name": "get_reactions",
-      "description": "Get the prototype reactions defined on a node."
+      "description": "Get a node's prototype reactions."
     },
     {
       "name": "get_selection",
-      "description": "Get the nodes currently selected in Figma, or the set the user pinned in the plugin panel."
+      "description": "Get selected nodes, or nodes pinned in the plugin panel."
     },
     {
       "name": "get_styles",
-      "description": "Get all local styles in the document (paint, text, effect, and grid)."
+      "description": "Get local paint, text, effect, and grid styles."
     },
     {
       "name": "get_variable_defs",
-      "description": "Get all local variable definitions: collections, modes, and values."
+      "description": "Get local variables: collections, modes, and values."
     },
     {
       "name": "get_viewport",
-      "description": "Get the current Figma viewport: scroll center, zoom level, and visible bounds."
+      "description": "Get viewport center, zoom, and visible bounds."
     },
     {
       "name": "group_nodes",
-      "description": "Group two or more nodes into a GROUP."
+      "description": "Group 2+ nodes that share a parent."
     },
     {
       "name": "import_image",
-      "description": "Place an image in Figma, from a URL or from base64 data."
+      "description": "Add an image from a URL or base64, as a new rectangle or into a node's fill."
     },
     {
       "name": "manage_component_properties",
-      "description": "Define what a component exposes to its instances."
+      "description": "Add, edit, delete, or bind component properties."
     },
     {
       "name": "manage_page",
-      "description": "Add, delete, rename, or navigate to a page."
+      "description": "Add, delete, rename, or go to a page."
     },
     {
       "name": "manage_plugin_data",
-      "description": "Read and write your own metadata on a node, stored in the Figma file itself."
+      "description": "Store key/value data on a node, saved in the file."
     },
     {
       "name": "manage_variable",
-      "description": "Create, change, delete and apply variables — Figma's design tokens."
+      "description": "Create, set, delete, and bind variables (design tokens)."
     },
     {
       "name": "outline_stroke",
-      "description": "Convert each node's stroke into a filled vector, so the outline can be edited as a shape."
+      "description": "Turn a node's stroke into a filled shape."
     },
     {
       "name": "reparent_nodes",
-      "description": "Move one or more nodes to a different parent frame, group, or section."
+      "description": "Move nodes into another frame, group, or section."
     },
     {
       "name": "save_version_checkpoint",
-      "description": "Save a named version in the Figma file's version history."
+      "description": "Save a named version in file history."
     },
     {
       "name": "search_nodes",
-      "description": "Find nodes by name substring, by type, or both — omit query to take every node of the given types, omit types to search by name alone."
+      "description": "Find nodes by name, type, or both."
     },
     {
       "name": "set_annotations",
-      "description": "Set Dev Mode Annotations on one or more nodes."
+      "description": "Set or clear Dev Mode annotations on nodes."
     },
     {
       "name": "set_auto_layout",
-      "description": "Set or update auto-layout (flex) properties on frames, components, component sets, or instances."
+      "description": "Set auto layout: direction, padding, gap, align, and HUG/FILL sizing."
     },
     {
       "name": "set_codegen_result",
-      "description": "Attach generated code to a node so it appears in Figma's Dev Mode Code panel."
+      "description": "Save code on a node for Dev Mode's Code panel."
     },
     {
       "name": "set_effects",
-      "description": "Apply one or more effects directly to a node."
+      "description": "Set a node's shadows, blurs, and other effects."
     },
     {
       "name": "set_export_settings",
-      "description": "Set the export presets on nodes — the entries a designer sees under Export in the right-hand panel, and what a Figma export or a handoff pipeline uses."
+      "description": "Set a node's Export presets."
     },
     {
       "name": "set_instance_overrides",
-      "description": "Update Component Properties (variants, booleans, text) on a component instance."
+      "description": "Set an instance's component properties."
     },
     {
       "name": "set_layout_grids",
-      "description": "Set the layout grids drawn over a frame — columns, rows, or a square grid."
+      "description": "Set column, row, or square layout grids on frames."
     },
     {
       "name": "set_node_properties",
-      "description": "Set one or more properties on nodes in a single call: position, size, corner radius, visibility, lock state, opacity, rotation, blend mode, constraints, z-order, masking, and stroke geometry."
+      "description": "Set position, size, radius, visibility, opacity, rotation, constraints, and more."
     },
     {
       "name": "set_paint",
-      "description": "Paint a node's fill or stroke."
+      "description": "Set a node's solid or gradient fill, or its stroke."
     },
     {
       "name": "set_reactions",
-      "description": "Set or remove prototype reactions on a node."
+      "description": "Set or remove prototype reactions."
     },
     {
       "name": "set_selection",
-      "description": "Select nodes in Figma and scroll the viewport to them, switching pages if needed."
+      "description": "Select and zoom to nodes to show the user."
     },
     {
       "name": "set_text",
-      "description": "Update the text content of an existing TEXT node, and the settings that apply to the node as a whole — wrapping, truncation, alignment, and paragraph spacing."
+      "description": "Change a TEXT node's text and whole-node text settings."
     },
     {
       "name": "set_text_ranges",
-      "description": "Style parts of a TEXT node independently: a bold word, a coloured phrase, a hyperlink, a bulleted list."
+      "description": "Style parts of a text: bold, color, link, list."
     },
     {
       "name": "swap_component",
-      "description": "Swap the main component of an existing INSTANCE node, replacing it with a different component while keeping position and size."
+      "description": "Swap an instance to another component."
     },
     {
       "name": "ungroup_nodes",
-      "description": "Ungroup one or more GROUP nodes, moving their children to the parent and removing the group."
+      "description": "Ungroup GROUP nodes."
     },
     {
       "name": "update_paint_style",
-      "description": "Update an existing paint style's name, color, or description."
+      "description": "Update a paint style's name, color, or description."
     }
   ]
 }

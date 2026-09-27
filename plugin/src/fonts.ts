@@ -1,12 +1,12 @@
-// Loading fonts, and saying which ones are missing.
+// Loading fonts, and reporting which ones are missing.
 //
-// figma.loadFontAsync rejects for a font the file does not have. Called one at a
-// time in the middle of a run, the first rejection aborts everything after it —
-// so a text edit could land half-applied, and the caller learned about exactly
-// one missing font per attempt even when three were missing.
+// figma.loadFontAsync rejects a font the file does not have. When fonts were
+// loaded one at a time during a run, the first rejection stopped everything
+// after it. So a text edit could be half-applied, and the caller learned
+// about only one missing font per attempt, even when three were missing.
 //
-// Loading them together instead means one error that names every missing font,
-// raised before any text is touched.
+// Loading them together gives one error that names every missing font, before
+// any text is touched.
 
 export interface FontName {
   family: string;
@@ -19,9 +19,10 @@ export const fontKey = (font: FontName): string => `${font.family} ${font.style}
 /**
  * Load every font, then report all the failures at once.
  *
- * The loads run together and are all allowed to settle: aborting on the first
- * rejection is what hid the other missing fonts. Fonts already loaded resolve
- * immediately, so calling this with a node's whole font list is cheap.
+ * The loads run together, and all of them are allowed to finish. Stopping at
+ * the first rejection is what hid the other missing fonts. Fonts that are
+ * already loaded resolve at once, so calling this with a node's full font
+ * list is cheap.
  */
 export async function loadFonts(
   fonts: FontName[],

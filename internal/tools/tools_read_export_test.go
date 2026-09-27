@@ -121,7 +121,7 @@ func TestMergePDFPages_MultiplePages(t *testing.T) {
 	if len(merged) == 0 {
 		t.Fatal("merged PDF is empty")
 	}
-	// Validate that pdfcpu considers the output a valid PDF.
+	// Check that pdfcpu sees the output as a valid PDF.
 	if err := api.Validate(bytes.NewReader(merged), nil); err != nil {
 		t.Errorf("merged PDF is not valid: %v", err)
 	}
@@ -147,8 +147,8 @@ func TestMergePDFPages_InvalidPDFBytes(t *testing.T) {
 
 // ── export_screenshots ────────────────────────────────────────────────────────
 
-// The merge's whole point: where the picture goes is an argument, so one call
-// can write some items to disk and hand the rest back as base64.
+// The main point of the merge: where the picture goes is an argument, so one
+// call can write some items to disk and return the rest as base64.
 func TestExportScreenshots_BothDestinationsInOneCall(t *testing.T) {
 	s, fake := newTestServer(t)
 	fake.data = map[string]any{
@@ -195,11 +195,11 @@ func TestExportScreenshots_BothDestinationsInOneCall(t *testing.T) {
 		t.Errorf("the item with an outputPath should have been written, got %+v", written)
 	}
 	// Writing it and also sending the bytes back would double the cost of the
-	// only argument that exists to avoid them.
+	// one argument that exists to avoid that cost.
 	if written.Base64 != "" {
 		t.Error("an item written to disk should not carry base64 as well")
 	}
-	// The in-memory picture travels as an image block, not as base64 text
+	// The in-memory picture comes back as an image block, not as base64 text
 	// inside the summary, which a model would have to read token by token.
 	if inMemory.Base64 != "" {
 		t.Errorf("an in-memory PNG should not be base64 in the summary, got %+v", inMemory)
@@ -219,7 +219,7 @@ func TestExportScreenshots_BothDestinationsInOneCall(t *testing.T) {
 	}
 }
 
-// SVG is markup, so it comes back as a text block of that markup rather than as
+// SVG is markup, so it comes back as a text block of that markup, not as
 // base64 of it.
 func TestExportScreenshots_SVGComesBackAsMarkup(t *testing.T) {
 	s, fake := newTestServer(t)
@@ -241,8 +241,8 @@ func TestExportScreenshots_SVGComesBackAsMarkup(t *testing.T) {
 	}
 }
 
-// A path outside the working directory is refused, and refusing it must not
-// silently downgrade the item to a base64 answer.
+// A path outside the working directory is refused. Refusing it must not
+// quietly turn the item into a base64 answer.
 func TestExportScreenshots_RefusesAPathOutsideTheWorkingDirectory(t *testing.T) {
 	s, fake := newTestServer(t)
 	fake.data = map[string]any{

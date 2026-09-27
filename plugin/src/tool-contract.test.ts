@@ -2,14 +2,14 @@ import { describe, expect, it } from "bun:test";
 import { readHandlers } from "./read-handlers";
 import { writeHandlers } from "./write-handlers";
 
-// The Go server declares the tools clients see; this plugin implements them.
-// Nothing has ever checked that the two agree, and a mismatch is invisible from
-// either side: the server happily offers a tool whose only symptom is "Unknown
-// request type" at call time, and a handler nobody routes to is dead code that
-// still gets maintained.
+// The Go server declares the tools clients see, and this plugin implements
+// them. Nothing ever checked that the two agree, and neither side can see a
+// mismatch. The server offers a tool whose only symptom is "Unknown request
+// type" at call time. A handler nothing routes to is dead code that still
+// gets maintained.
 //
-// The golden schema snapshot is the server's side of the contract, already
-// regenerated whenever a tool changes, so it is read rather than duplicated.
+// The golden schema snapshot is the server's side of the contract, and it is
+// regenerated whenever a tool changes. So it is read here, not duplicated.
 
 const golden = await Bun.file(
   new URL("../../internal/tools/testdata/tools_schema.json", import.meta.url),
@@ -23,7 +23,7 @@ const pluginHandlers = new Set<string>([
   "batch_execute_pipeline",
 ]);
 
-/** Tools the Go server answers itself, without ever asking the plugin. */
+/** Tools the Go server answers by itself, without asking the plugin. */
 const SERVER_SIDE_TOOLS = new Set([
   "export_screenshots",
 ]);
@@ -31,10 +31,10 @@ const SERVER_SIDE_TOOLS = new Set([
 /**
  * Handlers the merged tools delegate to.
  *
- * The MCP surface consolidated seven shape tools into create_node, four page
- * tools into manage_page, and so on. The originals stayed as implementations —
- * a pipeline step still names them directly — so they are handlers without
- * being tools.
+ * The MCP tool list merged seven shape tools into create_node, four page
+ * tools into manage_page, and so on. The originals stayed as implementations,
+ * because a pipeline step can still name them directly. So they are handlers
+ * without being tools.
  */
 const INTERNAL_DISPATCH_TARGETS = new Set([
   "create_frame", "create_rectangle", "create_ellipse", "create_star",

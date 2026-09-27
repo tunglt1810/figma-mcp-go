@@ -2,9 +2,10 @@ package tools
 
 var batchPipelineSpec = toolSpec{
 	Name: "batch_execute_pipeline",
-	Desc: "Run several write steps in order. A step can use an earlier step's result via $variables. " +
-		"With stop_on_error, a failure undoes created nodes and changed properties. " +
-		"It cannot undo deletes, group/ungroup, detach, reparent, or steps that target nodes by name.",
+	Desc: "Run write steps in order; a step can use earlier results via $variables. " +
+		"With stop_on_error, a failure undoes created nodes and changed properties, " +
+		"but not deletes, group/ungroup, detach, reparent, or steps that target nodes by name.",
+
 	Params: []paramSpec{
 		{Name: "stop_on_error", Kind: kindBool,
 			Desc: "Stop and undo on error (default true)"},

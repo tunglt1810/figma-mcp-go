@@ -15,8 +15,8 @@ import (
 	"github.com/coder/websocket"
 )
 
-// setupBridgeWithClient creates a Bridge with an active WebSocket client connected to it.
-// Returns the bridge and the client-side connection (already cleaned up on t.Cleanup).
+// setupBridgeWithClient creates a Bridge with a WebSocket client connected to it.
+// It returns the bridge and the client-side connection. t.Cleanup closes both.
 func setupBridgeWithClient(t *testing.T) (*Bridge, *websocket.Conn) {
 	t.Helper()
 	bridge := NewBridge("0.1.1")
@@ -31,7 +31,7 @@ func setupBridgeWithClient(t *testing.T) (*Bridge, *websocket.Conn) {
 	}
 	t.Cleanup(func() { clientConn.Close(websocket.StatusNormalClosure, "") })
 
-	// Poll until bridge registers the server-side connection.
+	// Poll until the bridge registers the server-side connection.
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
 		if bridge.IsConnected() {
@@ -71,7 +71,7 @@ func TestBridgeNextID(t *testing.T) {
 	if !strings.HasPrefix(id1, "req-") {
 		t.Errorf("ID %q does not have req- prefix", id1)
 	}
-	// Format: req-HHMMSS-N  (14 chars min: "req-000000-1")
+	// Format: req-HHMMSS-N (at least 14 chars: "req-000000-1")
 	parts := strings.Split(id1, "-")
 	if len(parts) != 3 {
 		t.Errorf("ID %q has wrong format (want 3 dash-separated parts)", id1)
@@ -120,7 +120,7 @@ func TestBridgeClose_NoPanic(t *testing.T) {
 func TestBridgeClose_DrainsPending(t *testing.T) {
 	b, _ := setupBridgeWithClient(t)
 
-	// Manually insert a pending entry so we can verify Close drains it.
+	// Insert a pending entry by hand, to check that Close drains it.
 	ch := make(chan Response, 1)
 	entry := &pendingEntry{ch: ch}
 	entry.timer = time.AfterFunc(10*time.Second, func() {})
@@ -131,7 +131,7 @@ func TestBridgeClose_DrainsPending(t *testing.T) {
 
 	b.Close()
 
-	// Channel must be closed (receive returns zero value, ok=false).
+	// The channel must be closed (receive returns the zero value, ok=false).
 	select {
 	case _, ok := <-ch:
 		if ok {
@@ -170,7 +170,7 @@ func TestBridgeSend_Success(t *testing.T) {
 	b, clientConn := setupBridgeWithClient(t)
 	ctx := context.Background()
 
-	// Goroutine: echo request back as a successful response.
+	// Goroutine: echo the request back as a successful response.
 	go func() {
 		var req Request
 		if err := readJSON(ctx, clientConn, &req); err != nil {
@@ -218,10 +218,11 @@ func TestBridgeSend_PluginError(t *testing.T) {
 	}
 }
 
-// This was TestBridgeSend_Timeout, which named the bridge's own tool timer and
-// tested the caller's deadline instead — a different branch, a different error,
-// and green whatever the timer did. Both branches are worth pinning, so this is
-// the one it actually tested, under the name of what it does.
+// This test used to be TestBridgeSend_Timeout. That name pointed at the
+// bridge's own tool timer, but the test checked the caller's deadline: a
+// different branch with a different error, and it passed whatever the timer
+// did. Both branches are worth testing, so this one now has a name that says
+// what it tests.
 func TestBridgeSend_CallerDeadlineEndsTheWait(t *testing.T) {
 	b, _ := setupBridgeWithClient(t)
 	// The client never answers, so only the deadline can end this.
@@ -238,8 +239,8 @@ func TestBridgeSend_CallerDeadlineEndsTheWait(t *testing.T) {
 }
 
 // And the branch the old name promised: the plugin takes the request and never
-// answers, so the bridge's own timer for that tool fires. Nothing exercised it,
-// because at 30 seconds no test could afford to wait for it.
+// answers, so the bridge's own timer for that tool fires. No test covered it,
+// because no test could wait the real 30 seconds.
 func TestBridgeSend_TimesOutWhenThePluginNeverAnswers(t *testing.T) {
 	b, _ := setupBridgeWithClient(t)
 	b.toolTimeout = func(string) time.Duration { return 50 * time.Millisecond }
@@ -271,9 +272,9 @@ func TestBridgeIsConnected(t *testing.T) {
 	}
 }
 
-// The bridge skipped the Origin check entirely, and a new connection replaces
-// the live one — so any page the user had open could connect to the local port,
-// displace the real plugin and answer tool calls with whatever it liked.
+// The bridge used to skip the Origin check, and a new connection replaces the
+// live one. So any open page could connect to the local port, push out the
+// real plugin, and answer tool calls with anything it liked.
 func TestAllowedOrigin(t *testing.T) {
 	allowed := []string{
 		"",                      // non-browser client, sends no Origin
@@ -302,9 +303,9 @@ func TestAllowedOrigin(t *testing.T) {
 	}
 }
 
-// A connection that dies without a close frame — laptop sleep, network drop —
-// used to look alive until the next tool call timed out 30 seconds later. The
-// keepalive notices instead: a client that has stopped reading never pongs.
+// A connection can die without a close frame (laptop sleep, network drop). It
+// used to look alive until the next tool call timed out 30 seconds later. Now
+// the keepalive notices: a client that has stopped reading never sends a pong.
 func TestKeepalive_DropsAConnectionThatStopsAnswering(t *testing.T) {
 	bridge := NewBridge("0.1.1")
 	bridge.pingInterval = 20 * time.Millisecond
@@ -313,7 +314,7 @@ func TestKeepalive_DropsAConnectionThatStopsAnswering(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(bridge.HandleUpgrade))
 	t.Cleanup(srv.Close)
 
-	// A raw TCP connection speaking the handshake by hand: it never reads
+	// A raw TCP connection that does the handshake by hand. It never reads
 	// frames, so it can never answer a ping.
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
 	clientConn, _, err := websocket.Dial(context.Background(), wsURL, nil)
@@ -364,13 +365,13 @@ func TestKeepalive_LeavesAHealthyConnectionAlone(t *testing.T) {
 	}
 }
 
-// A ping that could not be completed is not proof the peer is gone. Ping goes
-// through writeControl, which caps its own wait for the frame lock at 5s
-// (write.go:232), so a large send still draining to a healthy plugin fails the
-// ping while the plugin is fine — and the keepalive dropped the connection on
-// that first failure. A plugin that is still sending us messages is
-// demonstrably alive and gets a few more rounds. Only a few: the keepalive is
-// also the only thing that clears a write parked on a full socket buffer.
+// A failed ping does not prove the peer is gone. Ping goes through
+// writeControl, which waits at most 5s for the frame lock (write.go:232). So a
+// large send that a healthy plugin is still reading makes the ping fail, and
+// the keepalive used to drop the connection on that first failure. A plugin
+// that is still sending us messages is clearly alive, so it gets a few more
+// rounds. Only a few: the keepalive is also the only thing that clears a write
+// stuck on a full socket buffer.
 func TestKeepalive_ForgivesAFailedPingWhileThePluginIsStillTalking(t *testing.T) {
 	bridge := NewBridge("0.1.1")
 	bridge.pingInterval = 100 * time.Millisecond
@@ -387,10 +388,10 @@ func TestKeepalive_ForgivesAFailedPingWhileThePluginIsStillTalking(t *testing.T)
 	t.Cleanup(func() { client.Close(websocket.StatusNormalClosure, "") })
 	waitFor(t, 500*time.Millisecond, bridge.IsConnected, "the bridge to register the connection")
 
-	// The client never reads, so a big enough frame parks on a full socket
-	// buffer holding the library's frame lock — every ping from here on fails
-	// on that lock, not on the peer. But the client keeps sending, so the peer
-	// is plainly alive.
+	// The client never reads, so a big enough frame gets stuck on a full socket
+	// buffer while holding the library's frame lock. Every ping after that fails
+	// on the lock, not because of the peer. But the client keeps sending, so the
+	// peer is clearly alive.
 	big := strings.Repeat("x", 8<<20)
 	go bridge.Send(context.Background(), "get_document", nil, map[string]any{"blob": big}) //nolint:errcheck
 
@@ -409,23 +410,23 @@ func TestKeepalive_ForgivesAFailedPingWhileThePluginIsStillTalking(t *testing.T)
 		}
 	}()
 
-	// Two ping rounds in, the old code has already dropped it.
+	// After two ping rounds, the old code has already dropped it.
 	time.Sleep(300 * time.Millisecond)
 	if !bridge.IsConnected() {
 		t.Fatal("the keepalive dropped a plugin that was still sending messages")
 	}
 
-	// Forgiveness is bounded, or the parked write would never be cleared.
+	// Forgiveness has a limit, or the stuck write would never be cleared.
 	waitFor(t, 2*time.Second, func() bool { return !bridge.IsConnected() },
 		"the keepalive to drop the connection once forgiveness ran out")
 }
 
 // The server-info reply used to be written on the read goroutine. That is the
-// one goroutine that has to be inside conn.Read for the library to process
-// anything the peer sends, pongs included: handleControl is only reached from
-// reader (read.go:289, :368). So a reply parked behind another write stopped
-// this connection being read at all — pings went unanswered and the keepalive
-// dropped a plugin that was perfectly healthy, and a close frame went unnoticed.
+// one goroutine that must be inside conn.Read for the library to handle
+// anything the peer sends, pongs included: handleControl is only called from
+// reader (read.go:289, :368). So a reply stuck behind another write stopped
+// this connection from being read at all. Pings went unanswered, the keepalive
+// dropped a healthy plugin, and a close frame went unnoticed.
 func TestReadLoop_KeepsReadingWhileAServerInfoReplyIsParked(t *testing.T) {
 	b, client := setupBridgeWithClient(t)
 
@@ -437,8 +438,8 @@ func TestReadLoop_KeepsReadingWhileAServerInfoReplyIsParked(t *testing.T) {
 		t.Fatalf("write get_server_info: %v", err)
 	}
 
-	// Let the reply park on the slot, then hang up. A read loop that is still
-	// reading notices; one waiting behind the write does not.
+	// Let the reply wait on the slot, then hang up. A read loop that is still
+	// reading notices. One stuck behind the write does not.
 	time.Sleep(100 * time.Millisecond)
 	client.Close(websocket.StatusNormalClosure, "") //nolint:errcheck
 
@@ -446,8 +447,8 @@ func TestReadLoop_KeepsReadingWhileAServerInfoReplyIsParked(t *testing.T) {
 		"the read loop to notice the client hung up")
 }
 
-// The panel raises its confirm guard when the server says its listener is
-// reachable from the network, so this flag is the whole of that signal.
+// The panel turns on its confirm guard when the server says its listener can
+// be reached from the network. This flag is the only signal for that.
 func TestReplyServerInfo_ReportsWhetherTheListenerIsExposed(t *testing.T) {
 	for _, exposed := range []bool{false, true} {
 		b, client := setupBridgeWithClient(t)
@@ -491,14 +492,13 @@ func waitFor(t *testing.T, limit time.Duration, cond func() bool, what string) {
 }
 
 // Cancelling one request used to close the whole WebSocket. Send passed the
-// caller's context to conn.Write, and for the duration of a write the library
-// registers context.AfterFunc(ctx, c.close) (conn.go:171, write.go:276) — so a
-// cancel landing while the write was in flight dropped the socket for every
-// other request too.
+// caller's context to conn.Write, and during a write the library registers
+// context.AfterFunc(ctx, c.close) (conn.go:171, write.go:276). So a cancel
+// that arrived during the write dropped the socket for every other request too.
 //
-// The window is only open while the write is blocked, which on loopback means
-// never for a small payload. This test forces it open: the client never reads,
-// so a large enough frame fills the socket buffer and the write parks there.
+// This only happens while the write is blocked, which on loopback never
+// happens for a small payload. This test forces it: the client never reads,
+// so a large enough frame fills the socket buffer and the write gets stuck.
 func TestSend_CancellingMidWriteLeavesTheConnectionUp(t *testing.T) {
 	b, _ := setupBridgeWithClient(t)
 
@@ -508,14 +508,14 @@ func TestSend_CancellingMidWriteLeavesTheConnectionUp(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go b.Send(ctx, "get_document", nil, map[string]any{"blob": big}) //nolint:errcheck
 
-	// Give the write time to park on a full buffer, then hang up on it.
+	// Give the write time to get stuck on a full buffer, then cancel it.
 	time.Sleep(200 * time.Millisecond)
 	cancel()
 
-	// Do not wait for Send to return: the parked write only unblocks once the
-	// keepalive drops this deliberately deaf client, seconds later. What is
-	// being measured is whether the cancel itself took the connection down, so
-	// watch the connection for a window well inside the ping interval.
+	// Do not wait for Send to return. The stuck write only ends when the
+	// keepalive drops this client, which never reads, seconds later. The test
+	// checks whether the cancel itself closed the connection, so it watches the
+	// connection for a period well inside the ping interval.
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
 		if !b.IsConnected() {
@@ -525,17 +525,17 @@ func TestSend_CancellingMidWriteLeavesTheConnectionUp(t *testing.T) {
 	}
 }
 
-// Writing with a context that never cancels keeps one caller's cancel from
-// closing the shared socket, but it leaves a write parked on a full socket
-// buffer with no escape but the keepalive, which takes up to three ping rounds
-// — about a minute with production defaults. b.wmu was a sync.Mutex, which
-// consults nothing, so every other caller in the process waited out that whole
-// window regardless of the deadline it arrived with.
+// A write context that never cancels stops one caller's cancel from closing
+// the shared socket. But then a write stuck on a full socket buffer can only be
+// cleared by the keepalive, which takes up to three ping rounds: about a
+// minute with production defaults. b.wmu was a sync.Mutex, which cannot be
+// cancelled, so every other caller in the process waited that whole time,
+// whatever its deadline.
 func TestSend_HonoursTheCallersDeadlineWhileAnotherWriteIsParked(t *testing.T) {
 	b, _ := setupBridgeWithClient(t)
 
 	// The client never reads, so a big enough frame fills the socket buffers
-	// and the write parks there holding the write lock.
+	// and the write gets stuck there, holding the write lock.
 	big := strings.Repeat("x", 8<<20)
 	go b.Send(context.Background(), "get_document", nil, map[string]any{"blob": big}) //nolint:errcheck
 	time.Sleep(200 * time.Millisecond)
@@ -559,19 +559,19 @@ func TestSend_HonoursTheCallersDeadlineWhileAnotherWriteIsParked(t *testing.T) {
 		t.Fatal("a Send with a 200ms deadline was still blocked after 2s behind a parked write")
 	}
 
-	// The escape must be the caller giving up, not the socket being dropped —
-	// that would be the defect TestSend_CancellingMidWriteLeavesTheConnectionUp
-	// pins, reintroduced by another route.
+	// The caller must get out by giving up, not by the socket being dropped. That
+	// would bring back the bug TestSend_CancellingMidWriteLeavesTheConnectionUp
+	// guards against, by another route.
 	if !b.IsConnected() {
 		t.Error("giving up on the write lock closed the shared plugin connection")
 	}
 }
 
-// setupBridgeWithClient's client never calls Read, so the library on that side
-// never answers a close frame — the same trick the keepalive tests use. Close
-// used to sit on the handshake for the library's 5s budget (close.go:199) plus
-// up to 15s in waitGoroutines (close.go:231), delaying process exit for a
-// plugin that was already gone.
+// setupBridgeWithClient's client never calls Read, so on that side the library
+// never answers a close frame. The keepalive tests use the same trick. Close
+// used to wait on the handshake for the library's 5s budget (close.go:199)
+// plus up to 15s in waitGoroutines (close.go:231). That delayed process exit
+// for a plugin that was already gone.
 func TestClose_IsBoundedWhenThePeerNeverAnswers(t *testing.T) {
 	b, _ := setupBridgeWithClient(t)
 	b.closeGrace = 100 * time.Millisecond
@@ -589,12 +589,12 @@ func TestClose_IsBoundedWhenThePeerNeverAnswers(t *testing.T) {
 	}
 }
 
-// HandleUpgrade used to close the displaced connection gracefully while holding
-// b.mu. A peer still alive at TCP level but not answering — laptop asleep, Figma
-// reloading its UI — makes the library spend its whole handshake budget
-// (close.go:199), and with the lock held that freezes every Send, IsConnected,
-// Pending and MarshalJSON in the process. Close already bounds the same
-// handshake; this is the reconnect path getting the same treatment.
+// HandleUpgrade used to close the old connection gracefully while holding
+// b.mu. A peer that is alive at the TCP level but not answering (laptop asleep,
+// Figma reloading its UI) makes the library wait its whole handshake budget
+// (close.go:199). With the lock held, that froze every Send, IsConnected,
+// Pending and MarshalJSON in the process. Close already limits the same
+// handshake. This gives the reconnect path the same fix.
 func TestHandleUpgrade_DoesNotHoldTheLockAcrossTheCloseHandshake(t *testing.T) {
 	b := NewBridge("0.1.1")
 	b.closeGrace = 100 * time.Millisecond
@@ -603,8 +603,8 @@ func TestHandleUpgrade_DoesNotHoldTheLockAcrossTheCloseHandshake(t *testing.T) {
 	t.Cleanup(srv.Close)
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
 
-	// The displaced peer never calls Read, so it never answers a close frame —
-	// the same trick the keepalive and Close tests use.
+	// The old peer never calls Read, so it never answers a close frame. The
+	// keepalive and Close tests use the same trick.
 	first, _, err := websocket.Dial(context.Background(), wsURL, nil)
 	if err != nil {
 		t.Fatalf("ws dial: %v", err)
@@ -612,8 +612,8 @@ func TestHandleUpgrade_DoesNotHoldTheLockAcrossTheCloseHandshake(t *testing.T) {
 	t.Cleanup(func() { first.Close(websocket.StatusNormalClosure, "") })
 	waitFor(t, 500*time.Millisecond, b.IsConnected, "the bridge to register the first connection")
 
-	// Dial returns on the 101, so HandleUpgrade is still inside its critical
-	// section for the replacement when this returns.
+	// Dial returns on the 101 response, so HandleUpgrade is still inside its
+	// critical section for the new connection when this returns.
 	second, _, err := websocket.Dial(context.Background(), wsURL, nil)
 	if err != nil {
 		t.Fatalf("ws dial: %v", err)
@@ -636,9 +636,8 @@ func TestHandleUpgrade_DoesNotHoldTheLockAcrossTheCloseHandshake(t *testing.T) {
 }
 
 // After a takeover the plugin needs about 1.5s to notice and reconnect
-// (RECONNECT_DELAY_MS in plugin/src/ui/App.svelte). Failing instantly through
-// that window reports "plugin not connected" for a plugin that is on its way
-// back.
+// (RECONNECT_DELAY_MS in plugin/src/ui/App.svelte). Failing at once during
+// that time reports "plugin not connected" for a plugin that is coming back.
 func TestSend_WaitsBrieflyForAReconnectingPlugin(t *testing.T) {
 	b := NewBridge("0.1.1")
 	b.connectGrace = 2 * time.Second
@@ -690,9 +689,9 @@ func TestSend_StillReportsAPluginThatNeverArrives(t *testing.T) {
 	}
 }
 
-// The params map holds whatever the user is designing — text content, colours,
-// names. It is fine at debug, where someone asked for it. It is not fine in the
-// default output.
+// The params map holds whatever the user is designing: text content, colours,
+// names. Logging it at debug level is fine, because someone asked for it. It
+// must not appear in the default output.
 func TestSend_DoesNotLogParamsAtInfo(t *testing.T) {
 	buf := captureLogs(t, slog.LevelInfo)
 
@@ -728,7 +727,7 @@ func captureLogs(t *testing.T, level slog.Level) *bytes.Buffer {
 	return &buf
 }
 
-// sendAndIgnore fires a request and returns as soon as it has been logged. The
+// sendAndIgnore sends a request and returns as soon as it is logged. The
 // client never answers, so waiting for the reply would mean waiting out the
 // tool's whole budget.
 func sendAndIgnore(b *Bridge, tool string, params map[string]any) {

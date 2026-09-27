@@ -80,8 +80,8 @@ describe("finishEntry", () => {
     expect(log[0].message).toBeUndefined();
   });
 
-  // A response whose entry was trimmed away must not invent one: with no start
-  // time its duration would be meaningless.
+  // A response whose entry was trimmed must not create a new one. With no
+  // start time, its duration would be meaningless.
   test("ignores a response for a request the log no longer holds", () => {
     const log = finishEntry([], "gone", undefined, 100);
     expect(log).toEqual([]);

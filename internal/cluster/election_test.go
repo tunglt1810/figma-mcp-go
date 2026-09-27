@@ -80,7 +80,7 @@ func TestElectionTick_FollowerHealthyLeader(t *testing.T) {
 	if err := e.tick(context.Background()); err != nil {
 		t.Errorf("tick: %v", err)
 	}
-	// Leader is healthy → node stays FOLLOWER.
+	// The leader is healthy, so the node stays FOLLOWER.
 	if n.Role() != RoleFollower {
 		t.Errorf("role = %v, want FOLLOWER", n.Role())
 	}
@@ -99,8 +99,8 @@ func TestElectionTick_FollowerDeadLeader_TakesOver(t *testing.T) {
 	if err := e.tick(context.Background()); err != nil {
 		t.Errorf("tick: %v", err)
 	}
-	// No leader on port → node should try BecomeLeader.
-	// Give it a moment for the goroutine to finish (tick is synchronous, so immediate).
+	// No leader on the port, so the node should try BecomeLeader.
+	// tick is synchronous, so the result is ready at once.
 	if n.Role() != RoleLeader {
 		t.Errorf("role = %v, want LEADER after dead-leader takeover", n.Role())
 	}
@@ -111,14 +111,14 @@ func TestElectionTick_FollowerDeadLeader_TakesOver(t *testing.T) {
 func TestElectionTick_UnknownBecomesLeader(t *testing.T) {
 	port := freePort(t)
 	n := NewNode("127.0.0.1", port, "test", passthroughGuard)
-	// Role stays UNKNOWN — no BecomeLeader/BecomeFollower called.
+	// Role stays UNKNOWN: no BecomeLeader or BecomeFollower was called.
 	t.Cleanup(n.Stop)
 
 	e := NewElection("127.0.0.1", port, n)
 	if err := e.tick(context.Background()); err != nil {
 		t.Errorf("tick: %v", err)
 	}
-	// Port is free → determineRole should elect us as LEADER.
+	// The port is free, so determineRole should make us LEADER.
 	if n.Role() != RoleLeader {
 		t.Errorf("role = %v, want LEADER", n.Role())
 	}
@@ -150,8 +150,8 @@ func TestElectionStart_Stop(t *testing.T) {
 // ── Concurrent: two nodes race to become leader ───────────────────────────────
 
 // TestElection_ConcurrentStart_OneLeader starts two elections on the same port
-// simultaneously and asserts that exactly one node becomes leader and the other
-// settles as follower.
+// at the same time. Exactly one node must become leader, and the other must
+// become follower.
 func TestElection_ConcurrentStart_OneLeader(t *testing.T) {
 	port := freePort(t)
 
@@ -193,8 +193,8 @@ func TestElection_ConcurrentStart_OneLeader(t *testing.T) {
 
 // ── Concurrent: multiple followers race for takeover ─────────────────────────
 
-// TestElection_ConcurrentTakeover_OneLeader verifies that when a leader dies and
-// several followers call tick() simultaneously, exactly one wins the port.
+// TestElection_ConcurrentTakeover_OneLeader checks that when a leader dies and
+// several followers call tick() at the same time, exactly one wins the port.
 func TestElection_ConcurrentTakeover_OneLeader(t *testing.T) {
 	port := freePort(t)
 
@@ -214,7 +214,7 @@ func TestElection_ConcurrentTakeover_OneLeader(t *testing.T) {
 		t.Cleanup(nodes[i].Stop)
 	}
 
-	// Kill the leader — port is now free for takeover.
+	// Kill the leader. The port is now free for a takeover.
 	leader.Stop()
 
 	// All followers attempt takeover at the same time.
@@ -238,9 +238,9 @@ func TestElection_ConcurrentTakeover_OneLeader(t *testing.T) {
 	}
 }
 
-// "Port taken but nothing answering" is a startup race, not a settled state.
-// Waiting a whole monitor tick to look again leaves the node routing nowhere
-// for three to five seconds.
+// "Port taken but nothing answering" is a startup race, not a final state.
+// Waiting a whole monitor tick to look again leaves the node with nowhere to
+// send calls for three to five seconds.
 func TestDetermineRole_RetriesQuicklyWhenNothingAnswers(t *testing.T) {
 	port := freePort(t)
 
@@ -262,7 +262,7 @@ func TestDetermineRole_RetriesQuicklyWhenNothingAnswers(t *testing.T) {
 		t.Fatalf("want RoleUnknown while the port is held, got %s", n.RoleName())
 	}
 
-	// Release it; the retry should take the port well inside a monitor tick.
+	// Release it. The retry should take the port well inside one monitor tick.
 	ln.Close()
 	waitForRole(t, n, RoleLeader, 2*time.Second)
 }

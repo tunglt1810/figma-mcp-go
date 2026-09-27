@@ -16,25 +16,25 @@ import (
 	"github.com/coder/websocket"
 )
 
-// log is resolved per call rather than held in a package variable: a package
-// variable is initialised before main installs the default handler, so it would
-// capture the stock one and ignore the configured level.
+// log looks up the logger on each call. A package variable would be set before
+// main installs the default handler, so it would keep the stock handler and
+// ignore the configured level.
 func log() *slog.Logger { return slog.Default().With("component", "bridge") }
 
 // pendingEntry holds the response channel and inactivity timer for an in-flight request.
 type pendingEntry struct {
 	ch    chan Response
 	timer *time.Timer
-	once  sync.Once // guards channel close/send — prevents panic on concurrent timeout + response
+	once  sync.Once // guards close and send, so a timeout racing a response cannot panic
 
-	// timeout is this tool's budget, restored on every progress update;
-	// hardDeadline is the point past which no progress update extends it.
+	// timeout is this tool's time budget. Each progress update resets it.
+	// hardDeadline is the limit: no progress update extends past it.
 	timeout      time.Duration
 	hardDeadline time.Time
 }
 
-// nextTimeout is how long a progress update may extend this request, capped by
-// the hard deadline. Zero or less means the request has run out of time.
+// nextTimeout is how far a progress update may extend this request. It never
+// goes past the hard deadline. Zero or less means the request is out of time.
 func (e *pendingEntry) nextTimeout() time.Duration {
 	remaining := time.Until(e.hardDeadline)
 	if remaining < e.timeout {
@@ -48,53 +48,52 @@ func (e *pendingEntry) nextTimeout() time.Duration {
 type Bridge struct {
 	mu sync.RWMutex
 
-	// wslot serialises writes — coder/websocket does not support concurrent
-	// ones. It is a channel rather than a sync.Mutex because a mutex consults
-	// nothing: writes go out under a context that never cancels (see Send), so
-	// a write parked on a full socket buffer holds the slot until the keepalive
-	// drops the peer, and a mutex would make every other caller wait out that
-	// whole window whatever deadline it arrived with.
+	// wslot lets one write through at a time, because coder/websocket does not
+	// support concurrent writes. It is a channel, not a sync.Mutex, so a waiter
+	// can give up when its context ends. Writes use a context that never
+	// cancels (see Send). A write stuck on a full socket buffer holds the slot
+	// until the keepalive drops the peer. With a mutex, every other caller
+	// would wait that whole time, whatever its deadline.
 	wslot chan struct{}
 
 	conn    *websocket.Conn
 	pending map[string]*pendingEntry
 	counter atomic.Int64
 	version string
-	// Set once at startup, before any connection is served, and only read after.
+	// Set once at startup, before any connection is served. Only read after that.
 	exposed bool
 
-	// pluginVersion is what the connected plugin last announced, "" when no
-	// plugin has connected or when it is too old to announce anything.
+	// pluginVersion is the version the connected plugin last announced. It is
+	// "" when no plugin has connected, or when the plugin is too old to announce.
 	pluginVersion string
 
-	// pluginHandlers is what that plugin said it can do. Empty means "it did
-	// not say", which is not the same as "it can do nothing" — an older plugin
-	// announces no handlers and must keep working.
+	// pluginHandlers lists what that plugin says it can do. Empty means "it did
+	// not say", not "it can do nothing". An older plugin announces no handlers
+	// and must keep working.
 	pluginHandlers map[string]bool
 
-	// Ping cadence, overridable in tests so they need not wait 20 seconds.
+	// Ping timing. Tests override it so they do not wait 20 seconds.
 	pingInterval time.Duration
 	pingTimeout  time.Duration
 
-	// toolTimeout is how long a request waits for the plugin, indirected for
-	// the same reason: at 30 seconds the real budget is not something a test
-	// can sit through.
+	// toolTimeout is how long a request waits for the plugin. It is a function
+	// for the same reason: tests cannot wait out the real 30 seconds.
 	toolTimeout func(string) time.Duration
 
 	// closeGrace bounds the WebSocket close handshake on shutdown.
 	closeGrace time.Duration
 
-	// connected is closed and replaced each time a plugin connects, so a Send
-	// arriving during a leader handover can wait for the next one instead of
-	// failing on a gap that closes itself.
+	// connected is closed and replaced each time a plugin connects. A Send that
+	// arrives during a leader handover waits on it for the plugin to come back,
+	// instead of failing during a short gap.
 	connected chan struct{}
 
 	// connectGrace is how long Send waits for a plugin that may be reconnecting.
 	connectGrace time.Duration
 
 	// lastRead is when the plugin last sent us anything, in unix nanoseconds.
-	// The keepalive reads it as evidence of life; see there for why a failed
-	// ping alone is not evidence of death.
+	// The keepalive treats it as proof the plugin is alive. See keepalive for
+	// why one failed ping does not prove the plugin is gone.
 	lastRead atomic.Int64
 }
 
@@ -113,16 +112,16 @@ func NewBridge(version string) *Bridge {
 	}
 }
 
-// allowedOrigin reports whether a browser at this Origin may open the bridge.
-// A new connection replaces the live one, so without this any page the user had
-// open could connect to the local port, displace the real plugin and answer
-// tool calls itself. Browsers set Origin and scripts cannot forge it, which is
-// what makes the check worth having.
+// allowedOrigin reports whether a browser page at this Origin may open the
+// bridge. A new connection replaces the live one. Without this check, any open
+// page could connect to the local port, push out the real plugin, and answer
+// tool calls itself. Browsers set Origin and scripts cannot fake it, so the
+// check is worth having.
 //
-// Figma serves plugin UI from a sandboxed iframe, whose Origin is the literal
-// "null". Allowing that leaves one gap: a hostile page can sandbox an iframe of
-// its own and present "null" too. It closes the ordinary case, which is a page
-// simply running a script.
+// Figma serves the plugin UI from a sandboxed iframe, whose Origin is the
+// literal "null". Allowing "null" leaves one gap: a hostile page can create its
+// own sandboxed iframe and send "null" too. The check still blocks the common
+// case, a page that just runs a script.
 func allowedOrigin(origin string) bool {
 	if origin == "" || origin == "null" {
 		return true
@@ -137,8 +136,8 @@ func allowedOrigin(origin string) bool {
 }
 
 // HandleUpgrade upgrades an HTTP request to a WebSocket connection.
-// Only one plugin connection is maintained at a time; a new connection
-// replaces the old one (same behaviour as the TypeScript version).
+// Only one plugin connection is kept at a time. A new connection replaces the
+// old one, as in the TypeScript version.
 func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	if origin := r.Header.Get("Origin"); !allowedOrigin(origin) {
 		log().Warn("upgrade refused: origin not allowed", "origin", origin)
@@ -147,8 +146,8 @@ func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	}
 
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		// The check above replaces the library's: it has to accept the "null"
-		// origin of a sandboxed iframe, which the library rejects outright.
+		// The check above replaces the library's own check. It must accept the
+		// "null" origin of a sandboxed iframe, and the library rejects it.
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
@@ -156,12 +155,12 @@ func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Raise the read limit to 100 MB — Figma documents can be large.
-	// Default is 32 KiB which causes "read limited at 32769 bytes" disconnects.
+	// Raise the read limit to 100 MB, because Figma documents can be large.
+	// The 32 KiB default causes "read limited at 32769 bytes" disconnects.
 	conn.SetReadLimit(100 * 1024 * 1024)
 
-	// A fresh connection starts with a clean slate, rather than inheriting the
-	// silence of the one it replaces.
+	// A new connection starts fresh. It does not inherit the silence of the
+	// connection it replaces.
 	b.markRead()
 
 	b.mu.Lock()
@@ -175,11 +174,12 @@ func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 
 	replaced := previous != nil
 	if replaced {
-		// Off the lock, and off this goroutine: the displaced peer may be alive
-		// at TCP level and not answering — laptop asleep, Figma reloading its
-		// UI — in which case the handshake runs to the library's budget. Under
-		// b.mu that stalls every reader; on this goroutine it delays the new
-		// connection's readLoop, which is the reconnect the user is waiting on.
+		// Close outside the lock and on another goroutine. The old peer may be
+		// alive at the TCP level but not answering (laptop asleep, Figma
+		// reloading its UI). Then the handshake waits for the library's full
+		// time budget. Under b.mu that would block every reader. On this
+		// goroutine it would delay the new connection's readLoop, which is the
+		// reconnect the user is waiting for.
 		go closeBounded(previous, "replaced by new connection", grace)
 	}
 	log().Info("plugin connected", "remote", r.RemoteAddr, "replaced", replaced)
@@ -187,23 +187,22 @@ func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	go b.keepalive(conn)
 }
 
-// keepalive pings the plugin on a timer. Without it a connection that died
-// without a close frame — laptop asleep, network dropped — keeps looking alive,
-// and the first sign of trouble is a tool call timing out much later. A missed
-// pong closes the connection, so the next call fails immediately and says the
-// plugin is not connected.
+// keepalive pings the plugin on a timer. A connection can die without a close
+// frame (laptop asleep, network dropped). Without pings it keeps looking alive,
+// and the first sign of trouble is a tool call that times out much later. A
+// missed pong closes the connection, so the next call fails at once and says
+// the plugin is not connected.
 //
-// The ping deliberately does not take the bridge's own write lock, and not
-// because control frames bypass the data path — they do not. Ping goes through
-// writeControl, which calls the same writeFrame and takes the same
-// c.writeFrameMu as a data message (write.go:231, :244), so it does queue
-// behind a send parked on a full socket buffer. The reason to stay off b.wmu is
-// that the keepalive is the only thing that clears such a send: it is what
-// notices the peer has stopped draining the socket and drops it. Waiting on the
-// lock the stuck write holds would park the keepalive behind the very problem
-// it exists to resolve. The library's frame lock is context-aware
-// (conn.go:276) and writeControl caps the wait at 5s, so the ping still gives
-// up on its own terms.
+// The ping does not take the bridge's own write slot, on purpose. Control
+// frames do not skip the data path: Ping goes through writeControl, which calls
+// the same writeFrame and takes the same c.writeFrameMu as a data message
+// (write.go:231, :244). So a ping does queue behind a send stuck on a full
+// socket buffer. The keepalive stays off the write slot because it is the only
+// thing that clears such a send: it notices the peer has stopped reading and
+// drops it. If it waited on the slot the stuck write holds, it would be stuck
+// behind the very problem it exists to fix. The library's frame lock honours
+// the context (conn.go:276) and writeControl caps the wait at 5s, so the ping
+// still gives up by itself.
 func (b *Bridge) keepalive(conn *websocket.Conn) {
 	ticker := time.NewTicker(b.pingInterval)
 	defer ticker.Stop()
@@ -225,13 +224,13 @@ func (b *Bridge) keepalive(conn *websocket.Conn) {
 			continue
 		}
 
-		// A ping that could not be completed is not proof the peer is gone. It
-		// fails on the library's frame lock too, which a send parked on a full
-		// socket buffer holds — so a plugin that is merely draining a large
-		// message slowly fails the ping while being perfectly healthy. A plugin
-		// that has sent us something since the last tick is talking, whatever
-		// the ping says, so forgive the failure. Not indefinitely: this is also
-		// the only thing that clears such a parked write.
+		// A failed ping does not prove the peer is gone. The ping also fails
+		// while waiting on the library's frame lock, which a send stuck on a
+		// full socket buffer holds. So a healthy plugin that is slowly reading a
+		// large message can fail the ping. If the plugin has sent us something
+		// since the last tick, it is alive, whatever the ping says, so forgive
+		// the failure. Only a few times, though: this is also the only thing
+		// that clears such a stuck write.
 		failures++
 		if failures < keepaliveForgiveness && b.readWithin(b.pingInterval) {
 			log().Warn("keepalive: ping failed but the plugin is still sending — holding on",
@@ -240,9 +239,9 @@ func (b *Bridge) keepalive(conn *websocket.Conn) {
 		}
 
 		log().Warn("keepalive: no pong, dropping the connection", "err", err, "failures", failures)
-		// CloseNow, not Close: a graceful close waits for the peer's close
-		// frame, and the peer not answering is exactly what got us here.
-		// Dropping the socket makes readLoop return, which clears b.conn.
+		// CloseNow, not Close. A graceful close waits for the peer's close
+		// frame, and the peer is not answering. Dropping the socket makes
+		// readLoop return, which clears b.conn.
 		conn.CloseNow() //nolint:errcheck
 		return
 	}
@@ -256,8 +255,8 @@ func (b *Bridge) readWithin(d time.Duration) bool {
 	return time.Since(time.Unix(0, b.lastRead.Load())) <= d
 }
 
-// lockWrite takes the write slot, giving up if ctx is done first. Giving up
-// leaves the connection alone: it is the wait that is abandoned, not the write.
+// lockWrite takes the write slot, or gives up if ctx ends first. Giving up
+// leaves the connection alone: only the wait is dropped, not a write.
 func (b *Bridge) lockWrite(ctx context.Context) error {
 	select {
 	case b.wslot <- struct{}{}:
@@ -270,21 +269,20 @@ func (b *Bridge) lockWrite(ctx context.Context) error {
 func (b *Bridge) unlockWrite() { <-b.wslot }
 
 // replyServerInfo answers the plugin's get_server_info. Only the wait for the
-// write slot is bounded; the write itself goes out under a context that never
-// cancels, for the reason Send documents. A reply that cannot get on the wire
-// within the grace is dropped rather than left to pile up behind whatever is
-// holding the slot — the plugin asks again on its next connect.
+// write slot has a time limit. The write itself uses a context that never
+// cancels, for the reason given in Send. If the reply cannot be sent within the
+// grace period, it is dropped instead of piling up behind the slot holder. The
+// plugin asks again on its next connect.
 func (b *Bridge) replyServerInfo(conn *websocket.Conn) {
 	b.writeControlFrame(conn, "server-info", map[string]any{
 		"type":    "server-info",
 		"version": b.version,
-		// Whether the listener is reachable from another machine. There is no
-		// authentication on the socket — pairing was considered and rejected,
-		// because a prompt in front of every connect costs every local user
-		// something to protect the few who move the listener off loopback. So
-		// the exposure is reported instead, and the panel turns its confirm
-		// guard on by default when it hears this, gating the destructive tools
-		// rather than the connection.
+		// Whether another machine can reach the listener. The socket has no
+		// authentication. Pairing was considered and rejected: a prompt on
+		// every connect would bother every local user to protect the few who
+		// move the listener off loopback. So the server reports the exposure
+		// instead. When the panel sees it, it turns on its confirm guard by
+		// default, which guards the destructive tools, not the connection.
 		"exposed": b.exposed,
 	})
 }
@@ -294,11 +292,11 @@ func (b *Bridge) SetExposed(exposed bool) {
 	b.exposed = exposed
 }
 
-// writeControlFrame sends a frame that is not a response to anything: nothing
-// waits on it and nothing retries it. Only the wait for the write slot is
-// bounded; the write itself goes out under a context that never cancels, for
-// the reason Send documents. A frame that cannot get on the wire within the
-// grace is dropped rather than left to pile up behind whatever holds the slot.
+// writeControlFrame sends a frame that answers no request. Nothing waits on it
+// and nothing retries it. Only the wait for the write slot has a time limit.
+// The write itself uses a context that never cancels, for the reason given in
+// Send. If the frame cannot be sent within the grace period, it is dropped
+// instead of piling up behind the slot holder.
 func (b *Bridge) writeControlFrame(conn *websocket.Conn, what string, frame any) {
 	ctx, cancel := context.WithTimeout(context.Background(), serverInfoGrace)
 	defer cancel()
@@ -313,13 +311,13 @@ func (b *Bridge) writeControlFrame(conn *websocket.Conn, what string, frame any)
 	}
 }
 
-// cancelRequest tells the plugin to stop work it is still doing for a request
-// nobody is waiting for any more.
+// cancelRequest tells the plugin to stop work for a request that nobody is
+// waiting for anymore.
 //
-// Without this the plugin runs a long scan to completion after the caller has
-// walked away, holding the single WebSocket against the next request. The frame
-// is advisory: a handler that never checks simply finishes, and its response is
-// dropped as "a request that is already gone".
+// Without it, the plugin runs a long scan to the end after the caller has left,
+// and holds the single WebSocket while the next request waits. The frame is
+// only a hint. A handler that never checks it just finishes, and its response
+// is dropped as "a request that is already gone".
 func (b *Bridge) cancelRequest(requestID string) {
 	b.mu.RLock()
 	conn := b.conn
@@ -355,20 +353,20 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 		}
 		b.markRead()
 
-		// Handle progress updates — extend timeout, do not resolve.
+		// A progress update extends the timeout. It does not complete the request.
 		if resp.Progress > 0 && resp.RequestID != "" {
 			b.mu.RLock()
 			entry, ok := b.pending[resp.RequestID]
 			b.mu.RUnlock()
 			if ok {
-				// Stop before Reset to avoid the AfterFunc firing during Reset.
+				// Stop before Reset so the AfterFunc cannot fire during Reset.
 				entry.timer.Stop()
 				if extension := entry.nextTimeout(); extension > 0 {
 					entry.timer.Reset(extension)
 					log().Debug("progress", "id", resp.RequestID, "percent", resp.Progress, "message", resp.Message)
 				} else {
-					// Past the hard deadline; let the timer fire immediately
-					// rather than letting progress hold the request open.
+					// Past the hard deadline. Fire the timer now instead of
+					// letting progress keep the request open.
 					entry.timer.Reset(time.Nanosecond)
 					log().Warn("progress past the ceiling — timing out", "id", resp.RequestID, "percent", resp.Progress, "message", resp.Message, "ceiling", MaxToolTimeout)
 				}
@@ -379,19 +377,19 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 		}
 
 		if resp.Type == "get_server_info" {
-			// On its own goroutine. This one has to get back into conn.Read:
-			// the library processes what the peer sends only from there
-			// (handleControl is reached from reader, read.go:289, :368), so a
-			// reply parked behind another write would stop pongs being seen and
-			// the keepalive would drop a plugin that is perfectly healthy.
+			// Reply on another goroutine, because this one must get back to
+			// conn.Read. The library only handles what the peer sends from there
+			// (handleControl is called from reader, read.go:289, :368). If the
+			// reply waited here behind another write, pongs would go unseen and
+			// the keepalive would drop a healthy plugin.
 			go b.replyServerInfo(conn)
 			continue
 		}
 
 		if resp.Type == "plugin-info" {
-			// The plugin announces itself on connect. Log the skew here as well
-			// as showing it in the panel: a user filing a bug sends the server
-			// log, and may never have opened the panel to see the banner.
+			// The plugin announces itself on connect. Log a version mismatch here
+			// as well as in the panel. A user filing a bug sends the server log,
+			// and may never have opened the panel to see the banner.
 			b.setPluginInfo(resp.Version, resp.Handlers)
 			if msg := VersionSkewMessage(resp.Version, b.version); msg != "" {
 				log().Warn("version mismatch — " + msg)
@@ -431,7 +429,7 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 				log().Info("response", "id", resp.RequestID, "ok", true)
 			}
 			entry.timer.Stop()
-			// Use once to prevent sending on a channel already closed by timeout.
+			// once stops a send on a channel the timeout already closed.
 			entry.once.Do(func() { entry.ch <- resp })
 		} else {
 			log().Warn("response for a request that is already gone", "id", resp.RequestID)
@@ -448,9 +446,9 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 	b.mu.RUnlock()
 
 	if conn == nil {
-		// A leader handover leaves a gap: the new leader holds the port but the
-		// plugin has not noticed yet and reconnects about 1.5s later. Wait it
-		// out rather than reporting a plugin that is on its way back as absent.
+		// A leader handover leaves a gap. The new leader holds the port, but the
+		// plugin has not noticed yet and reconnects about 1.5s later. Wait for
+		// it instead of reporting a returning plugin as missing.
 		select {
 		case <-arrived:
 			b.mu.RLock()
@@ -465,8 +463,8 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 		return Response{}, errors.New("plugin not connected")
 	}
 
-	// Checked after the connection wait, so a plugin that reconnects mid-call
-	// has had its chance to announce before its capabilities are consulted.
+	// Check after the connection wait, so a plugin that reconnects during the
+	// call can announce itself before we look at its capabilities.
 	if msg := b.checkPluginSupports(requestType); msg != "" {
 		log().Warn("tool refused by the plugin's declared capabilities", "tool", requestType, "err", msg)
 		return Response{}, errors.New(msg)
@@ -484,12 +482,12 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 	log().Debug("request params", "id", requestID, "params", params)
 	start := time.Now()
 
-	// Queue for the wire before registering. A request that spends its whole
-	// budget behind someone else's write used to time out as if the plugin had
-	// gone quiet, leaving a pending entry for a message that never reached the
-	// socket; now the timer starts when this request owns the wire. Registration
-	// still happens before the write, which is the ordering that matters — the
-	// response can arrive before writeJSON returns.
+	// Wait for the write slot before registering. A request used to spend its
+	// whole budget behind another write and then time out as if the plugin had
+	// gone quiet, leaving a pending entry for a message never sent. Now the
+	// timer starts once this request owns the socket. Registration still happens
+	// before the write, and that order matters: the response can arrive before
+	// writeJSON returns.
 	if err := b.lockWrite(ctx); err != nil {
 		log().Info("request gave up queueing for the connection", "id", requestID, "tool", requestType, "err", err)
 		return Response{}, err
@@ -507,7 +505,7 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 		b.mu.Lock()
 		delete(b.pending, requestID)
 		b.mu.Unlock()
-		// Use once to prevent closing a channel already consumed by the read goroutine.
+		// once stops a close on a channel the read goroutine already used.
 		entry.once.Do(func() { close(ch) })
 		b.cancelRequest(requestID)
 	})
@@ -516,15 +514,14 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 	b.pending[requestID] = entry
 	b.mu.Unlock()
 
-	// A context that never cancels, deliberately. For the duration of a write
-	// the library registers context.AfterFunc(ctx, c.close) (conn.go:171,
-	// write.go:276), so a context that can be cancelled — the caller's, or one
-	// carrying a write deadline — takes the shared connection down with it when
-	// it fires. A blocked write is instead resolved by the keepalive, which
-	// drops a peer that has stopped answering and so unblocks the write with an
-	// error. Callers waiting behind it are covered by lockWrite above, which
-	// does honour their contexts; the caller's context also governs the wait
-	// below.
+	// Use a context that never cancels, on purpose. During a write the library
+	// registers context.AfterFunc(ctx, c.close) (conn.go:171, write.go:276).
+	// So when a cancellable context fires (the caller's, or one with a write
+	// deadline), it closes the shared connection. Instead, the keepalive
+	// handles a blocked write: it drops a peer that stopped answering, which
+	// ends the write with an error. Callers waiting behind it are handled by
+	// lockWrite above, which does honour their contexts. The caller's context
+	// also controls the wait below.
 	writeErr := writeJSON(context.Background(), conn, req)
 	b.unlockWrite()
 	if writeErr != nil {
@@ -542,8 +539,8 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 			return Response{}, errors.New("request timed out")
 		}
 		log().Info("request completed", "id", requestID, "tool", requestType, "ms", time.Since(start).Milliseconds())
-		// A plugin too old to announce its handlers was let through by
-		// checkPluginSupports, so this is where a tool it lacks turns up.
+		// checkPluginSupports lets through a plugin too old to announce its
+		// handlers, so a tool it lacks shows up here instead.
 		resp.Error = b.explainUnknownRequest(requestType, resp.Error)
 		return resp, nil
 	case <-ctx.Done():
@@ -557,11 +554,11 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 	}
 }
 
-// closeBounded closes conn gracefully but returns after grace at the latest.
-// The close frame is still sent in the normal case; a peer that has gone away
-// no longer holds the caller for the library's handshake budget — 5s for the
-// peer's reply (close.go:199) plus 15s for its goroutines (close.go:231). The
-// goroutine finishes on its own and the library drops the socket regardless.
+// closeBounded closes conn gracefully, but returns after grace at the latest.
+// The close frame is still sent in the normal case. A peer that has gone away
+// no longer holds the caller for the library's full handshake budget: 5s for
+// the peer's reply (close.go:199) plus 15s for its goroutines (close.go:231).
+// The goroutine finishes by itself, and the library drops the socket anyway.
 func closeBounded(conn *websocket.Conn, reason string, grace time.Duration) {
 	closed := make(chan struct{})
 	go func() {
@@ -597,8 +594,8 @@ func (b *Bridge) Close() {
 	closeBounded(conn, "bridge closed", grace)
 }
 
-// paramSize is how big a params map is on the wire, for a log line that says
-// something about the payload without quoting the user's design back at them.
+// paramSize is the size of a params map on the wire. The log shows it to
+// describe the payload without printing the user's design.
 func paramSize(params map[string]any) int {
 	if params == nil {
 		return 0
@@ -632,10 +629,10 @@ func (b *Bridge) IsConnected() bool {
 	return b.conn != nil
 }
 
-// readJSON reads one WebSocket message and decodes it into v. It stands in for
-// wsjson.Read, which is hardwired to encoding/json v1. Like wsjson, a payload
-// that fails to decode closes the connection: a peer that cannot frame valid
-// JSON will not do better on the next message.
+// readJSON reads one WebSocket message and decodes it into v. It replaces
+// wsjson.Read, which only works with encoding/json v1. Like wsjson, it closes
+// the connection when a payload fails to decode: a peer that sends invalid JSON
+// will not do better on the next message.
 func readJSON(ctx context.Context, conn *websocket.Conn, v any) error {
 	_, data, err := conn.Read(ctx)
 	if err != nil {
@@ -648,7 +645,7 @@ func readJSON(ctx context.Context, conn *websocket.Conn, v any) error {
 	return nil
 }
 
-// writeJSON encodes v and sends it as a single text message, standing in for
+// writeJSON encodes v and sends it as one text message. It replaces
 // wsjson.Write for the same reason as readJSON.
 func writeJSON(ctx context.Context, conn *websocket.Conn, v any) error {
 	data, err := json.Marshal(v)
@@ -658,7 +655,8 @@ func writeJSON(ctx context.Context, conn *websocket.Conn, v any) error {
 	return conn.Write(ctx, websocket.MessageText, data)
 }
 
-// MarshalJSON is used when logging — avoid printing full conn object.
+// MarshalJSON is used for logging, so the full conn object is not printed.
+
 func (b *Bridge) MarshalJSON() ([]byte, error) {
 	b.mu.RLock()
 	connected := b.conn != nil

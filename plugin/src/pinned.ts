@@ -1,14 +1,14 @@
 // The pinned context set.
 //
-// get_selection follows whatever is selected right now, which makes it useless
-// the moment the designer clicks somewhere else — so the working answer has been
-// to copy node ids by hand and paste them into the conversation. Pinning holds a
-// set still: the designer picks the nodes once, and every later call asks for
-// the pin instead of the selection.
+// get_selection follows whatever is selected right now, so it becomes useless
+// as soon as the designer clicks somewhere else. The workaround was to copy
+// node ids by hand and paste them into the conversation. Pinning keeps a set
+// fixed: the designer picks the nodes once, and every later call asks for the
+// pin instead of the selection.
 //
-// It lives in the plugin core's memory rather than in plugin data. It is a
-// working set for one sitting, not a property of the document, and writing it
-// into the file would sync one person's scratch selection to the whole team.
+// It lives in the plugin core's memory, not in plugin data. It is a working
+// set for one session, not a property of the document. Writing it into the
+// file would sync one person's scratch selection to the whole team.
 
 let pinned: string[] = [];
 

@@ -1,10 +1,10 @@
 import { invertTransform } from "./serializers";
 
-// Write helpers — utilities used exclusively by write handlers.
+// Write helpers: utilities used only by write handlers.
 
 // Accepts #RGB, #RGBA, #RRGGBB and #RRGGBBAA, with or without the leading #.
-// Anything else is an error: the old version returned NaN channels, which Figma
-// painted as a broken fill without reporting anything.
+// Anything else is an error. The old version returned NaN channels, which
+// Figma painted as a broken fill without any error.
 export const hexToRgb = (hex: string) => {
   const clean = typeof hex === "string" ? hex.replace(/^#/, "") : "";
   if (!/^([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)) {
@@ -42,15 +42,16 @@ export const getParentNode = async (parentId: string | undefined) => {
   return parent as ChildrenMixin & BaseNode;
 };
 
-// Nodes that carry auto-layout properties: frames, components, component sets
-// and instances. Typed structurally rather than as FrameNode because the four
-// share the properties without sharing a Figma interface.
+// Nodes that have auto-layout properties: frames, components, component sets
+// and instances. Typed by shape, not as FrameNode, because the four share the
+// properties without sharing a Figma interface.
 type AutoLayoutNode = any;
 
-// A property Figma rejects for the node's current shape — FILL on a child whose
-// parent has no auto layout, HUG on a frame that is not itself auto-layout —
-// throws on assignment. Reporting which property failed beats a bare
-// "Cannot set property" with no clue which of a dozen arguments caused it.
+// Some properties throw on assignment because Figma rejects them for the
+// node's current shape: FILL on a child whose parent has no auto layout, HUG
+// on a frame that is not auto-layout itself. Naming the failed property is
+// better than a bare "Cannot set property" that does not say which of a dozen
+// arguments caused it.
 const assign = (node: AutoLayoutNode, property: string, value: any) => {
   try {
     node[property] = value;
@@ -62,7 +63,7 @@ const assign = (node: AutoLayoutNode, property: string, value: any) => {
 
 export const applyAutoLayout = (frame: AutoLayoutNode, p: any) => {
   // layoutMode goes first: every property below is rejected or ignored until
-  // the node actually has auto layout.
+  // the node has auto layout.
   if (p.layoutMode != null) assign(frame, "layoutMode", p.layoutMode);
   if (p.paddingTop != null) frame.paddingTop = Number(p.paddingTop);
   if (p.paddingRight != null) frame.paddingRight = Number(p.paddingRight);
@@ -86,26 +87,26 @@ export const applyAutoLayout = (frame: AutoLayoutNode, p: any) => {
     }
   }
 
-  // Constraints come before the sizing properties: min/max are what make FILL
-  // and HUG behave responsively, and Figma clamps the current size against them
-  // as soon as they are set. Explicit null clears one, which is how a caller
-  // removes a constraint it set earlier — hence `!== undefined` rather than the
+  // Constraints go before the sizing properties. min/max are what make FILL
+  // and HUG responsive, and Figma clamps the current size to them as soon as
+  // they are set. An explicit null clears one, which is how a caller removes
+  // a constraint set earlier. That is why this uses `!== undefined`, not the
   // `!= null` used above.
   if (p.minWidth !== undefined) assign(frame, "minWidth", nullableNumber(p.minWidth));
   if (p.maxWidth !== undefined) assign(frame, "maxWidth", nullableNumber(p.maxWidth));
   if (p.minHeight !== undefined) assign(frame, "minHeight", nullableNumber(p.minHeight));
   if (p.maxHeight !== undefined) assign(frame, "maxHeight", nullableNumber(p.maxHeight));
 
-  // These four describe how the node behaves inside its OWN parent's auto
-  // layout, so they apply whether or not this node has auto layout of its own.
+  // These four describe how the node behaves inside its PARENT's auto
+  // layout, so they apply whether or not this node has its own auto layout.
   if (p.layoutPositioning) assign(frame, "layoutPositioning", p.layoutPositioning);
   if (p.layoutAlign) assign(frame, "layoutAlign", p.layoutAlign);
   if (p.layoutGrow != null) assign(frame, "layoutGrow", Number(p.layoutGrow));
 
-  // layoutSizing* is last. It is the modern spelling of primaryAxisSizingMode /
-  // counterAxisSizingMode plus FILL, and Figma derives one from the other, so
-  // setting it after means an explicit HUG/FILL wins over a sizing mode passed
-  // in the same call rather than being silently overwritten by it.
+  // layoutSizing* goes last. It is the modern form of primaryAxisSizingMode /
+  // counterAxisSizingMode plus FILL, and Figma derives one from the other.
+  // Setting it last means an explicit HUG/FILL wins over a sizing mode passed
+  // in the same call, instead of being silently overwritten by it.
   if (p.layoutSizingHorizontal) {
     assign(frame, "layoutSizingHorizontal", p.layoutSizingHorizontal);
   }
@@ -114,7 +115,7 @@ export const applyAutoLayout = (frame: AutoLayoutNode, p: any) => {
   }
 };
 
-// null clears a min/max constraint; anything else is a number.
+// null clears a min/max constraint. Any other value is a number.
 const nullableNumber = (value: any) => (value === null ? null : Number(value));
 
 export const base64ToBytes = (b64: string) => {
@@ -172,14 +173,14 @@ export const makeGradientPaint = (type: string, stops: any[], geometry: any, opa
       y: cy + ry * Math.cos(theta)
     };
 
-    // Solve affine transform T_inv that maps 3 gradient-space control points
-    // to their positions in normalized node space:
+    // Solve the affine transform T_inv that maps 3 gradient-space control
+    // points to their positions in normalized node space:
     //   (0.5, 0.5) → center    (gradient center)
     //   (1.0, 0.5) → rxHandle  (end of X-radius axis)
     //   (0.5, 1.0) → ryHandle  (end of Y-radius axis)
     //
     // T_inv = [[A, B, C], [D, E, F]] where A·gx + B·gy + C = nx
-    // Coefficients derived by substituting the 3 point pairs and solving.
+    // The coefficients come from substituting the 3 point pairs and solving.
     const A = 2 * (rxHandleNorm.x - centerNorm.x);
     const B = 2 * (ryHandleNorm.x - centerNorm.x);
     const C = 3 * centerNorm.x - rxHandleNorm.x - ryHandleNorm.x;
@@ -224,8 +225,8 @@ export const makeGradientPaint = (type: string, stops: any[], geometry: any, opa
   };
 };
 
-// Every effect type Figma's Effect union covers except SHADER, which needs a shader
-// imported through figma.importShaderById first and so cannot be built from params.
+// Every effect type in Figma's Effect union except SHADER. A shader must first
+// be imported with figma.importShaderById, so it cannot be built from params.
 export const supportedEffectTypes = [
   "DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR",
   "NOISE", "TEXTURE", "GLASS",
@@ -233,17 +234,17 @@ export const supportedEffectTypes = [
 
 const num = (value: any, fallback: number) => (value != null ? Number(value) : fallback);
 
-// Read a {x, y} pair, which is how serializeEffects reports Figma's Vector fields.
+// Read an {x, y} pair, which is how serializeEffects reports Figma's Vector fields.
 const vec = (value: any, fallback: { x: number; y: number }) =>
   value && value.x != null && value.y != null
     ? { x: Number(value.x), y: Number(value.y) }
     : fallback;
 
-// Build one Figma Effect from the flat parameter object set_effects accepts.
+// Build one Figma Effect from the flat parameter object that set_effects accepts.
 //
-// The shape mirrors what serializeEffects produces, so a node's effects can be read
-// and written back unchanged. Colour alpha travels as `opacity`; NOISE MULTITONE's own
-// effect opacity is `noiseOpacity`, because the two are different values.
+// The shape matches what serializeEffects produces, so a node's effects can be
+// read and written back unchanged. Colour alpha goes in `opacity`. NOISE
+// MULTITONE's own effect opacity is `noiseOpacity`, because they are different values.
 export const makeEffect = (e: any): Effect => {
   const visible = e.visible ?? true;
 
@@ -268,8 +269,8 @@ export const makeEffect = (e: any): Effect => {
 
     case "LAYER_BLUR":
     case "BACKGROUND_BLUR": {
-      // blurType is part of the BlurEffect union; omitting it leaves the effect
-      // underspecified, so it defaults to NORMAL here rather than being left out.
+      // blurType is part of the BlurEffect union. Without it the effect is
+      // incomplete, so it defaults to NORMAL here instead of being left out.
       if (e.blurType === "PROGRESSIVE") {
         return {
           type: e.type,
@@ -300,8 +301,8 @@ export const makeEffect = (e: any): Effect => {
         visible,
       };
       // NoiseEffectBase declares blendMode, but the Figma runtime rejects the key on
-      // noise effects ("Unrecognized key(s) in object: 'blendMode'"). Only forward it
-      // when a caller asks for it, so the common path stays writable.
+      // noise effects ("Unrecognized key(s) in object: 'blendMode'"). Only pass it
+      // on when a caller asks for it, so the common case still works.
       if (e.blendMode) noise.blendMode = e.blendMode as BlendMode;
       if (noise.noiseType === "DUOTONE") {
         const s = hexToRgb(e.secondaryColor || "#ffffff");
@@ -347,9 +348,9 @@ export const makeEffect = (e: any): Effect => {
 /**
  * Build one layout grid from a plain spec.
  *
- * Shared by create_grid_style and set_layout_grids: a grid saved as a style and
- * a grid dropped straight onto a frame are the same object, and two copies of
- * these defaults would drift.
+ * Used by both create_grid_style and set_layout_grids. A grid saved as a style
+ * and a grid put straight onto a frame are the same object, and two copies of
+ * these defaults would drift apart.
  */
 export const makeLayoutGrid = (spec: any): LayoutGrid => {
   const pattern = spec?.pattern || "GRID";
@@ -371,7 +372,7 @@ export const makeLayoutGrid = (spec: any): LayoutGrid => {
     pattern: "GRID",
     sectionSize: Number(spec.sectionSize ?? 8),
     visible: spec.visible !== false,
-    // A grid overlay is a guide, so it defaults to faint rather than to the
+    // A grid overlay is a guide, so it defaults to faint instead of the
     // opaque red a bare hex would give.
     color: { r, g, b, a: spec.opacity != null ? Number(spec.opacity) : (a !== 1 ? a : 0.1) },
   } as LayoutGrid;

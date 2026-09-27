@@ -1,21 +1,21 @@
 // Cancellation.
 //
-// The server sends a cancel frame when a request's caller has walked away or
-// its budget ran out. Without it the plugin runs a long scan to completion for
-// an answer nobody will read, holding the single WebSocket against the next
-// request.
+// The server sends a cancel frame when a request's caller has left or its
+// time ran out. Without it, the plugin runs a long scan to the end for an
+// answer nobody will read, and holds the single WebSocket while the next
+// request waits.
 //
-// It is advisory by design: a handler that never checks simply finishes, and
-// its response is dropped on the server as "a request that is already gone".
-// So a new long loop that forgets to check is slow, never broken.
+// It is only a hint, by design. A handler that never checks just finishes,
+// and the server drops its response as "a request that is already gone".
+// So a new long loop that forgets to check is slow, but never broken.
 
 const cancelled = new Set<string>();
 
-// Ids are remembered until the request they belong to finishes, but a cancel
-// can arrive for a request that already finished, and that id would then be
-// remembered forever. The set is bounded and evicts oldest-first; a cancel is
-// only ever consulted within the life of one request, so an evicted id cannot
-// be one that still matters.
+// Ids are kept until their request finishes. But a cancel can arrive for a
+// request that already finished, and that id would then be kept forever. So
+// the set has a size limit and drops the oldest first. A cancel only matters
+// during the life of one request, so a dropped id can never be one that
+// still matters.
 const MAX_TRACKED = 256;
 
 export function markCancelled(requestId: string): void {
@@ -32,7 +32,7 @@ export function isCancelled(requestId: string | undefined): boolean {
   return !!requestId && cancelled.has(requestId);
 }
 
-/** Stop remembering a request, once it is over either way. */
+/** Stop tracking a request once it is over, either way. */
 export function clearCancelled(requestId: string | undefined): void {
   if (requestId) cancelled.delete(requestId);
 }
@@ -40,9 +40,9 @@ export function clearCancelled(requestId: string | undefined): void {
 /**
  * Abort the current handler if its request was cancelled.
  *
- * The error travels back as an ordinary failure response, which the server
- * discards along with the rest of the request — the caller already has the
- * cancellation error it was waiting for.
+ * The error goes back as a normal failure response, and the server discards
+ * it with the rest of the request. The caller already has the cancellation
+ * error it was waiting for.
  */
 export function throwIfCancelled(requestId: string | undefined): void {
   if (isCancelled(requestId)) {

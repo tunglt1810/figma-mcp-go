@@ -43,11 +43,11 @@ func (e *Election) Start(ctx context.Context) error {
 	return nil
 }
 
-// retryUntilSettled closes the startup race: the port was taken but nothing
-// answered, which usually means another process is milliseconds from being
-// ready — or is on its way out. Checking often settles the role well inside one
-// monitor tick, instead of leaving every tool call with nowhere to go for three
-// to five seconds.
+// retryUntilSettled handles the startup race. The port was taken but nothing
+// answered. That usually means another process is a few milliseconds from
+// being ready, or is shutting down. Checking often settles the role well
+// inside one monitor tick. Otherwise every tool call has nowhere to go for
+// three to five seconds.
 func (e *Election) retryUntilSettled(ctx context.Context) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -74,21 +74,21 @@ func (e *Election) Stop() {
 	}
 }
 
-// determineRole tries to become leader; falls back to follower if a
-// healthy leader already exists on the port.
+// determineRole tries to become leader. If a healthy leader already holds the
+// port, it becomes a follower instead.
 func (e *Election) determineRole(ctx context.Context) error {
 	if err := e.node.BecomeLeader(); err == nil {
 		return nil
 	}
 
-	// Port taken — check if there is a healthy leader
+	// Port taken: check whether there is a healthy leader.
 	if e.follower.Ping(ctx) {
 		e.node.BecomeFollower()
 		return nil
 	}
 
-	// Port taken but no healthy leader — could be a race during startup.
-	// Next monitor tick will retry.
+	// Port taken but no healthy leader. This may be a startup race.
+	// The next monitor tick will retry.
 	electionLog().Warn("port taken but the leader is not responding — will retry")
 	return nil
 }
@@ -123,7 +123,7 @@ func (e *Election) tick(ctx context.Context) error {
 	case RoleUnknown:
 		return e.determineRole(ctx)
 	case RoleLeader:
-		// Nothing — we are the leader
+		// Nothing to do: we are the leader.
 	}
 	return nil
 }

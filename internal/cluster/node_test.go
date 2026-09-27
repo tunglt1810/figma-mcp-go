@@ -80,7 +80,7 @@ func TestNodeBecomeLeader_Idempotent(t *testing.T) {
 	if err := n.BecomeLeader(); err != nil {
 		t.Fatalf("first BecomeLeader: %v", err)
 	}
-	// Calling again on the same node should be a no-op.
+	// Calling it again on the same node should do nothing.
 	if err := n.BecomeLeader(); err != nil {
 		t.Fatalf("second BecomeLeader: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestNodeBecomeFollower_FromLeader(t *testing.T) {
 	// Give the OS a moment to fully release the port after Shutdown.
 	time.Sleep(20 * time.Millisecond)
 
-	// Port should be free now — a new leader can bind it.
+	// The port should be free now, so a new leader can bind it.
 	n2 := NewNode("127.0.0.1", port, "test", passthroughGuard)
 	if err := n2.BecomeLeader(); err != nil {
 		t.Fatalf("new node could not bind freed port: %v", err)
@@ -151,9 +151,9 @@ func TestNodeStop_Idempotent(t *testing.T) {
 
 // ── Send: ID normalisation ────────────────────────────────────────────────────
 
-// A follower posts the call to the leader's /rpc verbatim. Checking already
-// happened above, so anything the node rewrote here would be a second, silent
-// transformation on the way out.
+// A follower posts the call to the leader's /rpc as is. Checking already
+// happened earlier, so any rewrite by the node here would be a second, silent
+// change on the way out.
 func TestNodeSend_ProxiesToTheLeaderVerbatim(t *testing.T) {
 	var capturedReq RPCRequest
 
@@ -187,8 +187,8 @@ func TestNodeSend_ProxiesToTheLeaderVerbatim(t *testing.T) {
 
 // ── Routing ──────────────────────────────────────────────────────────────────
 
-// fakeBackend stands in for a Follower or a Bridge on the cluster-internal
-// sender interface, which speaks bridge.Response.
+// fakeBackend stands in for a Follower or a Bridge behind the internal
+// sender interface, which uses bridge.Response.
 type fakeBackend struct {
 	calls []fakeCall
 	resp  bridge.Response
@@ -200,8 +200,8 @@ func (f *fakeBackend) Send(_ context.Context, tool string, nodeIDs []string, par
 	return f.resp, f.err
 }
 
-// newNodeWithSender builds a settled follower with its proxy replaced. Swapping
-// the follower backend only means anything once the node is actually one.
+// newNodeWithSender builds a follower node with its proxy replaced. Swapping
+// the follower backend only matters once the node is a follower.
 func newNodeWithSender(s sender) *Node {
 	n := NewNode("127.0.0.1", 19940, "test", passthroughGuard)
 	n.follower = s
@@ -209,8 +209,8 @@ func newNodeWithSender(s sender) *Node {
 	return n
 }
 
-// Send hands the arguments on untouched. Normalizing and checking happen above
-// it now, so a node that quietly rewrote them would be doing it twice.
+// Send passes the arguments on unchanged. Normalizing and checking now happen
+// earlier, so a node that rewrote them would be doing it twice.
 func TestNodeSend_PassesArgumentsThrough(t *testing.T) {
 	backend := &fakeBackend{resp: bridge.Response{Data: map[string]any{"ok": true}}}
 	n := newNodeWithSender(backend)
@@ -234,9 +234,9 @@ func TestNodeSend_PassesArgumentsThrough(t *testing.T) {
 	}
 }
 
-// A plugin-reported error and a transport error are the same thing to a caller:
-// both mean the call did not happen. Send returns one error type so the tool
-// layer has one branch instead of two that did the same thing.
+// To a caller, a plugin error and a transport error mean the same thing: the
+// call did not happen. Send returns one error type, so the tool layer needs
+// one branch instead of two that did the same thing.
 func TestNodeSend_TurnsAPluginErrorIntoAnError(t *testing.T) {
 	backend := &fakeBackend{resp: bridge.Response{Error: "node not found"}}
 	n := newNodeWithSender(backend)
@@ -268,8 +268,8 @@ func TestNodeSend_ReturnsTheDataOnly(t *testing.T) {
 }
 
 // An Unknown role means the election has not settled. Falling through to the
-// follower branch posts to a port nobody is listening on, and the user reads
-// "connection refused", which says nothing about what is actually going on.
+// follower branch posts to a port nobody is listening on. The user then sees
+// "connection refused", which says nothing about the real problem.
 func TestNodeSend_UnknownRoleReportsTheRole(t *testing.T) {
 	backend := &fakeBackend{}
 	n := NewNode("127.0.0.1", 19940, "test", passthroughGuard)

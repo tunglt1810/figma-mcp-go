@@ -76,8 +76,8 @@ describe("hexToRgb", () => {
     expect(result.a).toBeCloseTo(0x88 / 255);
   });
 
-  // Anything it cannot read used to come back as NaN and paint a broken fill
-  // without a word of complaint.
+  // Anything it could not read used to come back as NaN and paint a broken
+  // fill without any error.
   it.each(["red", "rgb(255,0,0)", "#ff", "#12345", "", "#gggggg"])(
     "rejects %o instead of returning NaN",
     (input) => {
@@ -242,7 +242,7 @@ describe("applyAutoLayout", () => {
       counterAxisSizingMode: "FIXED",
       layoutSizingHorizontal: "HUG",
     });
-    // Both were asked for; the modern spelling is the one that lands last.
+    // Both were given. The modern form is the one applied last.
     expect(frame.layoutSizingHorizontal).toBe("HUG");
   });
 

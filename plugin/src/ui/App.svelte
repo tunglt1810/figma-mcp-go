@@ -30,15 +30,15 @@
   let pageName = "—";
   let selectionCount = 0;
   let selectedNodes: { id: string, name: string }[] = [];
-  // Running work is read off the activity log rather than tracked separately —
-  // one source of truth means the banner and the log can never disagree.
+  // Running work is read from the activity log, not tracked separately.
+  // With one source of truth, the banner and the log can never disagree.
   let activityLog: ActivityEntry[] = [];
   $: runningEntries = activityLog.filter(entry => entry.status === "running");
   $: isWorking = runningEntries.length > 0;
   $: currentTool = runningEntries.length > 0 ? runningEntries[0].tool : "";
 
-  // `now` ticks only while something is running, so a finished panel is not
-  // re-rendering once a second for nothing.
+  // `now` only ticks while something is running, so an idle panel does not
+  // re-render every second for nothing.
   let now = Date.now();
   let tick: ReturnType<typeof setInterval> | null = null;
   $: {
@@ -53,44 +53,44 @@
 
   let guardMode: GuardMode = "off";
   let showLog = false;
-  // Requests held for the user to approve, oldest first. The server is still
-  // waiting on each one, so nothing may be dropped silently.
+  // Requests waiting for the user to approve, oldest first. The server is
+  // still waiting on each one, so none may be dropped silently.
   let pendingApprovals: { payload: any; reason: string }[] = [];
   $: pendingApproval = pendingApprovals.length > 0 ? pendingApprovals[0] : null;
 
-  // The size with the log closed. The log's extra height is added on top, so a
-  // panel the user widened stays that width whether the log is open or not.
+  // The size with the log closed. The log's extra height is added on top, so
+  // a panel the user widened keeps that width whether the log is open or not.
   let panelWidth = DEFAULT_PANEL_WIDTH;
   let panelHeight = DEFAULT_PANEL_HEIGHT;
   
-  // Defaults to on; the stored value replaces it once the core answers.
+  // On by default. The stored value replaces it once the core answers.
   let autoCopyEnabled = true;
   let copyError = false;
   let autoCopyBroken = false; // sticky: true once an unattended auto-copy attempt has failed
 
   // Configurable server address.
-  // Persisted via figma.clientStorage (through plugin core) because localStorage
-  // is unavailable inside Figma's data: URL sandbox.
+  // Saved through figma.clientStorage (via the plugin core), because
+  // localStorage is not available inside Figma's data: URL sandbox.
   let serverHost = DEFAULT_HOST;
   let serverPort = DEFAULT_PORT;
   let serverVersion = "";
   // Whether the server says its listener is reachable from another machine.
   let serverExposed = false;
-  // So the confirm guard is raised once per panel session rather than on every
-  // reconnect, which would undo a deliberate choice to turn it off.
+  // So the confirm guard is turned on once per panel session, not on every
+  // reconnect, which would undo a user's choice to turn it off.
   let exposureHandled = false;
 
   const pluginVersion = __APP_VERSION__;
-  // Sent by the plugin core once it starts. It can arrive either side of the
-  // socket opening, so both paths announce, and neither assumes the other ran.
+  // Sent by the plugin core once it starts. It can arrive before or after the
+  // socket opens, so both paths announce, and neither assumes the other ran.
   let pluginHandlers: string[] = [];
-  // Recomputed whenever the server reports its version — null while
+  // Recomputed whenever the server reports its version. null while
   // disconnected, or when the two versions are close enough not to matter.
   $: versionMismatch = connected ? versionWarningSummary(pluginVersion, serverVersion) : null;
   $: versionMismatchDetail = connected ? versionWarning(pluginVersion, serverVersion) : null;
 
-  // The pinned context set. Held by the plugin core; the panel shows what the
-  // core echoes back, never what it hoped it sent.
+  // The pinned context set. The plugin core holds it. The panel shows what
+  // the core sends back, never what it hoped it sent.
   let pinnedNodes: { id: string, name: string }[] = [];
   $: pinnedIds = pinnedNodes.map(node => node.id);
   $: selectionIsPinned =
@@ -109,9 +109,9 @@
   let configLoaded = false;
 
   function connect() {
-    // Detach the old handler before closing so its onclose doesn't fire
-    // after we've already assigned a new socket, which would null out the
-    // new reference and silently break the connection.
+    // Detach the old handler before closing, so its onclose does not fire
+    // after we have assigned a new socket. That would null out the new
+    // reference and silently break the connection.
     if (socket) {
       socket.onclose = null;
       socket.close();
@@ -123,16 +123,16 @@
       connected = true;
       // The server copies for us and never touches the browser's clipboard, so
       // a break recorded while there was no socket says nothing about now. The
-      // panel reads its prefs before it connects, which means the first
-      // selection often arrives during that gap — clear the break and copy it.
+      // panel reads its prefs before it connects, so the first selection often
+      // arrives during that gap. Clear the break and copy it.
       if (autoCopyBroken) {
         autoCopyBroken = false;
         copyError = false;
         if (autoCopyEnabled && selectedNodes.length > 0) copyAllNodes(true);
       }
       ws.send(JSON.stringify({ type: "get_server_info" }));
-      // Tell the server what it is talking to, so a mismatch is visible in its
-      // log too — the user reporting a bug may never open this panel.
+      // Tell the server what it is talking to, so a mismatch also shows in its
+      // log. The user reporting a bug may never open this panel.
       announce(ws);
       parent.postMessage({ pluginMessage: { type: "ui-ready" } }, "*");
     };
@@ -143,17 +143,17 @@
       serverVersion = "";
       socket = null;
       // Anything still running will never get an answer through this socket.
-      // Closing the entries out beats leaving a spinner that never stops.
+      // Closing the entries is better than a spinner that never stops.
       activityLog = activityLog.map(entry =>
         entry.status === "running"
           ? { ...entry, status: "error" as const, endedAt: Date.now(), message: "connection lost" }
           : entry,
       );
-      // A request held for approval was waiting on a caller that is now gone.
-      // The server's own cancel frame drops one of these, but a socket that
-      // simply dropped sends nothing — and the dialog would outlive the request,
+      // A request waiting for approval was waiting for a caller that is now
+      // gone. The server's own cancel frame removes one of these, but a socket
+      // that just dropped sends nothing. The dialog would outlive the request,
       // so Allow would run a destructive edit for nobody and answer into a
-      // socket the server no longer associates with it.
+      // socket the server no longer links to it.
       for (const held of pendingApprovals) {
         activityLog = startEntry(activityLog, held.payload.requestId, held.payload.type, Date.now());
         activityLog = finishEntry(activityLog, held.payload.requestId, "connection lost", Date.now());
@@ -177,13 +177,13 @@
         if (payload.type === "server-info") {
           serverVersion = payload.version ?? "";
           serverExposed = payload.exposed === true;
-          // The socket carries no authentication — pairing was considered and
-          // rejected, because a prompt in front of every connect costs every
-          // local user something to protect the few who move the listener off
-          // loopback. So when the server says it is reachable from the network,
-          // the destructive tools are gated instead of the connection. Only
-          // from "off", and only once: a user who has chosen a mode keeps it,
-          // and one who turns this back off is not overruled on every frame.
+          // The socket has no authentication. Pairing was considered and
+          // rejected: a prompt on every connect would bother every local user
+          // to protect the few who move the listener off loopback. So when the
+          // server says it can be reached from the network, the destructive
+          // tools are guarded instead of the connection. Only from "off", and
+          // only once: a user who chose a mode keeps it, and a user who turns
+          // this back off is not overruled on every frame.
           if (serverExposed && guardMode === "off" && !exposureHandled) {
             exposureHandled = true;
             guardMode = "confirm";
@@ -242,9 +242,9 @@
 
     if (msg.type === "pinned_nodes") {
       const ids: string[] = msg.nodeIds ?? [];
-      // Names come from whatever the panel last saw. A pinned node the user has
-      // since deselected keeps the name it was pinned under; one the panel never
-      // saw shows its id, which is still enough to identify it.
+      // Names come from whatever the panel last saw. A pinned node the user
+      // has since deselected keeps the name it was pinned with. A node the
+      // panel never saw shows its id, which is still enough to identify it.
       const known = new Map(
         [...selectedNodes, ...pinnedNodes].map(node => [node.id, node.name]),
       );
@@ -254,8 +254,8 @@
 
     if (msg.type === "plugin-capabilities") {
       pluginHandlers = msg.handlers ?? [];
-      // The socket may already be up; re-announce so the server is not left
-      // with the versionless first frame.
+      // The socket may already be open. Announce again, so the server is not
+      // left with the first frame, which had no version.
       if (socket?.readyState === WebSocket.OPEN) announce(socket);
       return;
     }
@@ -305,9 +305,9 @@
   /**
    * Decide what happens to an incoming request.
    *
-   * The gate lives here rather than in the plugin core because approving needs
-   * a dialog, and only this side has one. There is no trust boundary between
-   * the two — both are the plugin — so one gate is enough.
+   * The gate lives here, not in the plugin core, because approving needs a
+   * dialog and only this side has one. There is no trust boundary between the
+   * two (both are the plugin), so one gate is enough.
    */
   function admitRequest(payload: any) {
     const mutating = isMutating(payload.type, payload.params);
@@ -331,10 +331,10 @@
   /**
    * The server has stopped waiting for a request.
    *
-   * A request still queued for approval is dropped outright — nobody is left to
-   * read its answer, and leaving it in the dialog would ask the user about work
-   * that no longer matters. One already running is passed to the core, where a
-   * long loop can notice and stop.
+   * A request still waiting for approval is dropped at once. Nobody is left to
+   * read its answer, and keeping it in the dialog would ask the user about work
+   * that no longer matters. A request already running is passed to the core,
+   * where a long loop can notice and stop.
    */
   function cancelRequest(requestId: string) {
     const held = pendingApprovals.find(item => item.payload.requestId === requestId);
@@ -376,9 +376,9 @@
   }
 
   // Figma plugin windows have no resize handle of their own, so the panel draws
-  // one and asks the core to resize. The drag is tracked from the pointer's
-  // position on screen rather than from a delta, so a fast drag that outruns the
-  // resize cannot make the grip drift away from the cursor.
+  // one and asks the core to resize. The drag follows the pointer's position on
+  // screen, not a delta, so a fast drag that outruns the resize cannot make the
+  // grip drift away from the cursor.
   let resizing = false;
 
   function startResize(event: PointerEvent) {
@@ -392,8 +392,8 @@
     const width = Math.min(Math.max(event.clientX + 4, MIN_PANEL_WIDTH), MAX_PANEL_WIDTH);
     const height = Math.min(Math.max(event.clientY + 4, MIN_PANEL_HEIGHT), MAX_PANEL_HEIGHT);
     panelWidth = width;
-    // What is stored is the closed-log size, so reopening the log does not
-    // stack its extra height on a panel that already includes it.
+    // The stored size is the closed-log size, so reopening the log does not
+    // add its extra height to a panel that already includes it.
     panelHeight = showLog ? Math.max(height - LOG_EXTRA_HEIGHT, MIN_PANEL_HEIGHT) : height;
     resizePanel();
   }
@@ -402,7 +402,7 @@
     if (!resizing) return;
     resizing = false;
     (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
-    // Written once at the end of the drag rather than on every pointer move —
+    // Written once at the end of the drag, not on every pointer move, because
     // clientStorage is a round trip through the plugin core.
     savePrefs();
   }
@@ -416,9 +416,9 @@
   function cycleGuardMode() {
     const index = GUARD_MODES.indexOf(guardMode);
     guardMode = GUARD_MODES[(index + 1) % GUARD_MODES.length];
-    // Anything already held under the old mode is no longer being guarded for
-    // a reason the user still believes in — let it through rather than leaving
-    // the server waiting on a dialog that is gone.
+    // Anything already waiting under the old mode is no longer guarded for a
+    // reason the user still wants. Let it through, instead of leaving the
+    // server waiting on a dialog that is gone.
     if (guardMode !== "confirm" && pendingApprovals.length > 0) {
       const held = pendingApprovals;
       pendingApprovals = [];
@@ -447,9 +447,9 @@
     showSettings = true;
   }
 
-  // Persist via plugin core (figma.clientStorage), since localStorage is
-  // unavailable in Figma's data: URL environment. Address and preferences go in
-  // one object, so every save writes the whole current state.
+  // Save through the plugin core (figma.clientStorage), because localStorage
+  // is not available in Figma's data: URL environment. Address and preferences
+  // go in one object, so every save writes the whole current state.
   function savePrefs() {
     parent.postMessage(
       {
@@ -475,7 +475,7 @@
     serverPort = sanitizePort(editPort);
     savePrefs();
     showSettings = false;
-    // Cancel any pending reconnect and reconnect immediately with the new address.
+    // Cancel any pending reconnect, and reconnect at once with the new address.
     if (reconnectTimer !== null) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
@@ -501,10 +501,10 @@
     }
 
     copyError = true;
-    // Hold off further unattended attempts, but leave the user's setting alone.
-    // Turning the checkbox off here was how a copy that failed in the seconds
-    // before the socket opened became a preference: any later savePrefs() wrote
-    // the false out, and the feature stayed off across reloads.
+    // Stop further automatic attempts, but leave the user's setting alone.
+    // Turning the checkbox off here turned a copy that failed in the seconds
+    // before the socket opened into a preference: any later savePrefs() saved
+    // the false, and the feature stayed off across reloads.
     if (unattended) autoCopyBroken = true;
   }
 
@@ -524,7 +524,7 @@
     autoCopyBroken = false;
     copyError = false;
     // A click is the user gesture the browser wanted, so this attempt can
-    // succeed where the unattended one could not.
+    // succeed where the automatic one could not.
     if (selectedNodes.length > 0) copyAllNodes();
   }
 
@@ -546,7 +546,7 @@
   }
 
   function onAutoCopyToggle() {
-    // Turning it back on clears the sticky break, so the next selection retries.
+    // Turning it back on clears the saved break, so the next selection tries again.
     if (autoCopyEnabled) autoCopyBroken = false;
     savePrefs();
   }
@@ -554,13 +554,13 @@
   onMount(() => {
     window.addEventListener("message", handleMessage);
 
-    // Request stored configs from plugin core
+    // Request stored settings from the plugin core
     parent.postMessage({ pluginMessage: { type: "get_ws_config" } }, "*");
-    // The pin outlives a panel reload, so ask what the core is already holding.
+    // The pin survives a panel reload, so ask what the core already holds.
     parent.postMessage({ pluginMessage: { type: "get_pinned_nodes" } }, "*");
 
-    // Fallback: if the plugin core doesn't respond within 500 ms (e.g. during
-    // dev / hot-reload without a running core), connect with defaults.
+    // Fallback: if the plugin core does not respond within 500 ms (e.g. during
+    // dev or hot reload without a running core), connect with defaults.
     const fallback = setTimeout(() => {
       if (!configLoaded) {
         configLoaded = true;
@@ -810,11 +810,11 @@
 
 <style>
   /*
-   * Figma puts a `figma-dark` class on the document element in dark mode and
-   * removes it in light mode, so the theme is a CSS question and the panel needs
-   * no script for it — only the `themeColors: true` that main.ts passes to
-   * showUI, without which the class never arrives. Light is the base and dark is
-   * the override: the panel was dark-only before this, so the dark block is the
+   * Figma adds a `figma-dark` class to the document element in dark mode and
+   * removes it in light mode. So the theme is pure CSS, and the panel needs no
+   * script for it, only the `themeColors: true` that main.ts passes to showUI.
+   * Without that, the class never arrives. Light is the base and dark is the
+   * override. The panel was dark-only before this, so the dark block is the
    * palette it already had.
    */
   :global(:root) {
@@ -1356,20 +1356,20 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    /* The labels are translated, and a language whose words run longer than
-       English must push the row onto a second line rather than off the panel,
-       which can be dragged down to 240px. */
+    /* Long labels must wrap onto a second line instead of running off the
+       panel, which can be resized down to 240px. */
+
     flex-wrap: wrap;
   }
 
   /*
    * Hover explanations.
    *
-   * A native `title` waits over a second before it appears and is easy to miss
-   * entirely, which is how a control whose label needs explaining ends up
-   * looking like it has none. This shows immediately and takes the panel's
-   * theme. Anchored to the footer rather than the button so a long explanation
-   * can use the panel's whole width instead of a small button's.
+   * A native `title` waits over a second before it appears and is easy to miss,
+   * so a control whose label needs explaining looks as if it has none. This one
+   * shows at once and uses the panel's theme. It is anchored to the footer, not
+   * the button, so a long explanation can use the panel's full width instead of
+   * a small button's.
    */
   [data-tip]:hover::after {
     content: attr(data-tip);
@@ -1429,7 +1429,7 @@
     border-radius: 50%;
   }
 
-  /* Server address button — shows current host:port, click to edit */
+  /* Server address button: shows the current host:port, click to edit */
   .server-addr {
     background: none;
     border: none;
@@ -1446,7 +1446,7 @@
     background: var(--bg-raised);
   }
 
-  /* Inline settings panel — takes remaining space so inputs aren't squished */
+  /* Inline settings panel: takes the remaining space so inputs are not squished */
   .settings-panel {
     display: flex;
     align-items: center;

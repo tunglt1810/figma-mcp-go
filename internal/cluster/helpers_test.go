@@ -24,8 +24,8 @@ type fakeCall struct {
 	params  map[string]any
 }
 
-// passthroughGuard accepts everything. Tests that care about checking live in
-// the tools package, where the real rules are; these care about routing.
+// passthroughGuard accepts everything. Tests of the real checks live in the
+// tools package, where the rules are. These tests are about routing.
 func passthroughGuard(_ string, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
 	return nodeIDs, params, nil
 }

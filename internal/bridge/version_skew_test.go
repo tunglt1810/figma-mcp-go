@@ -66,9 +66,9 @@ func TestVersionSkewMessage(t *testing.T) {
 	})
 }
 
-// The plugin announces itself on connect with a frame that carries no request
-// id. Without its own branch in readLoop it would fall through to the
-// "empty requestId" path and be dropped, so pin that the bridge records it.
+// On connect, the plugin announces itself with a frame that has no request
+// id. Without its own branch in readLoop, the frame would fall through to the
+// "empty requestId" path and be dropped. Check that the bridge records it.
 func TestReadLoop_RecordsThePluginVersion(t *testing.T) {
 	b, clientConn := setupBridgeWithClient(t)
 
@@ -104,7 +104,7 @@ func TestReadLoop_PluginInfoDoesNotDisturbAPendingRequest(t *testing.T) {
 		if err := readJSON(ctx, clientConn, &req); err != nil {
 			return
 		}
-		// Announce first, then answer. The announcement must be skipped over.
+		// Announce first, then answer. The announcement must be skipped.
 		writeJSON(ctx, clientConn, Response{Type: "plugin-info", Version: "0.3.0"}) //nolint:errcheck
 		writeJSON(ctx, clientConn, Response{                                        //nolint:errcheck
 			RequestID: req.RequestID,
@@ -124,8 +124,8 @@ func TestReadLoop_PluginInfoDoesNotDisturbAPendingRequest(t *testing.T) {
 
 func TestCheckPluginSupports(t *testing.T) {
 	t.Run("a plugin that announced nothing is not second-guessed", func(t *testing.T) {
-		// An older plugin sends no handler list. Refusing its every call would
-		// break a setup that works today.
+		// An older plugin sends no handler list. Refusing all its calls would break
+		// a setup that works today.
 		b := NewBridge("0.3.0")
 		b.setPluginInfo("0.2.0", nil)
 		if msg := b.checkPluginSupports("boolean_operation"); msg != "" {
@@ -185,10 +185,10 @@ func TestCheckPluginSupports(t *testing.T) {
 	})
 }
 
-// A plugin old enough not to announce its handlers gets the benefit of the
-// doubt, so the call reaches it and comes back with the plugin's own bare
-// "Unknown request type: x". That names no remedy, which leaves the caller —
-// usually a model — retrying a tool this plugin will never have.
+// A plugin too old to announce its handlers is trusted, so the call reaches
+// it and comes back with the plugin's bare "Unknown request type: x". That
+// gives no fix, so the caller (usually a model) keeps retrying a tool this
+// plugin will never have.
 func TestSend_GivesTheUnknownRequestErrorARemedy(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -201,8 +201,8 @@ func TestSend_GivesTheUnknownRequestErrorARemedy(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			b, clientConn := setupBridgeWithClient(t)
-			// No handler list: this is the fail-open path, which is the only way
-			// an Unknown request type can come back at all.
+			// No handler list: the plugin is trusted. That is the only way an Unknown
+			// request type can come back at all.
 			b.setPluginInfo(tc.version, nil)
 
 			go func() {
@@ -234,8 +234,8 @@ func TestSend_GivesTheUnknownRequestErrorARemedy(t *testing.T) {
 	}
 }
 
-// Only that one error is rewritten. A handler's own failure is the useful
-// answer and must reach the caller as the plugin worded it.
+// Only that one error is rewritten. A handler's own error is the useful
+// answer and must reach the caller in the plugin's own words.
 func TestSend_LeavesOtherPluginErrorsAlone(t *testing.T) {
 	b, clientConn := setupBridgeWithClient(t)
 	b.setPluginInfo("0.3.0", nil)

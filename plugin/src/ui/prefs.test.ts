@@ -98,7 +98,7 @@ describe("sanitizeGuardMode", () => {
     expect(sanitizeGuardMode("readonly")).toBe("readonly");
   });
 
-  // Falling back to a guard the user never chose would block writes with no
+  // Falling back to a guard the user never chose would block writes for no
   // visible reason.
   test("falls back to off for anything else", () => {
     expect(sanitizeGuardMode("paranoid")).toBe("off");
@@ -119,8 +119,8 @@ describe("panel size", () => {
     expect(prefs.panelHeight).toBe(400);
   });
 
-  // A slip of the mouse must not leave a window too small to find again, or one
-  // larger than the screen it is on.
+  // A slip of the mouse must not leave a window too small to find again, or
+  // one larger than its screen.
   test("clamps a stored size to something usable", () => {
     expect(sanitizePanelWidth(10)).toBe(MIN_PANEL_WIDTH);
     expect(sanitizePanelWidth(5000)).toBe(MAX_PANEL_WIDTH);

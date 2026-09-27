@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { handleWriteVariableRequest } from "./write-variables";
 
-// manage_variable replaced six tools on the MCP surface by dispatching on an
-// action. The six implementations are unchanged, so what needs pinning is the
-// routing: every action reaches the right one, an unknown action says so rather
-// than doing nothing, and the answer comes back under the name the caller used.
+// manage_variable replaced six tools in the MCP tool list by dispatching on an
+// action. The six implementations are unchanged, so the routing is what needs
+// testing: every action reaches the right one, an unknown action reports an
+// error instead of doing nothing, and the answer uses the name the caller used.
 
 let collections: Record<string, any>;
 let variables: Record<string, any>;
@@ -125,7 +125,7 @@ describe("manage_variable routing", () => {
     expect(mockNodes["1:1"].fills[0].boundTo).toBe("v1");
   });
 
-  // Delegating must not leak the name it delegated to.
+  // Delegating must not reveal the name it delegated to.
   it("answers under manage_variable, not the handler it routed to", async () => {
     const res = await manage({ action: "create_collection", name: "Semantic" });
     expect(res?.type).toBe("manage_variable");

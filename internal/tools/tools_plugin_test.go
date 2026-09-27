@@ -8,18 +8,18 @@ import (
 )
 
 // The Go table and the plugin's switch statements are two halves of one
-// contract, and nothing connected them: a tool declared here with no handler
-// there compiled, shipped, and failed at the user's machine with "Unknown
-// request type". This checks the halves line up.
+// contract, and nothing linked them. A tool declared here with no handler
+// there compiled, shipped, and failed on the user's machine with "Unknown
+// request type". This test checks that the halves match.
 
-// pluginOnlyInGo are the tools the plugin deliberately does not handle.
+// pluginOnlyInGo are the tools the plugin does not handle, on purpose.
 var pluginOnlyInGo = map[string]string{
 	"export_screenshots": "never reaches the plugin — the Go handler calls get_screenshot once per item and writes the files",
 }
 
 // A handler claims a tool by being the map entry under its name. The pipeline
-// is the exception: it takes the whole request before dispatch, so it compares
-// against request.type instead.
+// is the exception: it takes the whole request before dispatch, so it is
+// compared against request.type instead.
 func pluginClaims(sources, tool string) bool {
 	return strings.Contains(sources, `"`+tool+`": async (request)`) ||
 		strings.Contains(sources, `request.type !== '`+tool+`'`)

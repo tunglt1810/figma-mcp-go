@@ -5,16 +5,16 @@ import { getPinned } from "./pinned";
 import { reportProgress, stepProgress } from "./progress";
 
 // How many nodes get_document serializes when the caller sets no maxNodes. A
-// full-detail node costs on the order of a hundred tokens, so this keeps an
-// unscoped walk well inside a model's context while still covering a screen.
+// full-detail node costs about a hundred tokens, so this keeps an unscoped walk
+// well inside a model's context while still covering a screen.
 export const DEFAULT_MAX_NODES = 500;
 
 export const readDocumentHandlers: HandlerMap = {
 
   "get_selection": async (request) => {
-    // source "pinned" reads the set the designer pinned in the panel instead of
-    // whatever happens to be selected now. Same answer shape either way, so a
-    // caller that never asks for a pin is unaffected.
+    // source "pinned" reads the set the designer pinned in the panel, instead
+    // of whatever is selected now. The answer has the same shape either way, so
+    // a caller that never asks for a pin is not affected.
     if (request.params && request.params.source === "pinned") {
       const ids = getPinned();
       const nodes = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
@@ -69,13 +69,13 @@ export const readDocumentHandlers: HandlerMap = {
     const nodes = await Promise.all(
       request.nodeIds.map((id: string) => figma.getNodeByIdAsync(id)),
     );
-    // An id that resolved to nothing used to be filtered out in silence, which
-    // read back as "that node has no content" instead of "there is no such
-    // node". This absorbed get_node, whose one advantage was throwing on a bad
-    // id, so the diagnostic has to survive — per id, since the other ids in the
-    // same call still have real answers.
+    // An id that matched nothing used to be dropped silently. That read back
+    // as "that node has no content" instead of "there is no such node". This
+    // tool took over get_node, whose one advantage was throwing on a bad id,
+    // so the error must survive. It is reported per id, because the other ids
+    // in the same call still have real answers.
     //
-    // A DOCUMENT node is not missing, it is just not serializable, so it is
+    // A DOCUMENT node is not missing, it just cannot be serialized, so it is
     // dropped without being reported.
     const missing: string[] = [];
     const found: any[] = [];
@@ -84,20 +84,21 @@ export const readDocumentHandlers: HandlerMap = {
       if (!node) { missing.push(id); return; }
       if (node.type !== "DOCUMENT") found.push(node);
     });
-    // One budget across every requested node, as get_document shares one across
-    // pages: asking for a top-level frame by id otherwise returned its whole
-    // subtree with no ceiling. Sequential, so the budget is spent in the order
-    // the ids were given and the same call always answers the same way.
+    // One budget across every requested node, just as get_document shares one
+    // across pages. Otherwise asking for a top-level frame by id returned its
+    // whole subtree with no limit. Nodes are read one at a time, so the budget
+    // is spent in the order the ids were given and the same call always gives
+    // the same answer.
     const p = request.params || {};
     const budget = makeBudget(p.maxNodes ?? DEFAULT_MAX_NODES, p.depth);
     const serialized: any[] = [];
     for (const n of found) serialized.push(await serializeNode(n, budget, 0));
     // Fetching several nodes at once is exactly when the same fill repeats, so
-    // the dedupe get_document has always done applies here too.
+    // the dedupe that get_document has always done applies here too.
     //
-    // The wrapper is unconditional. Returning a bare array when nothing was
-    // deduped and an object when something was would make the caller handle two
-    // shapes for one tool; get_design_context already answers in this shape.
+    // The wrapper is always there. Returning a bare array when nothing was
+    // deduped and an object when something was would give the caller two shapes
+    // to handle for one tool. get_design_context already answers in this shape.
     const { tree, globalVars } = deduplicateStyles({ children: serialized });
     const data: any = { nodes: tree.children };
     if (globalVars) data.globalVars = globalVars;
@@ -106,26 +107,26 @@ export const readDocumentHandlers: HandlerMap = {
     return { type: request.type, requestId: request.requestId, data };
   },
 
-  // get_design_context was folded in here. It answered the same depth-limited
-  // tree, but rooted at the selection and with detail levels this tool did not
-  // have; each description had to explain when to reach for the other, which is
-  // the surest sign of one tool split in two. `scope` chooses the root and the
-  // rest of the arguments apply to all three.
+  // get_design_context was merged into this tool. It returned the same
+  // depth-limited tree, but rooted at the selection and with detail levels this
+  // tool did not have. Each description had to explain when to use the other,
+  // which is the clearest sign of one tool split in two. `scope` chooses the
+  // root, and the other arguments apply to all three scopes.
   "get_document": async (request) => {
     const p = request.params || {};
     const scope = p.scope || "page";
     const detail = p.detail || "full";
     const dedupeComponents = !!p.dedupeComponents;
-    // Two ceilings, because the two halves cut differently: maxNodes counts
-    // nodes through a shared budget, depth counts levels. Selection scope
-    // defaults to 2 levels, as get_design_context did — it is the "what am I
-    // looking at" scope. A page or document walk stays unbounded, which is what
+    // Two limits, because they cut in different ways: maxNodes counts nodes
+    // through a shared budget, depth counts levels. Selection scope defaults
+    // to 2 levels, as get_design_context did. It is the "what am I looking at"
+    // scope. A page or document walk has no depth limit, which is what
     // get_document has always meant.
     const depth = p.depth != null ? Number(p.depth) : scope === "selection" ? 2 : Infinity;
-    // The budget carries the selection's default depth too: without it the plain
-    // walk below, which only reads the budget, returned the whole subtree for a
-    // scope that promises two levels. maxNodes defaults to a cap for the same
-    // reason a result says `truncated` — an unbounded page walk can run to
+    // The budget also carries the selection's default depth. Without it, the
+    // plain walk below, which only reads the budget, returned the whole subtree
+    // for a scope that promises two levels. maxNodes defaults to a cap for the
+    // same reason a result reports `truncated`: an unlimited page walk can reach
     // hundreds of thousands of tokens, which no caller wants by accident.
     const budget = makeBudget(
       p.maxNodes ?? DEFAULT_MAX_NODES,
@@ -136,9 +137,9 @@ export const readDocumentHandlers: HandlerMap = {
     const serializeForDetail = async (n: any) => {
       const base = { id: n.id, name: n.name, type: n.type, bounds: getBounds(n) };
       if (detail === "minimal") return base;
-      // "full" reports the same node properties plus geometry and children, and runs
-      // its own style lookups. Building styles here first would double every
-      // getStyleByIdAsync round trip on the way to throwing the result away.
+      // "full" reports the same node properties plus geometry and children, and
+      // does its own style lookups. Building styles here first would double every
+      // getStyleByIdAsync round trip, only to throw the result away.
       if (detail !== "compact") return await serializeNode(n);
       const styles = await serializeStyles(n);
       const result: any = Object.assign({}, base, serializeNodeProperties(n));
@@ -276,9 +277,9 @@ export const readDocumentHandlers: HandlerMap = {
       return Object.assign({}, serialized, { children: serializedChildren });
     };
 
-    // The plain walk keeps the budget, which counts nodes rather than levels and
-    // is what reports `truncated`. It only applies where nothing asked for a
-    // trimmed shape: a detail level or a component dedupe is a different tree.
+    // The plain walk keeps the budget, which counts nodes, not levels, and
+    // reports `truncated`. It only applies when nothing asked for a trimmed
+    // shape: a detail level or a component dedupe gives a different tree.
     const plain = detail === "full" && !dedupeComponents && p.depth == null;
     const walk = async (node: any) =>
       plain ? await serializeNode(node, budget, 0) : await serializeWithDepth(node, 0);
@@ -289,7 +290,7 @@ export const readDocumentHandlers: HandlerMap = {
       roots = figma.root.children.slice();
     } else if (scope === "selection") {
       // Falling back to the page is what get_design_context did with nothing
-      // selected, and it is the more useful answer than an empty array.
+      // selected. It is a more useful answer than an empty array.
       roots = selection.length > 0 ? selection.slice() : [figma.currentPage];
     } else {
       roots = [figma.currentPage];
@@ -299,10 +300,10 @@ export const readDocumentHandlers: HandlerMap = {
     for (let i = 0; i < roots.length; i++) {
       throwIfCancelled(request.requestId);
       const root = roots[i];
-      // Under documentAccess "dynamic-page" an unloaded page reports no children
-      // at all, so a walk that skips this returns an empty file. Only the
-      // document scope needs it: the current page is already loaded, and paying
-      // to load anything is exactly what a page-scoped call is avoiding.
+      // Under documentAccess "dynamic-page", an unloaded page reports no
+      // children at all, so a walk that skips this returns an empty file. Only
+      // the document scope needs it. The current page is already loaded, and a
+      // page-scoped call exists to avoid paying to load anything.
       if (scope === "document" && root.type === "PAGE") await root.loadAsync();
       serializedRoots.push(await walk(root));
       if (scope === "document" && roots.length > 1) {
@@ -313,12 +314,12 @@ export const readDocumentHandlers: HandlerMap = {
         );
       }
       // One budget is shared across the pages, so maxNodes still means what it
-      // says and a file with a huge first page cannot starve the rest silently.
+      // says, and a file with a huge first page cannot silently starve the rest.
       if (plain && budget.remaining <= 0) break;
     }
 
-    // Deduped across every root rather than per root: a colour used on every
-    // page is exactly the one worth collapsing to a single ref.
+    // Deduped across every root, not per root: a colour used on every page is
+    // exactly the one worth collapsing into a single ref.
     const { tree, globalVars } = deduplicateStyles({ children: serializedRoots });
     const data: any = {
       fileName: figma.root.name,
@@ -404,11 +405,11 @@ export const readDocumentHandlers: HandlerMap = {
     const includeText = !!(request.params && request.params.includeText);
     const includeHidden = !(request.params && request.params.includeHidden === false);
 
-    // With documentAccess "dynamic-page" only the current page is in memory, so
-    // a search that never loads the others quietly reports "not found" for
-    // every node on them. Each root is loaded before it is walked; a page is
-    // loaded one at a time rather than through loadAllPagesAsync so a big file
-    // is paid for a page at a time.
+    // With documentAccess "dynamic-page", only the current page is in memory. A
+    // search that never loads the others quietly reports "not found" for every
+    // node on them. So each root is loaded before it is walked. Pages load one at
+    // a time, not through loadAllPagesAsync, so a big file is paid for one page
+    // at a time.
     let roots: any[];
     if (scopeNodeId) {
       const root = await figma.getNodeByIdAsync(scopeNodeId);
@@ -423,9 +424,9 @@ export const readDocumentHandlers: HandlerMap = {
     const results: any[] = [];
     const search = async (n: any, root: any, page: any) => {
       if (results.length >= limit) return;
-      // A hidden node hides its subtree with it, which is what scan_nodes_by_types
-      // meant by skipping them and what a designer means by "what is on this
-      // screen". Default on, because that is what this tool has always done.
+      // A hidden node hides its whole subtree. scan_nodes_by_types meant that by
+      // skipping hidden nodes, and so does a designer asking "what is on this
+      // screen". On by default, because that is what this tool has always done.
       if (!includeHidden && n !== root && "visible" in n && !n.visible) return;
       if (n !== root) {
         const nameMatch = !query || n.name.toLowerCase().includes(query);
@@ -437,14 +438,14 @@ export const readDocumentHandlers: HandlerMap = {
             type: n.type,
             bounds: getBounds(n),
           };
-          // What scan_text_nodes answered, on the nodes that have it. Off by
+          // What scan_text_nodes returned, for the nodes that have text. Off by
           // default: a page of copy is a lot of tokens to send unasked.
           if (includeText && n.type === "TEXT") {
             hit.characters = n.characters;
             hit.fontSize = isMixed(n.fontSize) ? "mixed" : n.fontSize;
             hit.fontName = isMixed(n.fontName) ? "mixed" : n.fontName;
           }
-          // Only when the answer spans pages — otherwise every hit would repeat
+          // Only when the answer spans pages. Otherwise every hit would repeat
           // the page the caller already knows it asked about.
           if (page) {
             hit.pageId = page.id;
@@ -461,7 +462,7 @@ export const readDocumentHandlers: HandlerMap = {
     const searchingPages = !scopeNodeId && scope === "document";
     for (let i = 0; i < roots.length; i++) {
       if (results.length >= limit) break;
-      // Between pages, not inside the walk: a page is the unit of work here,
+      // Between pages, not inside the walk. A page is the unit of work here,
       // and a check per node would cost more than the search itself.
       throwIfCancelled(request.requestId);
       const root = roots[i];
@@ -483,7 +484,7 @@ export const readDocumentHandlers: HandlerMap = {
         count: results.length,
         nodes: results,
         scope: scopeNodeId ? "node" : scope,
-        // A caller that gets exactly `limit` results cannot otherwise tell a
+        // Otherwise a caller that gets exactly `limit` results cannot tell a
         // complete answer from a truncated one.
         truncated: results.length >= limit,
       },

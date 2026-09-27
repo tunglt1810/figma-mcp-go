@@ -1,12 +1,12 @@
 // The panel's activity log.
 //
-// "AI is working…" said nothing about what was running, so a stuck or failing
-// tool looked identical to a slow one and the only way to find out was the
-// server's stdio log. The request payload already carries the tool name and a
-// request id, so the panel can simply show them.
+// "AI is working…" did not say what was running. A stuck or failing tool
+// looked the same as a slow one, and the only way to find out was the
+// server's stdio log. The request payload already has the tool name and a
+// request id, so the panel can just show them.
 //
-// Kept out of the component so the ring-buffer and status rules can be tested
-// without mounting Svelte.
+// Kept out of the component, so the ring buffer and status rules can be
+// tested without mounting Svelte.
 
 export type ActivityStatus = "running" | "ok" | "error";
 
@@ -16,23 +16,23 @@ export interface ActivityEntry {
   startedAt: number;
   endedAt?: number;
   status: ActivityStatus;
-  /** Latest progress message while running; the error text once failed. */
+  /** The latest progress message while running, or the error text after a failure. */
   message?: string;
 }
 
-/** How many entries the log keeps. The panel shows a handful; the rest is for
+/** How many entries the log keeps. The panel shows a few. The rest are for
  * the copy-to-clipboard dump that goes into a bug report. */
 export const MAX_ENTRIES = 20;
 
-/** Record a request that has just been handed to the plugin core. */
+/** Record a request that was just passed to the plugin core. */
 export function startEntry(
   log: ActivityEntry[],
   requestId: string,
   tool: string,
   now: number,
 ): ActivityEntry[] {
-  // Newest first: the panel shows the top of the list, which is where anything
-  // worth looking at just happened.
+  // Newest first. The panel shows the top of the list, where anything worth
+  // looking at just happened.
   const next = [
     { requestId, tool, startedAt: now, status: "running" as ActivityStatus },
     ...log.filter((entry) => entry.requestId !== requestId),
@@ -54,11 +54,11 @@ export function progressEntry(
 }
 
 /**
- * Close out an entry.
+ * Close an entry.
  *
- * A response for a request the log never saw is ignored rather than invented:
- * it means the log was trimmed under a long run, and a synthetic entry with no
- * start time would report a nonsense duration.
+ * A response for a request the log never saw is ignored, not invented. It
+ * means the log was trimmed during a long run, and a made-up entry with no
+ * start time would show a nonsense duration.
  */
 export function finishEntry(
   log: ActivityEntry[],

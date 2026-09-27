@@ -2,7 +2,7 @@
 
 ## 1. Introduction
 
-Figma uses Components and Instances to make UI reusable. A Component can be standalone (`COMPONENT`) or part of a set (`COMPONENT_SET`). The MCP Plugin supports creating a Component Instance from an ID or Component Key, as well as reading and writing override properties.
+Figma uses components and instances to make UI reusable. A component can stand alone (`COMPONENT`) or be part of a set (`COMPONENT_SET`). The MCP plugin can create an instance from a component ID or component key, and can read and write override properties.
 
 ## 2. Create a Component Instance (`create_component_instance`)
 
@@ -24,13 +24,13 @@ Figma uses Components and Instances to make UI reusable. A Component can be stan
    - If `componentId` is provided, use `figma.getNodeByIdAsync`.
    - If `componentKey` is provided, use `figma.importComponentByKeyAsync`.
 2. **Handle a Component Set**:
-   - If the found node is a `COMPONENT_SET`, automatically select its `defaultVariant` as the base component.
-   - If there is no `defaultVariant`, select the first variant in the `children` array.
+   - If the node is a `COMPONENT_SET`, use its `defaultVariant` as the base component.
+   - If there is no `defaultVariant`, use the first variant in the `children` array.
 3. **Create the instance**: Call `baseComponent.createInstance()`.
-4. **Position and attach it to the tree (Parent)**:
-   - If `parentId` is provided, attach the instance to that parent.
-   - Otherwise, attach it to `figma.currentPage`.
-   - Update `x` and `y` when provided. If they are not provided and the parent is a `PAGE`, automatically center the instance in the viewport:
+4. **Position it and add it to the tree (parent)**:
+   - If `parentId` is provided, add the instance to that parent.
+   - Otherwise, add it to `figma.currentPage`.
+   - Set `x` and `y` when provided. If they are not provided and the parent is a `PAGE`, center the instance in the viewport:
      ```typescript
      instance.x = figma.viewport.center.x - instance.width / 2;
      instance.y = figma.viewport.center.y - instance.height / 2;
@@ -40,13 +40,13 @@ Figma uses Components and Instances to make UI reusable. A Component can be stan
 
 ### Purpose
 
-Read the list of Component Properties (equivalent to the overrides in Figma's right-hand panel) currently assigned to an instance.
+Read the component properties currently set on an instance. These are the overrides shown in Figma's right-hand panel.
 
 ### Logic
 
 - Find the node by `nodeId`.
-- Ensure that its type is `INSTANCE`.
-- Read `instance.componentProperties`. Return a mapping from each property name to an object containing its `type` and `value`.
+- Check that its type is `INSTANCE`.
+- Read `instance.componentProperties`. Return a map from each property name to an object with its `type` and `value`.
 
 ## 4. Write Instance Overrides (`set_instance_overrides`)
 
@@ -65,5 +65,6 @@ Read the list of Component Properties (equivalent to the overrides in Figma's ri
 ### Logic
 
 - Find the node by `nodeId` (it must be an `INSTANCE`).
-- Use `instance.setProperties(properties)` to pass the complete mapping object `{ [propertyName: string]: value }`.
-- Use a **fail-fast** approach: if the properties are invalid (wrong name or type), the Figma API throws an error; MCP catches the error and returns it to the client.
+- Call `instance.setProperties(properties)` with the full map `{ [propertyName: string]: value }`.
+- **Fail fast**: if a property is invalid (wrong name or type), the Figma API throws an error. MCP catches it and returns it to the client.
+

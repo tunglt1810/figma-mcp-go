@@ -1,4 +1,4 @@
-// Plugin core — entry point, UI bootstrap, and request dispatch.
+// Plugin core: entry point, UI bootstrap, and request dispatch.
 
 import { readHandlers } from "./read-handlers";
 import { handleWriteRequest } from "./write-handlers";
@@ -25,16 +25,16 @@ const sendStatus = () => {
   });
 };
 
-// What this build can actually do. The UI passes it to the server on connect,
-// so a tool the server has and this plugin does not is reported as "update the
-// plugin" rather than as "Unknown request type" at call time. The maps live here
-// because importing them into the UI would pull the entire write surface into a
-// bundle that only needs the names.
+// What this build can do. The UI passes it to the server on connect, so a tool
+// the server has but this plugin lacks is reported as "update the plugin",
+// not as "Unknown request type" at call time. The maps live here because
+// importing them into the UI would pull all the write handlers into a bundle
+// that only needs the names.
 //
-// Sent at startup and again on ui-ready, like sendStatus: the panel's listener
-// is not installed when showUI returns, and a capability list that lands in that
-// gap leaves the server believing the plugin announced nothing — which it reads
-// as "old plugin, allow everything".
+// Sent at startup and again on ui-ready, like sendStatus. The panel's listener
+// is not installed yet when showUI returns. A capability list that arrives in
+// that gap leaves the server thinking the plugin announced nothing, which it
+// reads as "old plugin, allow everything".
 const sendCapabilities = () => {
   figma.ui.postMessage({
     type: "plugin-capabilities",
@@ -47,8 +47,8 @@ const sendCapabilities = () => {
 };
 
 const runRequest = async (request: any) => {
-  // Reads answer from one merged map; writes go through their own entry point
-  // because the pipeline has to intercept before dispatch.
+  // Reads are answered from one merged map. Writes have their own entry
+  // point, because the pipeline must intercept them before dispatch.
   const read = readHandlers[request.type];
   const result = read ? await read(request) : await handleWriteRequest(request);
   if (result === null) throw new Error(`Unknown request type: ${request.type}`);
@@ -57,18 +57,18 @@ const runRequest = async (request: any) => {
 
 export const handleRequest = async (request: any) => {
   try {
-    // Writes take their turn; reads do not wait. Two writes interleaving would
-    // put a plain write inside a pipeline's undo checkpoint — see write-queue.
-    // A pipeline queues even when every step of it only reads: two pipelines in
-    // flight at once share one undo checkpoint, so the user's Ctrl+Z would
-    // reverse a run they did not ask about.
+    // Writes wait their turn; reads do not wait. Two interleaved writes would
+    // put a plain write inside a pipeline's undo checkpoint (see write-queue).
+    // A pipeline queues even when all its steps only read. Two pipelines
+    // running at once share one undo checkpoint, so the user's Ctrl+Z would
+    // undo a run they did not ask about.
     return isMutating(request.type, request.params) || request.type === PIPELINE_TOOL
       ? await enqueueWrite(async () => {
-          // Time in the queue counts against the request's timeout, and a queued
-          // write emits no progress to extend it. By the time it is dequeued the
-          // server may already have given up, told the caller it failed and sent
-          // a cancel — mutating now would apply an edit the model has been told
-          // did not happen, and has retried.
+          // Time in the queue counts against the request's timeout, and a
+          // queued write sends no progress to extend it. By the time it leaves
+          // the queue, the server may have given up, told the caller it failed,
+          // and sent a cancel. Changing the document now would apply an edit the
+          // model was told did not happen, and has already retried.
           throwIfCancelled(request.requestId);
           return runRequest(request);
         })
@@ -80,8 +80,8 @@ export const handleRequest = async (request: any) => {
       error: error instanceof Error ? error.message : String(error),
     };
   } finally {
-    // Either way the request is over, so its cancellation flag has nothing
-    // left to answer.
+    // Either way the request is over, so its cancellation flag is no
+    // longer needed.
     clearCancelled(request.requestId);
   }
 };
@@ -91,9 +91,9 @@ const startPanel = () => {
     width: 320,
     height: 230,
     title: `Figma MCP Go [v${__APP_VERSION__}]`,
-    // The panel's dark palette hangs off a `figma-dark` class, and Figma only
-    // puts that class on the document when the plugin asks for it here. Without
-    // this the panel stayed light however the editor was themed.
+    // The panel's dark palette depends on a `figma-dark` class, and Figma only
+    // adds that class to the document when the plugin asks for it here. Without
+    // this, the panel stayed light whatever the editor theme was.
     themeColors: true,
   });
   sendStatus();
@@ -114,9 +114,9 @@ const startPanel = () => {
       return;
     }
     if (message.type === "get_ws_config") {
-      // Handed over raw: the UI owns the defaults (see ui/prefs.ts), so a value
-      // this side has never heard of survives a round trip instead of being
-      // flattened into a default here.
+      // Passed on as is. The UI owns the defaults (see ui/prefs.ts), so a
+      // value this side does not know survives a round trip instead of being
+      // replaced by a default here.
       const config = await figma.clientStorage.getAsync("ws_config");
       figma.ui.postMessage({ type: "ws_config", config: config ?? null });
       return;
@@ -127,8 +127,8 @@ const startPanel = () => {
     }
     if (message.type === "set_pinned_nodes") {
       const pinned = setPinned(message.nodeIds);
-      // Echoed back so the panel shows what the core actually holds rather than
-      // what it hoped it sent — the core drops blanks and duplicates.
+      // Sent back so the panel shows what the core really holds, not what it
+      // hoped it sent. The core drops blanks and duplicates.
       figma.ui.postMessage({ type: "pinned_nodes", nodeIds: pinned });
       figma.notify(
         pinned.length > 0
@@ -146,16 +146,16 @@ const startPanel = () => {
       return;
     }
     if (message.type === "resize_ui") {
-      // Clamped so a bad message cannot leave the panel unusably small or larger
-      // than the smallest laptop screen this runs on.
+      // Clamped, so a bad message cannot make the panel too small to use, or
+      // larger than the smallest laptop screen this runs on.
       const width = Math.min(Math.max(Number(message.width) || 320, 240), 800);
       const height = Math.min(Math.max(Number(message.height) || 230, 160), 900);
       figma.ui.resize(width, height);
       return;
     }
     if (message.type === "trigger_undo") {
-      // Reverses the last checkpoint — which, since the batch pipeline commits
-      // once for the whole run, is the whole of the model's last pipeline.
+      // Undoes the last checkpoint. The batch pipeline commits once for the
+      // whole run, so this undoes the model's whole last pipeline.
       if (typeof (figma as any).triggerUndo === "function") {
         (figma as any).triggerUndo();
       } else {
@@ -182,10 +182,10 @@ const startPanel = () => {
   };
 };
 
-// Dev Mode's Code panel runs the plugin in codegen mode: there is no panel to
-// show and no server to talk to, only "what code goes with this node". Keeping
-// that path clear of the WebSocket bootstrap is the difference between the Code
-// panel working and it waiting on a connection nobody made.
+// Dev Mode's Code panel runs the plugin in codegen mode. There is no panel to
+// show and no server to talk to, only "what code goes with this node". If this
+// path waited on the WebSocket bootstrap, the Code panel would hang on a
+// connection nobody made.
 if ((figma as any).mode === "codegen") {
   registerCodegen();
 } else {

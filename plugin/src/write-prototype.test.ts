@@ -138,8 +138,8 @@ describe("set_reactions with removeIndices", () => {
     expect(res?.data.removed).toBe(0);
   });
 
-  // The response says `removed` only when something was being removed, so a
-  // caller can tell which half of the tool answered it.
+  // The response has `removed` only when something was being removed, so a
+  // caller can tell which part of the tool answered.
   it("says nothing about removed when it is setting reactions", async () => {
     let stored: any[] = [];
     mockNodes["1:2"] = {

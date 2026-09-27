@@ -135,8 +135,8 @@ describe("set_text_ranges", () => {
     expect(result.data.rangesApplied).toBe(1);
   });
 
-  // Figma refuses to edit a text node while any font in it is unloaded, not
-  // just the fonts being written.
+  // Figma refuses to edit a text node while any of its fonts is unloaded, not
+  // only the fonts being written.
   it("loads every font already in the node", async () => {
     node.getRangeAllFontNames = () => [
       { family: "Inter", style: "Regular" },
@@ -220,7 +220,7 @@ describe("set_text_ranges with a font the file lacks", () => {
   });
 
   // A range asking for a missing font used to fail on that range, after the
-  // ranges before it had already been applied.
+  // earlier ranges had already been applied.
   it("applies no range at all when a later one asks for a missing font", async () => {
     await expect(
       call({
@@ -257,9 +257,9 @@ describe("set_text_ranges with a font the file lacks", () => {
 });
 
 describe("set_text_ranges when an earlier range changes the font", () => {
-  // A mock whose getRangeFontName reflects what has already been written, the
-  // way the real node does. A mock that always answers the same thing cannot
-  // catch a font that gets resolved twice.
+  // A mock whose getRangeFontName reflects what has already been written, like
+  // the real node. A mock that always gives the same answer cannot catch a
+  // font that is resolved twice.
   let fontAt: any[];
 
   beforeEach(() => {
@@ -277,10 +277,10 @@ describe("set_text_ranges when an earlier range changes the font", () => {
     };
   });
 
-  // The font was resolved twice: once to decide what to load, and again at write
-  // time against a node an earlier range had already changed. So Figma was asked
-  // for a font that was never loaded, and refused it — half way through the
-  // edit, with the earlier ranges already written.
+  // The font was resolved twice: once to decide what to load, and again at
+  // write time against a node that an earlier range had already changed. So
+  // Figma was asked for a font that was never loaded, and refused it halfway
+  // through the edit, with the earlier ranges already written.
   it("applies exactly the fonts it loaded", async () => {
     await call({
       ranges: [
@@ -294,7 +294,7 @@ describe("set_text_ranges when an earlier range changes the font", () => {
   });
 
   // Every range reads the node as the caller saw it, so the answer does not
-  // depend on which range happens to be written first.
+  // depend on which range is written first.
   it("inherits from the text as it was when the call started", async () => {
     await call({
       ranges: [

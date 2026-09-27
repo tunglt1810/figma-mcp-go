@@ -1,9 +1,9 @@
 package tools
 
 // variableVariants say which arguments belong to which variable action. Six
-// tools became one, and their arguments overlap without meaning the same thing
-// — collectionId names the parent when creating and the target when deleting —
-// so an argument from the wrong action is rejected rather than dropped.
+// tools became one, and their arguments overlap without meaning the same thing:
+// collectionId names the parent when creating, and the target when deleting.
+// So an argument for the wrong action is rejected, not dropped.
 var variableVariants = map[string]variantSpec{
 	"create_collection": {Allowed: []string{"name", "initialModeName"}, Required: []string{"name"}},
 	"add_mode":          {Allowed: []string{"collectionId", "modeName"}, Required: []string{"collectionId", "modeName"}},
@@ -16,15 +16,16 @@ var variableVariants = map[string]variantSpec{
 var writeVariableSpecs = []toolSpec{
 	{
 		Name: "manage_variable",
-		Desc: "Manage variables (design tokens). Arguments per `action`: " +
+		Desc: "Manage variables (design tokens). Args per `action`: " +
 			"create_collection: name, initialModeName. " +
 			"add_mode: collectionId, modeName. " +
 			"create: name, collectionId, type, value. " +
 			"set_value: variableId, modeId, value. " +
 			"delete: variableId, or collectionId (deletes all its variables). " +
-			"bind: nodeId, variableId, field (link a node property to the variable). Get IDs from get_variable_defs. " +
-			"Free plan allows 1 mode per collection: if add_mode fails with 'Limited to 1 modes only', do not retry; " +
-			"put the mode in the name instead (e.g. 'light/bg', 'dark/bg') and tell the user multi-mode needs a paid plan.",
+			"bind: nodeId, variableId, field (node property to link). IDs from get_variable_defs. " +
+			"Free plan: 1 mode per collection. If add_mode fails with 'Limited to 1 modes only', do not retry; " +
+			"put the mode in the name (e.g. 'light/bg') and tell the user multi-mode needs a paid plan.",
+
 		NodeIDs:    nodeIDsSingle,
 		NodeIDDesc: "bind: the node",
 		Params: []paramSpec{
@@ -54,16 +55,16 @@ var writeVariableSpecs = []toolSpec{
 			}
 			switch action, _ := params["action"].(string); action {
 			case "delete":
-				// Either target is enough, but a delete with neither would be a
-				// call that names nothing to remove.
+				// Either target is enough, but a delete with neither would name
+				// nothing to remove.
 				variableID, _ := params["variableId"].(string)
 				collectionID, _ := params["collectionId"].(string)
 				if variableID == "" && collectionID == "" {
 					return "variableId or collectionId is required when action is delete"
 				}
 			case "bind":
-				// The node travels in its own field, so requireVariant — which
-				// only sees params — cannot ask for it.
+				// The node goes in its own field. requireVariant only sees params,
+				// so it cannot require it.
 				if len(nodeIDs) == 0 {
 					return "nodeId is required when action is bind"
 				}

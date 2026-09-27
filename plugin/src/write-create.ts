@@ -3,9 +3,9 @@ import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from ".
 import { HandlerMap } from "./dispatch";
 import { loadFonts } from "./fonts";
 
-// create_node replaced seven create_* tools on the MCP surface. The seven
-// implementations stay separate below, because these shapes genuinely differ;
-// only the surface merged.
+// create_node replaced seven create_* tools in the MCP tool list. The seven
+// implementations below stay separate, because the shapes really do differ.
+// Only the tool surface merged.
 const NODE_ACTIONS: Record<string, string> = {
   FRAME: "create_frame",
   RECTANGLE: "create_rectangle",
@@ -19,13 +19,12 @@ const NODE_ACTIONS: Record<string, string> = {
 /**
  * The size to give a newly placed image.
  *
- * An explicit width and height win. One of the two is still an instruction —
- * the schema takes them independently — so the other is derived from the
- * image's aspect ratio rather than dropped on the floor. With neither, the
- * image's own dimensions are used, scaled down to fit a sensible box so a
- * 4000px photo does not land as a 4000px rectangle. getSizeAsync can fail on a
- * malformed image, and a placeholder is a better outcome there than a failed
- * import.
+ * An explicit width and height win. Only one of the two is still an
+ * instruction, because the schema takes them separately. So the other is
+ * derived from the image's aspect ratio instead of being ignored. With
+ * neither, the image's own size is used, scaled down to fit a sensible box,
+ * so a 4000px photo does not land as a 4000px rectangle. getSizeAsync can
+ * fail on a broken image. A placeholder is better than a failed import there.
  */
 export const imageSize = async (image: any, p: any) => {
   const width = p.width != null ? Number(p.width) : null;
@@ -44,9 +43,9 @@ export const imageSize = async (image: any, p: any) => {
 };
 
 // Figma expresses a crop as the 2x3 affine transform that maps the fill's unit
-// square onto a region of the image, so {x, y, width, height} in fractions of
-// the image is scale-then-translate. Callers get the rectangle; the matrix
-// stays here, where the one formula lives.
+// square onto a region of the image. So {x, y, width, height}, in fractions of
+// the image, becomes a scale followed by a translate. Callers pass the
+// rectangle. The matrix stays here, with the one formula.
 export const cropToTransform = (crop: any): [[number, number, number], [number, number, number]] => [
   [Number(crop.width), 0, Number(crop.x)],
   [0, Number(crop.height), Number(crop.y)],
@@ -62,7 +61,7 @@ export const writeCreateHandlers: HandlerMap = {
     );
   }
   const result = await handleWriteCreateRequest({ ...request, type: action, params });
-  // Answer under the name the caller used, not the one we delegated to.
+  // Answer with the name the caller used, not the one we delegated to.
   return { ...result, type: request.type }
   },
 
@@ -113,9 +112,9 @@ export const writeCreateHandlers: HandlerMap = {
     ellipse.y = p.y != null ? p.y : 0;
     if (p.name) ellipse.name = p.name;
     if (p.fillColor) ellipse.fills = [makeSolidPaint(p.fillColor)];
-    // startAngle/endAngle/innerRadiusRatio were declared by the tool but
-    // never read here, so arcs and rings silently came out as plain
-    // ellipses. Assemble Figma's arcData from them.
+    // The tool declared startAngle/endAngle/innerRadiusRatio, but they
+    // were never read here, so arcs and rings quietly came out as plain
+    // ellipses. Build Figma's arcData from them.
     if (p.startAngle != null || p.endAngle != null || p.innerRadiusRatio != null) {
       ellipse.arcData = {
         startingAngle: p.startAngle ?? 0,
@@ -241,8 +240,8 @@ export const writeCreateHandlers: HandlerMap = {
       throw new Error("imageData (base64) or imageUrl is required");
     }
 
-    // A URL avoids pushing the whole file through the WebSocket as base64,
-    // which is the expensive half of placing an image.
+    // A URL avoids sending the whole file through the WebSocket as base64,
+    // which is the expensive part of placing an image.
     const image = p.imageUrl
       ? await figma.createImageAsync(p.imageUrl)
       : figma.createImage(base64ToBytes(p.imageData));
@@ -254,14 +253,14 @@ export const writeCreateHandlers: HandlerMap = {
     if (p.crop) fill.imageTransform = cropToTransform(p.crop);
     if (p.filters) fill.filters = { ...p.filters };
 
-    // Painting an existing node beats making a rectangle beside it: an avatar
-    // or a hero slot is usually already there, waiting for its picture.
+    // Painting an existing node is better than making a rectangle next to it.
+    // An avatar or a hero slot is usually already there, waiting for its picture.
     if (p.nodeId) {
       const target = await figma.getNodeByIdAsync(p.nodeId) as any;
       if (!target) throw new Error(`Node not found: ${p.nodeId}`);
       if (!("fills" in target)) throw new Error(`Node ${p.nodeId} does not support fills`);
       if (p.mode === "append") {
-        // figma.mixed is a symbol, and spreading it throws "is not iterable" —
+        // figma.mixed is a symbol, and spreading it throws "is not iterable",
         // an error that names neither the node nor the fix.
         if (!Array.isArray(target.fills)) {
           throw new Error(
@@ -282,8 +281,8 @@ export const writeCreateHandlers: HandlerMap = {
 
     const parent = await getParentNode(p.parentId);
     const rect = figma.createRectangle();
-    // Fall back to the image's own size rather than a fixed 200x200, so an
-    // imported picture is not silently squashed into a square.
+    // Fall back to the image's own size, not a fixed 200x200, so an
+    // imported picture is not quietly squashed into a square.
     const { width, height } = await imageSize(image, p);
     rect.resize(width, height);
     rect.x = p.x != null ? p.x : 0;
@@ -330,7 +329,7 @@ export const writeCreateHandlers: HandlerMap = {
       component.primaryAxisAlignItems = node.primaryAxisAlignItems;
       component.counterAxisAlignItems = node.counterAxisAlignItems;
     }
-    // Move children from frame into component
+    // Move the children from the frame into the component
     for (const child of [...node.children]) {
       component.appendChild(child);
     }

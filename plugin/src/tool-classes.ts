@@ -1,8 +1,8 @@
 // How the UI classifies an incoming request, without importing the handler
-// modules. Those modules touch the `figma` global at call time and pull the
-// whole write surface into the UI bundle, which is a separate build; a plain
-// list keeps the panel small. tool-classes.test.ts pins the lists against the
-// real handler maps, so a tool cannot be added without being classified.
+// modules. Those modules use the `figma` global at call time, and would pull
+// all the write handlers into the UI bundle, which is a separate build. A plain
+// list keeps the panel small. tool-classes.test.ts checks these lists against
+// the real handler maps, so a tool cannot be added without being classified.
 
 /** Requests that only read. Everything else changes something. */
 export const READ_TOOLS: ReadonlySet<string> = new Set([
@@ -15,10 +15,10 @@ export const READ_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Write-side requests that leave the document exactly as they found it.
+ * Write-side requests that leave the document exactly as it was.
  *
- * They are dispatched as writes but read-only mode has no reason to block
- * them: pointing the user at a node changes nothing, and saving a named
+ * They are dispatched as writes, but read-only mode has no reason to block
+ * them. Pointing the user at a node changes nothing, and saving a named
  * version is the opposite of destructive.
  */
 export const HARMLESS_WRITE_TOOLS: ReadonlySet<string> = new Set([
@@ -33,8 +33,8 @@ const READ_ONLY_PLUGIN_DATA_ACTIONS = new Set(["get", "keys"]);
 /**
  * Requests that destroy or rewrite existing work in one call.
  *
- * Deliberately tight. Anything a single Ctrl+Z puts back and that touches one
- * node the user just pointed at is not on this list — a prompt in front of
+ * Kept short on purpose. An edit that one Ctrl+Z reverts, and that touches
+ * one node the user just pointed at, is not on this list. A prompt before
  * every edit is a prompt nobody reads.
  */
 export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
@@ -42,14 +42,14 @@ export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
   "delete_page",
   "delete_style",
   // Still a handler, reached through manage_variable or named directly by a
-  // pipeline step, exactly as delete_page is.
+  // pipeline step, just like delete_page.
   "delete_variable",
   "detach_instance",
   "find_replace_text",
   "batch_rename_nodes",
-  // These consume the shapes they take and hand back one new node. Undo puts
-  // them back, but the pipeline's rollback log cannot — it can remove a node it
-  // created, not un-merge geometry Figma has already combined.
+  // These use up the shapes they take and return one new node. Undo brings
+  // the shapes back, but the pipeline's rollback log cannot. It can remove a
+  // node it created, but cannot un-merge geometry Figma has already combined.
   "boolean_operation",
   "flatten_nodes",
 ]);
@@ -61,9 +61,9 @@ export const PIPELINE_TOOL = "batch_execute_pipeline";
 export function isMutating(type: string, params?: any): boolean {
   if (READ_TOOLS.has(type)) return false;
   if (HARMLESS_WRITE_TOOLS.has(type)) return false;
-  // manage_page merged four page tools behind an action; only navigating is
-  // harmless, and blocking it would stop the model moving around a file it is
-  // allowed to look at.
+  // manage_page merged four page tools behind an action. Only navigating is
+  // harmless, and blocking it would stop the model from moving around a file
+  // it is allowed to look at.
   if (type === "manage_page") return params?.action !== "navigate";
   // Reading a node's stored metadata changes nothing.
   if (type === "manage_plugin_data") {
@@ -87,7 +87,7 @@ export function isDestructive(type: string, params?: any): boolean {
   // Removing a component property changes every instance that used it.
   if (type === "manage_component_properties") return params?.action === "delete";
   // A pipeline is as destructive as its worst step. It runs as one unit inside
-  // the plugin core, so this is the last point at which it can be stopped.
+  // the plugin core, so this is the last chance to stop it.
   if (type === PIPELINE_TOOL) {
     const steps = params?.steps;
     if (!Array.isArray(steps)) return false;
@@ -96,7 +96,7 @@ export function isDestructive(type: string, params?: any): boolean {
   return false;
 }
 
-/** Short human-readable reason a request is being held for confirmation. */
+/** A short, human-readable reason why a request is waiting for confirmation. */
 export function destructiveReason(type: string, params?: any): string {
   if (type === PIPELINE_TOOL) {
     const steps = Array.isArray(params?.steps) ? params.steps : [];

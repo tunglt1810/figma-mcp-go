@@ -350,8 +350,8 @@ describe("create_ellipse", () => {
   });
 });
 
-// startAngle/endAngle/innerRadiusRatio were declared by the tool but the
-// handler only read arcData, so every arc and ring came out a plain ellipse.
+// The tool declared startAngle/endAngle/innerRadiusRatio, but the handler
+// only read arcData, so every arc and ring came out as a plain ellipse.
 describe("create_ellipse arcs", () => {
   it("builds arcData from the angle arguments", async () => {
     const res = await handleWriteCreateRequest(makeRequest("create_ellipse", [], {
@@ -375,8 +375,8 @@ describe("create_ellipse arcs", () => {
   });
 });
 
-// create_node replaced seven create_* tools on the MCP surface. These check the
-// router reaches each of the seven implementations.
+// create_node replaced seven create_* tools in the MCP tool list. These check
+// that the router reaches each of the seven implementations.
 describe("create_node", () => {
   const create = (params: any) =>
     handleWriteCreateRequest({ type: "create_node", requestId: "req-1", nodeIds: [], params });
@@ -415,7 +415,7 @@ describe("create_node", () => {
 
 describe("cropToTransform", () => {
   // Figma takes the affine transform that maps the fill's unit square onto the
-  // region of the image; the caller gives a rectangle in fractions of it.
+  // region of the image. The caller gives a rectangle in fractions of the image.
   it("maps a crop rectangle to a scale-then-translate matrix", () => {
     expect(cropToTransform({ x: 0.25, y: 0.1, width: 0.5, height: 0.8 })).toEqual([
       [0.5, 0, 0.25],
@@ -468,8 +468,8 @@ describe("import_image sizing", () => {
     expect(placed()).toEqual({ width: 300, height: 100 });
   });
 
-  // The schema takes width and height independently, so a caller giving one is
-  // asking for something — dropping it left the image at a size nobody chose.
+  // The schema takes width and height separately, so a caller who gives one
+  // is asking for something. Dropping it left the image at a size nobody chose.
   it("keeps the aspect ratio when only a width is given", async () => {
     await imported({ width: 300 });
     expect(placed()).toEqual({ width: 300, height: 150 });
@@ -503,9 +503,9 @@ describe("import_image onto an existing node", () => {
     expect(mockNodes["1:1"].fills.map((f: any) => f.type)).toEqual(["SOLID", "IMAGE"]);
   });
 
-  // A node whose parts carry different fills reports figma.mixed, which is a
-  // symbol. Spreading it threw "is not iterable" — an error naming neither the
-  // node nor what to do about it.
+  // A node whose parts have different fills reports figma.mixed, which is a
+  // symbol. Spreading it threw "is not iterable", an error that names neither
+  // the node nor what to do about it.
   it("names the problem when appending to mixed fills", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Card", type: "FRAME", fills: (globalThis as any).figma.mixed };
     await expect(paint({ nodeId: "1:1", mode: "append" })).rejects.toThrow(/mixed fills/);

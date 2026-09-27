@@ -1,4 +1,4 @@
-// Serializers — shared read/write helpers for converting Figma node data to JSON.
+// Serializers: shared read/write helpers that convert Figma node data to JSON.
 
 export const isMixed = (value: any) => typeof value === "symbol";
 
@@ -7,10 +7,10 @@ export const isMixed = (value: any) => typeof value === "symbol";
 const pixelRound = (v: number) => Math.round(v * 100) / 100;
 
 // Round a 0–1 ratio (gradient stop position, paint opacity) to 4 decimals.
-// Figma returns 32-bit floats, so an exact 40% arrives as 0.4000000059604645.
+// Figma returns 32-bit floats, so an exact 40% comes back as 0.4000000059604645.
 const ratioRound = (v: number) => Math.round(v * 10000) / 10000;
 
-// Append a two-digit alpha to a #rrggbb hex, leaving fully opaque colours bare.
+// Add a two-digit alpha to a #rrggbb hex. Fully opaque colours stay without one.
 const withAlpha = (hex: string, alpha: number) =>
   alpha >= 1
     ? hex
@@ -38,8 +38,8 @@ export const serializePaints = (paints: any, node?: any) => {
   if (!paints || !Array.isArray(paints)) return undefined;
 
   const result = paints
-    // A paint with the eye toggled off contributes nothing to the render, so drop it
-    // rather than reporting a colour the node does not actually show.
+    // A paint with its eye toggled off adds nothing to the render. Drop it
+    // instead of reporting a colour the node does not show.
     .filter((paint: any) => paint.visible !== false)
     .filter((paint: any) => {
       return (paint.type === "SOLID" && "color" in paint) || 
@@ -55,21 +55,21 @@ export const serializePaints = (paints: any, node?: any) => {
 
       // GRADIENT
       const inv = invertTransform(paint.gradientTransform);
-      // Keep position as a 0–1 float for precision, but strip float noise:
-      // Figma reports a 40% stop as 0.4000000059604645. cssString rounds to integer %.
+      // Keep position as a 0–1 float for precision, but remove float noise:
+      // Figma reports a 40% stop as 0.4000000059604645. cssString rounds to a whole %.
       const rawStops = paint.gradientStops.map((stop: any) => ({
         position: ratioRound(stop.position),
         hex: toHex(stop.color),
         alpha: stop.color.a != null ? stop.color.a : 1,
       }));
-      // stops[] stays raw — it is what set_paint accepts back, so folding the
-      // paint-level opacity in here would corrupt a read-then-write round trip.
+      // stops[] stays raw, because set_paint accepts it back. Folding the
+      // paint-level opacity in here would break a read-then-write round trip.
       const stops = rawStops.map((s: any) => ({ position: s.position, color: withAlpha(s.hex, s.alpha) }));
       // Paint-level opacity is what Figma shows next to the fill type ("Radial 100 %").
       // A gradient has no single colour to carry it, so it gets its own field.
       const gradientOpacity = paintOpacity !== 1 ? { opacity: ratioRound(paintOpacity) } : {};
-      // cssString is the ready-to-render form, so it does fold paint opacity into each
-      // stop's alpha. Without this a half-transparent gradient would render solid.
+      // cssString is the ready-to-render form, so it does fold paint opacity into
+      // each stop's alpha. Without this, a half-transparent gradient would render solid.
       const stopStrings = rawStops
         .map((s: any) => `${withAlpha(s.hex, s.alpha * paintOpacity)} ${Math.round(s.position * 100)}%`)
         .join(", ");
@@ -97,8 +97,8 @@ export const serializePaints = (paints: any, node?: any) => {
         const E = (A + C) / 2;
         const F = Math.sqrt( Math.pow(A - C, 2) / 4 + B*B );
         
-        // Singular values (true radii of the ellipse when mapping a radius 0.5 circle)
-        // Since gradient circle has radius 0.5 in gradient space, we multiply by 0.5
+        // Singular values: the true radii of the ellipse that a radius-0.5 circle maps to.
+        // The gradient circle has radius 0.5 in gradient space, so we multiply by 0.5.
         const rx = 0.5 * Math.sqrt(E + F);
         const ry = 0.5 * Math.sqrt(E - F);
 
@@ -110,7 +110,7 @@ export const serializePaints = (paints: any, node?: any) => {
         const cyPercent = Math.round(cy * 100);
         
         // CSS radial-gradient: rx% is relative to element width, ry% to element height.
-        // Omit shape keyword — browser defaults to ellipse which accepts % values.
+        // Omit the shape keyword. Browsers default to ellipse, which accepts % values.
         const cssString = `radial-gradient(${rxPercent}% ${ryPercent}% at ${cxPercent}% ${cyPercent}%, ${stopStrings})`;
 
         return {
@@ -170,28 +170,29 @@ export const getBounds = (node: any) => {
   return undefined;
 };
 
-// Keys serializeEffects renames or handles itself, plus plugin-internal bookkeeping
-// that carries no design meaning.
+// Keys that serializeEffects renames or handles itself, plus plugin-internal
+// bookkeeping with no design meaning.
 //
-// `opacity` is in here because NoiseEffectMultitone has an effect-level opacity of its
-// own. Letting the generic pass-through copy it would clobber the alpha we lift out of
-// `color`, so it is surfaced as noiseOpacity instead.
+// `opacity` is here because NoiseEffectMultitone has its own effect-level
+// opacity. If the generic pass-through copied it, it would overwrite the alpha
+// we take from `color`. So it is reported as noiseOpacity instead.
 const effectKeysHandledElsewhere = new Set([
   "type", "color", "secondaryColor", "offset", "opacity", "visible", "boundVariables",
 ]);
 
-// Values Figma reports at these keys are already the type's default, so reporting them
-// is noise. A missing blurType means NORMAL, which is what serializeEffects omits here.
+// These values are the type's default at these keys, so reporting them is
+// noise. A missing blurType means NORMAL, which serializeEffects omits here.
 const effectDefaults: Record<string, unknown> = { blendMode: "NORMAL", blurType: "NORMAL" };
 
 const isVector = (v: any) => v && typeof v.x === "number" && typeof v.y === "number";
 
-// Serialize node.effects into the shape set_effects accepts, so a read result can be
-// fed straight back into a write without translation.
+// Serialize node.effects into the shape set_effects accepts, so a read result
+// can go straight back into a write without translation.
 //
-// Colour and offset are normalised into hex and offsetX/offsetY. Everything else is
-// passed through: Figma keeps adding effect types (GLASS, NOISE, TEXTURE, SHADER) with
-// parameters of their own, and listing only the ones we recognise would drop them.
+// Colour and offset are normalised to hex and offsetX/offsetY. Everything else
+// passes through as is. Figma keeps adding effect types (GLASS, NOISE, TEXTURE,
+// SHADER) with their own parameters, and listing only the ones we know would
+// drop the rest.
 export const serializeEffects = (effects: any) => {
   if (isMixed(effects)) return "mixed";
   if (!effects || !Array.isArray(effects)) return undefined;
@@ -212,7 +213,7 @@ export const serializeEffects = (effects: any) => {
         out.offsetX = pixelRound(effect.offset.x);
         out.offsetY = pixelRound(effect.offset.y);
       }
-      // NOISE MULTITONE carries an opacity that is not the colour's alpha.
+      // NOISE MULTITONE has an opacity that is separate from the colour's alpha.
       if (effect.type === "NOISE" && typeof effect.opacity === "number") {
         out.noiseOpacity = ratioRound(effect.opacity);
       }
@@ -222,9 +223,9 @@ export const serializeEffects = (effects: any) => {
         const value = effect[key];
         if (effectDefaults[key] === value) continue;
         if (typeof value === "number") {
-          // Zero is the identity for these parameters (spread, dispersion, density …),
-          // so it is a default worth omitting. Radius always applies: a zero-radius
-          // shadow is a hard edge, which is not the same as no shadow.
+          // Zero is the neutral value for these parameters (spread, dispersion,
+          // density …), so it is a default worth omitting. Radius always applies:
+          // a zero-radius shadow is a hard edge, which is not the same as no shadow.
           if (value === 0 && key !== "radius") continue;
           out[key] = pixelRound(value);
         } else if (typeof value === "string") {
@@ -245,8 +246,8 @@ export const serializeEffects = (effects: any) => {
   return result.length > 0 ? result : undefined;
 };
 
-// Auto-layout settings, mirroring the arguments create_node accepts.
-// Only emitted for frames that actually use auto-layout.
+// Auto-layout settings, matching the arguments create_node accepts.
+// Only emitted for frames that use auto-layout.
 export const serializeLayout = (node: any) => {
   if (!("layoutMode" in node) || node.layoutMode === "NONE") return undefined;
 
@@ -269,7 +270,7 @@ export const serializeStyles = async (node: any) => {
   const styles: any = {};
 
   if ("fills" in node) {
-    // Prefer named style over raw fill values when a style is applied.
+    // Prefer the named style over raw fill values when a style is applied.
     if (node.fillStyleId && typeof node.fillStyleId === "string") {
       const style = await figma.getStyleByIdAsync(node.fillStyleId);
       if (style) styles.fillStyle = style.name;
@@ -286,20 +287,19 @@ export const serializeStyles = async (node: any) => {
     const strokes = serializePaints(node.strokes);
     if (strokes !== undefined) {
       styles.strokes = strokes;
-      // Weight and alignment only mean something when there is a stroke to draw.
+      // Weight and alignment only matter when there is a stroke to draw.
       if ("strokeWeight" in node)
         styles.strokeWeight = isMixed(node.strokeWeight) ? "mixed" : node.strokeWeight;
       if (node.strokeAlign) styles.strokeAlign = node.strokeAlign;
       if (Array.isArray(node.dashPattern) && node.dashPattern.length > 0)
         styles.dashPattern = node.dashPattern;
-      // The rest of the stroke geometry set_node_properties writes. Read back
-      // so a caller can round-trip a stroke rather than only half of one.
+      // The rest of the stroke geometry that set_node_properties writes. Read it
+      // back so a caller can round-trip the whole stroke, not only half of it.
       if ("strokeCap" in node && node.strokeCap)
         styles.strokeCap = isMixed(node.strokeCap) ? "mixed" : node.strokeCap;
       if ("strokeJoin" in node && node.strokeJoin)
         styles.strokeJoin = isMixed(node.strokeJoin) ? "mixed" : node.strokeJoin;
-      // 4 is Figma's default and says nothing, so only a changed limit is worth
-      // the tokens.
+      // 4 is Figma's default and tells nothing, so only report a changed limit.
       if (typeof node.strokeMiterLimit === "number" && node.strokeMiterLimit !== 4)
         styles.strokeMiterLimit = node.strokeMiterLimit;
     }
@@ -317,7 +317,7 @@ export const serializeStyles = async (node: any) => {
   const layout = serializeLayout(node);
   if (layout) styles.layout = layout;
 
-  // Padding only matters under auto-layout, and only when something is non-zero.
+  // Padding only matters under auto-layout, and only when some value is non-zero.
   if ("paddingLeft" in node) {
     const padding = {
       top: node.paddingTop,
@@ -349,13 +349,13 @@ export const serializeLetterSpacing = (letterSpacing: any) => {
 };
 
 /**
- * Per-range styling, but only when the node actually has more than one.
+ * Per-range styling, but only when the node has more than one style.
  *
- * The node-level style fields report "mixed" for a paragraph with one bold
- * word, which tells a code generator that something varies and nothing about
- * what — so bold, links and colour changes were lost on the way to code. A node
- * styled uniformly returns nothing here: a single segment repeating what the
- * fields above already say is pure noise in every serialized tree.
+ * For a paragraph with one bold word, the node-level style fields report
+ * "mixed". That tells a code generator that something varies, but not what.
+ * So bold, links and colour changes were lost on the way to code. A node with
+ * one style returns nothing here: a single segment that repeats the fields
+ * above is pure noise in every serialized tree.
  */
 export const serializeStyledSegments = (node: any) => {
   if (typeof node.getStyledTextSegments !== "function") return undefined;
@@ -432,8 +432,8 @@ export const serializeText = async (node: any, base: any) => {
           : undefined,
       lineHeight: serializeLineHeight(node.lineHeight),
       letterSpacing: serializeLetterSpacing(node.letterSpacing),
-      // LEFT and TOP are Figma's defaults; reporting them on every text node
-      // in a tree costs tokens and says nothing.
+      // LEFT and TOP are Figma's defaults. Reporting them on every text node
+      // in a tree costs tokens and tells nothing.
       textAlignHorizontal: isMixed(node.textAlignHorizontal)
         ? "mixed"
         : node.textAlignHorizontal !== "LEFT"
@@ -448,9 +448,9 @@ export const serializeText = async (node: any, base: any) => {
   });
 };
 
-// Per-corner radii, but only when they actually differ from the uniform cornerRadius.
-// Figma reports all four on every rectangle and frame; repeating them when they all
-// match is pure noise.
+// Per-corner radii, but only when they differ from the uniform cornerRadius.
+// Figma reports all four on every rectangle and frame. Repeating them when
+// they all match is pure noise.
 const getCornerRadii = (node: any) => {
   const corners = ["topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius"];
   if (!corners.every((c) => c in node)) return undefined;
@@ -462,7 +462,7 @@ const getCornerRadii = (node: any) => {
 const getGeometry = (node: any) => {
   const geom: any = {};
 
-  // Omit defaults: an unrotated node with square corners has nothing to report.
+  // Omit defaults: a node with no rotation and square corners has nothing to report.
   if ("rotation" in node && node.rotation !== 0) {
     geom.rotation = pixelRound(node.rotation);
   }
@@ -496,9 +496,10 @@ const getGeometry = (node: any) => {
   return Object.keys(geom).length > 0 ? geom : undefined;
 };
 
-// Node-level properties, mirroring what set_node_properties can write so that reads
-// and writes cover the same ground. Rotation is left to getGeometry, which already
-// reports it. Every field is omitted at its default value to keep output small.
+// Node-level properties, matching what set_node_properties can write, so reads
+// and writes cover the same ground. Rotation is left to getGeometry, which
+// already reports it. Each field is omitted at its default value to keep the
+// output small.
 export const serializeNodeProperties = (node: any) => {
   const props: any = {};
 
@@ -517,10 +518,10 @@ export const serializeNodeProperties = (node: any) => {
 /**
  * What a component or variant set exposes to its instances.
  *
- * Reading a component told you its layers and nothing about its API, so the
+ * Reading a component used to show its layers but nothing about its API. The
  * only way to learn a property's name was to place an instance and inspect it.
- * The `#1:2` suffix Figma appends is kept, because that is the id every write
- * has to quote back, with the bare name alongside for reading.
+ * The `#1:2` suffix Figma adds is kept, because every write must quote that
+ * id back. The bare name is included too, for reading.
  */
 export const serializeComponentPropertyDefinitions = (node: any) => {
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") return undefined;
@@ -540,20 +541,19 @@ export const serializeComponentPropertyDefinitions = (node: any) => {
 };
 
 /**
- * Bounds on how much of a tree serializeNode will walk.
+ * Limits on how much of a tree serializeNode will walk.
  *
- * get_document on a busy page produced one object per node with no ceiling,
- * which is a payload nothing on the far side asked for and an LLM context
- * nothing survives. A budget is shared across the whole walk rather than
- * applied per branch, so the cost of an answer is bounded by the answer and
- * not by the shape of the tree.
+ * On a busy page, get_document produced one object per node with no limit.
+ * Nobody asked for a payload that big, and no LLM context survives it. One
+ * budget is shared across the whole walk, not applied per branch. So the cost
+ * of an answer depends on the answer, not on the shape of the tree.
  */
 export interface SerializeBudget {
-  /** How many more nodes may be serialized. Mutated as the walk spends it. */
+  /** How many more nodes may be serialized. The walk reduces it as it goes. */
   remaining: number;
-  /** How deep the walk may go below the root; Infinity for no limit. */
+  /** How deep the walk may go below the root. Infinity means no limit. */
   maxDepth: number;
-  /** Set when something was left out, so a half tree is never reported as whole. */
+  /** Set when something was left out, so a partial tree is never reported as complete. */
   truncated: boolean;
 }
 
@@ -581,11 +581,11 @@ export const serializeNode = async (
   const componentProperties = serializeComponentPropertyDefinitions(node);
   if (componentProperties) base.componentProperties = componentProperties;
   if (node.type === "TEXT") return serializeText(node, base);
-  // An empty children array says nothing a reader cannot infer from the node type,
-  // so only containers that actually hold something report children.
+  // An empty children array tells nothing a reader cannot infer from the node
+  // type, so only containers that hold something report children.
   if ("children" in node && node.children.length > 0) {
-    // The node itself is still reported; only its children are withheld, and
-    // saying how many keeps the answer honest.
+    // The node itself is still reported. Only its children are left out,
+    // and the count keeps the answer honest.
     const omitted = () =>
       Object.assign({}, base, { childCount: node.children.length, childrenOmitted: true });
 
@@ -603,8 +603,8 @@ export const serializeNode = async (
         }
         budget.remaining--;
       }
-      // Sequential rather than Promise.all: the budget is spent in tree order,
-      // or which nodes survive would depend on how the promises happen to settle.
+      // One at a time, not Promise.all: the budget is spent in tree order.
+      // Otherwise which nodes survive would depend on how the promises settle.
       children.push(await serializeNode(child, budget, depth + 1));
     }
 
@@ -620,12 +620,12 @@ export const serializeNode = async (
   return base;
 };
 
-// deduplicateStyles does a two-pass walk over a serialized node tree.
+// deduplicateStyles walks a serialized node tree twice.
 // First pass: count how many times each fills/strokes array value appears.
 // Second pass: replace values that appear more than once with a short ref key.
-// Returns the rewritten tree and a globalVars.styles map (or undefined if nothing was deduped).
+// It returns the rewritten tree and a globalVars.styles map (undefined if nothing was deduped).
 export const deduplicateStyles = (tree: any): { tree: any; globalVars: Record<string, any> | undefined } => {
-  // Pass 1: count occurrences of each serialized fill/stroke value
+  // Pass 1: count how often each serialized fill/stroke value appears
   const counts = new Map<string, number>();
   const countWalk = (node: any) => {
     if (!node || typeof node !== "object") return;
@@ -638,7 +638,7 @@ export const deduplicateStyles = (tree: any): { tree: any; globalVars: Record<st
   };
   countWalk(tree);
 
-  // Build ref map for values that appear more than once
+  // Build a ref map for values that appear more than once
   let counter = 0;
   const keyToRef = new Map<string, string>();
   const refs: Record<string, any> = {};

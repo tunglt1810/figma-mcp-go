@@ -1,9 +1,9 @@
-// Plugin and server ship from the same version string (npm/package.json feeds
-// both the plugin build and server.json), so the two can be compared directly.
-// Patch drift is expected and harmless: the plugin is installed by hand from a
-// release zip while the server updates itself through `npx @latest`, so almost
-// every user runs a patch behind at some point. Only a major or minor gap means
-// the tool surface actually moved, which is the case worth warning about.
+// The plugin and server share one version string (npm/package.json feeds both
+// the plugin build and server.json), so the two can be compared directly.
+// A patch difference is expected and harmless. The plugin is installed by hand
+// from a release zip, while the server updates itself through `npx @latest`,
+// so almost every user runs a patch behind at some point. Only a major or
+// minor gap means the set of tools changed, and that is worth a warning.
 
 export type VersionStatus = "ok" | "unknown" | "plugin-old" | "server-old";
 
@@ -12,7 +12,7 @@ interface Parsed {
   minor: number;
 }
 
-/** Parse the leading `major.minor` of a semver string; null if unparseable. */
+/** Parse the leading `major.minor` of a semver string. Returns null if it cannot. */
 export function parseVersion(version: string | null | undefined): Parsed | null {
   if (!version) return null;
   const match = /^v?(\d+)\.(\d+)/.exec(version.trim());
@@ -21,11 +21,11 @@ export function parseVersion(version: string | null | undefined): Parsed | null 
 }
 
 /**
- * Compare the running plugin against the connected server.
+ * Compare the running plugin with the connected server.
  *
- * "unknown" covers a version we cannot read at all — a dev build, or a server
- * old enough not to send one. Guessing a direction there would put a warning in
- * front of every contributor running from source, so it stays silent.
+ * "unknown" means a version we cannot read at all: a dev build, or a server
+ * too old to send one. Guessing here would show a warning to every
+ * contributor who runs from source, so it stays silent.
  */
 export function compareVersions(
   pluginVersion: string | null | undefined,
@@ -46,8 +46,8 @@ export function compareVersions(
 /**
  * One short line for the panel, or null when there is nothing to say.
  *
- * The panel is 320px wide and 230px tall with no room to spare, so the banner
- * gets the headline and `versionWarning` gets the remedy, shown on hover.
+ * The panel is 320px wide and 230px tall with no spare room. So the banner
+ * shows the headline, and `versionWarning` shows the fix on hover.
  */
 export function versionWarningSummary(
   pluginVersion: string | null | undefined,

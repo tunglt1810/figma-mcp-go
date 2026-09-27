@@ -2,11 +2,11 @@ import { HandlerMap } from "./dispatch";
 
 // Component properties and variants.
 //
-// The plugin could make a component and swap an instance, but not define what a
-// component exposes — so a design system could be read and never built. These
-// four actions are the missing half: turn components into a variant set, then
-// declare the properties instances can set, and point the component's own
-// layers at them.
+// The plugin could make a component and swap an instance, but could not define
+// what a component exposes. So a design system could be read but never built.
+// These four actions are the missing half: turn components into a variant set,
+// declare the properties instances can set, and link the component's own
+// layers to them.
 
 const PROPERTY_TYPES = ["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"];
 
@@ -18,9 +18,9 @@ const REFERENCE_FIELDS: Record<string, string> = {
 };
 
 /**
- * Property ids are `Name#123:4`, and Figma changes the id whenever the property
- * is renamed. Callers work in names, so a name is resolved against the current
- * definitions on every call rather than being remembered.
+ * Property ids look like `Name#123:4`, and Figma changes the id whenever the
+ * property is renamed. Callers use names, so each call looks the name up in
+ * the current definitions instead of remembering an id.
  */
 export function resolvePropertyId(
   definitions: Record<string, any> | undefined,
@@ -76,8 +76,8 @@ const ACTIONS: Record<string, (node: any, p: any) => Promise<any> | any> = {
     if (!PROPERTY_TYPES.includes(type)) {
       throw new Error(`type must be one of ${PROPERTY_TYPES.join(", ")}, got: ${p.type}`);
     }
-    // A VARIANT property is what distinguishes the members of a set, so it has
-    // nowhere to live on a lone component.
+    // A VARIANT property is what tells the members of a set apart, so a
+    // lone component has nowhere to put it.
     if (type === "VARIANT" && node.type !== "COMPONENT_SET") {
       throw new Error(
         "A VARIANT property belongs to a COMPONENT_SET — use combine_as_variants first",
@@ -101,7 +101,7 @@ const ACTIONS: Record<string, (node: any, p: any) => Promise<any> | any> = {
     if (Object.keys(changes).length === 0) {
       throw new Error("edit needs at least one of name, defaultValue, or preferredValues");
     }
-    // Renaming mints a new id, so the caller gets the one that is now valid.
+    // Renaming creates a new id, so the caller gets the one that is now valid.
     const newId = node.editComponentProperty(id, changes);
     return { propertyId: newId };
   },
@@ -126,8 +126,8 @@ const ACTIONS: Record<string, (node: any, p: any) => Promise<any> | any> = {
     }
     const target = await figma.getNodeByIdAsync(p.targetNodeId);
     if (!target) throw new Error(`Node not found: ${p.targetNodeId}`);
-    // Merged rather than replaced: a layer can carry one reference per field,
-    // and overwriting the object would drop the others.
+    // Merged, not replaced: a layer can have one reference per field, and
+    // overwriting the object would drop the others.
     (target as any).componentPropertyReferences = {
       ...((target as any).componentPropertyReferences ?? {}),
       [field]: id,

@@ -13,8 +13,9 @@ import (
 //	compound: "I2167:9091;186:1579;186:1745" (instances/variants)
 var nodeIDPattern = regexp.MustCompile(`^I?\d+:\d+(;\d+:\d+)*$`)
 
-// NormalizeNodeID converts hyphen-format node IDs (LLM output artifact) to colon format.
-// "4029-12345" → "4029:12345". No-ops for already-valid or unrecognized strings.
+// NormalizeNodeID converts hyphen-format node IDs, which LLMs sometimes output,
+// to colon format: "4029-12345" becomes "4029:12345". Valid or unknown strings
+// are returned unchanged.
 func NormalizeNodeID(s string) string {
 	if strings.Contains(s, "-") && !strings.Contains(s, ":") {
 		normalized := strings.ReplaceAll(s, "-", ":")
@@ -35,8 +36,8 @@ func ValidNodeID(s string) bool {
 var hexColorPattern = regexp.MustCompile(`^#?([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`)
 
 // ValidHexColor reports whether s is a hex color the plugin can read. Anything
-// else — a color name, an rgb() call, a truncated hex — used to reach Figma as
-// NaN channels and paint a broken fill without reporting an error.
+// else (a color name, an rgb() call, a cut-off hex) used to reach Figma as NaN
+// channels and paint a broken fill with no error.
 func ValidHexColor(s string) bool {
 	return hexColorPattern.MatchString(s)
 }
@@ -108,8 +109,8 @@ var BlendModeNames = []string{
 	"PASS_THROUGH",
 }
 
-// ValidateConstraintAxes checks the horizontal/vertical values of a constraints
-// object, which set_node_properties carries nested under "constraints".
+// ValidateConstraintAxes checks the horizontal and vertical values of a
+// constraints object, which set_node_properties nests under "constraints".
 func ValidateConstraintAxes(c map[string]any) string {
 	for _, axis := range []string{"horizontal", "vertical"} {
 		v, ok := c[axis].(string)
@@ -125,17 +126,16 @@ func ValidateConstraintAxes(c map[string]any) string {
 	return ""
 }
 
-// StrokeCapNames are the ways Figma draws the open end of a stroke. The last
-// four are arrowheads, which is how a line becomes an arrow without a separate
-// tool for it.
+// StrokeCapNames are the ways Figma can draw the open end of a stroke. The last
+// four are arrowheads, so a line can become an arrow without a separate tool.
 var StrokeCapNames = []string{
 	"NONE", "ROUND", "SQUARE",
 	"ARROW_LINES", "ARROW_EQUILATERAL",
 }
 
-// ValidateImageCrop checks the fractional crop rect import_image accepts. The
-// values are fractions of the source image, not pixels, so a rect that runs
-// past its right or bottom edge is a mistake rather than a clamp.
+// ValidateImageCrop checks the crop rect that import_image accepts. The values
+// are fractions of the source image, not pixels. A rect that runs past the
+// right or bottom edge is a mistake, so it is rejected, not clamped.
 func ValidateImageCrop(crop map[string]any) string {
 	values := make(map[string]float64, 4)
 	for _, key := range []string{"x", "y", "width", "height"} {
@@ -164,7 +164,7 @@ func ValidateImageCrop(crop map[string]any) string {
 	return ""
 }
 
-// ImageFilterNames are the adjustments an IMAGE paint carries, each -1 to 1.
+// ImageFilterNames are the adjustments an IMAGE paint can carry, each from -1 to 1.
 var ImageFilterNames = []string{
 	"exposure", "contrast", "saturation", "temperature", "tint", "highlights", "shadows",
 }
@@ -186,9 +186,9 @@ func ValidateImageFilters(filters map[string]any) string {
 	return ""
 }
 
-// ValidateExportSettings checks the export presets set_export_settings takes.
-// Figma throws on a malformed preset rather than skipping it, which would leave
-// a node half-updated, so the whole array is checked before any of it is sent.
+// ValidateExportSettings checks the export presets that set_export_settings
+// takes. Figma throws on a bad preset instead of skipping it, which would leave
+// a node half-updated. So the whole array is checked before any of it is sent.
 func ValidateExportSettings(settings []any, formats []string) string {
 	for i, raw := range settings {
 		entry, ok := raw.(map[string]any)

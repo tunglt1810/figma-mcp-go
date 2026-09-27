@@ -14,8 +14,8 @@ const parseVariableValue = (type: string, value: any): VariableValue => {
   return String(value); // STRING
 };
 
-// manage_variable replaced the six single-purpose variable tools on the MCP
-// surface. The implementations stay separate below; only the surface merged.
+// manage_variable replaced the six single-purpose variable tools in the MCP
+// tool list. The implementations below stay separate. Only the tool surface merged.
 const VARIABLE_ACTIONS: Record<string, string> = {
   create_collection: "create_variable_collection",
   add_mode: "add_variable_mode",
@@ -35,7 +35,7 @@ export const writeVariablesHandlers: HandlerMap = {
       );
     }
     const result = await handleWriteVariableRequest({ ...request, type, params });
-    // Answer under the name the caller used, not the one we delegated to.
+    // Answer with the name the caller used, not the one we delegated to.
     return { ...result, type: request.type };
   },
 

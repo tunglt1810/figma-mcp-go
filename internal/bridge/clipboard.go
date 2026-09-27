@@ -8,7 +8,8 @@ import (
 )
 
 // WriteOSClipboard writes text to the operating system's native clipboard.
-// It bypasses browser iframe security policies by running directly on the host OS.
+// It runs on the host OS, so browser iframe security rules do not apply.
+
 func WriteOSClipboard(text string) error {
 	var cmd *exec.Cmd
 

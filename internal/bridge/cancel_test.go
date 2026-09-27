@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// A caller that walks away leaves the plugin running a scan for an answer
+// A caller that leaves still has the plugin running a scan for an answer
 // nobody will read, on the one connection the next request also needs. The
-// bridge tells it to stop.
+// bridge tells the plugin to stop.
 func TestSend_TellsThePluginWhenTheCallerCancels(t *testing.T) {
 	b, clientConn := setupBridgeWithClient(t)
 
@@ -58,7 +58,7 @@ func TestSend_TellsThePluginWhenTheCallerCancels(t *testing.T) {
 	}
 }
 
-// The same applies when the request runs out of budget rather than being
+// The same applies when the request runs out of time instead of being
 // cancelled by its caller.
 func TestSend_TellsThePluginWhenTheRequestTimesOut(t *testing.T) {
 	b, clientConn := setupBridgeWithClient(t)

@@ -25,7 +25,7 @@ beforeEach(() => {
 
 // ── set_node_properties: the geometry it absorbed ─────────────────────────────
 //
-// move_nodes, resize_nodes and set_corner_radius were three tools over the same
+// move_nodes, resize_nodes and set_corner_radius were three tools with the same
 // per-node loop. They are properties now, and report per property like the rest.
 
 describe("set_node_properties geometry", () => {
@@ -97,7 +97,7 @@ describe("set_node_properties geometry", () => {
     expect(resized).toEqual([[300, 50]]);
   });
 
-  // The visible payoff of the merge: this cost two undo entries before.
+  // The visible gain from the merge: this used to cost two undo entries.
   it("moves and resizes in one call and one undo entry", async () => {
     let resizeCalls = 0;
     let undoCount = 0;
@@ -177,8 +177,8 @@ describe("reparent_nodes", () => {
 
 // ── set_auto_layout ───────────────────────────────────────────────────────────
 
-// It absorbed set_layout_sizing, so putting one sizing on a row of siblings has
-// to stay a single call — that was the whole reason the plural tool existed.
+// It took over set_layout_sizing, so setting one sizing on a row of siblings
+// must stay a single call. That was the whole reason the plural tool existed.
 describe("set_auto_layout", () => {
   const sizeableNode = (id: string) => ({
     id,
@@ -210,8 +210,8 @@ describe("set_auto_layout", () => {
     expect(mockNodes["1:1"].itemSpacing).toBe(8);
   });
 
-  // One sibling that cannot FILL — its parent has no auto layout — must not
-  // take the siblings that could down with it.
+  // One sibling that cannot FILL (its parent has no auto layout) must not
+  // make the siblings that could fail too.
   it("reports a node that throws against itself, leaving the others applied", async () => {
     mockNodes["1:1"] = sizeableNode("1:1");
     mockNodes["1:2"] = {
@@ -255,7 +255,7 @@ describe("set_auto_layout", () => {
 // ── batch_rename_nodes ────────────────────────────────────────────────────────
 
 describe("batch_rename_nodes", () => {
-  // It absorbed rename_node, so setting a name outright is one of its modes.
+  // It took over rename_node, so setting a name directly is one of its modes.
   it("sets a literal name on every node listed", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Frame 1" };
     mockNodes["1:2"] = { id: "1:2", name: "Frame 2" };
@@ -397,9 +397,9 @@ describe("find_replace_text", () => {
 // ── set_node_properties ───────────────────────────────────────────────────────
 //
 // Replaces set_visible, lock_nodes, unlock_nodes, set_opacity, rotate_nodes,
-// reorder_nodes, set_blend_mode and set_constraints. Errors stay per-property:
-// a node may support opacity but not rotation, and collapsing that into a
-// single per-node error would lose detail the eight separate tools had.
+// reorder_nodes, set_blend_mode and set_constraints. Errors stay per property:
+// a node may support opacity but not rotation. Merging that into one error per
+// node would lose detail the eight separate tools had.
 
 describe("set_node_properties", () => {
   it("applies several properties in one call with a single undo entry", async () => {
@@ -528,9 +528,9 @@ describe("set_fills", () => {
     expect(mockNodes["1:1"].fills).toHaveLength(2);
   });
 
-  // A node whose children disagree reports fills as figma.mixed, a symbol.
-  // Spreading that threw "fills is not iterable"; set_gradient_fills already
-  // guarded against it, set_fills did not.
+  // A node whose children differ reports fills as figma.mixed, a symbol.
+  // Spreading that threw "fills is not iterable". set_gradient_fills already
+  // guarded against it, but set_fills did not.
   it("appends onto mixed fills instead of throwing", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: Symbol("figma.mixed") };
     await handleWriteModifyRequest(
@@ -565,8 +565,8 @@ describe("set_strokes", () => {
   });
 });
 
-// set_paint replaced set_fills, set_gradient_fills and set_strokes on the MCP
-// surface. These check the router reaches each implementation.
+// set_paint replaced set_fills, set_gradient_fills and set_strokes in the MCP
+// tool list. These check that the router reaches each implementation.
 describe("set_paint", () => {
   const paint = (params: any) =>
     handleWriteModifyRequest({ type: "set_paint", requestId: "req-1", nodeIds: ["1:1"], params });
@@ -652,8 +652,8 @@ describe("set_node_properties stroke geometry", () => {
     expect(res?.data.results[0].errors.strokeCap).toContain("stroke caps");
   });
 
-  // Figma throws for a value it will not take rather than ignoring it. The
-  // other properties in the same call must still land.
+  // Figma throws for a value it will not accept, instead of ignoring it. The
+  // other properties in the same call must still be applied.
   it("keeps the other properties when one assignment throws", async () => {
     const node: any = { id: "1:1", opacity: 1, strokeCap: "NONE" };
     Object.defineProperty(node, "dashPattern", {
@@ -695,8 +695,8 @@ describe("set_export_settings", () => {
     expect(commitUndoCalled).toBe(true);
   });
 
-  // Figma rejects a constraint on a vector format, so passing one through would
-  // turn a preset the caller can reasonably write into an error.
+  // Figma rejects a constraint on a vector format. Passing one through would
+  // turn a reasonable preset from the caller into an error.
   it("drops a raster constraint from SVG and PDF presets", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "n", exportSettings: [] };
     await handleWriteModifyRequest(
@@ -766,7 +766,7 @@ describe("find_replace_text progress", () => {
     expect(updates.every((u: any) => u.progress >= 1 && u.progress <= 99)).toBe(true);
   });
 
-  // Under the threshold the work finishes before a message would be read.
+  // Under the threshold, the work finishes before anyone would read a message.
   it("stays quiet on a small page", async () => {
     buildPage(5);
     await run("req-few");
@@ -807,8 +807,8 @@ describe("find_replace_text with a font the file lacks", () => {
       makeRequest("find_replace_text", ["0:1"], { find: "before", replace: "after" }),
     );
 
-  // The point of loading every font before writing any: a run that cannot
-  // finish must not leave half the page rewritten.
+  // This is why every font loads before any write: a run that cannot finish
+  // must not leave half the page rewritten.
   it("rewrites nothing when one node's font is missing", async () => {
     setup(["Inter"]);
     await expect(run()).rejects.toThrow(/not available in this file/);

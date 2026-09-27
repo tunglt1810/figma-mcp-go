@@ -9,12 +9,12 @@ export type LogEntry =
 
 export type WALStack = LogEntry[];
 
-// Actions that bring a NEW node into the document. Only these may be rolled
-// back by removal — every other action returns the id of a node the user
+// Actions that add a NEW node to the document. Only these may be rolled back
+// by removing the node. Every other action returns the id of a node the user
 // already had, and removing it would destroy their work.
 //
-// Keep in sync when adding a create-style handler; `rename_page` is the
-// cautionary example: it returns an existing PAGE id.
+// Keep this in sync when adding a create-style handler. `rename_page` is the
+// warning example: it returns the id of an existing PAGE.
 export const CREATE_ACTIONS = new Set([
   'create_node',
   'create_frame',
@@ -34,10 +34,10 @@ export const CREATE_ACTIONS = new Set([
 ]);
 
 /**
- * Whether a step brought a new node into the document, and may therefore be
- * rolled back by removal. manage_page merged four page tools behind an `action`
- * argument, so the step's name alone no longer answers this: only `add` creates
- * a page, and treating the others as creates would remove a page the user had.
+ * Whether a step added a new node to the document, so it may be rolled back
+ * by removing the node. manage_page merged four page tools behind an `action`
+ * argument, so the step's name alone no longer tells us. Only `add` creates a
+ * page. Treating the others as creates would remove a page the user had.
  */
 export function isCreateStep(action: string, params: any): boolean {
   if (action === 'manage_page') {
@@ -46,18 +46,18 @@ export function isCreateStep(action: string, params: any): boolean {
   return CREATE_ACTIONS.has(action);
 }
 
-// Properties captured before a mutating step so rollback can put them back.
-// Deliberately limited to plain, directly assignable node properties.
+// Properties saved before a mutating step, so rollback can put them back.
+// On purpose, only plain node properties that can be assigned directly.
 const SNAPSHOT_PROPS = [
   'x', 'y', 'width', 'height', 'rotation', 'opacity', 'visible', 'locked',
   'name', 'characters', 'fills', 'strokes', 'strokeWeight', 'blendMode',
   'constraints', 'cornerRadius',
 ];
 
-// Params that name an EXISTING node the step is about to mutate. `parentId` is
-// excluded on purpose: create steps do not change the parent's own properties.
-// Name-based targeting (e.g. rename_page's `pageName`) cannot be resolved to an
-// id here, so those steps simply get no undo record.
+// Params that name an EXISTING node the step is about to change. `parentId` is
+// left out on purpose: create steps do not change the parent's own properties.
+// Targets given by name (e.g. rename_page's `pageName`) cannot be turned into
+// an id here, so those steps get no undo record.
 const TARGET_ID_PARAMS = ['nodeId', 'pageId'];
 
 /** Pull the target node ids out of a step's resolved params. */
@@ -79,15 +79,15 @@ export function snapshotNode(node: any): Record<string, any> {
   for (const prop of SNAPSHOT_PROPS) {
     if (!(prop in node)) continue;
     const value = node[prop];
-    // figma.mixed is a symbol and cannot be assigned back — skip it rather
-    // than storing something that throws on restore.
+    // figma.mixed is a symbol and cannot be assigned back. Skip it instead
+    // of storing something that throws on restore.
     if (typeof value === 'symbol') continue;
     state[prop] = Array.isArray(value) ? [...value] : value;
   }
   return state;
 }
 
-/** Put a snapshot back onto a node, best-effort, property by property. */
+/** Put a snapshot back onto a node, property by property, as far as possible. */
 export async function restoreNodeProperties(
   node: any,
   previousState: Record<string, any>
@@ -98,7 +98,7 @@ export async function restoreNodeProperties(
         await figma.loadFontAsync(node.fontName);
       }
     } catch {
-      // Font unavailable — the characters assignment below will simply fail.
+      // Font unavailable. The characters assignment below will just fail.
     }
   }
 
@@ -107,7 +107,7 @@ export async function restoreNodeProperties(
     try {
       node[key] = value;
     } catch {
-      // Read-only on this node type — nothing better to do during rollback.
+      // Read-only on this node type. Nothing better to do during rollback.
     }
   }
 
@@ -116,20 +116,20 @@ export async function restoreNodeProperties(
     try {
       node.resize(previousState.width ?? node.width, previousState.height ?? node.height);
     } catch {
-      // Node refused the resize — leave it as-is.
+      // The node refused the resize. Leave it as it is.
     }
   }
 }
 
 // A variable reference is the whole string and looks like an identifier.
-// Treating every $-prefixed string as one meant "$100" aborted the pipeline
-// with "Undefined pipeline variable: $100".
+// Treating every string that starts with $ as a reference made "$100" stop the
+// pipeline with "Undefined pipeline variable: $100".
 const VARIABLE_REFERENCE = /^\$[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function resolveParams(params: any, symbolTable: SymbolTable): any {
   if (typeof params === 'string') {
-    // $$ escapes a literal $, for the rare string that really does start with
-    // one and would otherwise read as a reference.
+    // $$ escapes a literal $, for the rare string that really starts with
+    // one and would otherwise look like a reference.
     if (params.startsWith('$$')) {
       return params.slice(1);
     }
@@ -212,13 +212,13 @@ export async function executeBatchPipeline(
   handlerDispatcher: (action: string, params: any) => Promise<any>,
   getNodeById: (id: string) => Promise<any> = async (id) =>
     typeof figma !== 'undefined' ? (figma as any).getNodeByIdAsync(id) : null,
-  // Checked between steps. A pipeline is the longest thing the plugin runs, and
-  // a step boundary is the only place it can stop and still leave the document
-  // in a state the rollback log describes.
+  // Checked between steps. A pipeline is the longest thing the plugin runs.
+  // A step boundary is the only place it can stop and still leave the
+  // document in a state the rollback log describes.
   isCancelled: () => boolean = () => false,
-  // Called before each step. Injected rather than posting to figma.ui directly,
-  // for the same reason getNodeById is: this function is tested without a
-  // Figma global in scope.
+  // Called before each step. It is passed in instead of posting to figma.ui
+  // directly, for the same reason as getNodeById: this function is tested
+  // without a Figma global.
   onProgress: (done: number, total: number, action: string) => Promise<void> =
     async () => {},
 ): Promise<BatchPipelineResponse> {
@@ -232,9 +232,9 @@ export async function executeBatchPipeline(
   for (let i = 0; i < req.steps.length; i++) {
     const step = req.steps[i];
     if (isCancelled()) {
-      // Rolled back whatever stop_on_error says. That flag is about tolerating
-      // a step that failed on its own terms; a cancelled run has no terms left,
-      // and a half-built pipeline left standing is worse than none.
+      // Roll back whatever stop_on_error says. That flag is about accepting a
+      // step that failed by itself. A cancelled run is different, and a
+      // half-built pipeline left in place is worse than none.
       const rolledBackCount = await executeRollback(walStack, getNodeById);
       return {
         success: false,
@@ -250,15 +250,15 @@ export async function executeBatchPipeline(
         rolled_back_steps: rolledBackCount,
       };
     }
-    // Before the step, not after: a pipeline's last step is often its slowest,
+    // Before the step, not after. A pipeline's last step is often its slowest,
     // and a caller wants to know what is running, not what has finished.
     await onProgress(i, req.steps.length, step.action);
     try {
       const resolvedParams = resolveParams(step.params || {}, symbolTable);
       const isCreate = isCreateStep(step.action, resolvedParams);
 
-      // Snapshot before mutating so rollback can restore. Failing to snapshot
-      // must not abort the step — it only means this node has no undo record.
+      // Save a snapshot before changing anything, so rollback can restore it.
+      // A failed snapshot must not stop the step. It only means this node has no undo record.
       if (!isCreate) {
         for (const nodeId of extractNodeIds(resolvedParams)) {
           try {
@@ -267,15 +267,15 @@ export async function executeBatchPipeline(
               walStack.push({ type: 'MODIFY', nodeId, previousState: snapshotNode(node) });
             }
           } catch {
-            // Unresolvable node — the handler will report the real error.
+            // The node cannot be found. The handler will report the real error.
           }
         }
       }
 
       const res = await handlerDispatcher(step.action, resolvedParams);
 
-      // Only genuine creates are removable. Modify handlers return the id of a
-      // node the user already had; treating that as a create made rollback
+      // Only real creates can be removed. Modify handlers return the id of a
+      // node the user already had. Treating that as a create made rollback
       // delete their work.
       if (isCreate && res && res.id) {
         walStack.push({ type: 'CREATE', nodeId: res.id });
@@ -326,24 +326,24 @@ export async function executeBatchPipeline(
 }
 
 /**
- * Run `work` so the whole of it lands on the undo stack as one step.
+ * Run `work` so all of it lands on the undo stack as one step.
  *
- * Every write handler commits its own undo checkpoint, which is right when it
- * is the whole of what the user asked for. Inside a pipeline it is not: a
- * twenty-step build left twenty checkpoints, so undoing it meant twenty
- * Ctrl+Z, each one leaving the design in a state no one asked for.
+ * Every write handler commits its own undo checkpoint. That is right when the
+ * handler is all the user asked for, but not inside a pipeline: a twenty-step
+ * build left twenty checkpoints. Undoing it took twenty Ctrl+Z presses, and
+ * each one left the design in a state nobody asked for.
  *
- * Figma offers no way to suspend commitUndo, so the handlers' calls are
- * swallowed and one is made at the end.
+ * Figma has no way to pause commitUndo, so the handlers' calls are ignored
+ * and one call is made at the end.
  *
- * The swap is counted, not saved per call. Scopes do not always nest: a
- * pipeline whose every step reads is not classified as mutating, so it skips
- * the write queue and can overlap another pipeline. A per-call save/restore
- * then has the first scope to finish put the real function back while the
- * second is still running, and the second put the first's stub back for good —
- * after which every write in the session loses its checkpoint, silently. A
- * counter cannot do that: the real function goes back exactly once, when the
- * last scope leaves, whatever order they started in.
+ * The swap is counted, not saved per call, because scopes do not always nest.
+ * A pipeline where every step only reads does not count as mutating, so it
+ * skips the write queue and can overlap another pipeline. With a per-call
+ * save and restore, the first scope to finish puts the real function back
+ * while the second is still running. Then the second puts the first's stub
+ * back for good, and from then on every write in the session silently loses
+ * its checkpoint. A counter cannot do that: the real function goes back
+ * exactly once, when the last scope leaves, whatever order they started in.
  */
 let checkpointDepth = 0;
 let suspendedCommitUndo: (() => void) | null = null;
@@ -354,10 +354,10 @@ export async function withSingleUndoCheckpoint<T>(work: () => Promise<T>): Promi
   if (!api || typeof api.commitUndo !== 'function') return work();
 
   if (checkpointDepth === 0) {
-    // Held unbound and called with the receiver below, so what goes back is the
-    // exact function that was there. Restoring a bound copy would work, but each
-    // pipeline would wrap the previous wrapper, and nothing could then check that
-    // the swap really was undone.
+    // Kept unbound and called with the receiver below, so the exact function
+    // that was there goes back. Restoring a bound copy would work, but each
+    // pipeline would wrap the previous wrapper, and nothing could then check
+    // that the swap was really undone.
     suspendedCommitUndo = api.commitUndo;
     anyStepCommitted = false;
     api.commitUndo = () => {
@@ -373,8 +373,8 @@ export async function withSingleUndoCheckpoint<T>(work: () => Promise<T>): Promi
       const realCommitUndo = suspendedCommitUndo;
       suspendedCommitUndo = null;
       api.commitUndo = realCommitUndo;
-      // Nothing mutated the document — a checkpoint here would be an empty undo
-      // step the user has to press through.
+      // Nothing changed the document. A checkpoint here would be an empty
+      // undo step the user has to press through.
       if (anyStepCommitted && realCommitUndo) realCommitUndo.call(api);
     }
   }
@@ -396,8 +396,8 @@ export async function handleBatchPipelineRequest(
   }
 
   const dispatcher = async (action: string, params: any) => {
-    // Write handlers read `request.nodeIds`, not `params.nodeId`. Lift the ids
-    // out of the step params so nodeIds-based tools work inside a pipeline.
+    // Write handlers read `request.nodeIds`, not `params.nodeId`. Take the ids
+    // from the step params so tools that use nodeIds work inside a pipeline.
     const { nodeId, nodeIds, ...rest } = params ?? {};
     const ids = Array.isArray(nodeIds) ? nodeIds : typeof nodeId === 'string' ? [nodeId] : undefined;
     const subReq = {
@@ -418,8 +418,8 @@ export async function handleBatchPipelineRequest(
 
   const pipelineParams = request.params || request;
   // Rollback runs inside executeBatchPipeline, so it is inside the checkpoint
-  // too: a pipeline that fails and reverses itself leaves the undo stack as it
-  // found it rather than adding steps that undo each other.
+  // too. A pipeline that fails and reverses itself leaves the undo stack as it
+  // was, instead of adding steps that cancel each other out.
   const res = await withSingleUndoCheckpoint(() =>
     executeBatchPipeline(
       pipelineParams,
@@ -427,7 +427,7 @@ export async function handleBatchPipelineRequest(
       undefined,
       () => isCancelled(request.requestId),
       async (done, total, action) => {
-        // A one-step pipeline is not worth a progress message; the response
+        // A one-step pipeline does not need a progress message. The response
         // arrives at about the same moment.
         if (total < 2) return;
         await reportProgress(

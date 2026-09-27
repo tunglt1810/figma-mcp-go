@@ -4,11 +4,11 @@ import { getParentNode, hexToRgb } from "./write-helpers";
 
 // Vector and boolean geometry.
 //
-// None of this existed, which meant no icons: an icon is almost always two
-// shapes combined, a stroke turned into a fill, or a path from an SVG. Every
-// operation here is destructive in the same way — it consumes the shapes it
-// takes and hands back one new node — so the pipeline's rollback log cannot
-// reverse them. save_version_checkpoint is the way back.
+// None of this existed before, so there were no icons. An icon is almost always
+// two shapes combined, a stroke turned into a fill, or a path from an SVG.
+// Every operation here is destructive in the same way: it uses up the shapes
+// it takes and returns one new node. So the pipeline's rollback log cannot
+// undo them. save_version_checkpoint is the way back.
 
 const BOOLEAN_OPERATIONS: Record<string, string> = {
   UNION: "union",
@@ -18,11 +18,11 @@ const BOOLEAN_OPERATIONS: Record<string, string> = {
 };
 
 /**
- * The parent the result should land in.
+ * The parent the result should go into.
  *
- * Figma needs one, and the only answer that does not move the user's work is
+ * Figma needs one, and the only choice that does not move the user's work is
  * the parent the shapes already share. Shapes from different parents have no
- * such answer, so the caller is asked rather than guessed at.
+ * such choice, so the caller is asked instead of us guessing.
  */
 export function commonParent(nodes: any[]): any {
   const parent = nodes[0]?.parent;
@@ -67,8 +67,8 @@ export const writeVectorHandlers: HandlerMap = {
       );
     }
     const nodes = await resolveNodes(request.nodeIds || [], 2, operation);
-    // SUBTRACT and EXCLUDE read the order they are given — the first shape is
-    // the one the others are cut out of — so the ids stay in the caller's order.
+    // SUBTRACT and EXCLUDE depend on order: the first shape is the one the
+    // others are cut out of. So the ids keep the caller's order.
     const parent = commonParent(nodes);
     const result = (figma as any)[method](nodes, parent);
     if (p.name) result.name = p.name;
@@ -105,8 +105,8 @@ export const writeVectorHandlers: HandlerMap = {
       }
       const result = node.outlineStroke();
       // Figma returns null for a node whose stroke is empty or zero-width.
-      // That is a no-op, not a failure, and one such node in a batch should not
-      // lose the caller the ones that worked.
+      // That is a no-op, not a failure. One such node in a batch should not
+      // cost the caller the nodes that worked.
       if (result) outlined.push(describe(result));
       else skipped.push({ id: node.id, reason: "no visible stroke" });
     }
@@ -123,7 +123,7 @@ export const writeVectorHandlers: HandlerMap = {
     if (!p.svg) throw new Error("svg is required");
     const parent = await getParentNode(p.parentId);
     // createNodeFromSvg always wraps its paths in a frame. A single-path icon
-    // is far more useful as the vector itself, so the wrapper is unwrapped when
+    // is much more useful as the vector itself, so the wrapper is removed when
     // it holds exactly one child.
     const imported = figma.createNodeFromSvg(p.svg);
     let node: any = imported;

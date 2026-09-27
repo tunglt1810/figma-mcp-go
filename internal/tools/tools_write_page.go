@@ -1,8 +1,8 @@
 package tools
 
 // pageVariants say which arguments belong to which page action. Four page tools
-// became one; without this the arguments of the other three would be accepted
-// and silently dropped.
+// became one. Without this, arguments for the other three would be accepted and
+// quietly dropped.
 var pageVariants = map[string]variantSpec{
 	"add":      {Allowed: []string{"name", "index"}},
 	"delete":   {Allowed: []string{"pageId", "pageName"}},
@@ -23,12 +23,12 @@ func requirePageTarget(_ []string, params map[string]any) string {
 var writePageSpecs = []toolSpec{
 	{
 		Name: "manage_page",
-		Desc: "Add, delete, rename, or go to a page. Arguments per `action`: " +
+		Desc: "Add, delete, rename, or go to a page. Args per `action`: " +
 			"add: name, index. " +
-			"delete: pageId or pageName. " +
-			"rename: pageId or pageName, plus newName. " +
-			"navigate: pageId or pageName. " +
+			"delete, navigate: pageId or pageName. " +
+			"rename: pageId or pageName, newName. " +
 			"List pages with get_metadata.",
+
 		Params: []paramSpec{
 			{Name: "action", Kind: kindString, Required: true, Enum: variantKinds(pageVariants),
 				Desc: "add, delete, rename, or navigate"},
@@ -45,7 +45,7 @@ var writePageSpecs = []toolSpec{
 			if msg := requireVariant("action", pageVariants)(nodeIDs, params); msg != "" {
 				return msg
 			}
-			// Everything but add works on a page that already exists.
+			// Every action except add works on a page that already exists.
 			if action, _ := params["action"].(string); action != "add" {
 				return requirePageTarget(nodeIDs, params)
 			}

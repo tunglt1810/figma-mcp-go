@@ -14,20 +14,20 @@ fmt-check:
 vet:
 	go vet ./...
 
-# The compiler rejects import cycles, not import directions. Without this the
-# layering is back to being a convention.
+# The compiler rejects import cycles, but not wrong import directions. Without
+# this check, the layering is only a convention again.
 #
-# Every edge is checked twice, once over the production import graph and once
-# with -test, because `go list -deps` alone cannot see a test-only import and a
-# test is a plausible way for the coupling to arrive. Two edges are production
-# only: internal/tools/leader_rpc_test.go drives the leader's /rpc with the real
-# Check and a real cluster.Leader, which is the only way to pin "every call is
-# checked exactly once before reaching the plugin" at that entry point from
-# outside it. Those two are the sole test-side crossings in the tree.
+# Every edge is checked twice: once over the production import graph, and once
+# with -test. `go list -deps` alone cannot see a test-only import, and a test is
+# a likely way for coupling to sneak in. Two edges are checked for production
+# only. internal/tools/leader_rpc_test.go drives the leader's /rpc with the real
+# Check and a real cluster.Leader. That is the only way to test, from outside,
+# that "every call is checked exactly once before reaching the plugin" at that
+# entry point. Those two are the only test-side crossings in the tree.
 #
-# The self-test up front is not decoration. The body reports a violation when a
-# grep succeeds, so anything that makes every grep fail — a wrong module path, a
-# renamed package, a `go list` that errors — would otherwise print "layering
+# The self-test at the start matters. The body reports a violation when a grep
+# succeeds, so anything that makes every grep fail (a wrong module path, a
+# renamed package, a `go list` that errors) would otherwise print "layering
 # holds" while checking nothing.
 deps-check:
 	@module=github.com/tunglt1810/figma-mcp-go; \

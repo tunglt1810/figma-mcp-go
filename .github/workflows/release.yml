@@ -23,10 +23,10 @@ jobs:
         id: version
         run: echo "value=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      # The binary embeds server.json and the plugin build reads
-      # npm/package.json, so both are baked in before the tag is ever
-      # consulted. Fail loudly rather than ship a release whose parts
-      # disagree about which version they are.
+      # The binary embeds server.json, and the plugin build reads
+      # npm/package.json, so both versions are fixed before the tag is
+      # even looked at. Fail loudly instead of shipping a release whose
+      # parts disagree about their version.
       - name: Check committed versions match the tag
         env:
           VERSION: ${{ steps.version.outputs.value }}
@@ -87,8 +87,8 @@ jobs:
         run: |
           cp ../README.md .
           npm version "$VERSION" --no-git-tag-version --allow-same-version
-          # Skip if this version is already out, so re-running a release
-          # whose later steps failed does not die on "cannot publish over".
+          # Skip if this version is already published, so re-running a release
+          # whose later steps failed does not stop on "cannot publish over".
           NAME=$(jq -r .name package.json)
           if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
             echo "$NAME@$VERSION already on npm, skipping publish"
@@ -109,8 +109,8 @@ jobs:
       # The registry validates the package against npm, and a version
       # published seconds ago can still 404 there while it propagates.
       # Retry with backoff instead of failing the release on that race.
-      # Log in on every attempt: the registry token is short-lived and the
-      # backoff can outlast it.
+      # Log in on every attempt: the registry token is short-lived, and
+      # the backoff can last longer than it.
       - name: Publish to MCP Registry
         run: |
           for delay in 15 30 60 120 240; do

@@ -11,11 +11,11 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// The golden schema snapshot pins what clients see, but says nothing about what
-// the plugin receives. Migrating a hand-written handler to a toolSpec can keep
-// the schema byte-identical while changing the wire call — get_annotations sends
-// its node id inside params, and moving it to the nodeIDs field would silently
-// stop scoping the query. These tests pin the wire shape.
+// The golden schema snapshot pins what clients see, but not what the plugin
+// receives. Moving a hand-written handler to a toolSpec can keep the schema
+// byte-identical while changing the wire call. get_annotations sends its node
+// id inside params. Moving it to the nodeIDs field would quietly stop scoping
+// the query. These tests pin the wire shape.
 
 func callWire(t *testing.T, s *server.MCPServer, tool string, args map[string]any) {
 	t.Helper()
@@ -46,7 +46,7 @@ func TestToolWireShape(t *testing.T) {
 			wantNodeIDs: nil, wantParams: map[string]any{},
 		},
 		{
-			// The node id belongs in params here; the plugin reads
+			// The node id belongs in params here. The plugin reads
 			// request.params.nodeId and ignores request.nodeIds.
 			name: "node id stays in params",
 			tool: "get_annotations", args: map[string]any{"nodeId": "4029:12345"},
@@ -63,15 +63,15 @@ func TestToolWireShape(t *testing.T) {
 			wantNodeIDs: nil, wantParams: map[string]any{"format": "css"},
 		},
 		{
-			// An omitted argument must stay omitted so the plugin's own default
-			// applies, rather than being sent as a zero value.
+			// An omitted argument must stay omitted, so the plugin's own default
+			// applies instead of a zero value.
 			name: "omitted argument stays omitted",
 			tool: "export_tokens", args: map[string]any{},
 			wantNodeIDs: nil, wantParams: map[string]any{},
 		},
 		{
 			// The plugin reads request.nodeIds[0] as the search root, so the
-			// nodeId argument must travel in the nodeIDs field, not in params.
+			// nodeId argument must go in the nodeIDs field, not in params.
 			name:        "scoped to a subtree",
 			tool:        "find_replace_text",
 			args:        map[string]any{"nodeId": "4029:12345", "find": "a", "replace": "b"},
@@ -83,7 +83,7 @@ func TestToolWireShape(t *testing.T) {
 			tool: "find_replace_text", args: map[string]any{"find": "a", "replace": ""},
 			wantNodeIDs: nil,
 			// An empty replacement deletes matches, so it must reach the plugin
-			// rather than being dropped as an absent argument.
+			// instead of being dropped as an absent argument.
 			wantParams: map[string]any{"find": "a", "replace": ""},
 		},
 		{
@@ -99,8 +99,8 @@ func TestToolWireShape(t *testing.T) {
 			wantParams:  map[string]any{"find": "old", "replace": ""},
 		},
 		{
-			// The old handler forwarded every argument it was given, node id
-			// included; only declared parameters should reach the plugin now.
+			// The old handler forwarded every argument it got, node id included.
+			// Now only declared parameters should reach the plugin.
 			name:        "node id is not repeated in params",
 			tool:        "set_auto_layout",
 			args:        map[string]any{"nodeIds": []any{"1:1"}, "layoutMode": "VERTICAL", "itemSpacing": 8},
@@ -108,7 +108,7 @@ func TestToolWireShape(t *testing.T) {
 			wantParams:  map[string]any{"layoutMode": "VERTICAL", "itemSpacing": float64(8)},
 		},
 		{
-			// An empty array means "remove them all" and is not the same as
+			// An empty array means "remove them all". That is not the same as
 			// omitting the argument.
 			name:        "empty indices removes every reaction",
 			tool:        "set_reactions",
@@ -117,8 +117,8 @@ func TestToolWireShape(t *testing.T) {
 			wantParams:  map[string]any{"removeIndices": []any{}},
 		},
 		{
-			// Empty clears every effect on the node, so the array has to be
-			// forwarded rather than treated as an absent argument.
+			// An empty array clears every effect on the node, so it must be
+			// forwarded, not treated as an absent argument.
 			name:        "empty effects clears them",
 			tool:        "set_effects",
 			args:        map[string]any{"nodeId": "1:1", "effects": []any{}},
@@ -126,7 +126,7 @@ func TestToolWireShape(t *testing.T) {
 			wantParams:  map[string]any{"effects": []any{}},
 		},
 		{
-			// This tool takes no node ids at all; both ends live in params.
+			// This tool takes no node ids at all. Both ends live in params.
 			name:        "connector endpoints stay in params",
 			tool:        "create_connector",
 			args:        map[string]any{"startNodeId": "1:1", "endNodeId": "2:2"},
@@ -164,8 +164,8 @@ func TestToolWireShape(t *testing.T) {
 	}
 }
 
-// Every table-declared tool must be registered, and vice versa, so a spec
-// cannot be added to the registry without reaching clients.
+// Every table-declared tool must be registered, and every registered tool must
+// be in the table. So a spec cannot be added to the registry without reaching clients.
 func TestSpecRegistry_MatchesRegisteredTools(t *testing.T) {
 	registered := map[string]bool{}
 	for _, tool := range listTools(t).Result.Tools {
@@ -178,8 +178,8 @@ func TestSpecRegistry_MatchesRegisteredTools(t *testing.T) {
 	}
 }
 
-// Every tool is now table-declared, so the registry and the registered set are
-// the same set. A hand-written registration would show up here.
+// Every tool is now declared in the table, so the registry and the registered
+// set are the same. A hand-written registration would show up here.
 func TestSpecRegistry_CoversEveryTool(t *testing.T) {
 	for _, tool := range listTools(t).Result.Tools {
 		if _, ok := specRegistry[tool.Name]; !ok {
@@ -188,10 +188,10 @@ func TestSpecRegistry_CoversEveryTool(t *testing.T) {
 	}
 }
 
-// Checking belongs to the handler, not to whatever happens to be behind it.
-// Registered against a bare Sender — no Node, so nothing downstream validates
-// anything — a bad call must still be rejected before it reaches the sender.
-// That holds for a plain forwarding tool and for one that runs its own Go code.
+// Checking belongs to the handler, not to whatever is behind it. The tools are
+// registered against a bare Sender, with no Node, so nothing downstream checks
+// anything. A bad call must still be rejected before it reaches the sender.
+// This holds both for a plain forwarding tool and for one that runs Go code.
 func TestRegisterTools_ChecksWithoutANodeBehindIt(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -226,13 +226,13 @@ func TestRegisterTools_ChecksWithoutANodeBehindIt(t *testing.T) {
 	}
 }
 
-// export_screenshots calls get_screenshot once per item with params it builds
-// itself, and get_screenshot is no longer a tool with a spec of its own, so
-// nothing downstream would reject a bad per-item argument. Before this was
-// noticed, an unrecognised per-item format went straight through: on a path
-// whose extension implies nothing, the format-conflict guard does not fire
-// either. The item schema is a level below any paramSpec enum, so the tool's
-// own Validate is what has to catch it — before anything reaches the sender.
+// export_screenshots calls get_screenshot once per item, with params it builds
+// itself. get_screenshot no longer has a spec of its own, so nothing
+// downstream would reject a bad per-item argument. Before this was noticed, an
+// unknown per-item format went straight through: on a path whose extension
+// implies no format, the format-conflict check does not fire either. The item
+// schema is deeper than any paramSpec enum, so the tool's own Validate must
+// catch it before anything reaches the sender.
 func TestExportScreenshots_BadItemIsRejectedBeforeTheSender(t *testing.T) {
 	s, fake := newTestServer(t)
 
@@ -250,7 +250,7 @@ func TestExportScreenshots_BadItemIsRejectedBeforeTheSender(t *testing.T) {
 	}
 }
 
-// The checking must not break the calls that are fine.
+// The checks must not break calls that are fine.
 func TestExportScreenshots_ValidInnerCallStillGoesThrough(t *testing.T) {
 	s, fake := newTestServer(t)
 
@@ -271,8 +271,8 @@ func TestExportScreenshots_ValidInnerCallStillGoesThrough(t *testing.T) {
 	}
 }
 
-// The half that came from get_screenshot: no outputPath means the bytes come
-// back rather than being written, and no items at all means the selection.
+// The part that came from get_screenshot: no outputPath means the bytes come
+// back instead of being written, and no items at all means the selection.
 func TestExportScreenshots_InMemoryHalf(t *testing.T) {
 	t.Run("an item without outputPath asks for one node", func(t *testing.T) {
 		s, fake := newTestServer(t)

@@ -69,12 +69,12 @@ func autoLayoutParams() []paramSpec {
 var layoutSizingValues = []string{"FIXED", "HUG", "FILL"}
 
 // nodeVariants say which arguments belong to which shape. Seven create_* tools
-// became one, and these shapes genuinely differ — a star takes pointCount, a
-// line takes length — so an argument from the wrong shape is an error rather
-// than something dropped on the way to Figma.
+// became one, and the shapes really do differ: a star takes pointCount, a line
+// takes length. So an argument for the wrong shape is an error, not something
+// quietly dropped on the way to Figma.
 //
-// parentId is deliberately absent from SECTION: the handler does not read it,
-// and accepting it would be exactly the silent no-op this guards against.
+// SECTION has no parentId on purpose. The handler does not read it, so
+// accepting it would be exactly the silent no-op this check prevents.
 var nodeVariants = map[string]variantSpec{
 	"FRAME":     {Allowed: append([]string{"width", "height", "fillColor", "parentId"}, autoLayoutParamNames...)},
 	"RECTANGLE": {Allowed: []string{"width", "height", "fillColor", "cornerRadius", "parentId"}},
@@ -85,8 +85,8 @@ var nodeVariants = map[string]variantSpec{
 	"SECTION":   {Allowed: []string{"width", "height"}},
 }
 
-// Kept in step with autoLayoutParams by TestAutoLayoutParamNamesCoverTheSpecs —
-// a name missing here is silently rejected as "not allowed for this shape".
+// TestAutoLayoutParamNamesCoverTheSpecs keeps this in step with
+// autoLayoutParams. A name missing here is rejected as "not allowed for this shape".
 var autoLayoutParamNames = []string{
 	"layoutMode", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
 	"itemSpacing", "primaryAxisAlignItems", "counterAxisAlignItems",
@@ -100,7 +100,7 @@ var autoLayoutParamNames = []string{
 var writeCreateSpecs = []toolSpec{
 	{
 		Name: "create_node",
-		Desc: "Create a shape. Arguments per `type`: " +
+		Desc: "Create a shape. Args per `type`: " +
 			"FRAME: width, height, fillColor, auto layout args. " +
 			"RECTANGLE: width, height, fillColor, cornerRadius. " +
 			"ELLIPSE: width, height, fillColor, startAngle, endAngle, innerRadiusRatio. " +
@@ -108,7 +108,7 @@ var writeCreateSpecs = []toolSpec{
 			"POLYGON: pointCount, radius, fillColor, cornerRadius. " +
 			"LINE: length, rotation, strokeColor, strokeWeight. " +
 			"SECTION: width, height (no parent). " +
-			"All: x, y, name. Wrong args for the type are rejected. For text use create_text.",
+			"All: x, y, name. Other args are rejected. For text use create_text.",
 		Params: append([]paramSpec{
 			{Name: "type", Kind: kindString, Required: true, Enum: variantKinds(nodeVariants),
 				Desc: "FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION"},
@@ -149,7 +149,7 @@ var writeCreateSpecs = []toolSpec{
 	},
 	{
 		Name: "create_text",
-		Desc: "Create a text node. Loads the font for you. To edit existing text use set_text.",
+		Desc: "Create a text node (loads the font). To edit text use set_text.",
 		Params: append([]paramSpec{
 			{Name: "text", Kind: kindString, Required: true, Desc: "Text"},
 		}, append(positionParams(),
@@ -163,7 +163,8 @@ var writeCreateSpecs = []toolSpec{
 	},
 	{
 		Name: "import_image",
-		Desc: "Add an image from a URL (preferred) or base64. Creates a rectangle sized to the image, or fills an existing node if nodeId is set.",
+		Desc: "Add an image from a URL (preferred) or base64, as a rectangle sized to the image, or as nodeId's fill.",
+
 		Params: append([]paramSpec{
 			{Name: "imageUrl", Kind: kindString, Desc: "Image URL"},
 			{Name: "imageData", Kind: kindString, Desc: "Base64 PNG or JPG, if no URL"},
@@ -219,8 +220,8 @@ var writeCreateSpecs = []toolSpec{
 				if msg := figma.ValidateImageCrop(crop); msg != "" {
 					return msg
 				}
-				// CROP is what makes the transform mean anything; any other
-				// scale mode would take the crop and silently ignore it.
+				// CROP is the only scale mode that uses the transform. Any other
+				// mode would accept the crop and quietly ignore it.
 				if mode, ok := params["scaleMode"].(string); ok && mode != "CROP" {
 					return "crop needs scaleMode CROP, or scaleMode left out"
 				}

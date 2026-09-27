@@ -35,7 +35,7 @@ describe("loadFonts", () => {
     expect(loaded).toEqual(["Inter Regular"]);
   });
 
-  // The reason this module exists: one attempt used to surface one missing
+  // This is why the module exists: one attempt used to report one missing
   // font, so a caller fixed them one round trip at a time.
   it("names every missing font, not just the first", async () => {
     const attempt = loadFonts([Inter, Roboto, InterBold], async (font) => {
