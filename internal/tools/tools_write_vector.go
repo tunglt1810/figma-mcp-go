@@ -13,7 +13,7 @@ var writeVectorSpecs = []toolSpec{
 		Desc:       "Combine 2+ shapes (same parent): UNION, SUBTRACT (cut the rest from the first), INTERSECT, or EXCLUDE. Pipeline rollback cannot undo it.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
-		NodeIDDesc: "Shape IDs; order matters for SUBTRACT",
+		NodeIDDesc: "Shape IDs. Order matters for SUBTRACT.",
 		Params: []paramSpec{
 			{Name: "operation", Kind: kindString, Required: true,
 				Enum: []string{"UNION", "SUBTRACT", "INTERSECT", "EXCLUDE"},
@@ -33,7 +33,7 @@ var writeVectorSpecs = []toolSpec{
 	},
 	{
 		Name:       "outline_stroke",
-		Desc:       "Turn each node's stroke into a filled shape. Nodes without a stroke are listed in `skipped`.",
+		Desc:       "Turn each node's stroke into a filled shape. Nodes without a stroke go in `skipped`.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",

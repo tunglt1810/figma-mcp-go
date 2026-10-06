@@ -10,7 +10,7 @@ var writeViewportSpecs = []toolSpec{
 		Desc: "Select and zoom to nodes (switches page if needed) to show the user your work. No IDs clears the selection. Nodes must share a page.",
 
 		NodeIDs:    nodeIDsMulti,
-		NodeIDDesc: "Node IDs; empty clears",
+		NodeIDDesc: "Node IDs. An empty list clears the selection.",
 		Params: []paramSpec{
 			{Name: "select", Kind: kindBool,
 				Desc: "Change selection (default true). false + zoom only moves the view."},

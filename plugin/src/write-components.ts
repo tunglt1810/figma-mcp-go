@@ -179,7 +179,7 @@ export const writeComponentsHandlers: HandlerMap = {
 
   "create_connector": async (request) => {
     if (figma.editorType !== "figjam") {
-      throw new Error("create_connector is only supported in FigJam files");
+      throw new Error("The create_connector tool operates only in a FigJam file");
     }
     const p = request.params || {};
     let startPoint: any = null;

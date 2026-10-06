@@ -11,6 +11,16 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 ## [Unreleased]
 
+### Changed
+
+- Tool and parameter descriptions in `tools/list` now use full sentences and no semicolons. Tool names and arguments are unchanged.
+- The `create_connector` error outside a FigJam file now reads `The create_connector tool operates only in a FigJam file`.
+- The specs in `docs/specs` use simpler wording.
+
+### Fixed
+
+- The FigJam connectors spec said that a connector needs two endpoints. It now says one is enough, as the server requires.
+
 ## [0.4.1] - 2026-09-27
 
 ### Changed

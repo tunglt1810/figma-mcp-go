@@ -14,7 +14,7 @@ var writeComponentSpecs = []toolSpec{
 	},
 	{
 		Name:       "ungroup_nodes",
-		Desc:       "Ungroup GROUP nodes; children move to the parent.",
+		Desc:       "Ungroup GROUP nodes. The children move to the parent.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "GROUP node IDs",
@@ -53,7 +53,7 @@ var writeComponentSpecs = []toolSpec{
 	},
 	{
 		Name: "set_instance_overrides",
-		Desc: "Set an instance's component properties. Fails on unknown names or wrong types.",
+		Desc: "Set an instance's component properties. The tool fails on unknown names or wrong types.",
 
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
@@ -65,7 +65,7 @@ var writeComponentSpecs = []toolSpec{
 	},
 	{
 		Name: "create_connector",
-		Desc: "Create a connector line. FigJam only.",
+		Desc: "Create a connector line. This tool operates only in a FigJam file.",
 		Params: []paramSpec{
 			{Name: "startNodeId", Kind: kindString, IsNodeID: true,
 				Desc: "Start node ID"},
@@ -82,13 +82,13 @@ var writeComponentSpecs = []toolSpec{
 	},
 	{
 		Name:       "set_annotations",
-		Desc:       "Set Dev Mode annotations on nodes ([] clears). Needs a paid Dev Mode seat.",
+		Desc:       "Set Dev Mode annotations on nodes ([] clears them). The tool needs a paid Dev Mode seat.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",
 		Params: []paramSpec{
 			{Name: "annotations", Kind: kindArray, Required: true, AllowEmpty: true,
-				Desc: "e.g. [{\"label\": \"Main Button\"}]; [] clears"},
+				Desc: "e.g. [{\"label\": \"Main Button\"}]. [] clears them."},
 		},
 	},
 }

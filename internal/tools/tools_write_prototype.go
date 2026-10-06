@@ -6,7 +6,7 @@ import (
 	"github.com/tunglt1810/figma-mcp-go/internal/figma"
 )
 
-const setReactionsDesc = `Set or remove prototype reactions. mode: replace (default) or append. To remove, pass removeIndices (from get_reactions; [] = all), not reactions.
+const setReactionsDesc = `Set or remove prototype reactions. mode: replace (default) or append. To remove, pass removeIndices (from get_reactions, [] = all), not reactions.
 
 Reaction: {"trigger":{"type":...},"actions":[...]}.
 Triggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT (+timeout ms), MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN.
@@ -27,7 +27,7 @@ var writePrototypeSpecs = []toolSpec{
 			{Name: "mode", Kind: kindString, Enum: []string{"replace", "append"},
 				Desc: "replace (default) or append"},
 			{Name: "removeIndices", Kind: kindNumberArray,
-				Desc: "Indices to remove; [] removes all. Not with reactions."},
+				Desc: "Indices to remove. [] removes all. Do not use with reactions."},
 		},
 		Validate: func(_ []string, params map[string]any) string {
 			_, hasReactions := params["reactions"]

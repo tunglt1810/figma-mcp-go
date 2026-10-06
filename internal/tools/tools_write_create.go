@@ -40,17 +40,17 @@ func autoLayoutParams() []paramSpec {
 		{Name: "counterAxisSpacing", Kind: kindNumber,
 			Desc: "Gap between wrapped rows (with WRAP)"},
 		{Name: "layoutSizingHorizontal", Kind: kindString, Enum: layoutSizingValues,
-			Desc: "Width mode: FIXED, HUG (fit content), or FILL (fill parent). Prefer over *AxisSizingMode. HUG needs auto layout on this node; FILL on its parent."},
+			Desc: "Width mode: FIXED, HUG (fit content), or FILL (fill parent). Prefer this over *AxisSizingMode. HUG needs auto layout on this node. FILL needs auto layout on its parent."},
 		{Name: "layoutSizingVertical", Kind: kindString, Enum: layoutSizingValues,
-			Desc: "Height mode: FIXED, HUG, or FILL. Same rules as layoutSizingHorizontal."},
+			Desc: "Height mode: FIXED, HUG, or FILL. The rules are the same as for layoutSizingHorizontal."},
 		{Name: "minWidth", Kind: kindNumber, Min: floatPtr(0), Nullable: true,
-			Desc: "Min width; null clears"},
+			Desc: "Min width. null removes it."},
 		{Name: "maxWidth", Kind: kindNumber, Min: floatPtr(0), Nullable: true,
-			Desc: "Max width; null clears"},
+			Desc: "Max width. null removes it."},
 		{Name: "minHeight", Kind: kindNumber, Min: floatPtr(0), Nullable: true,
-			Desc: "Min height; null clears"},
+			Desc: "Min height. null removes it."},
 		{Name: "maxHeight", Kind: kindNumber, Min: floatPtr(0), Nullable: true,
-			Desc: "Max height; null clears"},
+			Desc: "Max height. null removes it."},
 		{Name: "layoutPositioning", Kind: kindString, Enum: []string{"AUTO", "ABSOLUTE"},
 			Desc: "In the parent's auto layout: AUTO (in flow) or ABSOLUTE (free, at x/y)"},
 		{Name: "layoutAlign", Kind: kindString, Enum: []string{"MIN", "CENTER", "MAX", "STRETCH", "INHERIT"},
@@ -108,7 +108,7 @@ var writeCreateSpecs = []toolSpec{
 			"POLYGON: pointCount, radius, fillColor, cornerRadius. " +
 			"LINE: length, rotation, strokeColor, strokeWeight. " +
 			"SECTION: width, height (no parent). " +
-			"All: x, y, name. Other args are rejected. For text use create_text.",
+			"All: x, y, name. The tool rejects other args. For text, use create_text.",
 		Params: append([]paramSpec{
 			{Name: "type", Kind: kindString, Required: true, Enum: variantKinds(nodeVariants),
 				Desc: "FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION"},
@@ -149,13 +149,13 @@ var writeCreateSpecs = []toolSpec{
 	},
 	{
 		Name: "create_text",
-		Desc: "Create a text node (loads the font). To edit text use set_text.",
+		Desc: "Create a text node (loads the font). To edit text, use set_text.",
 		Params: append([]paramSpec{
 			{Name: "text", Kind: kindString, Required: true, Desc: "Text"},
 		}, append(positionParams(),
 			paramSpec{Name: "fontSize", Kind: kindNumber, Desc: "Font size (default 14)"},
 			paramSpec{Name: "fontFamily", Kind: kindString, Desc: "Font family e.g. 'Roboto' (default Inter)"},
-			paramSpec{Name: "fontStyle", Kind: kindString, Desc: "Font style e.g. 'Bold' (default Regular). Must exist for the family."},
+			paramSpec{Name: "fontStyle", Kind: kindString, Desc: "Font style e.g. 'Bold' (default Regular). The style must exist for the family."},
 			paramSpec{Name: "fillColor", Kind: kindString, IsHexColor: true, Desc: "Text color hex (default black)"},
 			paramSpec{Name: "name", Kind: kindString, Desc: "Layer name (default: the text)"},
 			parentIDParam(defaultParentDesc),
@@ -181,7 +181,7 @@ var writeCreateSpecs = []toolSpec{
 			paramSpec{Name: "mode", Kind: kindString, Enum: []string{"replace", "append"},
 				Desc: "With nodeId: replace fills (default) or append"},
 			paramSpec{Name: "crop", Kind: kindObject,
-				Desc: "Part of the image to show, {x, y, width, height} each 0-1. Sets scaleMode CROP.",
+				Desc: "Part of the image to show, {x, y, width, height} each 0-1. This sets scaleMode to CROP.",
 				ObjectSchema: map[string]any{
 					"type": "object",
 					"properties": map[string]any{

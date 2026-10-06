@@ -36,7 +36,7 @@ var validNodeOrders = []string{"bringToFront", "sendToBack", "bringForward", "se
 var writeModifySpecs = []toolSpec{
 	{
 		Name:       "set_text",
-		Desc:       "Change a TEXT node's text and whole-node settings (resize, truncation, alignment, spacing). Style parts with set_text_ranges.",
+		Desc:       "Change a TEXT node's text and whole-node settings (resize, truncation, alignment, spacing). To style parts of the text, use set_text_ranges.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "TEXT node ID",
@@ -49,7 +49,7 @@ var writeModifySpecs = []toolSpec{
 			{Name: "textTruncation", Kind: kindString, Enum: []string{"DISABLED", "ENDING"},
 				Desc: "ENDING adds … on overflow"},
 			{Name: "maxLines", Kind: kindNumber, Min: floatPtr(1), Nullable: true,
-				Desc: "Max lines (needs ENDING); null removes"},
+				Desc: "Max lines (needs ENDING). null removes it."},
 			{Name: "paragraphSpacing", Kind: kindNumber, Min: floatPtr(0),
 				Desc: "Space between paragraphs"},
 			{Name: "paragraphIndent", Kind: kindNumber, Min: floatPtr(0),
@@ -67,13 +67,13 @@ var writeModifySpecs = []toolSpec{
 	},
 	{
 		Name:       "set_text_ranges",
-		Desc:       "Style parts of a TEXT node (bold, color, link, list). Each range is characters [start, end). Later ranges win on overlap; omitted properties stay.",
+		Desc:       "Style parts of a TEXT node (bold, color, link, list). Each range is characters [start, end). Later ranges win on overlap. Omitted properties stay.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "TEXT node ID",
 		Params: []paramSpec{
 			{Name: "ranges", Kind: kindObjectArray, Required: true,
-				Desc: "Ranges to style; start and end required",
+				Desc: "Ranges to style. Each range needs start and end.",
 				ItemSchema: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -92,7 +92,7 @@ var writeModifySpecs = []toolSpec{
 						"lineHeightUnit":    map[string]any{"type": "string", "enum": []string{"PIXELS", "PERCENT"}, "description": "Default PIXELS"},
 						"listType":          map[string]any{"type": "string", "enum": []string{"NONE", "ORDERED", "UNORDERED"}, "description": "Numbered or bulleted list"},
 						"indentation":       map[string]any{"type": "number", "description": "List indent level"},
-						"hyperlink":         map[string]any{"description": "Link URL; null removes"},
+						"hyperlink":         map[string]any{"description": "Link URL. null removes it."},
 					},
 					"required": []string{"start", "end"},
 				}},
@@ -170,7 +170,7 @@ var writeModifySpecs = []toolSpec{
 		NodeIDDesc: "Frame, component, or section IDs",
 		Params: []paramSpec{
 			{Name: "grids", Kind: kindObjectArray, Required: true, AllowEmpty: true,
-				Desc: "Grids; [] removes all",
+				Desc: "Grids. [] removes all.",
 				ItemSchema: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -191,7 +191,7 @@ var writeModifySpecs = []toolSpec{
 	},
 	{
 		Name: "set_auto_layout",
-		Desc: "Set auto layout (flexbox) on frames, components or instances: direction, padding, gap, align, sizing (HUG/FILL via layoutSizing*). " +
+		Desc: "Set auto layout (flexbox) on frames, components or instances: direction, padding, gap, align, sizing (HUG/FILL with layoutSizing*). " +
 			"layoutPositioning, layoutAlign, layoutGrow set how a node sits in its parent. Results are per node.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
@@ -243,7 +243,7 @@ var writeModifySpecs = []toolSpec{
 			{Name: "strokeMiterLimit", Kind: kindNumber, Min: floatPtr(1),
 				Desc: "Miter limit (default 4)"},
 			{Name: "dashPattern", Kind: kindNumberArray,
-				Desc: "Dash and gap e.g. [4, 2]; [] = solid"},
+				Desc: "Dash and gap e.g. [4, 2]. [] = solid."},
 		},
 		Validate: func(_ []string, params map[string]any) string {
 			supplied := false
@@ -264,7 +264,7 @@ var writeModifySpecs = []toolSpec{
 	},
 	{
 		Name:       "delete_nodes",
-		Desc:       "Delete nodes. Cannot be undone from here.",
+		Desc:       "Delete nodes. You cannot undo this from here.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs to delete",
@@ -289,11 +289,11 @@ var writeModifySpecs = []toolSpec{
 		NodeIDDesc: "Node IDs",
 		Params: []paramSpec{
 			{Name: "name", Kind: kindString,
-				Desc: "New name for all nodes; slashes group e.g. 'Icons/Arrow'"},
+				Desc: "New name for all nodes. A slash makes a group, e.g. 'Icons/Arrow'."},
 			{Name: "find", Kind: kindString,
 				Desc: "Text or regex to find in names"},
 			{Name: "replace", Kind: kindString, AllowEmpty: true,
-				Desc: "Replacement; required with find"},
+				Desc: "Replacement. find requires it."},
 			{Name: "useRegex", Kind: kindBool, Desc: "find is a regex (default false)"},
 			{Name: "regexFlags", Kind: kindString, Desc: "Regex flags (default 'g')"},
 			{Name: "prefix", Kind: kindString, Desc: "Add to start of name"},
@@ -328,7 +328,7 @@ var writeModifySpecs = []toolSpec{
 			{Name: "find", Kind: kindString, Required: true,
 				Desc: "Text or regex to find"},
 			{Name: "replace", Kind: kindString, Required: true, AllowEmpty: true,
-				Desc: "Replacement; \"\" deletes"},
+				Desc: "Replacement. \"\" deletes the text."},
 			{Name: "useRegex", Kind: kindBool, Desc: "find is a regex (default false)"},
 			{Name: "regexFlags", Kind: kindString, Desc: "Regex flags (default 'g')"},
 		},

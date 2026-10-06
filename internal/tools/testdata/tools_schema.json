@@ -27,7 +27,7 @@
   },
   "batch_execute_pipeline": {
     "annotations": {},
-    "description": "Run write steps in order; a step can use earlier results via $variables. With stop_on_error, a failure undoes created nodes and changed properties, but not deletes, group/ungroup, detach, reparent, or steps that target nodes by name.",
+    "description": "Run write steps in order. A step can use earlier results through $variables. With stop_on_error, a failure undoes created nodes and changed properties, but not deletes, group/ungroup, detach, reparent, or steps that target nodes by name.",
     "inputSchema": {
       "properties": {
         "steps": {
@@ -80,7 +80,7 @@
           "type": "string"
         },
         "name": {
-          "description": "New name for all nodes; slashes group e.g. 'Icons/Arrow'",
+          "description": "New name for all nodes. A slash makes a group, e.g. 'Icons/Arrow'.",
           "type": "string"
         },
         "nodeIds": {
@@ -99,7 +99,7 @@
           "type": "string"
         },
         "replace": {
-          "description": "Replacement; required with find",
+          "description": "Replacement. find requires it.",
           "type": "string"
         },
         "suffix": {
@@ -128,7 +128,7 @@
           "type": "string"
         },
         "nodeIds": {
-          "description": "Shape IDs; order matters for SUBTRACT",
+          "description": "Shape IDs. Order matters for SUBTRACT.",
           "items": {
             "type": "string"
           },
@@ -254,7 +254,7 @@
   },
   "create_connector": {
     "annotations": {},
-    "description": "Create a connector line. FigJam only.",
+    "description": "Create a connector line. This tool operates only in a FigJam file.",
     "inputSchema": {
       "properties": {
         "endNodeId": {
@@ -287,7 +287,7 @@
   },
   "create_node": {
     "annotations": {},
-    "description": "Create a shape. Args per `type`: FRAME: width, height, fillColor, auto layout args. RECTANGLE: width, height, fillColor, cornerRadius. ELLIPSE: width, height, fillColor, startAngle, endAngle, innerRadiusRatio. STAR: pointCount, outerRadius, innerRadius, fillColor, cornerRadius. POLYGON: pointCount, radius, fillColor, cornerRadius. LINE: length, rotation, strokeColor, strokeWeight. SECTION: width, height (no parent). All: x, y, name. Other args are rejected. For text use create_text.",
+    "description": "Create a shape. Args per `type`: FRAME: width, height, fillColor, auto layout args. RECTANGLE: width, height, fillColor, cornerRadius. ELLIPSE: width, height, fillColor, startAngle, endAngle, innerRadiusRatio. STAR: pointCount, outerRadius, innerRadius, fillColor, cornerRadius. POLYGON: pointCount, radius, fillColor, cornerRadius. LINE: length, rotation, strokeColor, strokeWeight. SECTION: width, height (no parent). All: x, y, name. The tool rejects other args. For text, use create_text.",
     "inputSchema": {
       "properties": {
         "clipsContent": {
@@ -355,11 +355,11 @@
           "type": "string"
         },
         "layoutSizingHorizontal": {
-          "description": "Width mode: FIXED, HUG (fit content), or FILL (fill parent). Prefer over *AxisSizingMode. HUG needs auto layout on this node; FILL on its parent.",
+          "description": "Width mode: FIXED, HUG (fit content), or FILL (fill parent). Prefer this over *AxisSizingMode. HUG needs auto layout on this node. FILL needs auto layout on its parent.",
           "type": "string"
         },
         "layoutSizingVertical": {
-          "description": "Height mode: FIXED, HUG, or FILL. Same rules as layoutSizingHorizontal.",
+          "description": "Height mode: FIXED, HUG, or FILL. The rules are the same as for layoutSizingHorizontal.",
           "type": "string"
         },
         "layoutWrap": {
@@ -371,19 +371,19 @@
           "type": "number"
         },
         "maxHeight": {
-          "description": "Max height; null clears",
+          "description": "Max height. null removes it.",
           "type": "number"
         },
         "maxWidth": {
-          "description": "Max width; null clears",
+          "description": "Max width. null removes it.",
           "type": "number"
         },
         "minHeight": {
-          "description": "Min height; null clears",
+          "description": "Min height. null removes it.",
           "type": "number"
         },
         "minWidth": {
-          "description": "Min width; null clears",
+          "description": "Min width. null removes it.",
           "type": "number"
         },
         "name": {
@@ -476,7 +476,7 @@
   },
   "create_style": {
     "annotations": {},
-    "description": "Create a local style. Args per `type`: PAINT: color. TEXT: fontSize, fontFamily, fontStyle, textDecoration, lineHeightValue/Unit, letterSpacingValue/Unit. EFFECT: effectType, color, opacity, radius, offsetX, offsetY, spread. GRID: pattern, count, gutterSize, offset, alignment, sectionSize, color, opacity. Returns the style ID; apply with apply_style_to_node.",
+    "description": "Create a local style. Args per `type`: PAINT: color. TEXT: fontSize, fontFamily, fontStyle, textDecoration, lineHeightValue/Unit, letterSpacingValue/Unit. EFFECT: effectType, color, opacity, radius, offsetX, offsetY, spread. GRID: pattern, count, gutterSize, offset, alignment, sectionSize, color, opacity. The tool returns the style ID. Apply the style with apply_style_to_node.",
     "inputSchema": {
       "properties": {
         "alignment": {
@@ -532,7 +532,7 @@
           "type": "number"
         },
         "name": {
-          "description": "Style name; slashes group e.g. 'Brand/Primary'",
+          "description": "Style name. A slash makes a group, e.g. 'Brand/Primary'.",
           "type": "string"
         },
         "offset": {
@@ -586,7 +586,7 @@
   },
   "create_text": {
     "annotations": {},
-    "description": "Create a text node (loads the font). To edit text use set_text.",
+    "description": "Create a text node (loads the font). To edit text, use set_text.",
     "inputSchema": {
       "properties": {
         "fillColor": {
@@ -602,7 +602,7 @@
           "type": "number"
         },
         "fontStyle": {
-          "description": "Font style e.g. 'Bold' (default Regular). Must exist for the family.",
+          "description": "Font style e.g. 'Bold' (default Regular). The style must exist for the family.",
           "type": "string"
         },
         "name": {
@@ -676,7 +676,7 @@
   },
   "delete_nodes": {
     "annotations": {},
-    "description": "Delete nodes. Cannot be undone from here.",
+    "description": "Delete nodes. You cannot undo this from here.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -758,7 +758,7 @@
   },
   "export_screenshots": {
     "annotations": {},
-    "description": "Export nodes as images. Items with outputPath are saved to file; others are returned (PNG/JPG as image, SVG as text, PDF as base64). No items = selection. Prefer outputPath if you only need the file.",
+    "description": "Export nodes as images. The tool saves items with outputPath to file. It returns the other items (PNG/JPG as image, SVG as text, PDF as base64). Without items, the tool exports the selection. Prefer outputPath if you only need the file.",
     "inputSchema": {
       "properties": {
         "format": {
@@ -838,7 +838,7 @@
           "type": "string"
         },
         "replace": {
-          "description": "Replacement; \"\" deletes",
+          "description": "Replacement. \"\" deletes the text.",
           "type": "string"
         },
         "useRegex": {
@@ -899,11 +899,11 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get the node tree of the selection, page, or file (`scope`). Returns {fileName, scope, currentPage, nodes}. Stops at 500 nodes by default; then sets `truncated`, and nodes with hidden children show `childCount`.",
+    "description": "Get the node tree of the selection, page, or file (`scope`). The tool returns {fileName, scope, currentPage, nodes}. The tool stops at 500 nodes by default. It then sets `truncated`, and nodes with hidden children show `childCount`.",
     "inputSchema": {
       "properties": {
         "dedupe_components": {
-          "description": "Show instances in short form (mainComponentId, componentProperties, overrides) and list each component once in `componentDefs`. Saves tokens on screens with many instances.",
+          "description": "Show instances in short form (mainComponentId, componentProperties, overrides) and list each component once in `componentDefs`. This saves tokens on screens with many instances.",
           "type": "boolean"
         },
         "depth": {
@@ -915,11 +915,11 @@
           "type": "string"
         },
         "maxNodes": {
-          "description": "Max nodes in full detail (default 500). Not used with `detail` or dedupe_components.",
+          "description": "Max nodes in full detail (default 500). It does not apply with `detail` or dedupe_components.",
           "type": "number"
         },
         "scope": {
-          "description": "page (default): current page. document: every page, one shared maxNodes limit. selection: selected nodes, 2 levels deep by default; uses the page if nothing is selected. Best for exploring.",
+          "description": "page (default): current page. document: every page, one shared maxNodes limit. selection: selected nodes, 2 levels deep by default, or the page if the selection is empty. Use selection to explore.",
           "type": "string"
         }
       },
@@ -942,7 +942,7 @@
   },
   "get_image_bytes": {
     "annotations": {},
-    "description": "Get the original image files in nodes' image fills, as base64. Each image once; nodes without images in `skipped`. To see how a node looks, use export_screenshots.",
+    "description": "Get the original image files in nodes' image fills, as base64. The tool returns each image once. Nodes without images go in `skipped`. To see how a node looks, use export_screenshots.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -964,7 +964,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get an instance's component properties with type and value. Use before set_instance_overrides.",
+    "description": "Get an instance's component properties with type and value. Use this tool before set_instance_overrides.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -995,7 +995,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get file name, current page, and all pages (ID, name). Loads no node trees.",
+    "description": "Get file name, current page, and all pages (ID, name). The tool loads no node trees.",
     "inputSchema": {
       "properties": {},
       "required": [],
@@ -1007,7 +1007,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get full node details by ID. Returns {nodes}, plus globalVars.styles for repeated fills/strokes. Unknown IDs go in `missing`. Stops at 500 descendants by default; then sets `truncated` and `childCount`.",
+    "description": "Get full node details by ID. The tool returns {nodes}, plus globalVars.styles for repeated fills/strokes. Unknown IDs go in `missing`. The tool stops at 500 descendants by default. It then sets `truncated` and `childCount`.",
     "inputSchema": {
       "properties": {
         "depth": {
@@ -1037,7 +1037,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get a node's prototype reactions (trigger + actions). Edit with set_reactions.",
+    "description": "Get a node's prototype reactions (trigger + actions). Edit them with set_reactions.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -1056,11 +1056,11 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get selected nodes, or nodes pinned in the plugin panel. [] if none. For detail use get_nodes_info.",
+    "description": "Get selected nodes, or nodes pinned in the plugin panel. The result is [] if there are none. For detail, use get_nodes_info.",
     "inputSchema": {
       "properties": {
         "source": {
-          "description": "selection (default): what is selected now; changes when the user clicks. pinned: set saved in the panel; stays the same across calls.",
+          "description": "selection (default): the nodes selected now. It changes when the user clicks. pinned: the set saved in the panel. It stays the same across calls.",
           "type": "string"
         }
       },
@@ -1073,7 +1073,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get local styles (paint, text, effect, grid) with ID, name, type, values. Variables: get_variable_defs.",
+    "description": "Get local styles (paint, text, effect, grid) with ID, name, type, values. For variables, use get_variable_defs.",
     "inputSchema": {
       "properties": {},
       "required": [],
@@ -1135,7 +1135,7 @@
     "inputSchema": {
       "properties": {
         "crop": {
-          "description": "Part of the image to show, {x, y, width, height} each 0-1. Sets scaleMode CROP.",
+          "description": "Part of the image to show, {x, y, width, height} each 0-1. This sets scaleMode to CROP.",
           "properties": {
             "height": {
               "description": "0-1",
@@ -1372,7 +1372,7 @@
   },
   "manage_variable": {
     "annotations": {},
-    "description": "Manage variables (design tokens). Args per `action`: create_collection: name, initialModeName. add_mode: collectionId, modeName. create: name, collectionId, type, value. set_value: variableId, modeId, value. delete: variableId, or collectionId (deletes all its variables). bind: nodeId, variableId, field (node property to link). IDs from get_variable_defs. Free plan: 1 mode per collection. If add_mode fails with 'Limited to 1 modes only', do not retry; put the mode in the name (e.g. 'light/bg') and tell the user multi-mode needs a paid plan.",
+    "description": "Manage variables (design tokens). Args per `action`: create_collection: name, initialModeName. add_mode: collectionId, modeName. create: name, collectionId, type, value. set_value: variableId, modeId, value. delete: variableId, or collectionId (deletes all its variables). bind: nodeId, variableId, field (node property to link). Get IDs from get_variable_defs. Free plan: 1 mode per collection. If add_mode fails with 'Limited to 1 modes only', do not retry. Put the mode in the name (e.g. 'light/bg') and tell the user multi-mode needs a paid plan.",
     "inputSchema": {
       "properties": {
         "action": {
@@ -1400,7 +1400,7 @@
           "type": "string"
         },
         "name": {
-          "description": "Collection or variable name; slashes group e.g. 'Color/Primary'",
+          "description": "Collection or variable name. A slash makes a group, e.g. 'Color/Primary'.",
           "type": "string"
         },
         "nodeId": {
@@ -1429,7 +1429,7 @@
   },
   "outline_stroke": {
     "annotations": {},
-    "description": "Turn each node's stroke into a filled shape. Nodes without a stroke are listed in `skipped`.",
+    "description": "Turn each node's stroke into a filled shape. Nodes without a stroke go in `skipped`.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -1474,7 +1474,7 @@
   },
   "save_version_checkpoint": {
     "annotations": {},
-    "description": "Save a named version in file history, before big or risky changes. Design files only.",
+    "description": "Save a named version in file history, before big or risky changes. This tool operates only in a Design file.",
     "inputSchema": {
       "properties": {
         "description": {
@@ -1497,7 +1497,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Find nodes by name, type, or both; current page by default. Returns up to `limit` (default 50); sets `truncated` if more.",
+    "description": "Find nodes by name, type, or both, on the current page by default. The tool returns up to `limit` nodes (default 50). It sets `truncated` if there are more.",
     "inputSchema": {
       "properties": {
         "includeHidden": {
@@ -1513,7 +1513,7 @@
           "type": "number"
         },
         "nodeId": {
-          "description": "Search only inside this node. Overrides scope.",
+          "description": "Search only inside this node. This overrides scope.",
           "type": "string"
         },
         "query": {
@@ -1539,11 +1539,11 @@
   },
   "set_annotations": {
     "annotations": {},
-    "description": "Set Dev Mode annotations on nodes ([] clears). Needs a paid Dev Mode seat.",
+    "description": "Set Dev Mode annotations on nodes ([] clears them). The tool needs a paid Dev Mode seat.",
     "inputSchema": {
       "properties": {
         "annotations": {
-          "description": "e.g. [{\"label\": \"Main Button\"}]; [] clears",
+          "description": "e.g. [{\"label\": \"Main Button\"}]. [] clears them.",
           "type": "array"
         },
         "nodeIds": {
@@ -1564,7 +1564,7 @@
   },
   "set_auto_layout": {
     "annotations": {},
-    "description": "Set auto layout (flexbox) on frames, components or instances: direction, padding, gap, align, sizing (HUG/FILL via layoutSizing*). layoutPositioning, layoutAlign, layoutGrow set how a node sits in its parent. Results are per node.",
+    "description": "Set auto layout (flexbox) on frames, components or instances: direction, padding, gap, align, sizing (HUG/FILL with layoutSizing*). layoutPositioning, layoutAlign, layoutGrow set how a node sits in its parent. Results are per node.",
     "inputSchema": {
       "properties": {
         "clipsContent": {
@@ -1608,11 +1608,11 @@
           "type": "string"
         },
         "layoutSizingHorizontal": {
-          "description": "Width mode: FIXED, HUG (fit content), or FILL (fill parent). Prefer over *AxisSizingMode. HUG needs auto layout on this node; FILL on its parent.",
+          "description": "Width mode: FIXED, HUG (fit content), or FILL (fill parent). Prefer this over *AxisSizingMode. HUG needs auto layout on this node. FILL needs auto layout on its parent.",
           "type": "string"
         },
         "layoutSizingVertical": {
-          "description": "Height mode: FIXED, HUG, or FILL. Same rules as layoutSizingHorizontal.",
+          "description": "Height mode: FIXED, HUG, or FILL. The rules are the same as for layoutSizingHorizontal.",
           "type": "string"
         },
         "layoutWrap": {
@@ -1620,19 +1620,19 @@
           "type": "string"
         },
         "maxHeight": {
-          "description": "Max height; null clears",
+          "description": "Max height. null removes it.",
           "type": "number"
         },
         "maxWidth": {
-          "description": "Max width; null clears",
+          "description": "Max width. null removes it.",
           "type": "number"
         },
         "minHeight": {
-          "description": "Min height; null clears",
+          "description": "Min height. null removes it.",
           "type": "number"
         },
         "minWidth": {
-          "description": "Min width; null clears",
+          "description": "Min width. null removes it.",
           "type": "number"
         },
         "nodeIds": {
@@ -1680,7 +1680,7 @@
   },
   "set_codegen_result": {
     "annotations": {},
-    "description": "Save code on a node for Dev Mode's Code panel, seen by the whole team. Code on a component shows on its instances. [] removes it.",
+    "description": "Save code on a node for Dev Mode's Code panel. The whole team sees it. Code on a component shows on its instances. [] removes the code.",
     "inputSchema": {
       "properties": {
         "blocks": {
@@ -1722,11 +1722,11 @@
   },
   "set_effects": {
     "annotations": {},
-    "description": "Replace a node's effects ([] clears), in the shape of get_nodes_info's styles.effects.",
+    "description": "Replace a node's effects ([] clears them), in the shape of get_nodes_info's styles.effects.",
     "inputSchema": {
       "properties": {
         "effects": {
-          "description": "Effects by `type`. DROP_SHADOW / INNER_SHADOW: color, opacity, offsetX, offsetY, radius, spread, blendMode; showShadowBehindNode on drop shadows. LAYER_BLUR / BACKGROUND_BLUR: radius; blurType PROGRESSIVE adds startRadius, startOffset, endOffset as {x, y}. NOISE: noiseType (MONOTONE default | DUOTONE | MULTITONE), color, opacity, blendMode, noiseSize, density; secondaryColor for DUOTONE, noiseOpacity for MULTITONE. TEXTURE: noiseSize, radius, clipToShape. GLASS: radius, depth, lightIntensity, lightAngle, refraction, dispersion. visible defaults to true.",
+          "description": "Effects by `type`. DROP_SHADOW / INNER_SHADOW: color, opacity, offsetX, offsetY, radius, spread, blendMode, and showShadowBehindNode on drop shadows. LAYER_BLUR / BACKGROUND_BLUR: radius. blurType PROGRESSIVE adds startRadius, startOffset, endOffset as {x, y}. NOISE: noiseType (MONOTONE default | DUOTONE | MULTITONE), color, opacity, blendMode, noiseSize, density, secondaryColor for DUOTONE, noiseOpacity for MULTITONE. TEXTURE: noiseSize, radius, clipToShape. GLASS: radius, depth, lightIntensity, lightAngle, refraction, dispersion. visible defaults to true.",
           "items": {
             "type": "object"
           },
@@ -1747,7 +1747,7 @@
   },
   "set_export_settings": {
     "annotations": {},
-    "description": "Set a node's Export presets. Does not export; use export_screenshots.",
+    "description": "Set a node's Export presets. This tool does not export. To export, use export_screenshots.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -1819,7 +1819,7 @@
   },
   "set_instance_overrides": {
     "annotations": {},
-    "description": "Set an instance's component properties. Fails on unknown names or wrong types.",
+    "description": "Set an instance's component properties. The tool fails on unknown names or wrong types.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -1846,7 +1846,7 @@
     "inputSchema": {
       "properties": {
         "grids": {
-          "description": "Grids; [] removes all",
+          "description": "Grids. [] removes all.",
           "items": {
             "properties": {
               "alignment": {
@@ -1948,7 +1948,7 @@
           "type": "number"
         },
         "dashPattern": {
-          "description": "Dash and gap e.g. [4, 2]; [] = solid",
+          "description": "Dash and gap e.g. [4, 2]. [] = solid.",
           "items": {
             "type": "number"
           },
@@ -2091,7 +2091,7 @@
   },
   "set_reactions": {
     "annotations": {},
-    "description": "Set or remove prototype reactions. mode: replace (default) or append. To remove, pass removeIndices (from get_reactions; [] = all), not reactions.\n\nReaction: {\"trigger\":{\"type\":...},\"actions\":[...]}.\nTriggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT (+timeout ms), MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN.\nActions: NODE (+destinationId, navigation NAVIGATE|OVERLAY|SCROLL_TO|SWAP|CHANGE_TO, transition, preserveScrollPosition), BACK, CLOSE, URL (+url).\nTransitions: DISSOLVE, SMART_ANIMATE, or PUSH, MOVE_IN, MOVE_OUT, SLIDE_IN, SLIDE_OUT (these also need direction LEFT|RIGHT|TOP|BOTTOM and matchLayers).\nExample: {\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}",
+    "description": "Set or remove prototype reactions. mode: replace (default) or append. To remove, pass removeIndices (from get_reactions, [] = all), not reactions.\n\nReaction: {\"trigger\":{\"type\":...},\"actions\":[...]}.\nTriggers: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT (+timeout ms), MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN.\nActions: NODE (+destinationId, navigation NAVIGATE|OVERLAY|SCROLL_TO|SWAP|CHANGE_TO, transition, preserveScrollPosition), BACK, CLOSE, URL (+url).\nTransitions: DISSOLVE, SMART_ANIMATE, or PUSH, MOVE_IN, MOVE_OUT, SLIDE_IN, SLIDE_OUT (these also need direction LEFT|RIGHT|TOP|BOTTOM and matchLayers).\nExample: {\"nodeId\":\"1:2\",\"reactions\":[{\"trigger\":{\"type\":\"ON_CLICK\"},\"actions\":[{\"type\":\"NODE\",\"destinationId\":\"1:3\",\"navigation\":\"NAVIGATE\",\"transition\":{\"type\":\"DISSOLVE\",\"duration\":0.3,\"easing\":{\"type\":\"EASE_OUT\"}},\"preserveScrollPosition\":false}]}]}",
     "inputSchema": {
       "properties": {
         "mode": {
@@ -2110,7 +2110,7 @@
           "type": "array"
         },
         "removeIndices": {
-          "description": "Indices to remove; [] removes all. Not with reactions.",
+          "description": "Indices to remove. [] removes all. Do not use with reactions.",
           "items": {
             "type": "number"
           },
@@ -2130,7 +2130,7 @@
     "inputSchema": {
       "properties": {
         "nodeIds": {
-          "description": "Node IDs; empty clears",
+          "description": "Node IDs. An empty list clears the selection.",
           "items": {
             "type": "string"
           },
@@ -2152,11 +2152,11 @@
   },
   "set_text": {
     "annotations": {},
-    "description": "Change a TEXT node's text and whole-node settings (resize, truncation, alignment, spacing). Style parts with set_text_ranges.",
+    "description": "Change a TEXT node's text and whole-node settings (resize, truncation, alignment, spacing). To style parts of the text, use set_text_ranges.",
     "inputSchema": {
       "properties": {
         "maxLines": {
-          "description": "Max lines (needs ENDING); null removes",
+          "description": "Max lines (needs ENDING). null removes it.",
           "type": "number"
         },
         "nodeId": {
@@ -2201,7 +2201,7 @@
   },
   "set_text_ranges": {
     "annotations": {},
-    "description": "Style parts of a TEXT node (bold, color, link, list). Each range is characters [start, end). Later ranges win on overlap; omitted properties stay.",
+    "description": "Style parts of a TEXT node (bold, color, link, list). Each range is characters [start, end). Later ranges win on overlap. Omitted properties stay.",
     "inputSchema": {
       "properties": {
         "nodeId": {
@@ -2209,7 +2209,7 @@
           "type": "string"
         },
         "ranges": {
-          "description": "Ranges to style; start and end required",
+          "description": "Ranges to style. Each range needs start and end.",
           "items": {
             "properties": {
               "color": {
@@ -2233,7 +2233,7 @@
                 "type": "string"
               },
               "hyperlink": {
-                "description": "Link URL; null removes"
+                "description": "Link URL. null removes it."
               },
               "indentation": {
                 "description": "List indent level",
@@ -2340,7 +2340,7 @@
   },
   "ungroup_nodes": {
     "annotations": {},
-    "description": "Ungroup GROUP nodes; children move to the parent.",
+    "description": "Ungroup GROUP nodes. The children move to the parent.",
     "inputSchema": {
       "properties": {
         "nodeIds": {
@@ -2360,7 +2360,7 @@
   },
   "update_paint_style": {
     "annotations": {},
-    "description": "Update a paint style's name, color, or description. Other types: delete and recreate.",
+    "description": "Update a paint style's name, color, or description. For other types, delete the style and create it again.",
     "inputSchema": {
       "properties": {
         "color": {

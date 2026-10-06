@@ -13,7 +13,7 @@
     },
     {
       "name": "batch_execute_pipeline",
-      "description": "Run write steps in order, passing earlier results via $variables, with undo on error."
+      "description": "Run write steps in order, passing earlier results through $variables, with undo on error."
     },
     {
       "name": "batch_rename_nodes",
@@ -41,7 +41,7 @@
     },
     {
       "name": "create_connector",
-      "description": "Create a connector line. FigJam only."
+      "description": "Create a connector line. This tool operates only in a FigJam file."
     },
     {
       "name": "create_node",

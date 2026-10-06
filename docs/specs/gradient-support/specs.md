@@ -8,7 +8,7 @@ This feature converts between `gradientTransform` and these geometry values, in 
 
 ## 2. Read Process (Serialization — `serializePaints`)
 
-When reading a Figma node, `serializePaints` builds and returns the `fills`/`strokes` arrays.
+When the MCP plugin reads a Figma node, `serializePaints` builds and returns the `fills` and `strokes` arrays.
 
 For a solid color, it returns a Hex string `"#RRGGBB"` (or `"#RRGGBBAA"`).
 
@@ -47,11 +47,11 @@ For a gradient, it returns a JSON object:
 
 ### 2.1. Mathematical Formula: Transform Matrix → Geometry
 
-Figma stores `gradientTransform` as matrix $M$. It maps normalized node space $N$ (`[0..1], [0..1]`) to gradient local space $L$.
+Figma stores `gradientTransform` as matrix $M$. Matrix $M$ maps normalized node space $N$ (`[0..1], [0..1]`) to gradient local space $L$.
 
 $$ M \times N = L \implies N = M^{-1} \times L $$
 
-Inverse of a 2x3 matrix:
+This function calculates the inverse of a 2x3 matrix:
 
 ```typescript
 function invertTransform(t: Transform): Transform {
@@ -81,7 +81,7 @@ Then compute the percentages:
 - Start: `(0, 0.5)`
 - End: `(1, 0.5)`
 
-In the same way, multiply by $M^{-1}$ to get `startNorm` and `endNorm`. Compute `angle` with `atan2` from `start` to `end`.
+In the same way, multiply $M^{-1}$ by the two points to get `startNorm` and `endNorm`. Compute `angle` with `atan2` from `start` to `end`.
 
 ## 3. Write Process (Mutation — `set_gradient_fills`)
 
@@ -110,7 +110,10 @@ Then find the matrix $T_{inv}$ (that is, $M^{-1}$) that maps the local handles t
 
 **Radial:**
 
-Let $cx, cy$ be the center coordinates, $rx, ry$ the radius magnitudes along X and Y, and $\theta$ the rotation.
+Use these symbols:
+- $cx, cy$: the center coordinates
+- $rx, ry$: the radius magnitudes along X and Y
+- $\theta$: the rotation
 
 The `centerNorm`, `rxHandleNorm`, and `ryHandleNorm` points are:
 
@@ -168,5 +171,5 @@ The tool accepts an object with these arguments:
 - `nodeId`: string
 - `type`: string (`GRADIENT_LINEAR`, `GRADIENT_RADIAL`)
 - `stops`: Array<{ color: string, position: number }>
-- `geometry`: an object with `center`, `radius`, and `rotation` for RADIAL, or `start` and `end` for LINEAR. Coordinates are given as `percentX` and `percentY`.
+- `geometry`: an object with `center`, `radius`, and `rotation` for RADIAL, or `start` and `end` for LINEAR. Coordinates use `percentX` and `percentY`.
 

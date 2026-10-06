@@ -2,7 +2,7 @@ package tools
 
 var batchPipelineSpec = toolSpec{
 	Name: "batch_execute_pipeline",
-	Desc: "Run write steps in order; a step can use earlier results via $variables. " +
+	Desc: "Run write steps in order. A step can use earlier results through $variables. " +
 		"With stop_on_error, a failure undoes created nodes and changed properties, " +
 		"but not deletes, group/ungroup, detach, reparent, or steps that target nodes by name.",
 

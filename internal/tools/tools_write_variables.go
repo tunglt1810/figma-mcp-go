@@ -22,9 +22,9 @@ var writeVariableSpecs = []toolSpec{
 			"create: name, collectionId, type, value. " +
 			"set_value: variableId, modeId, value. " +
 			"delete: variableId, or collectionId (deletes all its variables). " +
-			"bind: nodeId, variableId, field (node property to link). IDs from get_variable_defs. " +
-			"Free plan: 1 mode per collection. If add_mode fails with 'Limited to 1 modes only', do not retry; " +
-			"put the mode in the name (e.g. 'light/bg') and tell the user multi-mode needs a paid plan.",
+			"bind: nodeId, variableId, field (node property to link). Get IDs from get_variable_defs. " +
+			"Free plan: 1 mode per collection. If add_mode fails with 'Limited to 1 modes only', do not retry. " +
+			"Put the mode in the name (e.g. 'light/bg') and tell the user multi-mode needs a paid plan.",
 
 		NodeIDs:    nodeIDsSingle,
 		NodeIDDesc: "bind: the node",
@@ -32,7 +32,7 @@ var writeVariableSpecs = []toolSpec{
 			{Name: "action", Kind: kindString, Required: true, Enum: variantKinds(variableVariants),
 				Desc: "create_collection, add_mode, create, set_value, delete, or bind"},
 			{Name: "name", Kind: kindString,
-				Desc: "Collection or variable name; slashes group e.g. 'Color/Primary'"},
+				Desc: "Collection or variable name. A slash makes a group, e.g. 'Color/Primary'."},
 			{Name: "initialModeName", Kind: kindString,
 				Desc: "First mode name (default 'Mode 1')"},
 			{Name: "collectionId", Kind: kindString,

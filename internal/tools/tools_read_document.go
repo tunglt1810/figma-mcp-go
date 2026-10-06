@@ -5,38 +5,38 @@ package tools
 var readDocumentSpecs = []toolSpec{
 	{
 		Name: "get_document",
-		Desc: "Get the node tree of the selection, page, or file (`scope`). Returns {fileName, scope, currentPage, nodes}. " +
-			"Stops at 500 nodes by default; then sets `truncated`, and nodes with hidden children show `childCount`.",
+		Desc: "Get the node tree of the selection, page, or file (`scope`). The tool returns {fileName, scope, currentPage, nodes}. " +
+			"The tool stops at 500 nodes by default. It then sets `truncated`, and nodes with hidden children show `childCount`.",
 		Params: []paramSpec{
 			{Name: "scope", Kind: kindString, Enum: []string{"selection", "page", "document"},
 				Desc: "page (default): current page. document: every page, one shared maxNodes limit. " +
-					"selection: selected nodes, 2 levels deep by default; uses the page if nothing is selected. Best for exploring."},
+					"selection: selected nodes, 2 levels deep by default, or the page if the selection is empty. Use selection to explore."},
 			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
 				Desc: "Levels below each root. 0 = root only. Default 2 for selection, no limit otherwise."},
 			{Name: "maxNodes", Kind: kindNumber, Min: floatPtr(1),
-				Desc: "Max nodes in full detail (default 500). Not used with `detail` or dedupe_components."},
+				Desc: "Max nodes in full detail (default 500). It does not apply with `detail` or dedupe_components."},
 			{Name: "detail", Kind: kindString, Enum: []string{"minimal", "compact", "full"},
 				Desc: "minimal: id/name/type/bounds. compact: + fills/strokes/opacity. full (default): everything. Use lower levels for big files."},
 			{Name: "dedupe_components", Wire: "dedupeComponents", Kind: kindBool,
-				Desc: "Show instances in short form (mainComponentId, componentProperties, overrides) and list each component once in `componentDefs`. Saves tokens on screens with many instances."},
+				Desc: "Show instances in short form (mainComponentId, componentProperties, overrides) and list each component once in `componentDefs`. This saves tokens on screens with many instances."},
 		},
 	},
 	{
 		Name: "get_metadata",
-		Desc: "Get file name, current page, and all pages (ID, name). Loads no node trees.",
+		Desc: "Get file name, current page, and all pages (ID, name). The tool loads no node trees.",
 	},
 	{
 		Name: "get_selection",
-		Desc: "Get selected nodes, or nodes pinned in the plugin panel. [] if none. For detail use get_nodes_info.",
+		Desc: "Get selected nodes, or nodes pinned in the plugin panel. The result is [] if there are none. For detail, use get_nodes_info.",
 		Params: []paramSpec{
 			{Name: "source", Kind: kindString, Enum: []string{"selection", "pinned"},
-				Desc: "selection (default): what is selected now; changes when the user clicks. pinned: set saved in the panel; stays the same across calls."},
+				Desc: "selection (default): the nodes selected now. It changes when the user clicks. pinned: the set saved in the panel. It stays the same across calls."},
 		},
 	},
 	{
 		Name: "get_nodes_info",
-		Desc: "Get full node details by ID. Returns {nodes}, plus globalVars.styles for repeated fills/strokes. " +
-			"Unknown IDs go in `missing`. Stops at 500 descendants by default; then sets `truncated` and `childCount`.",
+		Desc: "Get full node details by ID. The tool returns {nodes}, plus globalVars.styles for repeated fills/strokes. " +
+			"Unknown IDs go in `missing`. The tool stops at 500 descendants by default. It then sets `truncated` and `childCount`.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",
@@ -49,12 +49,12 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "search_nodes",
-		Desc: "Find nodes by name, type, or both; current page by default. Returns up to `limit` (default 50); sets `truncated` if more.",
+		Desc: "Find nodes by name, type, or both, on the current page by default. The tool returns up to `limit` nodes (default 50). It sets `truncated` if there are more.",
 		Params: []paramSpec{
 			{Name: "query", Kind: kindString,
 				Desc: "Text to find in node names (case-insensitive). Omit to match all nodes of `types`."},
 			{Name: "nodeId", Kind: kindString, IsNodeID: true,
-				Desc: "Search only inside this node. Overrides scope."},
+				Desc: "Search only inside this node. This overrides scope."},
 			{Name: "scope", Kind: kindString, Enum: []string{"page", "document"},
 				Desc: "page (default) or document (every page). A page search does not look at other pages."},
 			{Name: "types", Kind: kindStringArray,
@@ -72,7 +72,7 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name:       "get_reactions",
-		Desc:       "Get a node's prototype reactions (trigger + actions). Edit with set_reactions.",
+		Desc:       "Get a node's prototype reactions (trigger + actions). Edit them with set_reactions.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID",
@@ -87,7 +87,7 @@ var readDocumentSpecs = []toolSpec{
 	},
 	{
 		Name: "get_instance_overrides",
-		Desc: "Get an instance's component properties with type and value. Use before set_instance_overrides.",
+		Desc: "Get an instance's component properties with type and value. Use this tool before set_instance_overrides.",
 
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,

@@ -40,8 +40,8 @@ var exportFramesToPDFSpec = toolSpec{
 
 var exportScreenshotsSpec = toolSpec{
 	Name: "export_screenshots",
-	Desc: "Export nodes as images. Items with outputPath are saved to file; others are returned " +
-		"(PNG/JPG as image, SVG as text, PDF as base64). No items = selection. Prefer outputPath if you only need the file.",
+	Desc: "Export nodes as images. The tool saves items with outputPath to file. It returns the other items " +
+		"(PNG/JPG as image, SVG as text, PDF as base64). Without items, the tool exports the selection. Prefer outputPath if you only need the file.",
 	Params: []paramSpec{
 		{Name: "items", Kind: kindObjectArray,
 			Desc: "{nodeId, outputPath?, format?, scale?}. Omit to export the selection.",
@@ -105,14 +105,14 @@ var exportScreenshotsSpec = toolSpec{
 var exportSpecs = []toolSpec{
 	{
 		Name:       "get_image_bytes",
-		Desc:       "Get the original image files in nodes' image fills, as base64. Each image once; nodes without images in `skipped`. To see how a node looks, use export_screenshots.",
+		Desc:       "Get the original image files in nodes' image fills, as base64. The tool returns each image once. Nodes without images go in `skipped`. To see how a node looks, use export_screenshots.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs carrying image fills",
 	},
 	{
 		Name: "set_export_settings",
-		Desc: "Set a node's Export presets. Does not export; use export_screenshots.",
+		Desc: "Set a node's Export presets. This tool does not export. To export, use export_screenshots.",
 
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,

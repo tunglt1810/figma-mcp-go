@@ -3,7 +3,7 @@ package tools
 var readStyleSpecs = []toolSpec{
 	{
 		Name: "get_styles",
-		Desc: "Get local styles (paint, text, effect, grid) with ID, name, type, values. Variables: get_variable_defs.",
+		Desc: "Get local styles (paint, text, effect, grid) with ID, name, type, values. For variables, use get_variable_defs.",
 	},
 	{
 		Name: "get_variable_defs",

@@ -234,7 +234,7 @@ sequenceDiagram
 | `create_component_instance` | Instance of a local or library component |
 | `combine_as_variants` | Combine components into a variant set |
 | `manage_component_properties` | Add, edit, delete, or bind component properties |
-| `create_connector` | Connector line (FigJam only) |
+| `create_connector` | Connector line. This tool operates only in a FigJam file |
 | `boolean_operation` | UNION, SUBTRACT, INTERSECT, or EXCLUDE shapes |
 | `flatten_nodes` | Merge nodes into one vector |
 | `outline_stroke` | Turn a stroke into a filled shape |

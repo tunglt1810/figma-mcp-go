@@ -44,12 +44,12 @@ var writeStyleSpecs = []toolSpec{
 			"TEXT: fontSize, fontFamily, fontStyle, textDecoration, lineHeightValue/Unit, letterSpacingValue/Unit. " +
 			"EFFECT: effectType, color, opacity, radius, offsetX, offsetY, spread. " +
 			"GRID: pattern, count, gutterSize, offset, alignment, sectionSize, color, opacity. " +
-			"Returns the style ID; apply with apply_style_to_node.",
+			"The tool returns the style ID. Apply the style with apply_style_to_node.",
 		Params: []paramSpec{
 			{Name: "type", Kind: kindString, Required: true, Enum: variantKinds(styleVariants),
 				Desc: "PAINT, TEXT, EFFECT, or GRID"},
 			{Name: "name", Kind: kindString, Required: true,
-				Desc: "Style name; slashes group e.g. 'Brand/Primary'"},
+				Desc: "Style name. A slash makes a group, e.g. 'Brand/Primary'."},
 			styleDescriptionParam("Description"),
 
 			{Name: "color", Kind: kindString, IsHexColor: true,
@@ -91,7 +91,7 @@ var writeStyleSpecs = []toolSpec{
 	},
 	{
 		Name: "update_paint_style",
-		Desc: "Update a paint style's name, color, or description. Other types: delete and recreate.",
+		Desc: "Update a paint style's name, color, or description. For other types, delete the style and create it again.",
 		Params: []paramSpec{
 			{Name: "styleId", Kind: kindString, Required: true, Desc: "Paint style ID"},
 			{Name: "name", Kind: kindString, Desc: "New style name"},
@@ -122,7 +122,7 @@ var writeStyleSpecs = []toolSpec{
 	},
 	{
 		Name: "set_effects",
-		Desc: "Replace a node's effects ([] clears), in the shape of get_nodes_info's styles.effects.",
+		Desc: "Replace a node's effects ([] clears them), in the shape of get_nodes_info's styles.effects.",
 
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
@@ -130,9 +130,9 @@ var writeStyleSpecs = []toolSpec{
 		Params: []paramSpec{
 			{Name: "effects", Kind: kindObjectArray, Required: true,
 				Desc: "Effects by `type`. " +
-					"DROP_SHADOW / INNER_SHADOW: color, opacity, offsetX, offsetY, radius, spread, blendMode; showShadowBehindNode on drop shadows. " +
-					"LAYER_BLUR / BACKGROUND_BLUR: radius; blurType PROGRESSIVE adds startRadius, startOffset, endOffset as {x, y}. " +
-					"NOISE: noiseType (MONOTONE default | DUOTONE | MULTITONE), color, opacity, blendMode, noiseSize, density; secondaryColor for DUOTONE, noiseOpacity for MULTITONE. " +
+					"DROP_SHADOW / INNER_SHADOW: color, opacity, offsetX, offsetY, radius, spread, blendMode, and showShadowBehindNode on drop shadows. " +
+					"LAYER_BLUR / BACKGROUND_BLUR: radius. blurType PROGRESSIVE adds startRadius, startOffset, endOffset as {x, y}. " +
+					"NOISE: noiseType (MONOTONE default | DUOTONE | MULTITONE), color, opacity, blendMode, noiseSize, density, secondaryColor for DUOTONE, noiseOpacity for MULTITONE. " +
 					"TEXTURE: noiseSize, radius, clipToShape. " +
 					"GLASS: radius, depth, lightIntensity, lightAngle, refraction, dispersion. " +
 					"visible defaults to true."},
