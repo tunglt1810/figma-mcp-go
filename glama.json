@@ -13,7 +13,7 @@
     },
     {
       "name": "batch_execute_pipeline",
-      "description": "Run write steps in order, passing earlier results through $variables, with undo on error."
+      "description": "Run write steps in order. A step can use earlier results through $variables. On error, the tool undoes created nodes and changed properties only."
     },
     {
       "name": "batch_rename_nodes",
@@ -237,7 +237,7 @@
     },
     {
       "name": "swap_component",
-      "description": "Swap an instance to another component."
+      "description": "Swap an instance to another local or library component."
     },
     {
       "name": "ungroup_nodes",

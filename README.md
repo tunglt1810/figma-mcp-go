@@ -120,6 +120,23 @@ The plugin remembers the last port for all files, so check it when you open the 
 
 > **Security:** the plugin connection has no login. On the default `127.0.0.1` only your machine can reach it. On any other address, anyone who can reach the port can read and edit your open file. The server warns you and the plugin turns on `confirm` mode. Prefer an SSH tunnel.
 
+### 4. Read-only mode (optional)
+
+Add `--read-only` to offer only the 17 tools that cannot change the Figma file. These are the read tools, `export_screenshots`, `export_frames_to_pdf`, and `get_image_bytes`. The tool list that the AI loads is about 84% smaller.
+
+```json
+{
+  "mcpServers": {
+    "figma-mcp-go": {
+      "command": "npx",
+      "args": ["-y", "@tunglt1810/figma-mcp-go", "--read-only"]
+    }
+  }
+}
+```
+
+The flag limits one server only. Another AI tool on the same port can still edit the file, unless it also uses the flag.
+
 ### Plugin panel
 
 The panel shows the connected file, the selection, and what the AI is doing.
@@ -244,7 +261,7 @@ sequenceDiagram
 | Tool | What it does |
 | ---- | ------------ |
 | `set_node_properties` | Position, size, radius, visibility, lock, opacity, rotation, blend, constraints, layer order, mask, stroke |
-| `set_paint` | Solid or gradient fill, or solid stroke |
+| `set_paint` | Solid or gradient fill or stroke |
 | `set_auto_layout` | Auto layout: direction, padding, gap, align, HUG/FILL sizing, min/max |
 | `set_layout_grids` | Column, row, or square grids |
 | `set_effects` | Shadows, blurs, noise, texture, glass |
@@ -252,7 +269,7 @@ sequenceDiagram
 | `set_text_ranges` | Style part of a text: bold, color, link, list |
 | `find_replace_text` | Find and replace text, regex allowed |
 | `set_instance_overrides` | Set an instance's component properties |
-| `swap_component` | Swap an instance to another component |
+| `swap_component` | Swap an instance to another local or library component |
 | `detach_instance` | Turn instances into plain frames |
 | `clone_node` | Copy a node |
 | `reparent_nodes` | Move nodes into another parent |

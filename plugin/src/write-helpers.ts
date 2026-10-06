@@ -141,6 +141,8 @@ export const base64ToBytes = (b64: string) => {
   return bytes;
 };
 
+export const gradientTypes = ["GRADIENT_LINEAR", "GRADIENT_RADIAL", "GRADIENT_ANGULAR", "GRADIENT_DIAMOND"];
+
 export const makeGradientPaint = (type: string, stops: any[], geometry: any, opacity?: number): GradientPaint => {
   const gradientStops: ReadonlyArray<ColorStop> = stops.map((stop: any) => {
     const { r, g, b, a } = typeof stop.color === "string" ? hexToRgb(stop.color) : stop.color;
@@ -152,7 +154,8 @@ export const makeGradientPaint = (type: string, stops: any[], geometry: any, opa
 
   let T_inv: number[][] = [[1, 0, 0], [0, 1, 0]];
 
-  if (type === "GRADIENT_RADIAL") {
+  // Angular and diamond gradients use the same three handles as a radial one.
+  if (type === "GRADIENT_RADIAL" || type === "GRADIENT_ANGULAR" || type === "GRADIENT_DIAMOND") {
     const cx = (geometry.center?.percentX || 50) / 100;
     const cy = (geometry.center?.percentY || 50) / 100;
     const rx = (geometry.radius?.percentX || 50) / 100;

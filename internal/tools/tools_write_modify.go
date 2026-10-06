@@ -25,10 +25,14 @@ var nodePropertyKeys = []string{
 // paintVariants say which arguments belong to which kind of paint. set_fills,
 // set_gradient_fills and set_strokes became one tool. Without this, arguments
 // for the other kinds would be accepted and quietly dropped.
+var gradientVariant = variantSpec{Allowed: []string{"stops", "geometry", "opacity"}, Required: []string{"stops", "geometry"}}
+
 var paintVariants = map[string]variantSpec{
-	"SOLID":           {Allowed: []string{"color", "opacity"}, Required: []string{"color"}},
-	"GRADIENT_LINEAR": {Allowed: []string{"stops", "geometry", "opacity"}, Required: []string{"stops", "geometry"}},
-	"GRADIENT_RADIAL": {Allowed: []string{"stops", "geometry", "opacity"}, Required: []string{"stops", "geometry"}},
+	"SOLID":            {Allowed: []string{"color", "opacity"}, Required: []string{"color"}},
+	"GRADIENT_LINEAR":  gradientVariant,
+	"GRADIENT_RADIAL":  gradientVariant,
+	"GRADIENT_ANGULAR": gradientVariant,
+	"GRADIENT_DIAMOND": gradientVariant,
 }
 
 var validNodeOrders = []string{"bringToFront", "sendToBack", "bringForward", "sendBackward"}
@@ -100,13 +104,13 @@ var writeModifySpecs = []toolSpec{
 	},
 	{
 		Name:       "set_paint",
-		Desc:       "Set a node's fill or stroke. SOLID: color, opacity. GRADIENT_LINEAR/GRADIENT_RADIAL: stops, geometry, opacity (fill only).",
+		Desc:       "Set a node's fill or stroke. SOLID: color, opacity. GRADIENT_*: stops, geometry, opacity.",
 		NodeIDs:    nodeIDsSingle,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node ID",
 		Params: []paramSpec{
 			{Name: "type", Kind: kindString, Required: true, Enum: variantKinds(paintVariants),
-				Desc: "SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL"},
+				Desc: "SOLID, GRADIENT_LINEAR, GRADIENT_RADIAL, GRADIENT_ANGULAR, or GRADIENT_DIAMOND"},
 			{Name: "target", Kind: kindString, Enum: []string{"fill", "stroke"},
 				Desc: "fill (default) or stroke"},
 			{Name: "color", Kind: kindString, IsHexColor: true,
@@ -116,7 +120,7 @@ var writeModifySpecs = []toolSpec{
 			{Name: "stops", Kind: kindAny,
 				Desc: "GRADIENT: [{position: 0-1, color: hex}]"},
 			{Name: "geometry", Kind: kindAny,
-				Desc: "GRADIENT: in percentX/percentY. Linear: start, end, angle. Radial: center, radius, rotation."},
+				Desc: "GRADIENT: in percentX/percentY. Linear: start, end, angle. Others: center, radius, rotation."},
 			{Name: "strokeWeight", Kind: kindNumber,
 				Desc: "Stroke width (default 1), stroke only"},
 			fillModeParam("replace (default) or append on top"),
@@ -127,9 +131,6 @@ var writeModifySpecs = []toolSpec{
 			}
 			kind, _ := params["type"].(string)
 			target, _ := params["target"].(string)
-			if kind != "SOLID" && target == "stroke" {
-				return "gradients can only target fill, not stroke"
-			}
 			if _, ok := params["strokeWeight"]; ok && target != "stroke" {
 				return "strokeWeight applies only when target is stroke"
 			}

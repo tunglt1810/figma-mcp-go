@@ -11,14 +11,28 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-06
+
+### Added
+
+- `--read-only` flag. The server then offers only the 17 tools that cannot change the Figma file. `tools/list` is about 84% smaller.
+- `set_paint` accepts `GRADIENT_ANGULAR` and `GRADIENT_DIAMOND`. A gradient can now go on a stroke.
+- Read tools now report angular and diamond gradients. Before, these paints were left out.
+- `swap_component` accepts `componentKey` for a library component. It also accepts a component set and uses its default variant.
+- `create_component_instance` accepts the key of a library component set.
+
 ### Changed
 
+- `swap_component` no longer requires `componentId`. It requires `componentId` or `componentKey`.
+- `create_component_instance` rejects `x` without `y`, and `y` without `x`. Before, it ignored a single coordinate.
 - Tool and parameter descriptions in `tools/list` now use full sentences and no semicolons. Tool names and arguments are unchanged.
 - The `create_connector` error outside a FigJam file now reads `The create_connector tool operates only in a FigJam file`.
 - The specs in `docs/specs` use simpler wording.
 
 ### Fixed
 
+- `set_paint` now applies `opacity` to a solid stroke. Before, it ignored the value.
+- The `maxNodes` description of `get_document` now says that the limit also does not apply with `depth`.
 - The FigJam connectors spec said that a connector needs two endpoints. It now says one is enough, as the server requires.
 
 ## [0.4.1] - 2026-09-27
@@ -121,7 +135,8 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 - Ellipse arcs and rings (`startAngle`, `endAngle`, `innerRadiusRatio`) now work.
 
-[Unreleased]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.2.0...v0.3.1

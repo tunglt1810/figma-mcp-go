@@ -45,6 +45,16 @@ For a gradient, it returns a JSON object:
 }
 ```
 
+### Angular and Diamond Gradient Output
+
+`GRADIENT_ANGULAR` and `GRADIENT_DIAMOND` use the same `geometry` as a radial gradient: `center`, `radius`, and `rotation`.
+
+The output also has a `cssString`:
+- Linear: `linear-gradient(...)`
+- Radial: `radial-gradient(...)`
+- Angular: `conic-gradient(from <rotation + 90>deg at <center>, ...)`. Figma starts the sweep at 3 o'clock. CSS starts at 12 o'clock.
+- Diamond: no `cssString`, because CSS has no diamond gradient.
+
 ### 2.1. Mathematical Formula: Transform Matrix → Geometry
 
 Figma stores `gradientTransform` as matrix $M$. Matrix $M$ maps normalized node space $N$ (`[0..1], [0..1]`) to gradient local space $L$.
@@ -77,17 +87,19 @@ Then compute the percentages:
 - `radius.percentX = length(rxNorm - centerNorm) * 100`
 - `rotation = atan2(rxNorm.y - centerNorm.y, rxNorm.x - centerNorm.x) * 180 / Math.PI`
 
+Angular and diamond gradients use the same three handles. A rotation changes how they look, also when the two radii are equal. Thus, their `rotation` and `radius` come directly from the handles, as shown above.
+
 **Linear Gradient Local Handles:**
 - Start: `(0, 0.5)`
 - End: `(1, 0.5)`
 
 In the same way, multiply $M^{-1}$ by the two points to get `startNorm` and `endNorm`. Compute `angle` with `atan2` from `start` to `end`.
 
-## 3. Write Process (Mutation — `set_gradient_fills`)
+## 3. Write Process (Mutation — `set_paint`)
 
 ### Input Payload
 
-Use the schema from the `set_gradient_fills` MCP tool:
+Use the schema from the `set_paint` MCP tool:
 
 ```json
 {
@@ -108,7 +120,7 @@ The input geometry is in `%`. Divide it by 100 to get normalized coordinates ($N
 
 Then find the matrix $T_{inv}$ (that is, $M^{-1}$) that maps the local handles to $N$.
 
-**Radial:**
+**Radial, Angular, and Diamond:**
 
 Use these symbols:
 - $cx, cy$: the center coordinates
@@ -165,11 +177,12 @@ F = 2 * startNorm.y - perpNorm.y
 
 `gradientTransform = invertTransform(T_inv)`
 
-## 4. MCP Schema for the `set_gradient_fills` Tool
+## 4. MCP Schema for the `set_paint` Tool with a Gradient
 
 The tool accepts an object with these arguments:
 - `nodeId`: string
-- `type`: string (`GRADIENT_LINEAR`, `GRADIENT_RADIAL`)
+- `type`: string (`GRADIENT_LINEAR`, `GRADIENT_RADIAL`, `GRADIENT_ANGULAR`, `GRADIENT_DIAMOND`)
+- `target`: string (`fill` or `stroke`). The default is `fill`.
 - `stops`: Array<{ color: string, position: number }>
-- `geometry`: an object with `center`, `radius`, and `rotation` for RADIAL, or `start` and `end` for LINEAR. Coordinates use `percentX` and `percentY`.
+- `geometry`: an object with `center`, `radius`, and `rotation` for RADIAL, ANGULAR, and DIAMOND, or `start` and `end` for LINEAR. Coordinates use `percentX` and `percentY`.
 

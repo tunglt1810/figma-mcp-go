@@ -44,7 +44,9 @@ export const serializePaints = (paints: any, node?: any) => {
     .filter((paint: any) => {
       return (paint.type === "SOLID" && "color" in paint) || 
              paint.type === "GRADIENT_LINEAR" || 
-             paint.type === "GRADIENT_RADIAL";
+             paint.type === "GRADIENT_RADIAL" ||
+             paint.type === "GRADIENT_ANGULAR" ||
+             paint.type === "GRADIENT_DIAMOND";
     })
     .map((paint: any) => {
       const paintOpacity = paint.opacity != null ? paint.opacity : 1;
@@ -74,7 +76,9 @@ export const serializePaints = (paints: any, node?: any) => {
         .map((s: any) => `${withAlpha(s.hex, s.alpha * paintOpacity)} ${Math.round(s.position * 100)}%`)
         .join(", ");
 
-      if (paint.type === "GRADIENT_RADIAL") {
+      // Radial, angular and diamond gradients share one geometry: a center and
+      // two radius handles.
+      if (paint.type !== "GRADIENT_LINEAR") {
         // Center: mapped from (0.5, 0.5)
         const cx = inv[0][0] * 0.5 + inv[0][1] * 0.5 + inv[0][2];
         const cy = inv[1][0] * 0.5 + inv[1][1] * 0.5 + inv[1][2];
@@ -99,8 +103,18 @@ export const serializePaints = (paints: any, node?: any) => {
         
         // Singular values: the true radii of the ellipse that a radius-0.5 circle maps to.
         // The gradient circle has radius 0.5 in gradient space, so we multiply by 0.5.
-        const rx = 0.5 * Math.sqrt(E + F);
-        const ry = 0.5 * Math.sqrt(E - F);
+        let rx = 0.5 * Math.sqrt(E + F);
+        let ry = 0.5 * Math.sqrt(E - F);
+
+        // The principal axes are enough for an ellipse: a circle has no
+        // rotation, and a half turn changes nothing. An angular sweep changes
+        // with every turn, and a square diamond with a quarter turn. So those
+        // two take their angle and radii from the handles themselves.
+        if (paint.type !== "GRADIENT_RADIAL") {
+          theta = Math.atan2(mc, ma);
+          rx = 0.5 * Math.hypot(ma, mc);
+          ry = 0.5 * Math.hypot(mb, md);
+        }
 
         const rotation = theta * 180 / Math.PI;
 
@@ -111,10 +125,20 @@ export const serializePaints = (paints: any, node?: any) => {
         
         // CSS radial-gradient: rx% is relative to element width, ry% to element height.
         // Omit the shape keyword. Browsers default to ellipse, which accepts % values.
-        const cssString = `radial-gradient(${rxPercent}% ${ryPercent}% at ${cxPercent}% ${cyPercent}%, ${stopStrings})`;
+        let cssString: string | undefined;
+        if (paint.type === "GRADIENT_RADIAL") {
+          cssString = `radial-gradient(${rxPercent}% ${ryPercent}% at ${cxPercent}% ${cyPercent}%, ${stopStrings})`;
+        } else if (paint.type === "GRADIENT_ANGULAR") {
+          // Figma starts the sweep at the X handle (3 o'clock at rotation 0).
+          // CSS starts at 12 o'clock. Both go clockwise. CSS has no elliptical
+          // sweep, so the radii are not in the string.
+          const from = ((Math.round(rotation) + 90) % 360 + 360) % 360;
+          cssString = `conic-gradient(from ${from}deg at ${cxPercent}% ${cyPercent}%, ${stopStrings})`;
+        }
+        // A diamond gradient has no CSS form, so it gets no cssString.
 
         return {
-          type: "GRADIENT_RADIAL",
+          type: paint.type,
           ...gradientOpacity,
           stops,
           geometry: {
@@ -122,7 +146,7 @@ export const serializePaints = (paints: any, node?: any) => {
             radius: { percentX: rxPercent, percentY: ryPercent },
             rotation: Math.round(rotation)
           },
-          cssString
+          ...(cssString ? { cssString } : {})
         };
       }
 

@@ -231,7 +231,7 @@
           "type": "string"
         },
         "componentKey": {
-          "description": "Library component key",
+          "description": "Library component or set key",
           "type": "string"
         },
         "parentId": {
@@ -915,7 +915,7 @@
           "type": "string"
         },
         "maxNodes": {
-          "description": "Max nodes in full detail (default 500). It does not apply with `detail` or dedupe_components.",
+          "description": "Max nodes (default 500). It does not apply with depth, a lower `detail`, or dedupe_components.",
           "type": "number"
         },
         "scope": {
@@ -2043,7 +2043,7 @@
   },
   "set_paint": {
     "annotations": {},
-    "description": "Set a node's fill or stroke. SOLID: color, opacity. GRADIENT_LINEAR/GRADIENT_RADIAL: stops, geometry, opacity (fill only).",
+    "description": "Set a node's fill or stroke. SOLID: color, opacity. GRADIENT_*: stops, geometry, opacity.",
     "inputSchema": {
       "properties": {
         "color": {
@@ -2051,7 +2051,7 @@
           "type": "string"
         },
         "geometry": {
-          "description": "GRADIENT: in percentX/percentY. Linear: start, end, angle. Radial: center, radius, rotation."
+          "description": "GRADIENT: in percentX/percentY. Linear: start, end, angle. Others: center, radius, rotation."
         },
         "mode": {
           "description": "replace (default) or append on top",
@@ -2077,7 +2077,7 @@
           "type": "string"
         },
         "type": {
-          "description": "SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL",
+          "description": "SOLID, GRADIENT_LINEAR, GRADIENT_RADIAL, GRADIENT_ANGULAR, or GRADIENT_DIAMOND",
           "type": "string"
         }
       },
@@ -2322,7 +2322,11 @@
     "inputSchema": {
       "properties": {
         "componentId": {
-          "description": "New COMPONENT ID",
+          "description": "Local component or set ID (preferred)",
+          "type": "string"
+        },
+        "componentKey": {
+          "description": "Library component or set key",
           "type": "string"
         },
         "nodeId": {
@@ -2331,8 +2335,7 @@
         }
       },
       "required": [
-        "nodeId",
-        "componentId"
+        "nodeId"
       ],
       "type": "object"
     },

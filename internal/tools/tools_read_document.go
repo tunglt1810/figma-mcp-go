@@ -14,7 +14,7 @@ var readDocumentSpecs = []toolSpec{
 			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
 				Desc: "Levels below each root. 0 = root only. Default 2 for selection, no limit otherwise."},
 			{Name: "maxNodes", Kind: kindNumber, Min: floatPtr(1),
-				Desc: "Max nodes in full detail (default 500). It does not apply with `detail` or dedupe_components."},
+				Desc: "Max nodes (default 500). It does not apply with depth, a lower `detail`, or dedupe_components."},
 			{Name: "detail", Kind: kindString, Enum: []string{"minimal", "compact", "full"},
 				Desc: "minimal: id/name/type/bounds. compact: + fills/strokes/opacity. full (default): everything. Use lower levels for big files."},
 			{Name: "dedupe_components", Wire: "dedupeComponents", Kind: kindBool,

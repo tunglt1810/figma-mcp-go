@@ -47,6 +47,7 @@ func main() {
 	version := figmamcpgo.GetVersion()
 	ip := flag.String("ip", "127.0.0.1", "IP address to listen on (use 0.0.0.0 to accept remote connections)")
 	port := flag.Int("port", 1994, "port to listen on")
+	readOnly := flag.Bool("read-only", false, "offer only the tools that cannot change the Figma file")
 	flag.Parse()
 
 	parsedIP := net.ParseIP(*ip)
@@ -72,7 +73,11 @@ func main() {
 	slog.Info("starting figma-mcp-go", "version", version, "role", node.RoleName())
 
 	s := server.NewMCPServer("figma-mcp-go", version)
-	tools.RegisterTools(s, node)
+	if *readOnly {
+		tools.RegisterReadOnlyTools(s, node)
+	} else {
+		tools.RegisterTools(s, node)
+	}
 	prompts.RegisterAll(s)
 
 	go func() {

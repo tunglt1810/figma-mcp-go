@@ -586,6 +586,23 @@ func allSpecs() []toolSpec {
 	return all
 }
 
+// readOnlyModeExports are the export tools that read-only mode also offers.
+// They never change the Figma file. They carry no readOnlyHint, because that
+// hint also covers the disk, and an export can write a file there.
+var readOnlyModeExports = []string{"export_frames_to_pdf", "export_screenshots", "get_image_bytes"}
+
+// readOnlyModeSpecs is what a server started with --read-only offers: the tools
+// that cannot change the Figma file.
+func readOnlyModeSpecs() []toolSpec {
+	var specs []toolSpec
+	for _, spec := range allSpecs() {
+		if spec.ReadOnly || slices.Contains(readOnlyModeExports, spec.Name) {
+			specs = append(specs, spec)
+		}
+	}
+	return specs
+}
+
 // readOnly returns copies of specs marked as changing nothing.
 func readOnly(specs []toolSpec) []toolSpec {
 	out := slices.Clone(specs)

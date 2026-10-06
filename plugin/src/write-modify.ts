@@ -1,5 +1,5 @@
 import { getBounds } from "./serializers";
-import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint, makeLayoutGrid } from "./write-helpers";
+import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint, gradientTypes, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
 import { reportProgress, stepProgress } from "./progress";
 import { loadFonts } from "./fonts";
@@ -182,12 +182,11 @@ export const writeModifyHandlers: HandlerMap = {
   if (type === "SOLID") {
     action = target === "stroke" ? "set_strokes" : "set_fills";
     params = rest;
-  } else if (type === "GRADIENT_LINEAR" || type === "GRADIENT_RADIAL") {
-    if (target === "stroke") throw new Error("gradients can only target fill, not stroke");
+  } else if (gradientTypes.includes(type)) {
     action = "set_gradient_fills";
-    params = { ...rest, type };
+    params = { ...rest, type, target };
   } else {
-    throw new Error(`type must be SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL, got: ${type}`);
+    throw new Error(`type must be SOLID, ${gradientTypes.join(", ")}, got: ${type}`);
   }
   const result = await handleWriteModifyRequest({ ...request, type: action, params });
   // Answer with the name the caller used, not the one we delegated to.
@@ -254,14 +253,17 @@ export const writeModifyHandlers: HandlerMap = {
     if (!nodeId) throw new Error("nodeId is required");
     const node = await figma.getNodeByIdAsync(nodeId);
     if (!node) throw new Error(`Node not found: ${nodeId}`);
-    if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
-    const newFill = makeGradientPaint(p.type, p.stops, p.geometry, p.opacity);
+    // The name is from before set_paint. A gradient can go on a stroke too.
+    const prop = p.target === "stroke" ? "strokes" : "fills";
+    if (!(prop in node)) throw new Error(`Node ${nodeId} does not support ${prop}`);
+    const newPaint = makeGradientPaint(p.type, p.stops, p.geometry, p.opacity);
     if (p.mode === "append") {
-      const existing = Array.isArray((node as any).fills) ? [...(node as any).fills] : [];
-      (node as any).fills = [...existing, newFill];
+      const existing = Array.isArray((node as any)[prop]) ? [...(node as any)[prop]] : [];
+      (node as any)[prop] = [...existing, newPaint];
     } else {
-      (node as any).fills = [newFill];
+      (node as any)[prop] = [newPaint];
     }
+    if (prop === "strokes" && p.strokeWeight != null) (node as any).strokeWeight = p.strokeWeight;
     figma.commitUndo();
     return {
       type: request.type,
@@ -300,7 +302,7 @@ export const writeModifyHandlers: HandlerMap = {
     const node = await figma.getNodeByIdAsync(nodeId);
     if (!node) throw new Error(`Node not found: ${nodeId}`);
     if (!("strokes" in node)) throw new Error(`Node ${nodeId} does not support strokes`);
-    const newStroke = makeSolidPaint(p.color);
+    const newStroke = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
     if (p.mode === "append") {
       // As with fills, mixed strokes are a symbol and cannot be spread.
       const existing = Array.isArray((node as any).strokes) ? [...(node as any).strokes] : [];

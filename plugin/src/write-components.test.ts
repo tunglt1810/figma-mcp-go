@@ -121,6 +121,48 @@ describe("ungroup_nodes", () => {
   });
 });
 
+// ── create_component_instance / swap_component ────────────────────────────────
+
+describe("component by ID or key", () => {
+  const component = (id: string) => ({
+    id, name: "Button", type: "COMPONENT",
+    createInstance: () => ({ id: "inst:1", name: "Button", width: 10, height: 10 }),
+  });
+
+  it("creates an instance from a library set key, using the default variant", async () => {
+    // A set key makes the component import reject, as Figma does.
+    (globalThis as any).figma.importComponentByKeyAsync = async () => { throw new Error("not a component"); };
+    (globalThis as any).figma.importComponentSetByKeyAsync = async () => ({ defaultVariant: component("5:1"), children: [] });
+    const res = await handleWriteComponentRequest(
+      makeRequest("create_component_instance", [], { componentKey: "setKey", x: 1, y: 2 }),
+    );
+    expect(res?.data.id).toBe("inst:1");
+  });
+
+  it("reports the component import error when the key names neither", async () => {
+    (globalThis as any).figma.importComponentByKeyAsync = async () => { throw new Error("key not found"); };
+    (globalThis as any).figma.importComponentSetByKeyAsync = async () => { throw new Error("set not found"); };
+    await expect(
+      handleWriteComponentRequest(makeRequest("create_component_instance", [], { componentKey: "nope" })),
+    ).rejects.toThrow("key not found");
+  });
+
+  it("swaps to a set's default variant", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Inst", type: "INSTANCE" };
+    mockNodes["4:1"] = { id: "4:1", type: "COMPONENT_SET", defaultVariant: component("5:1"), children: [] };
+    const res = await handleWriteComponentRequest(makeRequest("swap_component", ["1:1"], { componentId: "4:1" }));
+    expect(mockNodes["1:1"].mainComponent.id).toBe("5:1");
+    expect(res?.data.componentId).toBe("5:1");
+  });
+
+  it("swaps to a library component by key", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Inst", type: "INSTANCE" };
+    (globalThis as any).figma.importComponentByKeyAsync = async () => component("9:9");
+    await handleWriteComponentRequest(makeRequest("swap_component", ["1:1"], { componentKey: "abc" }));
+    expect(mockNodes["1:1"].mainComponent.id).toBe("9:9");
+  });
+});
+
 // ── set_annotations ───────────────────────────────────────────────────────────
 
 // It took over clear_annotations, whose only advantage was taking several

@@ -267,6 +267,32 @@ describe("serializePaints", () => {
     expect(g2.radius.percentY).toBe(g1.radius.percentY);
     expect(g2.rotation).toBe(g1.rotation);
   });
+  // A radial gradient reads its rotation from the principal axes. That loses a
+  // half turn, and loses everything when the two radii are equal. Angular and
+  // diamond gradients need both, so each case here has one of the two.
+  it.each([
+    ["GRADIENT_ANGULAR", { percentX: 30, percentY: 20 }, 200],
+    ["GRADIENT_DIAMOND", { percentX: 25, percentY: 25 }, 45],
+  ])("round-trips %s through the write path", (type, radius, rotation) => {
+    const geometry = { center: { percentX: 40, percentY: 60 }, radius, rotation };
+    const stops = [{ position: 0, color: "#ff0000" }, { position: 1, color: "#0000ff" }];
+    const paint = makeGradientPaint(type, stops, geometry);
+    const result = serializePaints([paint]) as any[];
+    expect(result[0].type).toBe(type);
+    expect(result[0].geometry.center).toEqual(geometry.center);
+    expect(result[0].geometry.radius).toEqual(radius);
+    // atan2 answers in (-180, 180], so 200° comes back as -160°.
+    expect((result[0].geometry.rotation + 360) % 360).toBe(rotation);
+  });
+  it("gives an angular gradient a conic cssString, and a diamond none", () => {
+    const stops = [{ position: 0, color: "#ff0000" }, { position: 1, color: "#0000ff" }];
+    const geometry = { center: { percentX: 50, percentY: 50 }, radius: { percentX: 50, percentY: 50 }, rotation: 0 };
+    const angular = serializePaints([makeGradientPaint("GRADIENT_ANGULAR", stops, geometry)]) as any[];
+    // Figma starts at 3 o'clock, CSS at 12 o'clock.
+    expect(angular[0].cssString).toBe("conic-gradient(from 90deg at 50% 50%, #ff0000 0%, #0000ff 100%)");
+    const diamond = serializePaints([makeGradientPaint("GRADIENT_DIAMOND", stops, geometry)]) as any[];
+    expect(diamond[0].cssString).toBeUndefined();
+  });
   it("serializes GRADIENT_LINEAR to geometry", () => {
     const node = { width: 200, height: 100 };
     // M = [[1, 0, 0], [0, 1, 0]]

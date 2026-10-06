@@ -320,6 +320,13 @@ func TestValidateRPC_SwapComponent(t *testing.T) {
 	if msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
+	// a library key works in place of an ID
+	if msg := ValidateRPC("swap_component", []string{"1:1"}, map[string]any{"componentKey": "abc"}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
+	}
+	if msg := ValidateRPC("swap_component", []string{"1:1"}, nil); msg == "" {
+		t.Error("expected error for missing componentId/Key")
+	}
 }
 
 func TestValidateRPC_UnknownTool(t *testing.T) {
@@ -954,6 +961,13 @@ func TestValidateRPC_CreateComponentInstance(t *testing.T) {
 	if msg := ValidateRPC("create_component_instance", nil, map[string]any{"componentKey": "abc"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
+	// The plugin needs both coordinates. One alone must not be dropped silently.
+	if msg := ValidateRPC("create_component_instance", nil, map[string]any{"componentId": "1:1", "x": 10.0}); msg == "" {
+		t.Error("expected error for x without y")
+	}
+	if msg := ValidateRPC("create_component_instance", nil, map[string]any{"componentId": "1:1", "x": 10.0, "y": 20.0}); msg != "" {
+		t.Errorf("unexpected error: %s", msg)
+	}
 }
 
 func TestValidateRPC_GetInstanceOverrides(t *testing.T) {
@@ -1286,8 +1300,14 @@ func TestValidateRPC_SetPaint(t *testing.T) {
 		}, "color does not apply when type is GRADIENT_LINEAR"},
 
 		{"gradient on a stroke", map[string]any{
-			"type": "GRADIENT_LINEAR", "target": "stroke", "stops": linearStops, "geometry": geometry,
-		}, "gradients can only target fill"},
+			"type": "GRADIENT_LINEAR", "target": "stroke", "stops": linearStops, "geometry": geometry, "strokeWeight": 2.0,
+		}, ""},
+		{"angular gradient", map[string]any{
+			"type": "GRADIENT_ANGULAR", "stops": linearStops, "geometry": geometry,
+		}, ""},
+		{"diamond gradient", map[string]any{
+			"type": "GRADIENT_DIAMOND", "stops": linearStops, "geometry": geometry,
+		}, ""},
 		{"stroke weight on a fill", map[string]any{
 			"type": "SOLID", "color": "#ff0000", "strokeWeight": 2.0,
 		}, "strokeWeight applies only when target is stroke"},

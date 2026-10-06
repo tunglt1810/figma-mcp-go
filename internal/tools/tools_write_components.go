@@ -26,9 +26,12 @@ var writeComponentSpecs = []toolSpec{
 		NodeIDsReq: true,
 		NodeIDDesc: "INSTANCE node ID",
 		Params: []paramSpec{
-			{Name: "componentId", Kind: kindString, Required: true, IsNodeID: true,
-				Desc: "New COMPONENT ID"},
+			{Name: "componentId", Kind: kindString, IsNodeID: true,
+				Desc: "Local component or set ID (preferred)"},
+			{Name: "componentKey", Kind: kindString,
+				Desc: "Library component or set key"},
 		},
+		Validate: requireAnyOf("componentId or componentKey is required", "componentId", "componentKey"),
 	},
 	{
 		Name:       "detach_instance",
@@ -44,12 +47,24 @@ var writeComponentSpecs = []toolSpec{
 			{Name: "componentId", Kind: kindString, IsNodeID: true,
 				Desc: "Local component or set ID (preferred)"},
 			{Name: "componentKey", Kind: kindString,
-				Desc: "Library component key"},
+				Desc: "Library component or set key"},
 			parentIDParam("Parent ID (default: current page)"),
 			{Name: "x", Kind: kindNumber, Desc: "X (default: center of view)"},
 			{Name: "y", Kind: kindNumber, Desc: "Y"},
 		},
-		Validate: requireAnyOf("componentId or componentKey is required", "componentId", "componentKey"),
+		Validate: func(nodeIDs []string, params map[string]any) string {
+			if msg := requireAnyOf("componentId or componentKey is required", "componentId", "componentKey")(nodeIDs, params); msg != "" {
+				return msg
+			}
+			// The plugin sets a position only when it has both values. One
+			// alone used to be dropped without a word.
+			_, hasX := params["x"]
+			_, hasY := params["y"]
+			if hasX != hasY {
+				return "set x and y together, or neither"
+			}
+			return ""
+		},
 	},
 	{
 		Name: "set_instance_overrides",

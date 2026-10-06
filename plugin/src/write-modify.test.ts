@@ -597,16 +597,23 @@ describe("set_paint", () => {
     expect(mockNodes["1:1"].fills[0].type).toBe("GRADIENT_LINEAR");
   });
 
-  it("refuses a gradient on a stroke", async () => {
+  it("carries opacity to a solid stroke", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [], strokes: [] };
-    await expect(
-      paint({ type: "GRADIENT_LINEAR", target: "stroke", stops: [], geometry: {} }),
-    ).rejects.toThrow(/gradients can only target fill/);
+    await paint({ type: "SOLID", target: "stroke", color: "#000000", opacity: 0.5 });
+    expect(mockNodes["1:1"].strokes[0].opacity).toBe(0.5);
+  });
+
+  it("puts a gradient on a stroke and carries strokeWeight", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [], strokes: [] };
+    await paint({ type: "GRADIENT_ANGULAR", target: "stroke", stops: [], geometry: {}, strokeWeight: 2 });
+    expect(mockNodes["1:1"].strokes[0].type).toBe("GRADIENT_ANGULAR");
+    expect(mockNodes["1:1"].strokeWeight).toBe(2);
+    expect(mockNodes["1:1"].fills).toHaveLength(0);
   });
 
   it("reports an unknown kind rather than silently doing nothing", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [] };
-    await expect(paint({ type: "IMAGE", color: "#ff0000" })).rejects.toThrow(/SOLID, GRADIENT_LINEAR, or GRADIENT_RADIAL/);
+    await expect(paint({ type: "IMAGE", color: "#ff0000" })).rejects.toThrow(/type must be SOLID, GRADIENT_LINEAR/);
   });
 });
 

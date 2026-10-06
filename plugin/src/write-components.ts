@@ -1,16 +1,51 @@
 import { HandlerMap } from "./dispatch";
+
+const defaultVariantOf = (set: ComponentSetNode): ComponentNode | null =>
+  set.defaultVariant || (set.children[0] as ComponentNode) || null;
+
+// resolveComponent finds the component that a local ID or a library key names.
+// A component set resolves to its default variant.
+const resolveComponent = async (p: any): Promise<ComponentNode> => {
+  let component: ComponentNode | null = null;
+
+  if (p.componentId) {
+    const node = await figma.getNodeByIdAsync(p.componentId);
+    if (!node) throw new Error(`Component not found: ${p.componentId}`);
+    if (node.type === "COMPONENT_SET") {
+      component = defaultVariantOf(node as ComponentSetNode);
+    } else if (node.type === "COMPONENT") {
+      component = node as ComponentNode;
+    } else {
+      throw new Error(`Node ${p.componentId} is not a COMPONENT or COMPONENT_SET`);
+    }
+  } else if (p.componentKey) {
+    // A key does not say which of the two it names, and each import rejects
+    // the other kind. So try the component first, then the set.
+    try {
+      component = await figma.importComponentByKeyAsync(p.componentKey);
+    } catch (componentError) {
+      try {
+        component = defaultVariantOf(await figma.importComponentSetByKeyAsync(p.componentKey));
+      } catch {
+        throw componentError;
+      }
+    }
+  } else {
+    throw new Error("componentId or componentKey is required");
+  }
+
+  if (!component) throw new Error("Could not resolve a ComponentNode to instantiate");
+  return component;
+};
 export const writeComponentsHandlers: HandlerMap = {
   "swap_component": async (request) => {
     const p = request.params || {};
     const nodeId = request.nodeIds && request.nodeIds[0];
     if (!nodeId) throw new Error("nodeId is required");
-    if (!p.componentId) throw new Error("componentId is required");
     const node = await figma.getNodeByIdAsync(nodeId);
     if (!node) throw new Error(`Node not found: ${nodeId}`);
     if (node.type !== "INSTANCE") throw new Error(`Node ${nodeId} is not a component INSTANCE`);
-    const component = await figma.getNodeByIdAsync(p.componentId);
-    if (!component) throw new Error(`Component not found: ${p.componentId}`);
-    if (component.type !== "COMPONENT") throw new Error(`Node ${p.componentId} is not a COMPONENT`);
+    const component = await resolveComponent(p);
     node.mainComponent = component;
     figma.commitUndo();
     return {
@@ -97,28 +132,7 @@ export const writeComponentsHandlers: HandlerMap = {
 
   "create_component_instance": async (request) => {
     const p = request.params || {};
-    let baseComponent: ComponentNode | null = null;
-
-    if (p.componentId) {
-      const node = await figma.getNodeByIdAsync(p.componentId);
-      if (!node) throw new Error(`Component not found: ${p.componentId}`);
-      if (node.type === "COMPONENT_SET") {
-        baseComponent = (node as ComponentSetNode).defaultVariant;
-        if (!baseComponent && (node as ComponentSetNode).children.length > 0) {
-          baseComponent = (node as ComponentSetNode).children[0] as ComponentNode;
-        }
-      } else if (node.type === "COMPONENT") {
-        baseComponent = node as ComponentNode;
-      } else {
-        throw new Error(`Node ${p.componentId} is not a COMPONENT or COMPONENT_SET`);
-      }
-    } else if (p.componentKey) {
-      baseComponent = await figma.importComponentByKeyAsync(p.componentKey);
-    } else {
-      throw new Error("componentId or componentKey is required");
-    }
-
-    if (!baseComponent) throw new Error("Could not resolve a ComponentNode to instantiate");
+    const baseComponent = await resolveComponent(p);
 
     const instance = baseComponent.createInstance();
 
