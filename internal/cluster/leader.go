@@ -55,7 +55,13 @@ var loopbackAddresses = map[string]bool{
 // Exposed reports whether an --ip value puts the listener on the network.
 // An empty value means the default bind, which is loopback.
 func Exposed(ip string) bool {
-	return ip != "" && !loopbackAddresses[ip]
+	if ip == "" || loopbackAddresses[ip] {
+		return false
+	}
+	if parsed := net.ParseIP(ip); parsed != nil && parsed.IsLoopback() {
+		return false
+	}
+	return true
 }
 
 // NewLeader creates a Leader. Call Start() to bind the ip:port.
@@ -81,7 +87,7 @@ func (l *Leader) GetBridge() *bridge.Bridge {
 // Start binds the port and begins serving. It returns an error at once if the
 // port is already in use (EADDRINUSE), which tells the caller another leader exists.
 func (l *Leader) Start() error {
-	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", l.ip, l.port))
+	ln, err := net.Listen("tcp", net.JoinHostPort(l.ip, fmt.Sprintf("%d", l.port)))
 	if err != nil {
 		return err // includes EADDRINUSE
 	}

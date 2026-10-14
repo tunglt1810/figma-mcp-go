@@ -429,7 +429,14 @@ describe('isCreateStep', () => {
 
   it('still recognises the plain create actions', () => {
     expect(isCreateStep('create_frame', {})).toBe(true);
+    expect(isCreateStep('create_vector', { svg: '<svg/>' })).toBe(true);
+    expect(isCreateStep('create_component', { nodeId: '1:1' })).toBe(false);
     expect(isCreateStep('batch_rename_nodes', { nodeId: '1:1' })).toBe(false);
+  });
+
+  it('treats import_image as create only when nodeId is omitted', () => {
+    expect(isCreateStep('import_image', { imageUrl: 'https://x/i.png' })).toBe(true);
+    expect(isCreateStep('import_image', { imageUrl: 'https://x/i.png', nodeId: '1:1' })).toBe(false);
   });
 });
 
@@ -709,6 +716,7 @@ const KEEPS_EXISTING_NODES = [
   'batch_rename_nodes',
   'boolean_operation',
   'combine_as_variants',
+  'create_component',
   'create_style',
   'apply_style_to_node',
   'delete_nodes',
@@ -740,7 +748,6 @@ const KEEPS_EXISTING_NODES = [
   'swap_component',
   'ungroup_nodes',
   'update_paint_style',
-  'create_vector',
   // Internal delegation targets: the names the merged tools dispatch to.
   // They are real entries in the write handler map, so they need a class too.
   'set_fills',
