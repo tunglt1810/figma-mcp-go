@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"net"
 	"time"
 )
 
@@ -24,7 +25,7 @@ func NewElection(ip string, port int, node *Node) *Election {
 	return &Election{
 		port:     port,
 		node:     node,
-		follower: NewFollower("http://" + ip + ":" + itoa(port)),
+		follower: NewFollower("http://" + net.JoinHostPort(ip, itoa(port))),
 	}
 }
 

@@ -62,7 +62,11 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	node := cluster.NewNode(*ip, *port, version, tools.Check)
+	guard := tools.Check
+	if *readOnly {
+		guard = tools.CheckReadOnly
+	}
+	node := cluster.NewNode(*ip, *port, version, guard)
 	election := cluster.NewElection(*ip, *port, node)
 
 	if err := election.Start(ctx); err != nil {

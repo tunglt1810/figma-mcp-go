@@ -2,6 +2,9 @@ import { serializeVariableValue } from "./serializers";
 import { HandlerMap } from "./dispatch";
 import { throwIfCancelled } from "./cancellation";
 
+const cssVarName = (name: string): string =>
+  "--" + name.toLowerCase().replace(/[/\s]+/g, "-").replace(/[^a-z0-9-]/g, "");
+
 export const readStylesHandlers: HandlerMap = {
   "get_styles": async (request) => {
     const [paintStyles, textStyles, effectStyles, gridStyles] =
@@ -197,9 +200,15 @@ export const readStylesHandlers: HandlerMap = {
           const variable = await figma.variables.getVariableByIdAsync(varId);
           if (!variable) continue;
           const val = variable.valuesByMode[firstMode.modeId];
-          const cssName = "--" + variable.name.toLowerCase().replace(/[/\s]+/g, "-").replace(/[^a-z0-9-]/g, "");
+          const cssName = cssVarName(variable.name);
           let cssValue: string | null = null;
-          if (variable.resolvedType === "COLOR" && val && typeof val === "object" && "r" in val) {
+          if (val && typeof val === "object" && "type" in val && (val as any).type === "VARIABLE_ALIAS") {
+            const target = await figma.variables.getVariableByIdAsync((val as any).id);
+            if (target) {
+              const targetCssName = cssVarName(target.name);
+              cssValue = `var(${targetCssName})`;
+            }
+          } else if (variable.resolvedType === "COLOR" && val && typeof val === "object" && "r" in val) {
             const c = val as RGBA;
             const r = Math.round(c.r * 255);
             const g = Math.round(c.g * 255);
@@ -214,7 +223,7 @@ export const readStylesHandlers: HandlerMap = {
       for (const style of paintStyles) {
         if (style.paints.length === 1 && style.paints[0].type === "SOLID") {
           const paint = style.paints[0] as SolidPaint;
-          const cssName = "--" + style.name.toLowerCase().replace(/[/\s]+/g, "-").replace(/[^a-z0-9-]/g, "");
+          const cssName = cssVarName(style.name);
           const r = Math.round(paint.color.r * 255);
           const g = Math.round(paint.color.g * 255);
           const b = Math.round(paint.color.b * 255);
@@ -241,10 +250,14 @@ export const readStylesHandlers: HandlerMap = {
         const parts = variable.name.split("/");
         let obj = collTokens;
         for (let i = 0; i < parts.length - 1; i++) {
-          if (!obj[parts[i]]) obj[parts[i]] = {};
+          if (!obj[parts[i]] || typeof obj[parts[i]] !== "object") obj[parts[i]] = {};
           obj = obj[parts[i]];
         }
-        obj[parts[parts.length - 1]] = { type: variable.resolvedType, value: modeValues };
+        const leafKey = parts[parts.length - 1];
+        const existing = obj[leafKey];
+        obj[leafKey] = existing && typeof existing === "object" && !("value" in existing)
+          ? { type: variable.resolvedType, value: modeValues, ...existing }
+          : { type: variable.resolvedType, value: modeValues };
       }
       tokens[coll.name] = collTokens;
     }

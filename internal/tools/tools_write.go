@@ -1,5 +1,10 @@
 package tools
 
+import (
+	"fmt"
+	"strings"
+)
+
 var batchPipelineSpec = toolSpec{
 	Name: "batch_execute_pipeline",
 	Desc: "Run write steps in order. A step can use earlier results through $variables. " +
@@ -21,5 +26,19 @@ var batchPipelineSpec = toolSpec{
 				},
 				"required": []string{"action"},
 			}},
+	},
+	Validate: func(_ []string, params map[string]any) string {
+		steps, _ := params["steps"].([]any)
+		if len(steps) == 0 {
+			return "steps must not be empty"
+		}
+		for i, raw := range steps {
+			step, _ := raw.(map[string]any)
+			action, _ := step["action"].(string)
+			if strings.TrimSpace(action) == "" {
+				return fmt.Sprintf("steps[%d].action is required", i)
+			}
+		}
+		return ""
 	},
 }

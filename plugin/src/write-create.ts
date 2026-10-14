@@ -255,16 +255,17 @@ export const writeCreateHandlers: HandlerMap = {
 
     // Painting an existing node is better than making a rectangle next to it.
     // An avatar or a hero slot is usually already there, waiting for its picture.
-    if (p.nodeId) {
-      const target = await figma.getNodeByIdAsync(p.nodeId) as any;
-      if (!target) throw new Error(`Node not found: ${p.nodeId}`);
-      if (!("fills" in target)) throw new Error(`Node ${p.nodeId} does not support fills`);
+    const targetId = p.nodeId ?? (request.nodeIds && request.nodeIds[0]);
+    if (targetId) {
+      const target = await figma.getNodeByIdAsync(targetId) as any;
+      if (!target) throw new Error(`Node not found: ${targetId}`);
+      if (!("fills" in target)) throw new Error(`Node ${targetId} does not support fills`);
       if (p.mode === "append") {
         // figma.mixed is a symbol, and spreading it throws "is not iterable",
         // an error that names neither the node nor the fix.
         if (!Array.isArray(target.fills)) {
           throw new Error(
-            `Node ${p.nodeId} has mixed fills — mode "append" needs a node whose fills are all the same`,
+            `Node ${targetId} has mixed fills — mode "append" needs a node whose fills are all the same`,
           );
         }
         target.fills = [...target.fills, fill];
@@ -305,6 +306,17 @@ export const writeCreateHandlers: HandlerMap = {
     const node = await figma.getNodeByIdAsync(nodeId) as any;
     if (!node) throw new Error(`Node not found: ${nodeId}`);
     if (node.type !== "FRAME") throw new Error(`Node ${nodeId} is not a FRAME — only frames can be converted to components`);
+
+    if (typeof (figma as any).createComponentFromNode === "function") {
+      const component = (figma as any).createComponentFromNode(node);
+      if (p.name) component.name = p.name;
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { id: component.id, name: component.name, type: component.type, bounds: getBounds(component) },
+      };
+    }
 
     const parent = node.parent as any;
     const index = parent.children.indexOf(node);

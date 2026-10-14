@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"sync"
 
 	"github.com/tunglt1810/figma-mcp-go/internal/bridge"
@@ -39,7 +40,7 @@ func NewNode(ip string, port int, version string, guard Guard) *Node {
 		role:     RoleUnknown,
 		version:  version,
 		guard:    guard,
-		follower: NewFollower(fmt.Sprintf("http://%s:%d", ip, port)),
+		follower: NewFollower("http://" + net.JoinHostPort(ip, fmt.Sprintf("%d", port))),
 	}
 }
 

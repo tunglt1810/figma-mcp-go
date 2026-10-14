@@ -70,6 +70,8 @@ func TimeoutFor(tool string) time.Duration {
 }
 
 // FollowerTimeoutFor is how long a follower waits for the leader to answer.
+// The leader extends its timer on plugin progress updates up to MaxToolTimeout,
+// so the follower must not drop the HTTP connection before that ceiling.
 func FollowerTimeoutFor(tool string) time.Duration {
-	return TimeoutFor(tool) + followerGrace
+	return MaxToolTimeout + followerGrace
 }

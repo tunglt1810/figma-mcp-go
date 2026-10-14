@@ -240,27 +240,26 @@ export const readDocumentHandlers: HandlerMap = {
         return result;
       }
       if (detail === "full") {
-        const serialized = await serializeNode(node);
-        if (currentDepth >= depth && serialized.children) {
-          return Object.assign({}, serialized, {
-            children: undefined,
-            childCount: node.children ? node.children.length : 0,
+        const serialized = await serializeNode(node, makeBudget(undefined, 0), 0);
+        const hasChildren = "children" in node && node.children.length > 0;
+        if (!hasChildren) return serialized;
+        if (currentDepth >= depth) {
+          const out = Object.assign({}, serialized, {
+            childCount: node.children.length,
           });
+          delete out.children;
+          delete out.childrenOmitted;
+          return out;
         }
-        if (serialized.children) {
-          const childNodes = await Promise.all(
-            serialized.children.map((child: any) =>
-              figma.getNodeByIdAsync(child.id),
-            ),
-          );
-          const serializedChildren = await Promise.all(
-            childNodes
-              .filter((n) => n !== null && n.type !== "DOCUMENT")
-              .map((n) => serializeWithDepth(n, currentDepth + 1)),
-          );
-          return Object.assign({}, serialized, { children: serializedChildren });
-        }
-        return serialized;
+        const serializedChildren = await Promise.all(
+          node.children
+            .filter((n: any) => n !== null && n.type !== "DOCUMENT")
+            .map((n: any) => serializeWithDepth(n, currentDepth + 1)),
+        );
+        const out = Object.assign({}, serialized, { children: serializedChildren });
+        delete out.childCount;
+        delete out.childrenOmitted;
+        return out;
       }
 
       const serialized = await serializeForDetail(node);
@@ -280,7 +279,7 @@ export const readDocumentHandlers: HandlerMap = {
     // The plain walk keeps the budget, which counts nodes, not levels, and
     // reports `truncated`. It only applies when nothing asked for a trimmed
     // shape: a detail level or a component dedupe gives a different tree.
-    const plain = detail === "full" && !dedupeComponents && p.depth == null;
+    const plain = detail === "full" && !dedupeComponents;
     const walk = async (node: any) =>
       plain ? await serializeNode(node, budget, 0) : await serializeWithDepth(node, 0);
 

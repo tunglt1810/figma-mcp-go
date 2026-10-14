@@ -166,6 +166,8 @@ func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	b.mu.Lock()
 	previous := b.conn
 	b.conn = conn
+	b.pluginVersion = ""
+	b.pluginHandlers = nil
 	// Wake anything waiting for a plugin, then arm the signal for the next wait.
 	close(b.connected)
 	b.connected = make(chan struct{})
@@ -337,6 +339,8 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 		b.mu.Lock()
 		if b.conn == conn {
 			b.conn = nil
+			b.pluginVersion = ""
+			b.pluginHandlers = nil
 		}
 		b.mu.Unlock()
 		log().Info("plugin disconnected")
@@ -400,12 +404,14 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 		}
 
 		if resp.Type == "copy_to_clipboard" {
-			if resp.Text != "" {
-				if err := WriteOSClipboard(resp.Text); err != nil {
-					log().Warn("failed to write the OS clipboard", "err", err)
-				} else {
-					log().Info("copied to the OS clipboard", "bytes", len(resp.Text))
-				}
+			if text := resp.Text; text != "" {
+				go func() {
+					if written, err := writeLatestClipboard(text); err != nil {
+						log().Warn("failed to write the OS clipboard", "err", err)
+					} else if written {
+						log().Info("copied to the OS clipboard", "bytes", len(text))
+					}
+				}()
 			}
 			continue
 		}

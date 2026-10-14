@@ -26,10 +26,13 @@ and produce a clear, structured map of interactions between screens/nodes.
 You will receive JSON data from get_reactions. Each node may contain reactions like:
 {
   "trigger": { "type": "ON_CLICK" },
-  "action": {
-    "type": "NAVIGATE",
-    "destinationId": "destination-node-id"
-  }
+  "actions": [
+    {
+      "type": "NODE",
+      "navigation": "NAVIGATE",
+      "destinationId": "destination-node-id"
+    }
+  ]
 }
 
 ## Step-by-Step Process

@@ -65,8 +65,18 @@ export function resolveRangeFont(
   return { family, style };
 }
 
-/** Ranges sorted so overlapping edits apply left to right, in the order written. */
+/**
+ * Disjoint ranges are sorted left to right; when any two ranges overlap, caller
+ * order is preserved so that later ranges win on overlap as documented.
+ */
 export function sortRanges(ranges: TextRange[]): TextRange[] {
+  for (let i = 0; i < ranges.length; i++) {
+    for (let j = i + 1; j < ranges.length; j++) {
+      if (Number(ranges[i].start) < Number(ranges[j].end) && Number(ranges[j].start) < Number(ranges[i].end)) {
+        return [...ranges];
+      }
+    }
+  }
   return [...ranges].sort((a, b) => Number(a.start) - Number(b.start));
 }
 
