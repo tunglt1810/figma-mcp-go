@@ -11,6 +11,27 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-14
+
+### Changed
+
+- `create_component` keeps the frame's properties and children, because it converts the frame in place.
+- `--read-only` now also applies to `/rpc`. A read-only leader rejects write tools and unknown tool names from followers.
+- The built-in prompts use the current tool arguments (`initialModeName`, `set_text_ranges`, the `actions` reaction format).
+
+### Fixed
+
+- Pipeline rollback no longer deletes the target node of `import_image` with `nodeId`, or the result of `create_component`. It now deletes nodes made by `create_vector`.
+- `import_image` in a pipeline now paints the node given in `nodeId`. Before, it made a new rectangle.
+- `get_document` with `depth` no longer serializes the same subtree again at each level.
+- `export_tokens` writes a variable alias as `var(--name)` in CSS. Nested token names no longer overwrite each other in JSON.
+- `set_text_ranges` applies overlapping ranges in the order given, so the last range wins.
+- `--ip` accepts an IPv6 address.
+- A slow clipboard tool no longer blocks plugin messages. The last copy always wins.
+- A follower waits as long as the leader for long-running tools.
+- The server forgets the plugin version and handlers when the plugin disconnects.
+- `batch_execute_pipeline` rejects an empty `steps` list, or a step with no `action`.
+
 ## [0.5.0] - 2026-10-06
 
 ### Added
@@ -135,7 +156,8 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 - Ellipse arcs and rings (`startAngle`, `endAngle`, `innerRadiusRatio`) now work.
 
-[Unreleased]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.3.1...v0.4.0
