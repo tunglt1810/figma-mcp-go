@@ -406,9 +406,9 @@ func (b *Bridge) readLoop(conn *websocket.Conn) {
 		if resp.Type == "copy_to_clipboard" {
 			if text := resp.Text; text != "" {
 				go func() {
-					if err := WriteOSClipboard(text); err != nil {
+					if written, err := writeLatestClipboard(text); err != nil {
 						log().Warn("failed to write the OS clipboard", "err", err)
-					} else {
+					} else if written {
 						log().Info("copied to the OS clipboard", "bytes", len(text))
 					}
 				}()

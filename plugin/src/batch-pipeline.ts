@@ -38,14 +38,14 @@ export const CREATE_ACTIONS = new Set([
  * by removing the node. manage_page merged four page tools behind an `action`
  * argument, so the step's name alone no longer tells us. Only `add` creates a
  * page. Treating the others as creates would remove a page the user had.
- * Likewise, import_image with a `nodeId` paints an existing node in place.
+ * Likewise, import_image with a `nodeId` or `nodeIds` paints an existing node in place.
  */
 export function isCreateStep(action: string, params: any): boolean {
   if (action === 'manage_page') {
     return params?.action === 'add';
   }
   if (action === 'import_image') {
-    return !params?.nodeId;
+    return !params?.nodeId && !(Array.isArray(params?.nodeIds) && params.nodeIds.length > 0);
   }
   return CREATE_ACTIONS.has(action);
 }

@@ -126,3 +126,16 @@ func TestCheck_DoesNotMutateNestedCallerArgs(t *testing.T) {
 		t.Errorf("caller's nested map was mutated: nodeId = %v", inner["nodeId"])
 	}
 }
+
+// Read-only mode must fail closed: a name with no spec could still reach a
+// plugin write handler, such as the internal create_frame.
+func TestCheckReadOnly_RejectsUnknownAndWriteTools(t *testing.T) {
+	for _, tool := range []string{"create_frame", "set_fills", "batch_execute_pipeline"} {
+		if _, _, err := CheckReadOnly(tool, nil, nil); err == nil {
+			t.Errorf("CheckReadOnly(%q) = nil error, want rejection", tool)
+		}
+	}
+	if _, _, err := CheckReadOnly("get_selection", nil, nil); err != nil {
+		t.Errorf("CheckReadOnly(get_selection) = %v, want nil", err)
+	}
+}

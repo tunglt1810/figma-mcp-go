@@ -437,6 +437,7 @@ describe('isCreateStep', () => {
   it('treats import_image as create only when nodeId is omitted', () => {
     expect(isCreateStep('import_image', { imageUrl: 'https://x/i.png' })).toBe(true);
     expect(isCreateStep('import_image', { imageUrl: 'https://x/i.png', nodeId: '1:1' })).toBe(false);
+    expect(isCreateStep('import_image', { imageUrl: 'https://x/i.png', nodeIds: ['1:1'] })).toBe(false);
   });
 });
 

@@ -33,10 +33,7 @@ var batchPipelineSpec = toolSpec{
 			return "steps must not be empty"
 		}
 		for i, raw := range steps {
-			step, ok := raw.(map[string]any)
-			if !ok {
-				continue
-			}
+			step, _ := raw.(map[string]any)
 			action, _ := step["action"].(string)
 			if strings.TrimSpace(action) == "" {
 				return fmt.Sprintf("steps[%d].action is required", i)

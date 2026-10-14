@@ -73,8 +73,5 @@ func TimeoutFor(tool string) time.Duration {
 // The leader extends its timer on plugin progress updates up to MaxToolTimeout,
 // so the follower must not drop the HTTP connection before that ceiling.
 func FollowerTimeoutFor(tool string) time.Duration {
-	if d := TimeoutFor(tool); d > MaxToolTimeout {
-		return d + followerGrace
-	}
 	return MaxToolTimeout + followerGrace
 }

@@ -479,10 +479,9 @@ func Check(tool string, nodeIDs []string, params map[string]any) ([]string, map[
 // Figma document. A server started with --read-only passes this guard to
 // cluster.NewNode so its /rpc endpoint enforces the same boundary.
 func CheckReadOnly(tool string, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
-	if spec, ok := specRegistry[tool]; ok {
-		if !spec.ReadOnly && !slices.Contains(readOnlyModeExports, tool) {
-			return nil, nil, fmt.Errorf("%s is disabled because the server is running in --read-only mode", tool)
-		}
+	spec, ok := specRegistry[tool]
+	if !ok || (!spec.ReadOnly && !slices.Contains(readOnlyModeExports, tool)) {
+		return nil, nil, fmt.Errorf("%s is disabled because the server is running in --read-only mode", tool)
 	}
 	return Check(tool, nodeIDs, params)
 }
