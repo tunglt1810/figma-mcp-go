@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -142,7 +143,7 @@ var writeStyleSpecs = []toolSpec{
 			for i, e := range effects {
 				em, _ := e.(map[string]any)
 				t, _ := em["type"].(string)
-				if !containsString(nodeEffectTypes, t) {
+				if !slices.Contains(nodeEffectTypes, t) {
 					return fmt.Sprintf("effects[%d].type must be one of %s, got: %s",
 						i, strings.Join(nodeEffectTypes, ", "), t)
 				}

@@ -3,9 +3,9 @@ package cluster
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"sync"
 
 	"github.com/tunglt1810/figma-mcp-go/internal/bridge"
@@ -28,19 +28,24 @@ type Node struct {
 	port     int
 	leader   *Leader
 	follower sender
-	version  string
-	guard    Guard
+	// leaderClient is the HTTP client for the leader. follower holds the same
+	// value unless a test replaces it. The election pings through it.
+	leaderClient *Follower
+	version      string
+	guard        Guard
 }
 
 // NewNode creates a Node in the Unknown role.
 func NewNode(ip string, port int, version string, guard Guard) *Node {
+	client := NewFollower("http://" + net.JoinHostPort(ip, strconv.Itoa(port)))
 	return &Node{
-		ip:       ip,
-		port:     port,
-		role:     RoleUnknown,
-		version:  version,
-		guard:    guard,
-		follower: NewFollower("http://" + net.JoinHostPort(ip, fmt.Sprintf("%d", port))),
+		ip:           ip,
+		port:         port,
+		role:         RoleUnknown,
+		version:      version,
+		guard:        guard,
+		follower:     client,
+		leaderClient: client,
 	}
 }
 

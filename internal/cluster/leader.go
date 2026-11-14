@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"mime"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/tunglt1810/figma-mcp-go/internal/bridge"
@@ -45,24 +45,11 @@ type Leader struct {
 	started time.Time
 }
 
-// loopbackAddresses are the binds that only this machine can reach. Any other
-// bind accepts connections from the network, on a socket with no authentication.
-var loopbackAddresses = map[string]bool{
-	"127.0.0.1": true,
-	"localhost": true,
-	"::1":       true,
-}
-
-// Exposed reports whether an --ip value puts the listener on the network.
-// An empty value means the default bind, which is loopback.
+// Exposed reports whether an --ip value puts the listener on the network, on
+// a socket with no authentication. main accepts only an IP address, so a value
+// that does not parse counts as exposed.
 func Exposed(ip string) bool {
-	if ip == "" || loopbackAddresses[ip] {
-		return false
-	}
-	if parsed := net.ParseIP(ip); parsed != nil && parsed.IsLoopback() {
-		return false
-	}
-	return true
+	return !net.ParseIP(ip).IsLoopback()
 }
 
 // NewLeader creates a Leader. Call Start() to bind the ip:port.
@@ -88,7 +75,7 @@ func (l *Leader) GetBridge() *bridge.Bridge {
 // Start binds the port and begins serving. It returns an error at once if the
 // port is already in use (EADDRINUSE), which tells the caller another leader exists.
 func (l *Leader) Start() error {
-	ln, err := net.Listen("tcp", net.JoinHostPort(l.ip, fmt.Sprintf("%d", l.port)))
+	ln, err := net.Listen("tcp", net.JoinHostPort(l.ip, strconv.Itoa(l.port)))
 	if err != nil {
 		return err // includes EADDRINUSE
 	}

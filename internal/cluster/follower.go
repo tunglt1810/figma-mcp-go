@@ -25,8 +25,8 @@ type Follower struct {
 func NewFollower(leaderURL string) *Follower {
 	return &Follower{
 		leaderURL: leaderURL,
-		// No client-wide Timeout: tools have different time budgets, so one number
-		// cannot fit them all. Send sets a deadline per request from the shared table.
+		// No client-wide Timeout: Ping and Send need different deadlines, so each
+		// sets its own on the request.
 		client: &http.Client{},
 	}
 }
@@ -39,7 +39,7 @@ func (f *Follower) Send(ctx context.Context, tool string, nodeIDs []string, para
 
 	// Wait longer than the leader's own timeout, so the caller gets the leader's
 	// error instead of a transport deadline that says nothing about what failed.
-	ctx, cancel := context.WithTimeout(ctx, bridge.FollowerTimeoutFor(tool))
+	ctx, cancel := context.WithTimeout(ctx, bridge.FollowerTimeout)
 	defer cancel()
 
 	rpcReq := RPCRequest{

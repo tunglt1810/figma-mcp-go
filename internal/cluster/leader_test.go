@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -240,7 +241,7 @@ func TestLeaderPingEndpoint(t *testing.T) {
 	}
 	t.Cleanup(l.Stop)
 
-	f := NewFollower("http://127.0.0.1:" + itoa(port))
+	f := NewFollower("http://127.0.0.1:" + strconv.Itoa(port))
 	if !f.Ping(t.Context()) {
 		t.Error("expected ping to succeed for running leader")
 	}
@@ -331,7 +332,7 @@ func TestLeaderPing_ReportsState(t *testing.T) {
 // decides whether the plugin panel turns on its confirm guard. That is worth a
 // test, not just a look at the string.
 func TestExposed(t *testing.T) {
-	for _, ip := range []string{"", "127.0.0.1", "localhost", "::1"} {
+	for _, ip := range []string{"127.0.0.1", "127.0.0.2", "::1"} {
 		if Exposed(ip) {
 			t.Errorf("Exposed(%q) = true, want false — this bind reaches only this machine", ip)
 		}

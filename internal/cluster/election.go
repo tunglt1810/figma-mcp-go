@@ -2,10 +2,8 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"math/rand"
-	"net"
 	"time"
 )
 
@@ -15,15 +13,16 @@ func electionLog() *slog.Logger { return slog.Default().With("component", "elect
 // If the leader dies, a follower will attempt a takeover.
 type Election struct {
 	node     *Node
-	follower *Follower // reused across health-check ticks to avoid HTTP client pool leaks
+	follower *Follower
 	cancel   context.CancelFunc
 }
 
-// NewElection creates an Election for the given ip, port, and node.
-func NewElection(ip string, port int, node *Node) *Election {
+// NewElection creates an Election for the node. It pings through the node's
+// own leader client.
+func NewElection(node *Node) *Election {
 	return &Election{
 		node:     node,
-		follower: NewFollower("http://" + net.JoinHostPort(ip, itoa(port))),
+		follower: node.leaderClient,
 	}
 }
 
@@ -125,9 +124,4 @@ func (e *Election) tick(ctx context.Context) error {
 		// Nothing to do: we are the leader.
 	}
 	return nil
-}
-
-// itoa converts an int to string without importing strconv everywhere.
-func itoa(n int) string {
-	return fmt.Sprintf("%d", n)
 }

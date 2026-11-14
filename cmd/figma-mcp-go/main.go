@@ -50,13 +50,9 @@ func main() {
 	readOnly := flag.Bool("read-only", false, "offer only the tools that cannot change the Figma file")
 	flag.Parse()
 
-	parsedIP := net.ParseIP(*ip)
-	if parsedIP == nil {
+	if net.ParseIP(*ip) == nil {
 		slog.Error("invalid IP address", "ip", *ip)
 		os.Exit(1)
-	}
-	if !parsedIP.IsLoopback() {
-		slog.Warn("binding outside loopback — the server will be reachable from the network with no authentication", "ip", *ip)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -67,7 +63,7 @@ func main() {
 		guard = tools.CheckReadOnly
 	}
 	node := cluster.NewNode(*ip, *port, version, guard)
-	election := cluster.NewElection(*ip, *port, node)
+	election := cluster.NewElection(node)
 
 	if err := election.Start(ctx); err != nil {
 		slog.Error("election start", "err", err)

@@ -23,7 +23,7 @@
   import { finishEntry, formatDuration, formatLog, progressEntry, startEntry } from "./activity";
   import type { ActivityEntry } from "./activity";
   import { destructiveReason, isDestructive, isMutating } from "../tool-classes";
-  import { t } from "./i18n";
+  import { t } from "./strings";
 
   let connected = false;
   let fileName = "—";

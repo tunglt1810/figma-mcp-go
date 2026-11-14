@@ -389,7 +389,7 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]any) string
 			if !ok {
 				return fmt.Sprintf("%s must be a string", p.Name)
 			}
-			if len(p.Enum) > 0 && !containsString(p.Enum, s) {
+			if len(p.Enum) > 0 && !slices.Contains(p.Enum, s) {
 				return fmt.Sprintf("%s must be one of %v, got: %s", p.Name, p.Enum, s)
 			}
 			if p.IsNodeID && s != "" && !figma.ValidNodeID(s) {
@@ -561,10 +561,6 @@ func requireAnyOf(msg string, keys ...string) func([]string, map[string]any) str
 		}
 		return msg
 	}
-}
-
-func containsString(haystack []string, needle string) bool {
-	return slices.Contains(haystack, needle)
 }
 
 // ── Registry ─────────────────────────────────────────────────────────────────
