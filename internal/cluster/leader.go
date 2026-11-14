@@ -168,7 +168,7 @@ func (l *Leader) handleRPC(w http.ResponseWriter, r *http.Request) {
 	// to the local port and edit the Figma file.
 	if origin := r.Header.Get("Origin"); origin != "" {
 		leaderLog().Warn("rpc refused: request from a browser", "origin", origin, "remote", r.RemoteAddr)
-		http.Error(w, "origin not allowed", http.StatusForbidden)
+		http.Error(w, "The server does not accept requests from a browser", http.StatusForbidden)
 		return
 	}
 	// A page can post text/plain or a form without a preflight. It cannot post

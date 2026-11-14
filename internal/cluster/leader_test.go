@@ -117,6 +117,27 @@ func TestLeaderHandleRPC_RefusesBrowserRequests(t *testing.T) {
 	}
 }
 
+// The checks above must not refuse the one caller /rpc exists for.
+func TestLeaderRPC_AcceptsARealFollower(t *testing.T) {
+	port := freePort(t)
+	l := NewLeader("127.0.0.1", port, "test", passthroughGuard)
+	if err := l.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(l.Stop)
+
+	resp, err := NewFollower("http://127.0.0.1:"+strconv.Itoa(port)).Send(t.Context(), "get_document", nil, nil)
+
+	// A 403 or 415 is plain text, which the follower reports as an unmarshal
+	// error. Reaching the bridge, which has no plugin, proves the call passed.
+	if err != nil {
+		t.Fatalf("the leader refused its follower: %v", err)
+	}
+	if resp.Error != "plugin not connected" {
+		t.Errorf("error = %q, want the bridge's own answer", resp.Error)
+	}
+}
+
 func TestLeaderHandleRPC_InvalidJSON(t *testing.T) {
 	l := NewLeader("127.0.0.1", 0, "", passthroughGuard)
 

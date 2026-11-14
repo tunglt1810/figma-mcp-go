@@ -1086,6 +1086,12 @@ func TestValidateRPC_PipelineStepsAreCheckedLikeCalls(t *testing.T) {
 			"params": map[string]any{"type": "FRAME", "parentId": "$card", "width": 10.0}}, ""},
 		{"a variable does not hide the other arguments", map[string]any{"action": "create_node",
 			"params": map[string]any{"type": "FRAME", "parentId": "$card", "fillColor": "red"}}, "hex color"},
+		{"an argument the tool does not declare", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "LINE", "note": "x"}}, ""},
+		{"an empty string counts as absent", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "FRAME", "fillColor": ""}}, ""},
+		{"a null counts as absent", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "FRAME", "width": nil}}, ""},
 		{"an escaped dollar is a literal", map[string]any{"action": "set_text",
 			"params": map[string]any{"nodeId": "1:2", "text": "$$100"}}, ""},
 	}

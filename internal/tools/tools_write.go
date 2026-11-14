@@ -2,7 +2,6 @@ package tools
 
 import (
 	"fmt"
-	"maps"
 	"regexp"
 	"strings"
 )
@@ -24,8 +23,8 @@ var batchPipelineSpec = toolSpec{
 				"type": "object",
 				"properties": map[string]any{
 					"id":          map[string]any{"type": "string", "description": "Step ID, used by $variables in later steps"},
-					"action":      map[string]any{"type": "string", "description": "Write tool to run e.g. create_node"},
-					"params":      map[string]any{"type": "object", "description": "The tool's arguments"},
+					"action":      map[string]any{"type": "string", "description": "Name of the write tool to run, for example create_node"},
+					"params":      map[string]any{"type": "object", "description": "Arguments of the tool"},
 					"export_vars": map[string]any{"type": "object", "description": "Variable name to result field"},
 				},
 				"required": []string{"action"},
@@ -72,9 +71,8 @@ func hasPipelineVariable(v any) bool {
 	return false
 }
 
-// validatePipelineSteps checks each step as the call it becomes. A step that
-// skipped this was the one way to reach the plugin with arguments nothing had
-// checked.
+// validatePipelineSteps checks each step as the call it becomes. Without it, a
+// step reaches the plugin with arguments that nothing has checked.
 func validatePipelineSteps(params map[string]any) string {
 	steps, _ := params["steps"].([]any)
 	for i, raw := range steps {
@@ -84,7 +82,7 @@ func validatePipelineSteps(params map[string]any) string {
 		// The plugin runs steps through its write handlers only. A tool that
 		// reads, or that does its work in Go, cannot be a step.
 		if !ok || spec.ReadOnly || spec.Custom != nil || action == pipelineTool {
-			return fmt.Sprintf("steps[%d].action %q is not a write tool — use a tool name such as create_node or set_paint", i, action)
+			return fmt.Sprintf("steps[%d].action %q is not a write tool. Use a tool that changes the file, for example create_node or set_paint", i, action)
 		}
 		stepParams, _ := step["params"].(map[string]any)
 		if msg := validateStep(spec, stepParams); msg != "" {
@@ -94,29 +92,25 @@ func validatePipelineSteps(params map[string]any) string {
 	return ""
 }
 
-// validateStep checks one step's arguments against the spec of its tool. An
-// argument that holds a $variable is left out of the check. The rules that
-// span several arguments are skipped when any argument is left out, because
-// they cannot be decided without it.
+// validateStep checks one step's arguments against the spec of its tool. It
+// reads them as specArgs reads a direct call: only declared arguments count,
+// and a null or empty one counts as absent. So a step is refused only where
+// the same direct call is refused. An argument that holds a $variable is left
+// out of the check. The rules that span several arguments are skipped when any
+// argument is left out, because they cannot be decided without it.
 func validateStep(spec toolSpec, stepParams map[string]any) string {
-	params := maps.Clone(stepParams)
-	if params == nil {
-		params = map[string]any{}
-	}
 	deferred := false
 
 	var nodeIDs []string
 	if spec.NodeIDs != nodeIDsNone {
 		// A step carries its node ids inside params, as nodeIds or nodeId.
 		// The plugin moves them to the request's nodeIds field.
-		ids, hasIDs := params["nodeIds"]
+		ids, hasIDs := stepParams["nodeIds"]
 		if !hasIDs {
-			if id, ok := params["nodeId"]; ok {
+			if id, ok := stepParams["nodeId"]; ok {
 				ids, hasIDs = []any{id}, true
 			}
 		}
-		delete(params, "nodeIds")
-		delete(params, "nodeId")
 		if hasPipelineVariable(ids) {
 			deferred = true
 			spec.NodeIDs = nodeIDsNone
@@ -129,13 +123,27 @@ func validateStep(spec toolSpec, stepParams map[string]any) string {
 		}
 	}
 
+	params := map[string]any{}
 	checked := make([]paramSpec, 0, len(spec.Params))
 	for _, p := range spec.Params {
-		if hasPipelineVariable(params[p.wireName()]) {
+		v, given := stepParams[p.wireName()]
+		if hasPipelineVariable(v) {
 			deferred = true
 			continue
 		}
 		checked = append(checked, p)
+		if !given {
+			continue
+		}
+		if v == nil {
+			if p.Nullable {
+				params[p.wireName()] = nil
+			}
+			continue
+		}
+		if keepArg(p, v) {
+			params[p.wireName()] = v
+		}
 	}
 	spec.Params = checked
 	if deferred {

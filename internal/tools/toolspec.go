@@ -249,22 +249,28 @@ func specArgs(spec toolSpec, args map[string]any) ([]string, map[string]any) {
 			continue
 		}
 
-		switch p.Kind {
-		case kindString:
-			s, ok := v.(string)
-			if !ok || (s == "" && !p.AllowEmpty) {
-				continue
-			}
-		case kindStringArray:
-			raw, ok := v.([]any)
-			if !ok || len(raw) == 0 {
-				continue
-			}
+		if !keepArg(p, v) {
+			continue
 		}
 		params[p.wireName()] = v
 	}
 
 	return nodeIDs, params
+}
+
+// keepArg reports whether a non-null argument counts as given. An empty
+// string and an empty string array count as absent, so the plugin applies its
+// default.
+func keepArg(p paramSpec, v any) bool {
+	switch p.Kind {
+	case kindString:
+		s, ok := v.(string)
+		return ok && (s != "" || p.AllowEmpty)
+	case kindStringArray:
+		raw, ok := v.([]any)
+		return ok && len(raw) > 0
+	}
+	return true
 }
 
 // nodeIDParams name the arguments that hold a single Figma node ID. Like the
@@ -473,7 +479,7 @@ func Check(tool string, nodeIDs []string, params map[string]any) ([]string, map[
 func validateCall(tool string, nodeIDs []string, params map[string]any) string {
 	spec, ok := specRegistry[tool]
 	if !ok {
-		return fmt.Sprintf("unknown tool: %s", tool)
+		return fmt.Sprintf("%s is not a tool of this server", tool)
 	}
 	if msg := validateSpec(spec, nodeIDs, params); msg != "" {
 		return msg
@@ -490,7 +496,7 @@ func validateCall(tool string, nodeIDs []string, params map[string]any) string {
 func CheckReadOnly(tool string, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
 	spec, ok := specRegistry[tool]
 	if !ok {
-		return nil, nil, fmt.Errorf("unknown tool: %s", tool)
+		return nil, nil, fmt.Errorf("%s is not a tool of this server", tool)
 	}
 	if !spec.ReadOnly && !slices.Contains(readOnlyModeExports, tool) {
 		return nil, nil, fmt.Errorf("%s is disabled because the server is running in --read-only mode", tool)
@@ -661,8 +667,7 @@ func buildSpecRegistry() map[string]toolSpec {
 
 // handlerFor builds a tool's MCP handler: split the arguments, check them, then
 // run either the tool's own Go code or the plain forwarder. Both paths check,
-// so "every call is validated exactly once" holds by design, not by
-// remembering to do it.
+// so no call reaches the plugin unchecked.
 func handlerFor(sender Sender, spec toolSpec) server.ToolHandlerFunc {
 	var handle customHandler
 	if spec.Custom != nil {

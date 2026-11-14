@@ -24,6 +24,7 @@ the plugin is installed by hand. An old plugin rejects new commands with
 ### Fixed
 
 - `export_screenshots` through a follower works when the leader runs with `--read-only`.
+- `export_frames_to_pdf` reaches the plugin. The tool refused its own inner call before, because that call did not carry `outputPath`.
 
 ## [0.6.0] - 2026-10-14
 

@@ -163,7 +163,9 @@ func executeExportFramesToPDF(ctx context.Context, sender Sender, nodeIDs []stri
 		return mcp.NewToolResultError("outputPath must have a .pdf extension"), nil
 	}
 
-	data, err := sender.Send(ctx, "export_frames_to_pdf", nodeIDs, nil)
+	// The plugin is called under this tool's own name, so the call is checked
+	// against this tool's spec, which requires outputPath. The plugin ignores it.
+	data, err := sender.Send(ctx, "export_frames_to_pdf", nodeIDs, map[string]any{"outputPath": outputPath})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
