@@ -915,7 +915,7 @@
           "type": "string"
         },
         "maxNodes": {
-          "description": "Max nodes (default 500). It does not apply with depth, a lower `detail`, or dedupe_components.",
+          "description": "Max nodes (default 500).",
           "type": "number"
         },
         "scope": {

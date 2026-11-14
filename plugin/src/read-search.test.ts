@@ -288,6 +288,22 @@ describe("get_document", () => {
     expect(result.data.truncated).toBe(true);
   });
 
+  it.each([{ detail: "minimal" }, { detail: "compact" }, { dedupeComponents: true }])(
+    "applies maxNodes with %j",
+    async (params) => {
+      const result = await getDocument({ ...params, maxNodes: 1 });
+      const page = result.data.nodes[0];
+      expect(page.children.map((n: any) => n.id)).toEqual(["1:1"]);
+      expect(page.childCount).toBe(2);
+      expect(result.data.truncated).toBe(true);
+    },
+  );
+
+  it("does not mark a complete trimmed walk as truncated", async () => {
+    const result = await getDocument({ detail: "minimal" });
+    expect(result.data.truncated).toBeUndefined();
+  });
+
   it("caps an unscoped walk at DEFAULT_MAX_NODES", async () => {
     const many = Array.from({ length: DEFAULT_MAX_NODES + 5 }, (_, i) =>
       makeNode(`7:${i}`, `N${i}`, "RECTANGLE"),

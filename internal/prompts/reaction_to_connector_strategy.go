@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addReactionToConnectorStrategy(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("reaction_to_connector_strategy",
-		mcp.WithPromptDescription("Strategy for analyzing Figma prototype reactions and mapping interaction flows"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Strategy for analyzing Figma prototype reactions and mapping interaction flows",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`# Strategy: Analyze Figma Prototype Reactions and Map Interaction Flows
+var reactionToConnectorStrategy = prompt{
+	name:        "reaction_to_connector_strategy",
+	description: "Strategy for analyzing Figma prototype reactions and mapping interaction flows",
+	body: `# Strategy: Analyze Figma Prototype Reactions and Map Interaction Flows
 
 ## Goal
 Process the JSON output from the get_reactions tool to understand prototype flows
@@ -75,9 +62,5 @@ Flow Map:
 ## Notes
 - Node IDs use colon format: 4029:12345 — never use hyphens
 - Use get_reactions on a set of nodes that represent screens or interactive frames
-- Focus on NAVIGATE actions for the primary user journey`),
-				),
-			},
-		), nil
-	})
+- Focus on NAVIGATE actions for the primary user journey`,
 }

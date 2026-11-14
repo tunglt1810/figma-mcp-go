@@ -150,32 +150,30 @@ export const serializePaints = (paints: any, node?: any) => {
         };
       }
 
-      if (paint.type === "GRADIENT_LINEAR") {
-        // Start: 0, 0.5. End: 1, 0.5
-        const sx = inv[0][0] * 0.0 + inv[0][1] * 0.5 + inv[0][2];
-        const sy = inv[1][0] * 0.0 + inv[1][1] * 0.5 + inv[1][2];
-        const ex = inv[0][0] * 1.0 + inv[0][1] * 0.5 + inv[0][2];
-        const ey = inv[1][0] * 1.0 + inv[1][1] * 0.5 + inv[1][2];
+      // Start: 0, 0.5. End: 1, 0.5
+      const sx = inv[0][0] * 0.0 + inv[0][1] * 0.5 + inv[0][2];
+      const sy = inv[1][0] * 0.0 + inv[1][1] * 0.5 + inv[1][2];
+      const ex = inv[0][0] * 1.0 + inv[0][1] * 0.5 + inv[0][2];
+      const ey = inv[1][0] * 1.0 + inv[1][1] * 0.5 + inv[1][2];
 
-        const angle = Math.atan2(ey - sy, ex - sx) * 180 / Math.PI;
+      const angle = Math.atan2(ey - sy, ex - sx) * 180 / Math.PI;
 
-        let cssAngle = Math.round(angle + 90);
-        if (cssAngle < 0) cssAngle += 360;
-        cssAngle = cssAngle % 360;
-        const cssString = `linear-gradient(${cssAngle}deg, ${stopStrings})`;
+      let cssAngle = Math.round(angle + 90);
+      if (cssAngle < 0) cssAngle += 360;
+      cssAngle = cssAngle % 360;
+      const cssString = `linear-gradient(${cssAngle}deg, ${stopStrings})`;
 
-        return {
-          type: "GRADIENT_LINEAR",
-          ...gradientOpacity,
-          stops,
-          geometry: {
-            start: { percentX: Math.round(sx * 100), percentY: Math.round(sy * 100) },
-            end: { percentX: Math.round(ex * 100), percentY: Math.round(ey * 100) },
-            angle: Math.round(angle)
-          },
-          cssString
-        };
-      }
+      return {
+        type: "GRADIENT_LINEAR",
+        ...gradientOpacity,
+        stops,
+        geometry: {
+          start: { percentX: Math.round(sx * 100), percentY: Math.round(sy * 100) },
+          end: { percentX: Math.round(ex * 100), percentY: Math.round(ey * 100) },
+          angle: Math.round(angle)
+        },
+        cssString
+      };
     });
 
   return result.length > 0 ? result : undefined;

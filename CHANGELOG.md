@@ -20,6 +20,8 @@ the plugin is installed by hand. An old plugin rejects new commands with
 - **Breaking:** a `batch_execute_pipeline` step must name a write tool from the tool list (`create_node`, `set_paint`, `manage_page`, ...). The pre-merge names (`create_frame`, `set_fills`, `add_page`, ...) are refused. Read tools and the export tools that write files cannot be steps.
 - The server checks the arguments of each pipeline step against the tool's rules before the pipeline starts. An argument that holds a `$variable` is not checked.
 - The server refuses a tool name it does not know, on every entry point.
+- `get_document` applies `maxNodes` (default 500) at every `detail` level and with `dedupe_components`. These calls returned the full tree before. A result that stops early has `truncated: true`.
+- `find_replace_text` and `batch_rename_nodes` fail the call when the regular expression is not valid. They returned one error for each node before.
 
 ### Fixed
 

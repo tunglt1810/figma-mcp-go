@@ -37,6 +37,14 @@ const CORNER_RADIUS_KEYS = [
   "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius",
 ];
 
+const compileRegex = (find: string, flags?: string): RegExp => {
+  try {
+    return new RegExp(find, flags || "g");
+  } catch (e: any) {
+    throw new Error(`Invalid regex: ${e.message}`);
+  }
+};
+
 const reorderIndex = (order: string, currentIndex: number, siblingCount: number): number => {
   switch (order) {
     case "bringToFront": return siblingCount - 1;
@@ -88,10 +96,9 @@ const applyNodeProperties = (n: any, p: any) => {
   }
 
   if (p.width !== undefined || p.height !== undefined) {
-    const label = "resize";
     if (typeof n.resize !== "function") {
-      if (p.width !== undefined) errors.width = `Node does not support ${label}`;
-      if (p.height !== undefined) errors.height = `Node does not support ${label}`;
+      if (p.width !== undefined) errors.width = "Node does not support resize";
+      if (p.height !== undefined) errors.height = "Node does not support resize";
     } else {
       // One resize call, not one per axis. Figma takes both, and the axis the
       // caller left out keeps its current value.
@@ -150,10 +157,6 @@ const applyNodeProperties = (n: any, p: any) => {
   return { applied, errors };
 };
 
-// set_paint replaced set_fills, set_gradient_fills and set_strokes in the MCP
-// tool list. The three implementations below stay separate. Only the tool surface
-// merged. `type` names the kind of paint. The gradient implementation reads it
-// directly, and the solid ones do not take it at all.
 /**
  * Text settings that belong to the whole node, not to a range.
  *
@@ -175,19 +178,27 @@ const applyParagraphProperties = (node: any, p: any) => {
 
 const raw: RawHandlerMap = {
   "set_paint": async (request) => {
-  const { target = "fill", type, ...rest } = request.params || {};
-  let action: string;
-  let params: any;
-  if (type === "SOLID") {
-    action = target === "stroke" ? "set_strokes" : "set_fills";
-    params = rest;
-  } else if (gradientTypes.includes(type)) {
-    action = "set_gradient_fills";
-    params = { ...rest, type, target };
-  } else {
-    throw new Error(`type must be SOLID, ${gradientTypes.join(", ")}, got: ${type}`);
-  }
-  return raw[action]({ ...request, params });
+    const p = request.params || {};
+    let paint: any;
+    if (p.type === "SOLID") {
+      paint = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
+    } else if (gradientTypes.includes(p.type)) {
+      paint = makeGradientPaint(p.type, p.stops, p.geometry, p.opacity);
+    } else {
+      throw new Error(`type must be SOLID, ${gradientTypes.join(", ")}, got: ${p.type}`);
+    }
+    const nodeId = request.nodeIds && request.nodeIds[0];
+    if (!nodeId) throw new Error("nodeId is required");
+    const node = await figma.getNodeByIdAsync(nodeId) as any;
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    const prop = p.target === "stroke" ? "strokes" : "fills";
+    if (!(prop in node)) throw new Error(`Node ${nodeId} does not support ${prop}`);
+    // Mixed paints come back as figma.mixed, a symbol, which cannot be spread.
+    const existing = p.mode === "append" && Array.isArray(node[prop]) ? node[prop] : [];
+    node[prop] = [...existing, paint];
+    if (prop === "strokes" && p.strokeWeight != null) node.strokeWeight = p.strokeWeight;
+    figma.commitUndo();
+    return { id: node.id, name: node.name };
   },
 
   "set_node_properties": async (request) => {
@@ -228,9 +239,7 @@ const raw: RawHandlerMap = {
     const node = await figma.getNodeByIdAsync(nodeId);
     if (!node) throw new Error(`Node not found: ${nodeId}`);
     if (node.type !== "TEXT") throw new Error(`Node ${nodeId} is not a TEXT node`);
-    const fontName = typeof node.fontName === "symbol"
-      ? { family: "Inter", style: "Regular" }
-      : node.fontName;
+    const fontName = typeof node.fontName === "symbol" ? FALLBACK_FONT : node.fontName;
     await loadFonts([fontName]);
     // text is optional, because this tool also handles paragraph settings.
     // A call that only changes the wrap mode should not empty the node.
@@ -238,66 +247,6 @@ const raw: RawHandlerMap = {
     applyParagraphProperties(node, p);
     figma.commitUndo();
     return { id: node.id, name: node.name, characters: node.characters };
-  },
-
-  "set_gradient_fills": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    // The name is from before set_paint. A gradient can go on a stroke too.
-    const prop = p.target === "stroke" ? "strokes" : "fills";
-    if (!(prop in node)) throw new Error(`Node ${nodeId} does not support ${prop}`);
-    const newPaint = makeGradientPaint(p.type, p.stops, p.geometry, p.opacity);
-    if (p.mode === "append") {
-      const existing = Array.isArray((node as any)[prop]) ? [...(node as any)[prop]] : [];
-      (node as any)[prop] = [...existing, newPaint];
-    } else {
-      (node as any)[prop] = [newPaint];
-    }
-    if (prop === "strokes" && p.strokeWeight != null) (node as any).strokeWeight = p.strokeWeight;
-    figma.commitUndo();
-    return { id: node.id, name: node.name };
-  },
-
-  "set_fills": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
-    const newFill = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
-    if (p.mode === "append") {
-      // Mixed fills come back as figma.mixed, a symbol, which cannot be spread.
-      const existing = Array.isArray((node as any).fills) ? [...(node as any).fills] : [];
-      (node as any).fills = [...existing, newFill];
-    } else {
-      (node as any).fills = [newFill];
-    }
-    figma.commitUndo();
-    return { id: node.id, name: node.name };
-  },
-
-  "set_strokes": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    if (!("strokes" in node)) throw new Error(`Node ${nodeId} does not support strokes`);
-    const newStroke = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
-    if (p.mode === "append") {
-      // As with fills, mixed strokes are a symbol and cannot be spread.
-      const existing = Array.isArray((node as any).strokes) ? [...(node as any).strokes] : [];
-      (node as any).strokes = [...existing, newStroke];
-    } else {
-      (node as any).strokes = [newStroke];
-    }
-    if (p.strokeWeight != null) (node as any).strokeWeight = p.strokeWeight;
-    figma.commitUndo();
-    return { id: node.id, name: node.name };
   },
 
   "clone_node": async (request) => {
@@ -454,6 +403,7 @@ const raw: RawHandlerMap = {
     const p = request.params || {};
     const nodeIds = request.nodeIds || [];
     if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    const regex = p.useRegex && p.find !== undefined ? compileRegex(p.find, p.regexFlags) : null;
     const results: any[] = [];
     for (const nid of nodeIds) {
       const n = await figma.getNodeByIdAsync(nid) as any;
@@ -468,16 +418,9 @@ const raw: RawHandlerMap = {
         continue;
       }
       if (p.find !== undefined && p.replace !== undefined) {
-        if (p.useRegex) {
-          try {
-            const regex = new RegExp(p.find, p.regexFlags || "g");
-            newName = newName.replace(regex, p.replace);
-          } catch (e: any) {
-            results.push({ nodeId: nid, error: `Invalid regex: ${e.message}` }); continue;
-          }
-        } else {
-          newName = newName.split(p.find).join(p.replace);
-        }
+        newName = regex
+          ? newName.replace(regex, p.replace)
+          : newName.split(p.find).join(p.replace);
       }
       if (p.prefix) newName = p.prefix + newName;
       if (p.suffix) newName = newName + p.suffix;
@@ -493,6 +436,7 @@ const raw: RawHandlerMap = {
     if (!p.find) throw new Error("find is required");
     if (p.replace === undefined) throw new Error("replace is required");
     const rootNodeId = request.nodeIds && request.nodeIds[0];
+    const regex = p.useRegex ? compileRegex(p.find, p.regexFlags) : null;
     const root: any = rootNodeId
       ? await figma.getNodeByIdAsync(rootNodeId)
       : figma.currentPage;
@@ -520,18 +464,9 @@ const raw: RawHandlerMap = {
         );
       }
       const originalText: string = tn.characters;
-      let newText: string;
-      if (p.useRegex) {
-        try {
-          const regex = new RegExp(p.find, p.regexFlags || "g");
-          newText = originalText.replace(regex, p.replace);
-        } catch (e: any) {
-          results.push({ nodeId: tn.id, nodeName: tn.name, error: `Invalid regex: ${e.message}` });
-          continue;
-        }
-      } else {
-        newText = originalText.split(p.find).join(p.replace);
-      }
+      const newText = regex
+        ? originalText.replace(regex, p.replace)
+        : originalText.split(p.find).join(p.replace);
       if (newText !== originalText) {
         pending.push({ node: tn, originalText, newText });
       }
@@ -550,17 +485,13 @@ const raw: RawHandlerMap = {
       results.push({ nodeId: node.id, nodeName: node.name, oldText: originalText, newText });
     }
     figma.commitUndo();
-    const successCount = results.filter((r: any) => !r.error).length;
-    return { replaced: successCount, results };
+    return { replaced: results.length, results };
   },
 };
 
-export const writeModifyHandlers: HandlerMap = withEnvelope(raw, ["set_fills", "set_strokes", "set_gradient_fills"]);
-
-// For tests: every implementation by name, the internal ones too.
-const allHandlers: HandlerMap = withEnvelope(raw);
+export const writeModifyHandlers: HandlerMap = withEnvelope(raw);
 
 export const handleWriteModifyRequest = async (request: any): Promise<any> => {
-  const handler = allHandlers[request.type];
+  const handler = writeModifyHandlers[request.type];
   return handler ? handler(request) : null;
 };

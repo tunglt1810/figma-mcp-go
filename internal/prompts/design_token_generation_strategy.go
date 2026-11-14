@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addDesignTokenGenerationStrategy(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("design_token_generation_strategy",
-		mcp.WithPromptDescription("Extract raw values from an existing design and build a structured variable + style token system"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Extract raw values from an existing design and build a structured variable + style token system",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`# Design Token Generation Strategy
+var designTokenGenerationStrategy = prompt{
+	name:        "design_token_generation_strategy",
+	description: "Extract raw values from an existing design and build a structured variable + style token system",
+	body: `# Design Token Generation Strategy
 
 Scan an existing design to discover all unique colors, font sizes, spacing values, and radii,
 then create a structured variable collection and named styles, and finally link nodes to them.
@@ -27,7 +14,7 @@ then create a structured variable collection and named styles, and finally link 
 
 1. Call get_styles() to check what styles already exist (avoid duplicating them).
 2. Call get_variable_defs() to check existing variables.
-3. Call get_document(detail="compact") to scan the full node tree.
+3. Call get_document(detail="compact") to scan the node tree. If the result has truncated: true, call again with a larger maxNodes.
 4. Collect unique values:
    - **Colors**: all unique hex fills and stroke colors across nodes.
    - **Font sizes**: all unique fontSize values on TEXT nodes.
@@ -104,9 +91,5 @@ they manually choose which prefixed variable to bind.
 - Always get user approval on the token plan (Phase 2) before executing Phase 3.
 - Process in batches of 20 during linking phase.
 - Detect the free-plan mode limit at runtime: if action="add_mode" fails with "Limited to 1 modes only", switch to the name-encoded workaround automatically and inform the user.
-`),
-				),
-			},
-		), nil
-	})
+`,
 }

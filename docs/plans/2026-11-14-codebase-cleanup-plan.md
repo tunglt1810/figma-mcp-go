@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-14
 **Source:** codebase audit of 2026-11-14.
-**Status:** phases 1 to 9 are done in pull request #10. Git log holds what they changed. This file lists only the work that remains.
+**Status:** phases 1 to 9 and 12 are done in pull request #10. Git log holds what they changed. This file lists only the work that remains.
 
 ## Dropped after a closer look
 
@@ -28,4 +28,4 @@ Check: `make test`; manual check of the panel in Figma.
 
 ## Last step
 
-Move each lasting decision to `docs/specs` (the `/rpc` rule, the pipeline contract, the rollback method, the read-only list, the auto-copy decision). Then delete this plan.
+Move each lasting decision to `docs/specs` (the `/rpc` rule, the pipeline contract, the `get_document` node limit, the rollback method, the read-only list, the auto-copy decision). Then delete this plan.

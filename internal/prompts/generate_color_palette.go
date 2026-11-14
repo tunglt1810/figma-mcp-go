@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addGenerateColorPalette(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("generate_color_palette",
-		mcp.WithPromptDescription("Generate a complete semantic color palette (primitive scale + semantic aliases) from one or more brand colors"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Generate a complete semantic color palette from brand colors",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`# Generate Color Palette
+var generateColorPalette = prompt{
+	name:        "generate_color_palette",
+	description: "Generate a complete semantic color palette (primitive scale + semantic aliases) from one or more brand colors",
+	body: `# Generate Color Palette
 
 Given one or more brand colors, generate a full design-system color palette with a primitive
 scale and semantic aliases, then create them as Figma variables.
@@ -89,9 +76,5 @@ Dark mode (add a "Dark" mode to the same collection):
 - Use only hex values for variable colors.
 - Semantic variable values reference other variables conceptually — set the actual resolved hex value
   since variable aliasing (variable-to-variable binding) is not yet supported via MCP.
-`),
-				),
-			},
-		), nil
-	})
+`,
 }

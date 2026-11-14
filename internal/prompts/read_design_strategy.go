@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addReadDesignStrategy(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("read_design_strategy",
-		mcp.WithPromptDescription("Best practices for reading Figma designs with figma-mcp-go"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Best practices for reading Figma designs",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`To effectively read a Figma design with figma-mcp-go:
+var readDesignStrategy = prompt{
+	name:        "read_design_strategy",
+	description: "Best practices for reading Figma designs with figma-mcp-go",
+	body: `To effectively read a Figma design with figma-mcp-go:
 
 1. Start with get_metadata — understand file name, pages, and current page
 2. Use get_metadata to list all pages without loading their full trees
@@ -43,9 +30,5 @@ func addReadDesignStrategy(s *server.MCPServer) {
 12. Use get_reactions to inspect prototype interactions on a node
 13. Call export_screenshots last and only when visual confirmation is needed — it is expensive
 14. Node IDs use colon format: 4029:12345 — never use hyphens
-15. get_local_components returns componentSets and variantProperties for variant-aware inspection`),
-				),
-			},
-		), nil
-	})
+15. get_local_components returns componentSets and variantProperties for variant-aware inspection`,
 }

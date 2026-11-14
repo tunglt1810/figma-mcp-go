@@ -28,7 +28,6 @@
   let connected = false;
   let fileName = "—";
   let pageName = "—";
-  let selectionCount = 0;
   let selectedNodes: { id: string, name: string }[] = [];
   // Running work is read from the activity log, not tracked separately.
   // With one source of truth, the banner and the log can never disagree.
@@ -263,7 +262,6 @@
     if (msg.type === "plugin-status") {
       fileName = msg.payload.fileName;
       pageName = msg.payload.pageName ?? "—";
-      selectionCount = msg.payload.selectionCount;
       selectedNodes = msg.payload.selectedNodes ?? [];
       
       if (autoCopyEnabled && !autoCopyBroken && selectedNodes.length > 0) {
@@ -288,6 +286,9 @@
     }
   }
 
+  const readOnlyRefusal = (tool: string) =>
+    `Read-only mode is on in the Figma plugin panel — ${tool} was not run`;
+
   /** Answer the server ourselves, without the request ever reaching the core. */
   function refuse(payload: any, reason: string) {
     activityLog = startEntry(activityLog, payload.requestId, payload.type, Date.now());
@@ -311,7 +312,7 @@
     const mutating = isMutating(payload.type, payload.params);
 
     if (guardMode === "readonly" && mutating) {
-      refuse(payload, `Read-only mode is on in the Figma plugin panel — ${payload.type} was not run`);
+      refuse(payload, readOnlyRefusal(payload.type));
       return;
     }
 
@@ -420,7 +421,7 @@
       pendingApprovals = [];
       for (const item of held) {
         if (guardMode === "readonly" && isMutating(item.payload.type, item.payload.params)) {
-          refuse(item.payload, `Read-only mode is on in the Figma plugin panel — ${item.payload.type} was not run`);
+          refuse(item.payload, readOnlyRefusal(item.payload.type));
         } else {
           forward(item.payload);
         }
@@ -510,13 +511,6 @@
   }
 
   function retryCopy() {
-    copyError = false;
-    if (selectedNodes.length > 0) {
-      copyAllNodes();
-    }
-  }
-
-  function reArmAutoCopy() {
     autoCopyBroken = false;
     copyError = false;
     // A click is the user gesture the browser wanted, so this attempt can
@@ -584,7 +578,7 @@
     </div>
     <div class="info-row">
       <span class="info-label">{t.selection}</span>
-      <span class="info-value">{t.nodeCount(selectionCount)}</span>
+      <span class="info-value">{t.nodeCount(selectedNodes.length)}</span>
     </div>
     {#if selectedNodes.length > 0}
       <div class="node-list">
@@ -629,7 +623,7 @@
     {#if autoCopyBroken}
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
-      <div class="error-banner" on:click={reArmAutoCopy} title={t.autoCopyBrokenTitle}>{t.autoCopyBroken}</div>
+      <div class="error-banner" on:click={retryCopy} title={t.autoCopyBrokenTitle}>{t.autoCopyBroken}</div>
     {:else if copyError}
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -1049,15 +1043,18 @@
     background: var(--border-strong);
   }
   
-  .node-list::-webkit-scrollbar {
+  .node-list::-webkit-scrollbar,
+  .log-panel::-webkit-scrollbar {
     width: 6px;
   }
-  
-  .node-list::-webkit-scrollbar-track {
+
+  .node-list::-webkit-scrollbar-track,
+  .log-panel::-webkit-scrollbar-track {
     background: transparent;
   }
-  
-  .node-list::-webkit-scrollbar-thumb {
+
+  .node-list::-webkit-scrollbar-thumb,
+  .log-panel::-webkit-scrollbar-thumb {
     background: var(--border-strong);
     border-radius: 3px;
   }
@@ -1201,19 +1198,6 @@
     line-height: 1.3;
     padding: 0 0 2px 16px;
     word-break: break-word;
-  }
-
-  .log-panel::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .log-panel::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .log-panel::-webkit-scrollbar-thumb {
-    background: var(--border-strong);
-    border-radius: 3px;
   }
 
   .mode-btn {
@@ -1448,7 +1432,8 @@
     flex: 1;
   }
 
-  .addr-input {
+  .addr-input,
+  .port-input {
     width: 72px;
     background: var(--bg-raised);
     border: 1px solid var(--border);
@@ -1460,22 +1445,11 @@
     outline: none;
   }
 
-  .addr-input:focus {
-    border-color: var(--border-strong);
-  }
-
   .port-input {
     width: 36px;
-    background: var(--bg-raised);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-    font-size: 10px;
-    font-family: monospace;
-    padding: 2px 4px;
-    outline: none;
   }
 
+  .addr-input:focus,
   .port-input:focus {
     border-color: var(--border-strong);
   }

@@ -14,7 +14,6 @@ const sendStatus = () => {
     payload: {
       fileName: figma.root.name,
       pageName: figma.currentPage.name,
-      selectionCount: figma.currentPage.selection.length,
       selectedNodes: figma.currentPage.selection.map(node => ({
         id: node.id,
         name: node.name,

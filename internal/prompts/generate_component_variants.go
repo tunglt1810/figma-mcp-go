@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addGenerateComponentVariants(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("generate_component_variants",
-		mcp.WithPromptDescription("Generate design variants of an existing component or frame (size, color, state, theme)"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Generate design variants of an existing component or frame",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`# Generate Component Variants
+var generateComponentVariants = prompt{
+	name:        "generate_component_variants",
+	description: "Generate design variants of an existing component or frame (size, color, state, theme)",
+	body: `# Generate Component Variants
 
 Given an existing frame or component, produce a set of visual variants (e.g. sizes, color themes,
 states) by cloning and mutating it. Arrange the variants in a tidy grid for review.
@@ -93,9 +80,5 @@ Report all created node IDs and names. Ask the user if they want further adjustm
 - Never modify the original source node.
 - Keep all variants on the same page unless the user requests otherwise.
 - Add a text label below each variant showing its name.
-`),
-				),
-			},
-		), nil
-	})
+`,
 }

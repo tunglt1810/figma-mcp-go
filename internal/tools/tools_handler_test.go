@@ -40,19 +40,12 @@ func newTestServer(t *testing.T) (*server.MCPServer, *fakeSender) {
 	return s, fake
 }
 
-// callTool sends a tool call through the server's full HandleMessage path.
-// With the fake sender, every call succeeds at the MCP level. These tests
-// check that the handler reaches the sender, not what comes back.
+// callTool sends a tool call through the server's full HandleMessage path and
+// fails the test if the server or the tool refuses the call.
 func callTool(t *testing.T, s *server.MCPServer, name string, args map[string]any) {
 	t.Helper()
-	argsJSON, _ := json.Marshal(args)
-	msg := fmt.Sprintf(
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":%q,"arguments":%s}}`,
-		name, argsJSON,
-	)
-	resp := s.HandleMessage(context.Background(), []byte(msg))
-	if resp == nil {
-		t.Errorf("HandleMessage returned nil for tool %q", name)
+	if r := callToolResult(t, s, name, args); r.IsError {
+		t.Errorf("%s was refused: %s", name, r.Text)
 	}
 }
 
@@ -91,6 +84,9 @@ func callToolResult(t *testing.T, s *server.MCPServer, name string, args map[str
 		t.Fatalf("marshal tools/call response: %v", err)
 	}
 	var envelope struct {
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
 		Result struct {
 			IsError bool           `json:"isError"`
 			Content []contentBlock `json:"content"`
@@ -98,6 +94,9 @@ func callToolResult(t *testing.T, s *server.MCPServer, name string, args map[str
 	}
 	if err := json.Unmarshal(b, &envelope); err != nil {
 		t.Fatalf("unmarshal tools/call response: %v", err)
+	}
+	if envelope.Error != nil {
+		return toolResult{IsError: true, Text: envelope.Error.Message}
 	}
 	var texts []string
 	for _, c := range envelope.Result.Content {
@@ -175,10 +174,6 @@ func TestHandlers_GetReactions(t *testing.T) {
 func TestHandlers_ExportScreenshots(t *testing.T) {
 	s, _ := newTestServer(t)
 
-	// no items at all: the current selection, in memory
-	callTool(t, s, "export_screenshots", nil)
-	callTool(t, s, "export_screenshots", map[string]any{"format": "PNG", "scale": float64(2)})
-
 	// an item without an outputPath: base64 for one node
 	callTool(t, s, "export_screenshots", map[string]any{
 		"items": []any{map[string]any{"nodeId": "1:1"}},
@@ -213,27 +208,6 @@ func TestHandlers_ExportScreenshots(t *testing.T) {
 func TestHandlers_WriteCreateTools(t *testing.T) {
 	s, _ := newTestServer(t)
 
-	callTool(t, s, "create_frame", map[string]any{
-		"width": float64(100), "height": float64(100), "name": "Card",
-		"layoutMode": "VERTICAL", "parentId": "1:1",
-	})
-	callTool(t, s, "create_frame", map[string]any{}) // minimal
-
-	callTool(t, s, "create_rectangle", map[string]any{"fillColor": "#FF5733", "cornerRadius": float64(8)})
-	callTool(t, s, "create_rectangle", map[string]any{})
-
-	callTool(t, s, "create_ellipse", map[string]any{"width": float64(50), "height": float64(50), "startAngle": float64(0), "endAngle": float64(180), "innerRadiusRatio": float64(0.5)})
-	callTool(t, s, "create_ellipse", map[string]any{})
-
-	callTool(t, s, "create_star", map[string]any{"pointCount": float64(5), "outerRadius": float64(50), "innerRadius": float64(20), "fillColor": "#FFD700"})
-	callTool(t, s, "create_star", map[string]any{})
-
-	callTool(t, s, "create_polygon", map[string]any{"pointCount": float64(6), "radius": float64(40), "fillColor": "#FF00FF"})
-	callTool(t, s, "create_polygon", map[string]any{})
-
-	callTool(t, s, "create_line", map[string]any{"length": float64(100), "rotation": float64(45), "strokeColor": "#000000", "strokeWeight": float64(2)})
-	callTool(t, s, "create_line", map[string]any{})
-
 	callTool(t, s, "create_text", map[string]any{
 		"text": "Hello", "fontSize": float64(16), "fontFamily": "Inter", "fontStyle": "Bold",
 		"fillColor": "#000000", "name": "Label",
@@ -253,16 +227,6 @@ func TestHandlers_WriteModifyTools(t *testing.T) {
 	s, _ := newTestServer(t)
 
 	callTool(t, s, "set_text", map[string]any{"nodeId": "1:1", "text": "Updated"})
-
-	callTool(t, s, "set_fills", map[string]any{
-		"nodeId": "1:1", "color": "#FF0000", "opacity": float64(0.8), "mode": "replace",
-	})
-	callTool(t, s, "set_fills", map[string]any{"nodeId": "1:1", "color": "#00FF00"}) // minimal
-
-	callTool(t, s, "set_strokes", map[string]any{
-		"nodeId": "1:1", "color": "#000000", "strokeWeight": float64(2), "mode": "append",
-	})
-	callTool(t, s, "set_strokes", map[string]any{"nodeId": "1:1", "color": "#000000"}) // minimal
 
 	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "x": float64(10), "y": float64(20)})
 	callTool(t, s, "set_node_properties", map[string]any{"nodeIds": []any{"1:1"}, "x": float64(5)}) // y omitted
@@ -288,11 +252,6 @@ func TestHandlers_WriteModifyTools(t *testing.T) {
 
 func TestHandlers_WriteStyleTools(t *testing.T) {
 	s, _ := newTestServer(t)
-
-	callTool(t, s, "create_paint_style", map[string]any{"name": "Brand/Primary", "color": "#FF5733", "description": "Main brand color"})
-	callTool(t, s, "create_text_style", map[string]any{"name": "Heading/H1"})
-	callTool(t, s, "create_effect_style", map[string]any{"name": "Elevation/1", "type": "DROP_SHADOW"})
-	callTool(t, s, "create_grid_style", map[string]any{"name": "Layout/12col", "pattern": "COLUMNS", "alignment": "STRETCH"})
 
 	callTool(t, s, "update_paint_style", map[string]any{"styleId": "S:abc", "color": "#00FF00"})
 	callTool(t, s, "update_paint_style", map[string]any{"styleId": "S:abc", "name": "Renamed"})
@@ -325,41 +284,6 @@ func TestHandlers_LinkedTools(t *testing.T) {
 	callTool(t, s, "apply_style_to_node", map[string]any{"nodeId": "1:1", "styleId": "S:abc"}) // no target
 
 	callTool(t, s, "manage_variable", map[string]any{"action": "bind", "nodeId": "1:1", "variableId": "v1", "field": "fills"})
-}
-
-func TestHandlers_NodeControlTools(t *testing.T) {
-	s, _ := newTestServer(t)
-
-	// set_visible — show
-	callTool(t, s, "set_visible", map[string]any{"nodeIds": []any{"1:1"}, "visible": true})
-	// set_visible — hide
-	callTool(t, s, "set_visible", map[string]any{"nodeIds": []any{"1:1", "2:2"}, "visible": false})
-
-	// lock_nodes
-	callTool(t, s, "lock_nodes", map[string]any{"nodeIds": []any{"1:1"}})
-	callTool(t, s, "lock_nodes", map[string]any{"nodeIds": []any{"1:1", "2:2"}})
-
-	// unlock_nodes
-	callTool(t, s, "unlock_nodes", map[string]any{"nodeIds": []any{"1:1"}})
-
-	// rotate_nodes
-	callTool(t, s, "rotate_nodes", map[string]any{"nodeIds": []any{"1:1"}, "rotation": float64(45)})
-	callTool(t, s, "rotate_nodes", map[string]any{"nodeIds": []any{"1:1"}, "rotation": float64(-90)})
-
-	// reorder_nodes
-	callTool(t, s, "reorder_nodes", map[string]any{"nodeIds": []any{"1:1"}, "order": "bringToFront"})
-	callTool(t, s, "reorder_nodes", map[string]any{"nodeIds": []any{"1:1"}, "order": "sendToBack"})
-	callTool(t, s, "reorder_nodes", map[string]any{"nodeIds": []any{"1:1"}, "order": "bringForward"})
-	callTool(t, s, "reorder_nodes", map[string]any{"nodeIds": []any{"1:1"}, "order": "sendBackward"})
-
-	// set_blend_mode
-	callTool(t, s, "set_blend_mode", map[string]any{"nodeIds": []any{"1:1"}, "blendMode": "MULTIPLY"})
-	callTool(t, s, "set_blend_mode", map[string]any{"nodeIds": []any{"1:1", "2:2"}, "blendMode": "SCREEN"})
-
-	// set_constraints
-	callTool(t, s, "set_constraints", map[string]any{"nodeIds": []any{"1:1"}, "horizontal": "STRETCH"})
-	callTool(t, s, "set_constraints", map[string]any{"nodeIds": []any{"1:1"}, "vertical": "CENTER"})
-	callTool(t, s, "set_constraints", map[string]any{"nodeIds": []any{"1:1"}, "horizontal": "MIN", "vertical": "MAX"})
 }
 
 func TestHandlers_PageManagementTools(t *testing.T) {
@@ -421,10 +345,6 @@ func TestHandlers_ReparentBatchRenameTextReplaceEffectsSection(t *testing.T) {
 	// set_effects — clear
 	callTool(t, s, "set_effects", map[string]any{"nodeId": "1:1", "effects": []any{}})
 
-	// create_section
-	callTool(t, s, "create_section", map[string]any{"name": "Sprint 1", "x": float64(0), "y": float64(0)})
-	callTool(t, s, "create_section", map[string]any{}) // minimal
-	callTool(t, s, "create_section", map[string]any{"width": float64(1200), "height": float64(900)})
 }
 
 // TestToolCall_InvalidArgsRejected proves validation runs from the MCP entry

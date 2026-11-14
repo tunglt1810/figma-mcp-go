@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addTextReplacementStrategy(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("text_replacement_strategy",
-		mcp.WithPromptDescription("Systematic approach for replacing text in Figma designs"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Systematic approach for replacing text in Figma designs",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`# Intelligent Text Replacement Strategy
+var textReplacementStrategy = prompt{
+	name:        "text_replacement_strategy",
+	description: "Systematic approach for replacing text in Figma designs",
+	body: `# Intelligent Text Replacement Strategy
 
 ## 1. Analyze Design & Identify Structure
 - Scan text nodes to understand the overall structure of the design
@@ -88,9 +75,5 @@ export_screenshots(items: [{nodeId: "chunk-node-id"}], format: "PNG", scale: 0.5
 - Structural Consistency: Maintain alignment, spacing, and hierarchy
 - Visual Feedback: Verify each chunk visually before proceeding
 - Incremental Improvement: Learn from each chunk to improve subsequent ones
-- Respect Content Relationships: Keep related content consistent across chunks`),
-				),
-			},
-		), nil
-	})
+- Respect Content Relationships: Keep related content consistent across chunks`,
 }

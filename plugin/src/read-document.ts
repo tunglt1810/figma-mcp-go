@@ -121,13 +121,16 @@ const raw: RawHandlerMap = {
     );
     const componentDefs = new Map<string, any>();
 
-    const serializeForDetail = async (n: any) => {
+    // One node without its children, at the requested detail.
+    const serializeAlone = async (n: any) => {
+      if (detail === "full") {
+        const out = await serializeNode(n, makeBudget(undefined, 0), 0);
+        delete out.childCount;
+        delete out.childrenOmitted;
+        return out;
+      }
       const base = { id: n.id, name: n.name, type: n.type, bounds: getBounds(n) };
       if (detail === "minimal") return base;
-      // "full" reports the same node properties plus geometry and children, and
-      // does its own style lookups. Building styles here first would double every
-      // getStyleByIdAsync round trip, only to throw the result away.
-      if (detail !== "compact") return await serializeNode(n);
       const styles = await serializeStyles(n);
       const result: any = Object.assign({}, base, serializeNodeProperties(n));
       if (Object.keys(styles).length > 0) result.styles = styles;
@@ -226,46 +229,33 @@ const raw: RawHandlerMap = {
         if (overrides.length > 0) result.overrides = overrides;
         return result;
       }
-      if (detail === "full") {
-        const serialized = await serializeNode(node, makeBudget(undefined, 0), 0);
-        const hasChildren = "children" in node && node.children.length > 0;
-        if (!hasChildren) return serialized;
-        if (currentDepth >= depth) {
-          const out = Object.assign({}, serialized, {
-            childCount: node.children.length,
-          });
-          delete out.children;
-          delete out.childrenOmitted;
-          return out;
-        }
-        const serializedChildren = await Promise.all(
-          node.children
-            .filter((n: any) => n !== null && n.type !== "DOCUMENT")
-            .map((n: any) => serializeWithDepth(n, currentDepth + 1)),
-        );
-        const out = Object.assign({}, serialized, { children: serializedChildren });
-        delete out.childCount;
-        delete out.childrenOmitted;
+      const out = await serializeAlone(node);
+      if (!("children" in node) || node.children.length === 0) return out;
+      if (currentDepth >= depth) {
+        budget.truncated = true;
+        out.childCount = node.children.length;
         return out;
       }
-
-      const serialized = await serializeForDetail(node);
-      const hasChildren = "children" in node && node.children.length > 0;
-      if (!hasChildren) return serialized;
-      if (currentDepth >= depth) {
-        return Object.assign({}, serialized, { childCount: node.children.length });
+      // One at a time, so the shared budget is spent in tree order.
+      const children: any[] = [];
+      for (const child of node.children) {
+        if (budget.remaining <= 0) {
+          budget.truncated = true;
+          break;
+        }
+        budget.remaining--;
+        children.push(await serializeWithDepth(child, currentDepth + 1));
       }
-      const serializedChildren = await Promise.all(
-        node.children
-          .filter((n: any) => n.type !== "DOCUMENT")
-          .map((n: any) => serializeWithDepth(n, currentDepth + 1)),
-      );
-      return Object.assign({}, serialized, { children: serializedChildren });
+      out.children = children;
+      if (children.length < node.children.length) {
+        out.childCount = node.children.length;
+        out.childrenOmitted = true;
+      }
+      return out;
     };
 
-    // The plain walk keeps the budget, which counts nodes, not levels, and
-    // reports `truncated`. It only applies when nothing asked for a trimmed
-    // shape: a detail level or a component dedupe gives a different tree.
+    // A detail level or a component dedupe gives a different tree shape, so
+    // those take the second walk. Both walks spend the same budget.
     const plain = detail === "full" && !dedupeComponents;
     const walk = async (node: any) =>
       plain ? await serializeNode(node, budget, 0) : await serializeWithDepth(node, 0);
@@ -301,7 +291,7 @@ const raw: RawHandlerMap = {
       }
       // One budget is shared across the pages, so maxNodes still means what it
       // says, and a file with a huge first page cannot silently starve the rest.
-      if (plain && budget.remaining <= 0) break;
+      if (budget.remaining <= 0) break;
     }
 
     // Deduped across every root, not per root: a colour used on every page is

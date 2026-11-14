@@ -291,7 +291,8 @@ func TestExportScreenshots_InMemoryHalf(t *testing.T) {
 
 	t.Run("no items asks for the selection", func(t *testing.T) {
 		s, fake := newTestServer(t)
-		callTool(t, s, "export_screenshots", map[string]any{"format": "SVG"})
+		// The fake sender returns no export, so the call fails after the send.
+		callToolResult(t, s, "export_screenshots", map[string]any{"format": "SVG"})
 		if len(fake.calls) != 1 {
 			t.Fatalf("expected one inner call, got %d", len(fake.calls))
 		}

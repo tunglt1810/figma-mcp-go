@@ -288,12 +288,12 @@ describe("batch_rename_nodes", () => {
     expect(mockNodes["1:1"].name).toBe("Frame X");
   });
 
-  it("captures regex error per-node", async () => {
+  it("fails the call on an invalid regex and renames nothing", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Card" };
-    const res = await handleWriteModifyRequest(makeRequest("batch_rename_nodes", ["1:1"], {
+    await expect(handleWriteModifyRequest(makeRequest("batch_rename_nodes", ["1:1"], {
       find: "[invalid", replace: "X", useRegex: true,
-    }));
-    expect(res?.data.results[0].error).toContain("Invalid regex");
+    }))).rejects.toThrow(/Invalid regex/);
+    expect(mockNodes["1:1"].name).toBe("Card");
   });
 
   it("reports error for missing node", async () => {
@@ -365,12 +365,13 @@ describe("find_replace_text", () => {
     expect(res?.data.replaced).toBe(1);
   });
 
-  it("captures regex error per-node", async () => {
+  it("fails the call on an invalid regex and changes no text", async () => {
     const textNode = { id: "1:1", type: "TEXT", characters: "hello", fontName: { family: "Inter", style: "Regular" } };
     (globalThis as any).figma.currentPage = { type: "PAGE", children: [textNode] };
-    const res = await handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "[bad", replace: "x", useRegex: true }));
-    expect(res?.data.replaced).toBe(0);
-    expect(res?.data.results[0].error).toContain("Invalid regex");
+    await expect(
+      handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "[bad", replace: "x", useRegex: true })),
+    ).rejects.toThrow(/Invalid regex/);
+    expect(textNode.characters).toBe("hello");
   });
 
   it("throws if find is missing", async () => {
@@ -496,11 +497,11 @@ describe("set_node_properties", () => {
   });
 });
 
-describe("set_fills", () => {
+describe("set_paint on fills", () => {
   it("replaces the existing fills", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [{ type: "SOLID" }] };
     await handleWriteModifyRequest(
-      makeRequest("set_fills", ["1:1"], { color: "#ff0000" }),
+      makeRequest("set_paint", ["1:1"], { type: "SOLID", color: "#ff0000" }),
     );
     expect(mockNodes["1:1"].fills).toHaveLength(1);
     expect(mockNodes["1:1"].fills[0].color.r).toBeCloseTo(1);
@@ -509,18 +510,17 @@ describe("set_fills", () => {
   it("appends to the existing fills", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [{ type: "SOLID" }] };
     await handleWriteModifyRequest(
-      makeRequest("set_fills", ["1:1"], { color: "#00ff00", mode: "append" }),
+      makeRequest("set_paint", ["1:1"], { type: "SOLID", color: "#00ff00", mode: "append" }),
     );
     expect(mockNodes["1:1"].fills).toHaveLength(2);
   });
 
   // A node whose children differ reports fills as figma.mixed, a symbol.
-  // Spreading that threw "fills is not iterable". set_gradient_fills already
-  // guarded against it, but set_fills did not.
+  // Spreading that throws "fills is not iterable".
   it("appends onto mixed fills instead of throwing", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: Symbol("figma.mixed") };
     await handleWriteModifyRequest(
-      makeRequest("set_fills", ["1:1"], { color: "#00ff00", mode: "append" }),
+      makeRequest("set_paint", ["1:1"], { type: "SOLID", color: "#00ff00", mode: "append" }),
     );
     expect(mockNodes["1:1"].fills).toHaveLength(1);
   });
@@ -528,16 +528,16 @@ describe("set_fills", () => {
   it("reports a bad color rather than painting NaN", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [] };
     await expect(
-      handleWriteModifyRequest(makeRequest("set_fills", ["1:1"], { color: "red" })),
+      handleWriteModifyRequest(makeRequest("set_paint", ["1:1"], { type: "SOLID", color: "red" })),
     ).rejects.toThrow(/hex color/i);
   });
 });
 
-describe("set_strokes", () => {
+describe("set_paint on strokes", () => {
   it("appends onto mixed strokes instead of throwing", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", strokes: Symbol("figma.mixed") };
     await handleWriteModifyRequest(
-      makeRequest("set_strokes", ["1:1"], { color: "#000000", mode: "append" }),
+      makeRequest("set_paint", ["1:1"], { type: "SOLID", target: "stroke", color: "#000000", mode: "append" }),
     );
     expect(mockNodes["1:1"].strokes).toHaveLength(1);
   });
@@ -545,14 +545,12 @@ describe("set_strokes", () => {
   it("accepts shorthand hex", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", strokes: [] };
     await handleWriteModifyRequest(
-      makeRequest("set_strokes", ["1:1"], { color: "#f00" }),
+      makeRequest("set_paint", ["1:1"], { type: "SOLID", target: "stroke", color: "#f00" }),
     );
     expect(mockNodes["1:1"].strokes[0].color.r).toBeCloseTo(1);
   });
 });
 
-// set_paint replaced set_fills, set_gradient_fills and set_strokes in the MCP
-// tool list. These check that the router reaches each implementation.
 describe("set_paint", () => {
   const paint = (params: any) =>
     handleWriteModifyRequest({ type: "set_paint", requestId: "req-1", nodeIds: ["1:1"], params });
