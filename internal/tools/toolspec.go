@@ -464,10 +464,21 @@ func validateArrayParam(p paramSpec, v any) string {
 // the leader's /rpc endpoint, which receives input from another process. So
 // there is one answer to "is this call valid", not one per path.
 func Check(tool string, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
+	spec, ok := specRegistry[tool]
+	if !ok {
+		return nil, nil, fmt.Errorf("%s is not a tool of this server", tool)
+	}
+	return checkSpec(spec, nodeIDs, params)
+}
+
+// checkSpec is Check against a given spec. A handler uses it with the spec of
+// its public tool, because the registry holds the plugin request when the two
+// share a name.
+func checkSpec(spec toolSpec, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
 	// Normalize first. The hyphen format LLMs produce must be accepted, not
 	// rejected by the validation that exists to accept it.
 	nodeIDs, params = normalizeArgs(nodeIDs, params)
-	if msg := validateCall(tool, nodeIDs, params); msg != "" {
+	if msg := validateTool(spec, nodeIDs, params); msg != "" {
 		return nil, nil, errors.New(msg)
 	}
 	return nodeIDs, params, nil
@@ -481,10 +492,14 @@ func validateCall(tool string, nodeIDs []string, params map[string]any) string {
 	if !ok {
 		return fmt.Sprintf("%s is not a tool of this server", tool)
 	}
+	return validateTool(spec, nodeIDs, params)
+}
+
+func validateTool(spec toolSpec, nodeIDs []string, params map[string]any) string {
 	if msg := validateSpec(spec, nodeIDs, params); msg != "" {
 		return msg
 	}
-	if tool == pipelineTool {
+	if spec.Name == pipelineTool {
 		return validatePipelineSteps(params)
 	}
 	return ""
@@ -609,9 +624,9 @@ func allSpecs() []toolSpec {
 	return all
 }
 
-// internalSpecs are plugin requests that a Go handler sends under a name no
-// client sees. They have a spec so that the call is checked like any other, and
-// so that a leader accepts it from a follower.
+// internalSpecs are plugin requests that a Go handler sends itself. They have a
+// spec so that the call is checked like any other, and so that a leader accepts
+// it from a follower.
 var internalSpecs = readOnly([]toolSpec{
 	{
 		Name:    "get_screenshot",
@@ -620,6 +635,14 @@ var internalSpecs = readOnly([]toolSpec{
 			{Name: "format", Kind: kindString, Enum: exportFormats},
 			{Name: "scale", Kind: kindNumber, Positive: true},
 		},
+	},
+	// The public tool of this name requires outputPath, because Go writes the
+	// file. The plugin only needs the frames. A follower built before this spec
+	// existed sends the request with no params.
+	{
+		Name:       "export_frames_to_pdf",
+		NodeIDs:    nodeIDsMulti,
+		NodeIDsReq: true,
 	},
 })
 
@@ -656,10 +679,16 @@ var specRegistry = buildSpecRegistry()
 
 func buildSpecRegistry() map[string]toolSpec {
 	registry := map[string]toolSpec{}
-	for _, spec := range append(allSpecs(), internalSpecs...) {
+	for _, spec := range allSpecs() {
 		if _, duplicate := registry[spec.Name]; duplicate {
 			panic("duplicate tool spec: " + spec.Name)
 		}
+		registry[spec.Name] = spec
+	}
+	// The registry checks what reaches the plugin. So an internal spec takes
+	// the place of a public tool of the same name. The public tool's handler
+	// checks against its own spec.
+	for _, spec := range internalSpecs {
 		registry[spec.Name] = spec
 	}
 	return registry
@@ -683,7 +712,7 @@ func handlerFor(sender Sender, spec toolSpec) server.ToolHandlerFunc {
 
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		nodeIDs, params := specArgs(spec, req.GetArguments())
-		nodeIDs, params, err := Check(spec.Name, nodeIDs, params)
+		nodeIDs, params, err := checkSpec(spec, nodeIDs, params)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}

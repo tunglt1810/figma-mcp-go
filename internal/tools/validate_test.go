@@ -1096,6 +1096,10 @@ func TestValidateRPC_PipelineStepsAreCheckedLikeCalls(t *testing.T) {
 			"params": map[string]any{"type": "FRAME", "width": nil}}, ""},
 		{"an escaped dollar is a literal", map[string]any{"action": "set_text",
 			"params": map[string]any{"nodeId": "1:2", "text": "$$100"}}, ""},
+		{"an escaped name is a literal, not a variable", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "FRAME", "fillColor": "$$red"}}, "hex color"},
+		{"the PDF export", map[string]any{"action": "export_frames_to_pdf",
+			"params": map[string]any{"nodeIds": []any{"1:2"}}}, "not a write tool"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

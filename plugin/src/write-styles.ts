@@ -197,11 +197,3 @@ const raw: RawHandlerMap = {
 };
 
 export const writeStylesHandlers: HandlerMap = withEnvelope(raw, Object.values(STYLE_ACTIONS));
-
-// For tests: every implementation by name, the internal ones too.
-const allHandlers: HandlerMap = withEnvelope(raw);
-
-export const handleWriteStyleRequest = async (request: any): Promise<any> => {
-  const handler = allHandlers[request.type];
-  return handler ? handler(request) : null;
-};

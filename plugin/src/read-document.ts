@@ -76,11 +76,19 @@ const raw: RawHandlerMap = {
     // across pages. Otherwise asking for a top-level frame by id returned its
     // whole subtree with no limit. Nodes are read one at a time, so the budget
     // is spent in the order the ids were given and the same call always gives
-    // the same answer.
+    // the same answer. A requested node spends the budget too: a call with
+    // thousands of ids is as big as a deep tree.
     const p = request.params || {};
     const budget = makeBudget(p.maxNodes ?? DEFAULT_MAX_NODES, p.depth);
     const serialized: any[] = [];
-    for (const n of found) serialized.push(await serializeNode(n, budget, 0));
+    for (const n of found) {
+      if (budget.remaining <= 0) {
+        budget.truncated = true;
+        break;
+      }
+      budget.remaining--;
+      serialized.push(await serializeNode(n, budget, 0));
+    }
     // Fetching several nodes at once is exactly when the same fill repeats, so
     // the dedupe that get_document does applies here too.
     //
@@ -142,6 +150,16 @@ const raw: RawHandlerMap = {
       componentNode: any,
     ): Promise<{ id: string; name: string; type: string; characters?: string; mainComponentId?: string | null; visible?: boolean; opacity?: number; fills?: any }[]> => {
       const overrides: any[] = [];
+      // An override is a node of the answer, so it spends the budget. A child
+      // that matches its component adds nothing and costs nothing.
+      const emit = (override: any) => {
+        if (budget.remaining <= 0) {
+          budget.truncated = true;
+          return;
+        }
+        budget.remaining--;
+        overrides.push(override);
+      };
       if (!instanceNode?.children || !componentNode?.children) return overrides;
       for (let i = 0; i < instanceNode.children.length; i++) {
         const instChild = instanceNode.children[i];
@@ -173,7 +191,7 @@ const raw: RawHandlerMap = {
             Object.assign(override, propChanges);
             hasChange = true;
           }
-          if (hasChange) overrides.push(override);
+          if (hasChange) emit(override);
           continue;
         }
 
@@ -185,18 +203,18 @@ const raw: RawHandlerMap = {
           if (nestedMc?.id !== compMc?.id) {
             const override: any = { id: instChild.id, name: instChild.name, type: "INSTANCE", mainComponentId: nestedMc?.id ?? null };
             if (Object.keys(propChanges).length > 0) Object.assign(override, propChanges);
-            overrides.push(override);
+            emit(override);
             continue;
           }
           if (Object.keys(propChanges).length > 0) {
-            overrides.push({ id: instChild.id, name: instChild.name, type: "INSTANCE", mainComponentId: nestedMc?.id ?? null, ...propChanges });
+            emit({ id: instChild.id, name: instChild.name, type: "INSTANCE", mainComponentId: nestedMc?.id ?? null, ...propChanges });
           }
           if (nestedMc) overrides.push(...await extractInstanceOverrides(instChild, nestedMc));
           continue;
         }
 
         if (Object.keys(propChanges).length > 0) {
-          overrides.push({ id: instChild.id, name: instChild.name, type: instChild.type, ...propChanges });
+          emit({ id: instChild.id, name: instChild.name, type: instChild.type, ...propChanges });
         }
         if ("children" in instChild) {
           overrides.push(...await extractInstanceOverrides(instChild, compChild));
@@ -209,7 +227,18 @@ const raw: RawHandlerMap = {
       if (dedupeComponents && node.type === "INSTANCE") {
         const mc = await node.getMainComponentAsync();
         if (mc && !componentDefs.has(mc.id)) {
-          componentDefs.set(mc.id, await serializeNode(mc, budget, 0));
+          if (budget.remaining <= 0) {
+            budget.truncated = true;
+          } else {
+            // A definition spends the node budget but not the depth limit: the
+            // limit describes the tree the caller asked for, and a definition
+            // cut at that depth cannot rebuild its instances.
+            budget.remaining--;
+            const treeDepth = budget.maxDepth;
+            budget.maxDepth = Infinity;
+            componentDefs.set(mc.id, await serializeNode(mc, budget, 0));
+            budget.maxDepth = treeDepth;
+          }
         }
         const props: Record<string, any> = {};
         if (node.componentProperties) {
@@ -234,6 +263,7 @@ const raw: RawHandlerMap = {
       if (currentDepth >= depth) {
         budget.truncated = true;
         out.childCount = node.children.length;
+        out.childrenOmitted = true;
         return out;
       }
       // One at a time, so the shared budget is spent in tree order.
@@ -275,6 +305,12 @@ const raw: RawHandlerMap = {
     const serializedRoots: any[] = [];
     for (let i = 0; i < roots.length; i++) {
       throwIfCancelled(request.requestId);
+      // One budget is shared across the roots, so maxNodes still means what it
+      // says, and a file with a huge first page cannot silently starve the rest.
+      // A root is a node of the answer too: 2,000 selected leaves have no
+      // children to cut.
+      if (budget.remaining <= 0) break;
+      budget.remaining--;
       const root = roots[i];
       // Under documentAccess "dynamic-page", an unloaded page reports no
       // children at all, so a walk that skips this returns an empty file. Only
@@ -289,9 +325,6 @@ const raw: RawHandlerMap = {
           `Serialized ${root.name} (${i + 1}/${roots.length})`,
         );
       }
-      // One budget is shared across the pages, so maxNodes still means what it
-      // says, and a file with a huge first page cannot silently starve the rest.
-      if (budget.remaining <= 0) break;
     }
 
     // Deduped across every root, not per root: a colour used on every page is

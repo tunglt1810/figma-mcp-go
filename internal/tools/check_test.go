@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -151,5 +152,58 @@ func TestCheckReadOnly_RejectsUnknownAndWriteTools(t *testing.T) {
 	}
 	if _, _, err := CheckReadOnly("get_selection", nil, nil); err != nil {
 		t.Errorf("CheckReadOnly(get_selection) = %v, want nil", err)
+	}
+}
+
+// A step reaches the plugin as the same direct call would: null, empty and
+// undeclared arguments are gone. A $variable stays as written, because the
+// plugin replaces it at run time.
+func TestCheck_PipelineStepSendsWhatADirectCallSends(t *testing.T) {
+	move := map[string]any{"id": "move", "action": "set_node_properties",
+		"export_vars": map[string]any{"id": "$moved"},
+		"params": map[string]any{"nodeId": "1-2", "x": nil, "y": 10.0, "blendMode": "",
+			"note": "x", "rotation": "$angle"}}
+	remove := map[string]any{"action": "delete_nodes",
+		"params": map[string]any{"nodeIds": []any{"$frame"}}}
+
+	_, params, err := Check(pipelineTool, nil, map[string]any{"steps": []any{move, remove}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	steps := params["steps"].([]any)
+	want := []any{
+		map[string]any{"id": "move", "action": "set_node_properties",
+			"export_vars": map[string]any{"id": "$moved"},
+			"params":      map[string]any{"nodeId": "1:2", "y": 10.0, "rotation": "$angle"}},
+		map[string]any{"action": "delete_nodes",
+			"params": map[string]any{"nodeIds": []any{"$frame"}}},
+	}
+	if !reflect.DeepEqual(steps, want) {
+		t.Errorf("steps = %#v\nwant    %#v", steps, want)
+	}
+
+	// A follower's call is checked twice: by its own handler, then by the
+	// leader's /rpc guard. The second check must not change the steps again.
+	if _, again, err := Check(pipelineTool, nil, params); err != nil || !reflect.DeepEqual(again, params) {
+		t.Errorf("a second Check gave %#v, %v", again, err)
+	}
+	if _, kept := move["params"].(map[string]any)["x"]; !kept {
+		t.Error("Check changed the caller's step")
+	}
+}
+
+// A step's params go to the plugin under the names the plugin reads, and
+// validateStep reads them under those names too. A write tool with a Wire name
+// would need a rename for each step. None has one, so steps are not renamed.
+func TestPipelineSteps_NeedNoWireRename(t *testing.T) {
+	for _, spec := range allSpecs() {
+		if spec.ReadOnly || spec.Custom != nil || spec.Name == pipelineTool {
+			continue
+		}
+		for _, p := range spec.Params {
+			if p.Wire != "" {
+				t.Errorf("%s.%s has Wire %q. Rename it in the pipeline steps too", spec.Name, p.Name, p.Wire)
+			}
+		}
 	}
 }

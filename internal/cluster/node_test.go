@@ -173,8 +173,7 @@ func TestNodeSend_ProxiesToTheLeaderVerbatim(t *testing.T) {
 	}
 }
 
-// fakeBackend stands in for a Follower or a Bridge behind the internal
-// sender interface, which uses bridge.Response.
+// fakeBackend stands in for a Follower behind the leaderClient interface.
 type fakeBackend struct {
 	calls []fakeCall
 	resp  bridge.Response
@@ -186,9 +185,11 @@ func (f *fakeBackend) Send(_ context.Context, tool string, nodeIDs []string, par
 	return f.resp, f.err
 }
 
+func (f *fakeBackend) Ping(context.Context) bool { return true }
+
 // newNodeWithSender builds a follower node with its proxy replaced. Swapping
 // the follower backend only matters once the node is a follower.
-func newNodeWithSender(s sender) *Node {
+func newNodeWithSender(s leaderClient) *Node {
 	n := NewNode("127.0.0.1", 19940, "test", passthroughGuard)
 	n.follower = s
 	n.role = RoleFollower

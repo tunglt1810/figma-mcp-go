@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { handleWriteStyleRequest } from "./write-styles";
+import { writeStylesHandlers } from "./write-styles";
+import type { HandlerMap } from "./dispatch";
+
+const handle = (handlers: HandlerMap, request: any) => handlers[request.type](request);
 
 // create_style replaced four create_*_style tools in the MCP tool list. These
 // check that the router reaches each of the four implementations, and that the
@@ -39,7 +42,7 @@ beforeEach(() => {
 
 describe("create_style", () => {
   it("routes PAINT to the paint style implementation", async () => {
-    const res = await handleWriteStyleRequest(
+    const res = await handle(writeStylesHandlers,
       makeRequest({ type: "PAINT", name: "Brand/Primary", color: "#ff0000" }),
     );
     expect(created.PAINT).toBeDefined();
@@ -50,7 +53,7 @@ describe("create_style", () => {
   });
 
   it("routes TEXT and carries the font arguments", async () => {
-    await handleWriteStyleRequest(
+    await handle(writeStylesHandlers,
       makeRequest({ type: "TEXT", name: "Heading/H1", fontSize: 32, fontFamily: "Inter" }),
     );
     expect(created.TEXT).toBeDefined();
@@ -58,7 +61,7 @@ describe("create_style", () => {
   });
 
   it("routes EFFECT and unwraps effectType back to type", async () => {
-    await handleWriteStyleRequest(
+    await handle(writeStylesHandlers,
       makeRequest({ type: "EFFECT", name: "Shadow/Card", effectType: "INNER_SHADOW", radius: 4 }),
     );
     expect(created.EFFECT).toBeDefined();
@@ -66,7 +69,7 @@ describe("create_style", () => {
   });
 
   it("routes GRID", async () => {
-    await handleWriteStyleRequest(
+    await handle(writeStylesHandlers,
       makeRequest({ type: "GRID", name: "Grid/Desktop", pattern: "COLUMNS", count: 12 }),
     );
     expect(created.GRID).toBeDefined();
@@ -75,7 +78,7 @@ describe("create_style", () => {
 
   it("reports an unknown kind rather than silently doing nothing", async () => {
     await expect(
-      handleWriteStyleRequest(makeRequest({ type: "SHADOW", name: "x" })),
+      handle(writeStylesHandlers, makeRequest({ type: "SHADOW", name: "x" })),
     ).rejects.toThrow(/PAINT, TEXT, EFFECT, or GRID/);
   });
 });

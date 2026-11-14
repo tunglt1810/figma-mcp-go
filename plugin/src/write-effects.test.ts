@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { handleWriteStyleRequest } from "./write-styles";
-import { handleWriteVariableRequest } from "./write-variables";
+import { writeStylesHandlers } from "./write-styles";
+import { writeVariablesHandlers } from "./write-variables";
+import type { HandlerMap } from "./dispatch";
+
+const handle = (handlers: HandlerMap, request: any) => handlers[request.type](request);
 
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
@@ -34,7 +37,7 @@ beforeEach(() => {
 describe("set_effects", () => {
   it("sets a drop shadow effect", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Card", effects: [] };
-    const res = await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    const res = await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "DROP_SHADOW", color: "#000000", opacity: 0.3, radius: 8, offsetX: 0, offsetY: 4 }],
     }));
     expect(mockNodes["1:1"].effects).toHaveLength(1);
@@ -47,7 +50,7 @@ describe("set_effects", () => {
 
   it("sets an inner shadow effect", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "INNER_SHADOW", radius: 4 }],
     }));
     expect(mockNodes["1:1"].effects[0].type).toBe("INNER_SHADOW");
@@ -55,7 +58,7 @@ describe("set_effects", () => {
 
   it("sets a layer blur effect", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "LAYER_BLUR", radius: 10 }],
     }));
     expect(mockNodes["1:1"].effects[0].type).toBe("LAYER_BLUR");
@@ -64,7 +67,7 @@ describe("set_effects", () => {
 
   it("sets a background blur effect", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "BACKGROUND_BLUR", radius: 20 }],
     }));
     expect(mockNodes["1:1"].effects[0].type).toBe("BACKGROUND_BLUR");
@@ -72,7 +75,7 @@ describe("set_effects", () => {
 
   it("sets multiple effects at once", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [
         { type: "DROP_SHADOW", radius: 4 },
         { type: "LAYER_BLUR", radius: 2 },
@@ -83,14 +86,14 @@ describe("set_effects", () => {
 
   it("clears effects when empty array provided", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [{ type: "DROP_SHADOW" }] };
-    const res = await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], { effects: [] }));
+    const res = await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], { effects: [] }));
     expect(mockNodes["1:1"].effects).toHaveLength(0);
     expect(res?.data.effectCount).toBe(0);
   });
 
   it("uses default values for shadow", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "DROP_SHADOW" }],
     }));
     const shadow = mockNodes["1:1"].effects[0];
@@ -102,7 +105,7 @@ describe("set_effects", () => {
 
   it("throws for unknown effect type", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await expect(handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await expect(handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "GLOW" }],
     }))).rejects.toThrow("Unknown effect type");
   });
@@ -112,7 +115,7 @@ describe("set_effects", () => {
 
   it("tags a plain blur with blurType NORMAL", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "LAYER_BLUR", radius: 6 }],
     }));
     // blurType is part of the BlurEffect union. Without it, the effect is incomplete.
@@ -121,7 +124,7 @@ describe("set_effects", () => {
 
   it("sets a progressive blur with its start and end points", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{
         type: "LAYER_BLUR", blurType: "PROGRESSIVE", radius: 12, startRadius: 2,
         startOffset: { x: 0, y: 0.2 }, endOffset: { x: 0, y: 0.9 },
@@ -136,7 +139,7 @@ describe("set_effects", () => {
 
   it("sets a glass effect", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{
         type: "GLASS", radius: 4, depth: 20, dispersion: 0.5,
         lightAngle: -45, lightIntensity: 0.8, refraction: 0.8,
@@ -150,7 +153,7 @@ describe("set_effects", () => {
 
   it("sets a monotone noise effect", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "NOISE", color: "#ff0000", opacity: 0.4, noiseSize: 3, density: 0.7 }],
     }));
     const noise = mockNodes["1:1"].effects[0];
@@ -165,12 +168,12 @@ describe("set_effects", () => {
   // noise effect fail to write, so it is only sent when a caller asks for it.
   it("leaves blendMode off a noise effect unless asked", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "NOISE" }],
     }));
     expect(mockNodes["1:1"].effects[0]).not.toHaveProperty("blendMode");
 
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "NOISE", blendMode: "MULTIPLY" }],
     }));
     expect(mockNodes["1:1"].effects[0].blendMode).toBe("MULTIPLY");
@@ -178,7 +181,7 @@ describe("set_effects", () => {
 
   it("sets a duotone noise effect with its second colour", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "NOISE", noiseType: "DUOTONE", color: "#000000", secondaryColor: "#00ff00" }],
     }));
     expect(mockNodes["1:1"].effects[0].secondaryColor).toEqual({ r: 0, g: 1, b: 0, a: 1 });
@@ -188,7 +191,7 @@ describe("set_effects", () => {
   // alpha, so the two use different names.
   it("keeps multitone noise opacity separate from colour alpha", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "NOISE", noiseType: "MULTITONE", opacity: 0.25, noiseOpacity: 0.8 }],
     }));
     const noise = mockNodes["1:1"].effects[0];
@@ -198,7 +201,7 @@ describe("set_effects", () => {
 
   it("sets a texture effect", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "TEXTURE", noiseSize: 5, radius: 3, clipToShape: true }],
     }));
     expect(mockNodes["1:1"].effects[0]).toEqual({
@@ -208,7 +211,7 @@ describe("set_effects", () => {
 
   it("carries showShadowBehindNode through on a drop shadow", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "DROP_SHADOW", showShadowBehindNode: true }],
     }));
     expect(mockNodes["1:1"].effects[0].showShadowBehindNode).toBe(true);
@@ -216,33 +219,33 @@ describe("set_effects", () => {
 
   it("explains that a SHADER effect needs an imported shader", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await expect(handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await expect(handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "SHADER", id: "s1" }],
     }))).rejects.toThrow("importShaderById");
   });
 
   it("throws if nodeId is missing", async () => {
-    await expect(handleWriteStyleRequest(makeRequest("set_effects", [], {
+    await expect(handle(writeStylesHandlers, makeRequest("set_effects", [], {
       effects: [{ type: "DROP_SHADOW" }],
     }))).rejects.toThrow("nodeId is required");
   });
 
   it("throws if effects is not an array", async () => {
     mockNodes["1:1"] = { id: "1:1", effects: [] };
-    await expect(handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await expect(handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: "shadow",
     }))).rejects.toThrow("effects array is required");
   });
 
   it("throws if node not found", async () => {
-    await expect(handleWriteStyleRequest(makeRequest("set_effects", ["9:9"], {
+    await expect(handle(writeStylesHandlers, makeRequest("set_effects", ["9:9"], {
       effects: [{ type: "DROP_SHADOW" }],
     }))).rejects.toThrow("Node not found");
   });
 
   it("throws if node does not support effects", async () => {
     mockNodes["1:1"] = { id: "1:1" }; // no effects property
-    await expect(handleWriteStyleRequest(makeRequest("set_effects", ["1:1"], {
+    await expect(handle(writeStylesHandlers, makeRequest("set_effects", ["1:1"], {
       effects: [{ type: "DROP_SHADOW" }],
     }))).rejects.toThrow("does not support effects");
   });
@@ -263,7 +266,8 @@ describe("bind_variable_to_node strokeColor", () => {
 
   it("binds a variable to strokeColor", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Frame", strokes: [], setBoundVariable: () => {} };
-    const res = await handleWriteVariableRequest(makeRequest("bind_variable_to_node", ["1:1"], {
+    const res = await handle(writeVariablesHandlers, makeRequest("manage_variable", ["1:1"], {
+      action: "bind",
       variableId: "v1", field: "strokeColor",
     }));
     expect(res?.data.field).toBe("strokeColor");
@@ -274,7 +278,8 @@ describe("bind_variable_to_node strokeColor", () => {
   it("uses existing stroke as base when binding strokeColor", async () => {
     const existingStroke = { type: "SOLID", color: { r: 0, g: 0, b: 0 } };
     mockNodes["1:1"] = { id: "1:1", strokes: [existingStroke], setBoundVariable: () => {} };
-    await handleWriteVariableRequest(makeRequest("bind_variable_to_node", ["1:1"], {
+    await handle(writeVariablesHandlers, makeRequest("manage_variable", ["1:1"], {
+      action: "bind",
       variableId: "v1", field: "strokeColor",
     }));
     expect(mockNodes["1:1"].strokes).toHaveLength(1);
@@ -282,7 +287,8 @@ describe("bind_variable_to_node strokeColor", () => {
 
   it("throws if node does not support strokes", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Text" }; // no strokes
-    await expect(handleWriteVariableRequest(makeRequest("bind_variable_to_node", ["1:1"], {
+    await expect(handle(writeVariablesHandlers, makeRequest("manage_variable", ["1:1"], {
+      action: "bind",
       variableId: "v1", field: "strokeColor",
     }))).rejects.toThrow("does not support strokes");
   });

@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { handleWriteVariableRequest } from "./write-variables";
+import { writeVariablesHandlers } from "./write-variables";
+import type { HandlerMap } from "./dispatch";
+
+const handle = (handlers: HandlerMap, request: any) => handlers[request.type](request);
 
 // manage_variable replaced six tools in the MCP tool list by dispatching on an
 // action. The six implementations are unchanged, so the routing is what needs
@@ -19,7 +22,7 @@ const makeRequest = (type: string, nodeIds: string[], params: any) => ({
 });
 
 const manage = (params: any, nodeIds: string[] = []) =>
-  handleWriteVariableRequest(makeRequest("manage_variable", nodeIds, params));
+  handle(writeVariablesHandlers, makeRequest("manage_variable", nodeIds, params));
 
 beforeEach(() => {
   commitUndoCalled = false;
@@ -135,7 +138,7 @@ describe("manage_variable routing", () => {
     await expect(manage({ action: "rename" })).rejects.toThrow(/action must be .*create_collection/);
   });
 
-  it("returns null for an unrecognised request type", async () => {
-    expect(await handleWriteVariableRequest(makeRequest("unknown_op", [], {}))).toBeNull();
+  it("has no handler for an unrecognised request type", () => {
+    expect(writeVariablesHandlers["unknown_op"]).toBeUndefined();
   });
 });

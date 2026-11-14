@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { handleWritePrototypeRequest } from "./write-prototype";
+import { writePrototypeHandlers } from "./write-prototype";
+import type { HandlerMap } from "./dispatch";
+
+const handle = (handlers: HandlerMap, request: any) => handlers[request.type](request);
 
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
@@ -39,7 +42,7 @@ describe("set_reactions", () => {
       setReactionsAsync: async (r: any[]) => { stored = r; mockNodes["1:2"].reactions = r; },
     };
 
-    const res = await handleWritePrototypeRequest(
+    const res = await handle(writePrototypeHandlers,
       makeRequest("set_reactions", ["1:2"], { reactions: [clickNavigate] })
     );
 
@@ -57,7 +60,7 @@ describe("set_reactions", () => {
       setReactionsAsync: async (r: any[]) => { stored = r; mockNodes["1:2"].reactions = r; },
     };
 
-    const res = await handleWritePrototypeRequest(
+    const res = await handle(writePrototypeHandlers,
       makeRequest("set_reactions", ["1:2"], { reactions: [clickNavigate], mode: "append" })
     );
 
@@ -73,7 +76,7 @@ describe("set_reactions", () => {
       setReactionsAsync: async (r: any[]) => { stored = r; mockNodes["1:2"].reactions = r; },
     };
 
-    const res = await handleWritePrototypeRequest(
+    const res = await handle(writePrototypeHandlers,
       makeRequest("set_reactions", ["1:2"], { reactions: [] })
     );
 
@@ -83,20 +86,20 @@ describe("set_reactions", () => {
 
   it("throws when node not found", async () => {
     await expect(
-      handleWritePrototypeRequest(makeRequest("set_reactions", ["9:9"], { reactions: [clickNavigate] }))
+      handle(writePrototypeHandlers, makeRequest("set_reactions", ["9:9"], { reactions: [clickNavigate] }))
     ).rejects.toThrow("Node not found: 9:9");
   });
 
   it("throws when node does not support reactions", async () => {
     mockNodes["1:2"] = { id: "1:2", name: "Document" }; // no reactions property
     await expect(
-      handleWritePrototypeRequest(makeRequest("set_reactions", ["1:2"], { reactions: [clickNavigate] }))
+      handle(writePrototypeHandlers, makeRequest("set_reactions", ["1:2"], { reactions: [clickNavigate] }))
     ).rejects.toThrow("does not support reactions");
   });
 
   it("throws when nodeId is missing", async () => {
     await expect(
-      handleWritePrototypeRequest(makeRequest("set_reactions", [], { reactions: [] }))
+      handle(writePrototypeHandlers, makeRequest("set_reactions", [], { reactions: [] }))
     ).rejects.toThrow("nodeId is required");
   });
 });
@@ -109,7 +112,7 @@ describe("set_reactions with removeIndices", () => {
       setReactionsAsync: async (r: any[]) => { stored = r; mockNodes["1:2"].reactions = r; },
     };
 
-    const res = await handleWritePrototypeRequest(makeRequest("set_reactions", ["1:2"], { removeIndices: [] }));
+    const res = await handle(writePrototypeHandlers, makeRequest("set_reactions", ["1:2"], { removeIndices: [] }));
 
     expect(mockNodes["1:2"].reactions).toHaveLength(0);
     expect(res?.data.removed).toBe(2);
@@ -124,7 +127,7 @@ describe("set_reactions with removeIndices", () => {
       setReactionsAsync: async (r: any[]) => { stored = r; mockNodes["1:2"].reactions = r; },
     };
 
-    const res = await handleWritePrototypeRequest(
+    const res = await handle(writePrototypeHandlers,
       makeRequest("set_reactions", ["1:2"], { removeIndices: [7] })
     );
 
@@ -141,7 +144,7 @@ describe("set_reactions with removeIndices", () => {
       setReactionsAsync: async (r: any[]) => { stored = r; mockNodes["1:2"].reactions = r; },
     };
 
-    const res = await handleWritePrototypeRequest(
+    const res = await handle(writePrototypeHandlers,
       makeRequest("set_reactions", ["1:2"], { reactions: [clickNavigate] })
     );
 
@@ -159,7 +162,7 @@ describe("set_reactions with removeIndices", () => {
       setReactionsAsync: async (r: any[]) => { stored = r; mockNodes["1:2"].reactions = r; },
     };
 
-    const res = await handleWritePrototypeRequest(
+    const res = await handle(writePrototypeHandlers,
       makeRequest("set_reactions", ["1:2"], { removeIndices: [0, 2] })
     );
 
@@ -172,27 +175,26 @@ describe("set_reactions with removeIndices", () => {
 
   it("throws when node not found", async () => {
     await expect(
-      handleWritePrototypeRequest(makeRequest("set_reactions", ["9:9"], { removeIndices: [] }))
+      handle(writePrototypeHandlers, makeRequest("set_reactions", ["9:9"], { removeIndices: [] }))
     ).rejects.toThrow("Node not found: 9:9");
   });
 
   it("throws when node does not support reactions", async () => {
     mockNodes["1:2"] = { id: "1:2", name: "Document" };
     await expect(
-      handleWritePrototypeRequest(makeRequest("set_reactions", ["1:2"], { removeIndices: [] }))
+      handle(writePrototypeHandlers, makeRequest("set_reactions", ["1:2"], { removeIndices: [] }))
     ).rejects.toThrow("does not support reactions");
   });
 
   it("throws when nodeId is missing", async () => {
     await expect(
-      handleWritePrototypeRequest(makeRequest("set_reactions", [], { removeIndices: [] }))
+      handle(writePrototypeHandlers, makeRequest("set_reactions", [], { removeIndices: [] }))
     ).rejects.toThrow("nodeId is required");
   });
 });
 
 describe("unknown type", () => {
-  it("returns null for unrecognised type", async () => {
-    const res = await handleWritePrototypeRequest(makeRequest("unknown_prototype_op"));
-    expect(res).toBeNull();
+  it("has no handler for an unrecognised type", () => {
+    expect(writePrototypeHandlers["unknown_prototype_op"]).toBeUndefined();
   });
 });

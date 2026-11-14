@@ -13,10 +13,12 @@ import (
 
 func nodeLog() *slog.Logger { return slog.Default().With("component", "node") }
 
-// sender is anything that can carry a tool call to the plugin: the Leader's
-// Bridge (direct WebSocket) or a Follower (HTTP proxy to the leader).
-type sender interface {
+// leaderClient is how a node reaches the leader of another process: Send
+// forwards a tool call, Ping checks that the leader is alive. A Follower is the
+// real one. Tests replace it.
+type leaderClient interface {
 	Send(ctx context.Context, tool string, nodeIDs []string, params map[string]any) (bridge.Response, error)
+	Ping(ctx context.Context) bool
 }
 
 // Node routes MCP tool calls to either the Leader bridge or the Follower HTTP
@@ -27,25 +29,20 @@ type Node struct {
 	ip       string
 	port     int
 	leader   *Leader
-	follower sender
-	// leaderClient is the HTTP client for the leader. follower holds the same
-	// value unless a test replaces it. The election pings through it.
-	leaderClient *Follower
-	version      string
-	guard        Guard
+	follower leaderClient
+	version  string
+	guard    Guard
 }
 
 // NewNode creates a Node in the Unknown role.
 func NewNode(ip string, port int, version string, guard Guard) *Node {
-	client := NewFollower("http://" + net.JoinHostPort(ip, strconv.Itoa(port)))
 	return &Node{
-		ip:           ip,
-		port:         port,
-		role:         RoleUnknown,
-		version:      version,
-		guard:        guard,
-		follower:     client,
-		leaderClient: client,
+		ip:       ip,
+		port:     port,
+		role:     RoleUnknown,
+		version:  version,
+		guard:    guard,
+		follower: NewFollower("http://" + net.JoinHostPort(ip, strconv.Itoa(port))),
 	}
 }
 

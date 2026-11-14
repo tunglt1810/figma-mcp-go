@@ -15,7 +15,7 @@ design system's named styles or variables. Report findings and optionally fix th
    - Call get_variable_defs() to list all local COLOR variables (note their names and IDs).
 
 2. **Scan the design**
-   - Call get_document() with detail="compact" to get the node tree. If the result has truncated: true, call again with a larger maxNodes.
+   - Call get_document() with detail="compact" to get the node tree. If the result has truncated: true, call again with a larger maxNodes. If you set depth, also make depth larger.
    - For each node that has a fills, strokes, or textStyle property:
      - If the node's style field shows a named style (e.g. "fillStyle": "Brand/Primary") → already linked, skip.
      - If the node shows a raw fill color (e.g. "fills": [{"type":"SOLID","color":...}]) without a style name → flag it.

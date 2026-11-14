@@ -1007,7 +1007,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get full node details by ID. The tool returns {nodes}, plus globalVars.styles for repeated fills/strokes. Unknown IDs go in `missing`. The tool stops at 500 descendants by default. It then sets `truncated` and `childCount`.",
+    "description": "Get full node details by ID. The tool returns {nodes}, plus globalVars.styles for repeated fills/strokes. Unknown IDs go in `missing`. The tool stops at 500 nodes by default. This count includes the requested nodes. It then sets `truncated` and `childCount`.",
     "inputSchema": {
       "properties": {
         "depth": {
@@ -1015,7 +1015,7 @@
           "type": "number"
         },
         "maxNodes": {
-          "description": "Max descendants across all nodes (default 500).",
+          "description": "Max nodes in the result (default 500).",
           "type": "number"
         },
         "nodeIds": {

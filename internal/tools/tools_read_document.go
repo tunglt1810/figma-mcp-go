@@ -36,7 +36,7 @@ var readDocumentSpecs = []toolSpec{
 	{
 		Name: "get_nodes_info",
 		Desc: "Get full node details by ID. The tool returns {nodes}, plus globalVars.styles for repeated fills/strokes. " +
-			"Unknown IDs go in `missing`. The tool stops at 500 descendants by default. It then sets `truncated` and `childCount`.",
+			"Unknown IDs go in `missing`. The tool stops at 500 nodes by default. This count includes the requested nodes. It then sets `truncated` and `childCount`.",
 		NodeIDs:    nodeIDsMulti,
 		NodeIDsReq: true,
 		NodeIDDesc: "Node IDs",
@@ -44,7 +44,7 @@ var readDocumentSpecs = []toolSpec{
 			{Name: "depth", Kind: kindNumber, Min: floatPtr(0),
 				Desc: "Levels below each node. 0 = the nodes only. Default no limit."},
 			{Name: "maxNodes", Kind: kindNumber, Min: floatPtr(1),
-				Desc: "Max descendants across all nodes (default 500)."},
+				Desc: "Max nodes in the result (default 500)."},
 		},
 	},
 	{

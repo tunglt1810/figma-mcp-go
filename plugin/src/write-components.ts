@@ -240,8 +240,3 @@ const raw: RawHandlerMap = {
 };
 
 export const writeComponentsHandlers: HandlerMap = withEnvelope(raw);
-
-export const handleWriteComponentRequest = async (request: any): Promise<any> => {
-  const handler = writeComponentsHandlers[request.type];
-  return handler ? handler(request) : null;
-};

@@ -74,8 +74,3 @@ const raw: RawHandlerMap = {
 };
 
 export const writePrototypeHandlers: HandlerMap = withEnvelope(raw);
-
-export const handleWritePrototypeRequest = async (request: any): Promise<any> => {
-  const handler = writePrototypeHandlers[request.type];
-  return handler ? handler(request) : null;
-};

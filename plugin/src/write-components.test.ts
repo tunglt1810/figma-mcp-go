@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { handleWriteComponentRequest } from "./write-components";
+import { writeComponentsHandlers } from "./write-components";
+import type { HandlerMap } from "./dispatch";
+
+const handle = (handlers: HandlerMap, request: any) => handlers[request.type](request);
 
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
@@ -41,7 +44,7 @@ describe("group_nodes", () => {
     const parent = { id: "0:1", children: [] as any[], appendChild: () => {} };
     mockNodes["1:1"] = { id: "1:1", type: "RECTANGLE", parent };
     mockNodes["2:2"] = { id: "2:2", type: "RECTANGLE", parent };
-    const res = await handleWriteComponentRequest(makeRequest("group_nodes", ["1:1", "2:2"]));
+    const res = await handle(writeComponentsHandlers, makeRequest("group_nodes", ["1:1", "2:2"]));
     expect(res?.data.type).toBe("GROUP");
     expect(commitUndoCalled).toBe(true);
   });
@@ -50,19 +53,19 @@ describe("group_nodes", () => {
     const parent = { id: "0:1", children: [] as any[], appendChild: () => {} };
     mockNodes["1:1"] = { id: "1:1", type: "FRAME", parent };
     mockNodes["2:2"] = { id: "2:2", type: "FRAME", parent };
-    const res = await handleWriteComponentRequest(
+    const res = await handle(writeComponentsHandlers,
       makeRequest("group_nodes", ["1:1", "2:2"], { name: "My Group" })
     );
     expect(res?.data.name).toBe("My Group");
   });
 
   it("throws for empty nodeIds", async () => {
-    await expect(handleWriteComponentRequest(makeRequest("group_nodes", []))).rejects.toThrow("nodeIds is required");
+    await expect(handle(writeComponentsHandlers, makeRequest("group_nodes", []))).rejects.toThrow("nodeIds is required");
   });
 
   it("throws when no valid nodes found", async () => {
     await expect(
-      handleWriteComponentRequest(makeRequest("group_nodes", ["9:9", "8:8"]))
+      handle(writeComponentsHandlers, makeRequest("group_nodes", ["9:9", "8:8"]))
     ).rejects.toThrow("No valid scene nodes found");
   });
 });
@@ -86,32 +89,31 @@ describe("ungroup_nodes", () => {
     parent.children = [group];
     mockNodes["grp:1"] = group;
 
-    const res = await handleWriteComponentRequest(makeRequest("ungroup_nodes", ["grp:1"]));
+    const res = await handle(writeComponentsHandlers, makeRequest("ungroup_nodes", ["grp:1"]));
     expect(res?.data.results[0].childIds).toEqual(["3:1", "3:2"]);
     expect(removed).toBe(true);
     expect(commitUndoCalled).toBe(true);
   });
 
   it("reports error for missing node", async () => {
-    const res = await handleWriteComponentRequest(makeRequest("ungroup_nodes", ["9:9"]));
+    const res = await handle(writeComponentsHandlers, makeRequest("ungroup_nodes", ["9:9"]));
     expect(res?.data.results[0].error).toBe("Node not found");
   });
 
   it("reports error when node is not a GROUP", async () => {
     mockNodes["1:1"] = { id: "1:1", type: "FRAME" };
-    const res = await handleWriteComponentRequest(makeRequest("ungroup_nodes", ["1:1"]));
+    const res = await handle(writeComponentsHandlers, makeRequest("ungroup_nodes", ["1:1"]));
     expect(res?.data.results[0].error).toBe("Node is not a GROUP");
   });
 
   it("throws for empty nodeIds", async () => {
     await expect(
-      handleWriteComponentRequest(makeRequest("ungroup_nodes", []))
+      handle(writeComponentsHandlers, makeRequest("ungroup_nodes", []))
     ).rejects.toThrow("nodeIds is required");
   });
 
-  it("returns null for unrecognised type", async () => {
-    const res = await handleWriteComponentRequest(makeRequest("unknown_op"));
-    expect(res).toBeNull();
+  it("has no handler for an unrecognised type", () => {
+    expect(writeComponentsHandlers["unknown_op"]).toBeUndefined();
   });
 });
 
@@ -125,7 +127,7 @@ describe("component by ID or key", () => {
     // A set key makes the component import reject, as Figma does.
     (globalThis as any).figma.importComponentByKeyAsync = async () => { throw new Error("not a component"); };
     (globalThis as any).figma.importComponentSetByKeyAsync = async () => ({ defaultVariant: component("5:1"), children: [] });
-    const res = await handleWriteComponentRequest(
+    const res = await handle(writeComponentsHandlers,
       makeRequest("create_component_instance", [], { componentKey: "setKey", x: 1, y: 2 }),
     );
     expect(res?.data.id).toBe("inst:1");
@@ -135,14 +137,14 @@ describe("component by ID or key", () => {
     (globalThis as any).figma.importComponentByKeyAsync = async () => { throw new Error("key not found"); };
     (globalThis as any).figma.importComponentSetByKeyAsync = async () => { throw new Error("set not found"); };
     await expect(
-      handleWriteComponentRequest(makeRequest("create_component_instance", [], { componentKey: "nope" })),
+      handle(writeComponentsHandlers, makeRequest("create_component_instance", [], { componentKey: "nope" })),
     ).rejects.toThrow("key not found");
   });
 
   it("swaps to a set's default variant", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Inst", type: "INSTANCE" };
     mockNodes["4:1"] = { id: "4:1", type: "COMPONENT_SET", defaultVariant: component("5:1"), children: [] };
-    const res = await handleWriteComponentRequest(makeRequest("swap_component", ["1:1"], { componentId: "4:1" }));
+    const res = await handle(writeComponentsHandlers, makeRequest("swap_component", ["1:1"], { componentId: "4:1" }));
     expect(mockNodes["1:1"].mainComponent.id).toBe("5:1");
     expect(res?.data.componentId).toBe("5:1");
   });
@@ -150,7 +152,7 @@ describe("component by ID or key", () => {
   it("swaps to a library component by key", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Inst", type: "INSTANCE" };
     (globalThis as any).figma.importComponentByKeyAsync = async () => component("9:9");
-    await handleWriteComponentRequest(makeRequest("swap_component", ["1:1"], { componentKey: "abc" }));
+    await handle(writeComponentsHandlers, makeRequest("swap_component", ["1:1"], { componentKey: "abc" }));
     expect(mockNodes["1:1"].mainComponent.id).toBe("9:9");
   });
 });
@@ -163,7 +165,7 @@ describe("set_annotations", () => {
   it("sets the same annotations across several nodes in one undo entry", async () => {
     mockNodes["1:1"] = annotatable("1:1");
     mockNodes["1:2"] = annotatable("1:2");
-    const res = await handleWriteComponentRequest(
+    const res = await handle(writeComponentsHandlers,
       makeRequest("set_annotations", ["1:1", "1:2"], { annotations: [{ label: "Main Button" }] }),
     );
     expect(mockNodes["1:1"].annotations).toEqual([{ label: "Main Button" }]);
@@ -175,7 +177,7 @@ describe("set_annotations", () => {
   it("clears across several nodes with an empty array", async () => {
     mockNodes["1:1"] = annotatable("1:1");
     mockNodes["1:2"] = annotatable("1:2");
-    await handleWriteComponentRequest(
+    await handle(writeComponentsHandlers,
       makeRequest("set_annotations", ["1:1", "1:2"], { annotations: [] }),
     );
     expect(mockNodes["1:1"].annotations).toEqual([]);
@@ -185,7 +187,7 @@ describe("set_annotations", () => {
   it("reports an unsupported node against itself, leaving the others set", async () => {
     mockNodes["1:1"] = { id: "1:1", type: "SLICE" }; // no annotations property
     mockNodes["1:2"] = annotatable("1:2");
-    const res = await handleWriteComponentRequest(
+    const res = await handle(writeComponentsHandlers,
       makeRequest("set_annotations", ["1:1", "1:2"], { annotations: [{ label: "Btn" }] }),
     );
     expect(res?.data.results[0].error).toContain("does not support annotations");
@@ -193,7 +195,7 @@ describe("set_annotations", () => {
   });
 
   it("reports a missing node per node", async () => {
-    const res = await handleWriteComponentRequest(
+    const res = await handle(writeComponentsHandlers,
       makeRequest("set_annotations", ["9:9"], { annotations: [] }),
     );
     expect(res?.data.results[0].error).toBe("Node not found");
@@ -202,13 +204,13 @@ describe("set_annotations", () => {
   it("throws when annotations is not an array", async () => {
     mockNodes["1:1"] = annotatable("1:1");
     await expect(
-      handleWriteComponentRequest(makeRequest("set_annotations", ["1:1"], {})),
+      handle(writeComponentsHandlers, makeRequest("set_annotations", ["1:1"], {})),
     ).rejects.toThrow("annotations array is required");
   });
 
   it("throws for empty nodeIds", async () => {
     await expect(
-      handleWriteComponentRequest(makeRequest("set_annotations", [], { annotations: [] })),
+      handle(writeComponentsHandlers, makeRequest("set_annotations", [], { annotations: [] })),
     ).rejects.toThrow("nodeIds is required");
   });
 });

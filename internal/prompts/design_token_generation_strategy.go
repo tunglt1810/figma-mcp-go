@@ -14,7 +14,7 @@ then create a structured variable collection and named styles, and finally link 
 
 1. Call get_styles() to check what styles already exist (avoid duplicating them).
 2. Call get_variable_defs() to check existing variables.
-3. Call get_document(detail="compact") to scan the node tree. If the result has truncated: true, call again with a larger maxNodes.
+3. Call get_document(detail="compact") to scan the node tree. If the result has truncated: true, call again with a larger maxNodes. If you set depth, also make depth larger.
 4. Collect unique values:
    - **Colors**: all unique hex fills and stroke colors across nodes.
    - **Font sizes**: all unique fontSize values on TEXT nodes.

@@ -305,9 +305,10 @@ func TestExportScreenshots_InMemoryHalf(t *testing.T) {
 	})
 }
 
-// export_frames_to_pdf reaches the plugin under its own name, so its inner
-// call is checked against its own spec. The call must carry what that spec
-// requires, or the tool refuses itself before the plugin is asked.
+// The public tool requires outputPath, because the Go handler writes the file.
+// The plugin request of the same name only carries the frame ids. A follower
+// sends that request over /rpc, and one built before outputPath was sent with
+// it sends no params at all.
 func TestExportFramesToPDF_ReachesThePlugin(t *testing.T) {
 	s, fake := newTestServer(t)
 
@@ -320,5 +321,24 @@ func TestExportFramesToPDF_ReachesThePlugin(t *testing.T) {
 	}
 	if got := fake.calls[0]; got.tool != "export_frames_to_pdf" || !reflect.DeepEqual(got.nodeIDs, []string{"1:2"}) {
 		t.Errorf("inner call = %s %v, want export_frames_to_pdf [1:2]", got.tool, got.nodeIDs)
+	}
+	if len(fake.calls[0].params) != 0 {
+		t.Errorf("inner params = %v, want none", fake.calls[0].params)
+	}
+
+	res := callToolResult(t, s, "export_frames_to_pdf", map[string]any{"nodeIds": []any{"1:2"}})
+	if !res.IsError || !strings.Contains(res.Text, "outputPath is required") {
+		t.Errorf("a call without outputPath = %q, want it refused", res.Text)
+	}
+	if len(fake.calls) != 1 {
+		t.Errorf("a refused call reached the plugin: %v", fake.calls)
+	}
+
+	for name, guard := range map[string]func(string, []string, map[string]any) ([]string, map[string]any, error){
+		"Check": Check, "CheckReadOnly": CheckReadOnly,
+	} {
+		if _, _, err := guard("export_frames_to_pdf", []string{"1:2"}, nil); err != nil {
+			t.Errorf("%s refused the plugin request of a follower: %v", name, err)
+		}
 	}
 }

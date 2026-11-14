@@ -12,18 +12,14 @@ func electionLog() *slog.Logger { return slog.Default().With("component", "elect
 // Election determines the initial role and monitors leader health.
 // If the leader dies, a follower will attempt a takeover.
 type Election struct {
-	node     *Node
-	follower *Follower
-	cancel   context.CancelFunc
+	node   *Node
+	cancel context.CancelFunc
 }
 
 // NewElection creates an Election for the node. It pings through the node's
 // own leader client.
 func NewElection(node *Node) *Election {
-	return &Election{
-		node:     node,
-		follower: node.leaderClient,
-	}
+	return &Election{node: node}
 }
 
 // Start determines the initial role and launches the background monitor.
@@ -80,7 +76,7 @@ func (e *Election) determineRole(ctx context.Context) error {
 	}
 
 	// Port taken: check whether there is a healthy leader.
-	if e.follower.Ping(ctx) {
+	if e.node.follower.Ping(ctx) {
 		e.node.BecomeFollower()
 		return nil
 	}
@@ -112,7 +108,7 @@ func (e *Election) monitor(ctx context.Context) {
 func (e *Election) tick(ctx context.Context) error {
 	switch e.node.Role() {
 	case RoleFollower:
-		if !e.follower.Ping(ctx) {
+		if !e.node.follower.Ping(ctx) {
 			electionLog().Warn("leader not responding, attempting takeover")
 			if err := e.node.BecomeLeader(); err != nil {
 				electionLog().Warn("takeover failed", "err", err)

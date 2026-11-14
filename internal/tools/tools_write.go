@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -49,7 +50,10 @@ var batchPipelineSpec = toolSpec{
 
 // pipelineVariable matches a step argument that names an earlier step's
 // result. The plugin puts the value in at run time, so it cannot be checked
-// here. It is the same pattern the plugin uses.
+// here. It is VARIABLE_REFERENCE in plugin/src/batch-pipeline.ts, and
+// TestPipelineVariable_MatchesThePlugin keeps the two equal. The plugin reads
+// a string that starts with $$ as an escaped literal, and this pattern cannot
+// match such a string.
 var pipelineVariable = regexp.MustCompile(`^\$[A-Za-z_][A-Za-z0-9_]*$`)
 
 func hasPipelineVariable(v any) bool {
@@ -73,9 +77,13 @@ func hasPipelineVariable(v any) bool {
 }
 
 // validatePipelineSteps checks each step as the call it becomes. Without it, a
-// step reaches the plugin with arguments that nothing has checked.
+// step reaches the plugin with arguments that nothing has checked. It also
+// replaces params["steps"] with the steps the plugin gets: each step keeps only
+// the arguments the same direct call would send. params must be the caller's
+// own copy, as normalizeArgs makes it.
 func validatePipelineSteps(params map[string]any) string {
 	steps, _ := params["steps"].([]any)
+	sent := make([]any, len(steps))
 	for i, raw := range steps {
 		step, _ := raw.(map[string]any)
 		action, _ := step["action"].(string)
@@ -87,10 +95,15 @@ func validatePipelineSteps(params map[string]any) string {
 			return fmt.Sprintf("steps[%d].action %q is not a write tool. Use a tool that changes the file, for example create_node or set_paint", i, action)
 		}
 		stepParams, _ := step["params"].(map[string]any)
-		if msg := validateStep(spec, stepParams); msg != "" {
+		kept, msg := validateStep(spec, stepParams)
+		if msg != "" {
 			return fmt.Sprintf("steps[%d] (%s): %s", i, action, msg)
 		}
+		out := maps.Clone(step)
+		out["params"] = kept
+		sent[i] = out
 	}
+	params["steps"] = sent
 	return ""
 }
 
@@ -100,13 +113,22 @@ func validatePipelineSteps(params map[string]any) string {
 // the same direct call is refused. An argument that holds a $variable is left
 // out of the check. The rules that span several arguments are skipped when any
 // argument is left out, because they cannot be decided without it.
-func validateStep(spec toolSpec, stepParams map[string]any) string {
+//
+// It returns the arguments to send: the checked ones, the $variables as
+// written, and the node ids.
+func validateStep(spec toolSpec, stepParams map[string]any) (map[string]any, string) {
 	deferred := false
+	kept := map[string]any{}
 
 	var nodeIDs []string
 	if spec.NodeIDs != nodeIDsNone {
 		// A step carries its node ids inside params, as nodeIds or nodeId.
 		// The plugin moves them to the request's nodeIds field.
+		for _, k := range []string{"nodeIds", "nodeId"} {
+			if v, ok := stepParams[k]; ok {
+				kept[k] = v
+			}
+		}
 		ids, hasIDs := stepParams["nodeIds"]
 		if !hasIDs {
 			if id, ok := stepParams["nodeId"]; ok {
@@ -119,7 +141,7 @@ func validateStep(spec toolSpec, stepParams map[string]any) string {
 		} else if hasIDs {
 			list, ok := ids.([]any)
 			if !ok {
-				return "nodeIds must be an array"
+				return nil, "nodeIds must be an array"
 			}
 			nodeIDs = toStringSlice(list)
 		}
@@ -131,6 +153,7 @@ func validateStep(spec toolSpec, stepParams map[string]any) string {
 		v, given := stepParams[p.wireName()]
 		if hasPipelineVariable(v) {
 			deferred = true
+			kept[p.wireName()] = v
 			continue
 		}
 		checked = append(checked, p)
@@ -151,5 +174,9 @@ func validateStep(spec toolSpec, stepParams map[string]any) string {
 	if deferred {
 		spec.Validate = nil
 	}
-	return validateSpec(spec, nodeIDs, params)
+	if msg := validateSpec(spec, nodeIDs, params); msg != "" {
+		return nil, msg
+	}
+	maps.Copy(kept, params)
+	return kept, ""
 }

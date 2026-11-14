@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { cropToTransform, handleWriteCreateRequest } from "./write-create";
+import { cropToTransform, writeCreateHandlers } from "./write-create";
+import type { HandlerMap } from "./dispatch";
+
+const handle = (handlers: HandlerMap, request: any) => handlers[request.type](request);
 
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
@@ -77,7 +80,7 @@ describe("create_component", () => {
     parent.children = [frame];
     mockNodes["1:1"] = frame;
 
-    const res = await handleWriteCreateRequest(makeRequest("create_component", ["1:1"]));
+    const res = await handle(writeCreateHandlers, makeRequest("create_component", ["1:1"]));
     expect(res?.data.type).toBe("COMPONENT");
     expect(createdComponents[0].name).toBe("Card");
     expect(createdComponents[0].cornerRadius).toBe(8);
@@ -98,7 +101,7 @@ describe("create_component", () => {
     parent.children = [frame];
     mockNodes["1:1"] = frame;
 
-    await handleWriteCreateRequest(makeRequest("create_component", ["1:1"]));
+    await handle(writeCreateHandlers, makeRequest("create_component", ["1:1"]));
     expect(createdComponents[0].width).toBe(320);
     expect(createdComponents[0].height).toBe(64);
   });
@@ -115,7 +118,7 @@ describe("create_component", () => {
     parent.children = [frame];
     mockNodes["1:1"] = frame;
 
-    await handleWriteCreateRequest(makeRequest("create_component", ["1:1"], { name: "Button" }));
+    await handle(writeCreateHandlers, makeRequest("create_component", ["1:1"], { name: "Button" }));
     expect(createdComponents[0].name).toBe("Button");
   });
 
@@ -136,7 +139,7 @@ describe("create_component", () => {
     parent.children = [frame];
     mockNodes["1:1"] = frame;
 
-    await handleWriteCreateRequest(makeRequest("create_component", ["1:1"]));
+    await handle(writeCreateHandlers, makeRequest("create_component", ["1:1"]));
     const comp = createdComponents[0];
     expect(comp.layoutMode).toBe("HORIZONTAL");
     expect(comp.paddingTop).toBe(8);
@@ -147,20 +150,20 @@ describe("create_component", () => {
 
   it("throws when nodeId not found", async () => {
     await expect(
-      handleWriteCreateRequest(makeRequest("create_component", ["9:9"]))
+      handle(writeCreateHandlers, makeRequest("create_component", ["9:9"]))
     ).rejects.toThrow("Node not found: 9:9");
   });
 
   it("throws when node is not a FRAME", async () => {
     mockNodes["1:1"] = { id: "1:1", type: "RECTANGLE" };
     await expect(
-      handleWriteCreateRequest(makeRequest("create_component", ["1:1"]))
+      handle(writeCreateHandlers, makeRequest("create_component", ["1:1"]))
     ).rejects.toThrow("is not a FRAME");
   });
 
   it("throws when no nodeId provided", async () => {
     await expect(
-      handleWriteCreateRequest(makeRequest("create_component", []))
+      handle(writeCreateHandlers, makeRequest("create_component", []))
     ).rejects.toThrow("nodeId is required");
   });
 });
@@ -185,7 +188,7 @@ describe("create_section", () => {
   });
 
   it("creates a section with a name", async () => {
-    const res = await handleWriteCreateRequest(makeRequest("create_section", [], { name: "Sprint 1" }));
+    const res = await handle(writeCreateHandlers, makeRequest("create_node", [], { type: "SECTION", name: "Sprint 1" }));
     expect(createdSection.name).toBe("Sprint 1");
     expect(res?.data.type).toBe("SECTION");
     expect(res?.data.id).toBe("section:new");
@@ -193,19 +196,19 @@ describe("create_section", () => {
   });
 
   it("creates a section at a specific position", async () => {
-    const res = await handleWriteCreateRequest(makeRequest("create_section", [], { x: 100, y: 200 }));
+    const res = await handle(writeCreateHandlers, makeRequest("create_node", [], { type: "SECTION", x: 100, y: 200 }));
     expect(createdSection.x).toBe(100);
     expect(createdSection.y).toBe(200);
   });
 
   it("creates a section with custom size", async () => {
-    await handleWriteCreateRequest(makeRequest("create_section", [], { width: 800, height: 600 }));
+    await handle(writeCreateHandlers, makeRequest("create_node", [], { type: "SECTION", width: 800, height: 600 }));
     expect(createdSection.width).toBe(800);
     expect(createdSection.height).toBe(600);
   });
 
   it("creates a section with default values when no params given", async () => {
-    const res = await handleWriteCreateRequest(makeRequest("create_section", [], {}));
+    const res = await handle(writeCreateHandlers, makeRequest("create_node", [], { type: "SECTION" }));
     expect(res?.data.id).toBe("section:new");
   });
 });
@@ -215,7 +218,7 @@ describe("create_star", () => {
     let appendedChild: any = null;
     (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
 
-    const res = await handleWriteCreateRequest(makeRequest("create_star"));
+    const res = await handle(writeCreateHandlers, makeRequest("create_node", [], { type: "STAR" }));
     expect(res?.data.type).toBe("STAR");
     expect(appendedChild.type).toBe("STAR");
     expect(appendedChild.pointCount).toBe(5);
@@ -228,7 +231,8 @@ describe("create_star", () => {
     let appendedChild: any = null;
     (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
 
-    await handleWriteCreateRequest(makeRequest("create_star", [], {
+    await handle(writeCreateHandlers, makeRequest("create_node", [], {
+      type: "STAR",
       pointCount: 6,
       outerRadius: 60,
       innerRadius: 30,
@@ -254,7 +258,7 @@ describe("create_polygon", () => {
     let appendedChild: any = null;
     (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
 
-    const res = await handleWriteCreateRequest(makeRequest("create_polygon"));
+    const res = await handle(writeCreateHandlers, makeRequest("create_node", [], { type: "POLYGON" }));
     expect(res?.data.type).toBe("POLYGON");
     expect(appendedChild.type).toBe("POLYGON");
     expect(appendedChild.pointCount).toBe(3);
@@ -267,7 +271,8 @@ describe("create_polygon", () => {
     let appendedChild: any = null;
     (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
 
-    await handleWriteCreateRequest(makeRequest("create_polygon", [], {
+    await handle(writeCreateHandlers, makeRequest("create_node", [], {
+      type: "POLYGON",
       pointCount: 8,
       radius: 40,
       x: 5,
@@ -291,7 +296,7 @@ describe("create_line", () => {
     let appendedChild: any = null;
     (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
 
-    const res = await handleWriteCreateRequest(makeRequest("create_line"));
+    const res = await handle(writeCreateHandlers, makeRequest("create_node", [], { type: "LINE" }));
     expect(res?.data.type).toBe("LINE");
     expect(appendedChild.type).toBe("LINE");
     expect(appendedChild.width).toBe(100);
@@ -303,7 +308,8 @@ describe("create_line", () => {
     let appendedChild: any = null;
     (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
 
-    await handleWriteCreateRequest(makeRequest("create_line", [], {
+    await handle(writeCreateHandlers, makeRequest("create_node", [], {
+      type: "LINE",
       length: 200,
       rotation: 45,
       x: 10,
@@ -328,7 +334,8 @@ describe("create_ellipse", () => {
     (globalThis as any).figma.currentPage.appendChild = (child: any) => { appendedChild = child; };
 
     const arcData = { startingAngle: 0, endingAngle: Math.PI, innerRadius: 0.5 };
-    await handleWriteCreateRequest(makeRequest("create_ellipse", [], {
+    await handle(writeCreateHandlers, makeRequest("create_node", [], {
+      type: "ELLIPSE",
       arcData
     }));
     expect(appendedChild.type).toBe("ELLIPSE");
@@ -340,7 +347,8 @@ describe("create_ellipse", () => {
 // only read arcData, so every arc and ring came out as a plain ellipse.
 describe("create_ellipse arcs", () => {
   it("builds arcData from the angle arguments", async () => {
-    const res = await handleWriteCreateRequest(makeRequest("create_ellipse", [], {
+    const res = await handle(writeCreateHandlers, makeRequest("create_node", [], {
+      type: "ELLIPSE",
       startAngle: 0, endAngle: 3.14, innerRadiusRatio: 0.5,
     }));
     const ellipse = lastCreated("ELLIPSE");
@@ -349,14 +357,14 @@ describe("create_ellipse arcs", () => {
   });
 
   it("defaults the end angle to a full turn when only the inner radius is given", async () => {
-    await handleWriteCreateRequest(makeRequest("create_ellipse", [], { innerRadiusRatio: 0.6 }));
+    await handle(writeCreateHandlers, makeRequest("create_node", [], { type: "ELLIPSE", innerRadiusRatio: 0.6 }));
     const ellipse = lastCreated("ELLIPSE");
     expect(ellipse.arcData.endingAngle).toBeCloseTo(Math.PI * 2);
     expect(ellipse.arcData.innerRadius).toBe(0.6);
   });
 
   it("leaves arcData alone for a plain ellipse", async () => {
-    await handleWriteCreateRequest(makeRequest("create_ellipse", [], { width: 50, height: 50 }));
+    await handle(writeCreateHandlers, makeRequest("create_node", [], { type: "ELLIPSE", width: 50, height: 50 }));
     expect(lastCreated("ELLIPSE").arcData).toBeUndefined();
   });
 });
@@ -365,7 +373,7 @@ describe("create_ellipse arcs", () => {
 // that the router reaches each of the seven implementations.
 describe("create_node", () => {
   const create = (params: any) =>
-    handleWriteCreateRequest({ type: "create_node", requestId: "req-1", nodeIds: [], params });
+    handle(writeCreateHandlers, { type: "create_node", requestId: "req-1", nodeIds: [], params });
 
   it.each([
     ["FRAME", "FRAME"],
@@ -417,7 +425,7 @@ describe("cropToTransform", () => {
 
 describe("import_image", () => {
   const imported = (params: any) =>
-    handleWriteCreateRequest(makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
+    handle(writeCreateHandlers, makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
 
   it("turns a crop into an imageTransform and switches to CROP", async () => {
     await imported({ crop: { x: 0, y: 0.5, width: 1, height: 0.5 } });
@@ -441,7 +449,7 @@ describe("import_image", () => {
 // The mock image is 400x200.
 describe("import_image sizing", () => {
   const imported = (params: any) =>
-    handleWriteCreateRequest(makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
+    handle(writeCreateHandlers, makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
   const placed = () => {
     const rect = lastCreated("RECTANGLE");
     return { width: rect.width, height: rect.height };
@@ -472,7 +480,7 @@ describe("import_image sizing", () => {
 
 describe("import_image onto an existing node", () => {
   const paint = (params: any) =>
-    handleWriteCreateRequest(makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
+    handle(writeCreateHandlers, makeRequest("import_image", [], { imageUrl: "https://x/i.png", ...params }));
 
   it("replaces the node's fills by default", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Card", type: "FRAME", fills: [{ type: "SOLID" }] };

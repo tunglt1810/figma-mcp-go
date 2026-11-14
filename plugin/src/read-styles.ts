@@ -265,8 +265,3 @@ const raw: RawHandlerMap = {
 };
 
 export const readStylesHandlers: HandlerMap = withEnvelope(raw);
-
-export const handleReadStyleRequest = async (request: any): Promise<any> => {
-  const handler = readStylesHandlers[request.type];
-  return handler ? handler(request) : null;
-};

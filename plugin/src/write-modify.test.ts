@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { handleWriteModifyRequest } from "./write-modify";
+import { writeModifyHandlers } from "./write-modify";
+import type { HandlerMap } from "./dispatch";
+
+const handle = (handlers: HandlerMap, request: any) => handlers[request.type](request);
 
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
@@ -27,7 +30,7 @@ beforeEach(() => {
 describe("set_node_properties geometry", () => {
   it("sets uniform cornerRadius", async () => {
     mockNodes["1:1"] = { id: "1:1", cornerRadius: 0 };
-    const res = await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { cornerRadius: 8 }));
+    const res = await handle(writeModifyHandlers, makeRequest("set_node_properties", ["1:1"], { cornerRadius: 8 }));
     expect(mockNodes["1:1"].cornerRadius).toBe(8);
     expect(res?.data.results[0].applied.cornerRadius).toBe(8);
     expect(commitUndoCalled).toBe(true);
@@ -38,7 +41,7 @@ describe("set_node_properties geometry", () => {
       id: "1:1", cornerRadius: 0,
       topLeftRadius: 0, topRightRadius: 0, bottomLeftRadius: 0, bottomRightRadius: 0,
     };
-    await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], {
+    await handle(writeModifyHandlers, makeRequest("set_node_properties", ["1:1"], {
       topLeftRadius: 8, topRightRadius: 0, bottomLeftRadius: 8, bottomRightRadius: 0,
     }));
     expect(mockNodes["1:1"].topLeftRadius).toBe(8);
@@ -48,13 +51,13 @@ describe("set_node_properties geometry", () => {
   });
 
   it("reports error for missing node", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("set_node_properties", ["9:9"], { cornerRadius: 4 }));
+    const res = await handle(writeModifyHandlers, makeRequest("set_node_properties", ["9:9"], { cornerRadius: 4 }));
     expect(res?.data.results[0].error).toBe("Node not found");
   });
 
   it("reports a node without cornerRadius support against that property alone", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Text", opacity: 1 };
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1"], { cornerRadius: 4, opacity: 0.5 }),
     );
     expect(res?.data.results[0].errors.cornerRadius).toContain("does not support corner radius");
@@ -64,7 +67,7 @@ describe("set_node_properties geometry", () => {
   it("handles multiple nodeIds", async () => {
     mockNodes["1:1"] = { id: "1:1", cornerRadius: 0 };
     mockNodes["2:2"] = { id: "2:2", cornerRadius: 0 };
-    const res = await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1", "2:2"], { cornerRadius: 12 }));
+    const res = await handle(writeModifyHandlers, makeRequest("set_node_properties", ["1:1", "2:2"], { cornerRadius: 12 }));
     expect(res?.data.results).toHaveLength(2);
     expect(mockNodes["1:1"].cornerRadius).toBe(12);
     expect(mockNodes["2:2"].cornerRadius).toBe(12);
@@ -72,14 +75,14 @@ describe("set_node_properties geometry", () => {
 
   it("moves to an absolute position", async () => {
     mockNodes["1:1"] = { id: "1:1", x: 5, y: 5 };
-    const res = await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { x: 10, y: 20 }));
+    const res = await handle(writeModifyHandlers, makeRequest("set_node_properties", ["1:1"], { x: 10, y: 20 }));
     expect(mockNodes["1:1"]).toMatchObject({ x: 10, y: 20 });
     expect(res?.data.results[0].applied).toEqual({ x: 10, y: 20 });
   });
 
   it("moves on one axis without disturbing the other", async () => {
     mockNodes["1:1"] = { id: "1:1", x: 5, y: 5 };
-    await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { x: 10 }));
+    await handle(writeModifyHandlers, makeRequest("set_node_properties", ["1:1"], { x: 10 }));
     expect(mockNodes["1:1"]).toMatchObject({ x: 10, y: 5 });
   });
 
@@ -89,7 +92,7 @@ describe("set_node_properties geometry", () => {
       id: "1:1", width: 100, height: 50,
       resize(w: number, h: number) { resized.push([w, h]); this.width = w; this.height = h; },
     };
-    await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { width: 300 }));
+    await handle(writeModifyHandlers, makeRequest("set_node_properties", ["1:1"], { width: 300 }));
     expect(resized).toEqual([[300, 50]]);
   });
 
@@ -102,7 +105,7 @@ describe("set_node_properties geometry", () => {
       id: "1:1", x: 0, y: 0, width: 100, height: 50,
       resize(w: number, h: number) { resizeCalls++; this.width = w; this.height = h; },
     };
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1"], { x: 10, y: 20, width: 300, height: 200 }),
     );
     expect(mockNodes["1:1"]).toMatchObject({ x: 10, y: 20, width: 300, height: 200 });
@@ -113,7 +116,7 @@ describe("set_node_properties geometry", () => {
 
   it("reports a node that cannot resize while still applying what it can", async () => {
     mockNodes["1:1"] = { id: "1:1", x: 0, y: 0 }; // no resize function
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1"], { x: 10, width: 300 }),
     );
     expect(mockNodes["1:1"].x).toBe(10);
@@ -123,14 +126,13 @@ describe("set_node_properties geometry", () => {
 
   it("reports a node that has no position", async () => {
     mockNodes["1:1"] = { id: "1:1", opacity: 1 }; // no x
-    const res = await handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { x: 10, y: 20 }));
+    const res = await handle(writeModifyHandlers, makeRequest("set_node_properties", ["1:1"], { x: 10, y: 20 }));
     expect(res?.data.results[0].errors.x).toBe("Node does not support position");
     expect(res?.data.results[0].errors.y).toBe("Node does not support position");
   });
 
-  it("returns null for unrecognised type", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("unknown_op"));
-    expect(res).toBeNull();
+  it("has no handler for an unrecognised type", () => {
+    expect(writeModifyHandlers["unknown_op"]).toBeUndefined();
   });
 });
 
@@ -140,31 +142,31 @@ describe("reparent_nodes", () => {
     const newParent = { id: "2:2", appendChild: (n: any) => children.push(n) };
     mockNodes["1:1"] = { id: "1:1", name: "Node" };
     mockNodes["2:2"] = newParent;
-    const res = await handleWriteModifyRequest(makeRequest("reparent_nodes", ["1:1"], { parentId: "2:2" }));
+    const res = await handle(writeModifyHandlers, makeRequest("reparent_nodes", ["1:1"], { parentId: "2:2" }));
     expect(children).toHaveLength(1);
     expect(res?.data.results[0].newParentId).toBe("2:2");
     expect(commitUndoCalled).toBe(true);
   });
 
   it("throws if parentId is missing", async () => {
-    await expect(handleWriteModifyRequest(makeRequest("reparent_nodes", ["1:1"], {}))).rejects.toThrow("parentId is required");
+    await expect(handle(writeModifyHandlers, makeRequest("reparent_nodes", ["1:1"], {}))).rejects.toThrow("parentId is required");
   });
 
   it("throws if parent node not found", async () => {
     mockNodes["1:1"] = { id: "1:1" };
-    await expect(handleWriteModifyRequest(makeRequest("reparent_nodes", ["1:1"], { parentId: "9:9" }))).rejects.toThrow("Parent not found");
+    await expect(handle(writeModifyHandlers, makeRequest("reparent_nodes", ["1:1"], { parentId: "9:9" }))).rejects.toThrow("Parent not found");
   });
 
   it("throws if parent cannot contain children", async () => {
     mockNodes["1:1"] = { id: "1:1" };
     mockNodes["2:2"] = { id: "2:2" }; // no appendChild
-    await expect(handleWriteModifyRequest(makeRequest("reparent_nodes", ["1:1"], { parentId: "2:2" }))).rejects.toThrow("cannot contain children");
+    await expect(handle(writeModifyHandlers, makeRequest("reparent_nodes", ["1:1"], { parentId: "2:2" }))).rejects.toThrow("cannot contain children");
   });
 
   it("reports error for missing child node", async () => {
     const newParent = { id: "2:2", appendChild: () => {} };
     mockNodes["2:2"] = newParent;
-    const res = await handleWriteModifyRequest(makeRequest("reparent_nodes", ["9:9"], { parentId: "2:2" }));
+    const res = await handle(writeModifyHandlers, makeRequest("reparent_nodes", ["9:9"], { parentId: "2:2" }));
     expect(res?.data.results[0].error).toBe("Node not found");
   });
 });
@@ -184,7 +186,7 @@ describe("set_auto_layout", () => {
   it("applies the same sizing to several nodes in one undo entry", async () => {
     mockNodes["1:1"] = sizeableNode("1:1");
     mockNodes["1:2"] = sizeableNode("1:2");
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_auto_layout", ["1:1", "1:2"], { layoutSizingHorizontal: "FILL" }),
     );
     expect(res?.data.results.map((r: any) => r.nodeId)).toEqual(["1:1", "1:2"]);
@@ -195,7 +197,7 @@ describe("set_auto_layout", () => {
 
   it("still sets the frame's own layout", async () => {
     mockNodes["1:1"] = sizeableNode("1:1");
-    await handleWriteModifyRequest(
+    await handle(writeModifyHandlers,
       makeRequest("set_auto_layout", ["1:1"], { layoutMode: "HORIZONTAL", itemSpacing: 8 }),
     );
     expect(mockNodes["1:1"].layoutMode).toBe("HORIZONTAL");
@@ -213,7 +215,7 @@ describe("set_auto_layout", () => {
       },
       get layoutSizingHorizontal() { return "FIXED"; },
     };
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_auto_layout", ["1:1", "1:2"], { layoutSizingHorizontal: "FILL" }),
     );
     expect(mockNodes["1:1"].layoutSizingHorizontal).toBe("FILL");
@@ -222,7 +224,7 @@ describe("set_auto_layout", () => {
 
   it("reports a node type that has no auto layout at all", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Slice", type: "SLICE" };
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_auto_layout", ["1:1"], { layoutMode: "VERTICAL" }),
     );
     expect(res?.data.results[0].error).toContain("does not support auto layout");
@@ -230,7 +232,7 @@ describe("set_auto_layout", () => {
 
   it("reports a missing node per node rather than failing the call", async () => {
     mockNodes["1:1"] = sizeableNode("1:1");
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_auto_layout", ["9:9", "1:1"], { layoutSizingVertical: "HUG" }),
     );
     expect(res?.data.results[0].error).toBe("Node not found");
@@ -239,7 +241,7 @@ describe("set_auto_layout", () => {
 
   it("throws when no node ids are given", async () => {
     await expect(
-      handleWriteModifyRequest(makeRequest("set_auto_layout", [], { layoutMode: "VERTICAL" })),
+      handle(writeModifyHandlers, makeRequest("set_auto_layout", [], { layoutMode: "VERTICAL" })),
     ).rejects.toThrow("nodeIds is required");
   });
 });
@@ -249,7 +251,7 @@ describe("batch_rename_nodes", () => {
   it("sets a literal name on every node listed", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Frame 1" };
     mockNodes["1:2"] = { id: "1:2", name: "Frame 2" };
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("batch_rename_nodes", ["1:1", "1:2"], { name: "Icons/Arrow/Left" }),
     );
     expect(mockNodes["1:1"].name).toBe("Icons/Arrow/Left");
@@ -261,7 +263,7 @@ describe("batch_rename_nodes", () => {
   it("renames with find/replace", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Button/Primary" };
     mockNodes["2:2"] = { id: "2:2", name: "Button/Secondary" };
-    const res = await handleWriteModifyRequest(makeRequest("batch_rename_nodes", ["1:1", "2:2"], {
+    const res = await handle(writeModifyHandlers, makeRequest("batch_rename_nodes", ["1:1", "2:2"], {
       find: "Button", replace: "Btn",
     }));
     expect(mockNodes["1:1"].name).toBe("Btn/Primary");
@@ -273,7 +275,7 @@ describe("batch_rename_nodes", () => {
 
   it("adds prefix and suffix", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Card" };
-    const res = await handleWriteModifyRequest(makeRequest("batch_rename_nodes", ["1:1"], {
+    const res = await handle(writeModifyHandlers, makeRequest("batch_rename_nodes", ["1:1"], {
       prefix: "UI/", suffix: "_v2",
     }));
     expect(mockNodes["1:1"].name).toBe("UI/Card_v2");
@@ -282,27 +284,35 @@ describe("batch_rename_nodes", () => {
 
   it("renames using regex", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Frame 123" };
-    const res = await handleWriteModifyRequest(makeRequest("batch_rename_nodes", ["1:1"], {
+    const res = await handle(writeModifyHandlers, makeRequest("batch_rename_nodes", ["1:1"], {
       find: "\\d+", replace: "X", useRegex: true,
     }));
     expect(mockNodes["1:1"].name).toBe("Frame X");
   });
 
+  it("ignores find when there is no replace", async () => {
+    mockNodes["1:1"] = { id: "1:1", name: "Card" };
+    await handle(writeModifyHandlers, makeRequest("batch_rename_nodes", ["1:1"], {
+      find: "(", useRegex: true, prefix: "Icon/",
+    }));
+    expect(mockNodes["1:1"].name).toBe("Icon/Card");
+  });
+
   it("fails the call on an invalid regex and renames nothing", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Card" };
-    await expect(handleWriteModifyRequest(makeRequest("batch_rename_nodes", ["1:1"], {
+    await expect(handle(writeModifyHandlers, makeRequest("batch_rename_nodes", ["1:1"], {
       find: "[invalid", replace: "X", useRegex: true,
     }))).rejects.toThrow(/Invalid regex/);
     expect(mockNodes["1:1"].name).toBe("Card");
   });
 
   it("reports error for missing node", async () => {
-    const res = await handleWriteModifyRequest(makeRequest("batch_rename_nodes", ["9:9"], { prefix: "x" }));
+    const res = await handle(writeModifyHandlers, makeRequest("batch_rename_nodes", ["9:9"], { prefix: "x" }));
     expect(res?.data.results[0].error).toBe("Node not found");
   });
 
   it("throws for empty nodeIds", async () => {
-    await expect(handleWriteModifyRequest(makeRequest("batch_rename_nodes", [], { prefix: "x" }))).rejects.toThrow();
+    await expect(handle(writeModifyHandlers, makeRequest("batch_rename_nodes", [], { prefix: "x" }))).rejects.toThrow();
   });
 });
 
@@ -324,7 +334,7 @@ describe("find_replace_text", () => {
       fontName: { family: "Inter", style: "Regular" },
     };
     (globalThis as any).figma.currentPage = { type: "PAGE", children: [textNode] };
-    const res = await handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "World", replace: "Figma" }));
+    const res = await handle(writeModifyHandlers, makeRequest("find_replace_text", [], { find: "World", replace: "Figma" }));
     expect(textNode.characters).toBe("Hello Figma");
     expect(res?.data.replaced).toBe(1);
     expect(res?.data.results[0].newText).toBe("Hello Figma");
@@ -334,7 +344,7 @@ describe("find_replace_text", () => {
   it("skips nodes where text does not match", async () => {
     const textNode = { id: "1:1", name: "Label", type: "TEXT", characters: "Goodbye", fontName: { family: "Inter", style: "Regular" } };
     (globalThis as any).figma.currentPage = { type: "PAGE", children: [textNode] };
-    const res = await handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "Hello", replace: "Hi" }));
+    const res = await handle(writeModifyHandlers, makeRequest("find_replace_text", [], { find: "Hello", replace: "Hi" }));
     expect(res?.data.replaced).toBe(0);
     expect(textNode.characters).toBe("Goodbye");
   });
@@ -343,7 +353,7 @@ describe("find_replace_text", () => {
     const textNode = { id: "2:2", name: "Nested", type: "TEXT", characters: "foo bar", fontName: { family: "Inter", style: "Regular" } };
     const frame = { id: "1:1", type: "FRAME", children: [textNode] };
     (globalThis as any).figma.currentPage = { type: "PAGE", children: [frame] };
-    const res = await handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "foo", replace: "baz" }));
+    const res = await handle(writeModifyHandlers, makeRequest("find_replace_text", [], { find: "foo", replace: "baz" }));
     expect(textNode.characters).toBe("baz bar");
     expect(res?.data.replaced).toBe(1);
   });
@@ -352,7 +362,7 @@ describe("find_replace_text", () => {
     const textNode = { id: "2:2", name: "Inner", type: "TEXT", characters: "target", fontName: { family: "Inter", style: "Regular" } };
     const frame = { id: "1:1", type: "FRAME", children: [textNode] };
     mockNodes["1:1"] = frame;
-    const res = await handleWriteModifyRequest(makeRequest("find_replace_text", ["1:1"], { find: "target", replace: "done" }));
+    const res = await handle(writeModifyHandlers, makeRequest("find_replace_text", ["1:1"], { find: "target", replace: "done" }));
     expect(textNode.characters).toBe("done");
     expect(res?.data.replaced).toBe(1);
   });
@@ -360,7 +370,7 @@ describe("find_replace_text", () => {
   it("uses regex when useRegex is true", async () => {
     const textNode = { id: "1:1", name: "Label", type: "TEXT", characters: "Price: $99", fontName: { family: "Inter", style: "Regular" } };
     (globalThis as any).figma.currentPage = { type: "PAGE", children: [textNode] };
-    const res = await handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "\\$\\d+", replace: "$199", useRegex: true }));
+    const res = await handle(writeModifyHandlers, makeRequest("find_replace_text", [], { find: "\\$\\d+", replace: "$199", useRegex: true }));
     expect(textNode.characters).toBe("Price: $199");
     expect(res?.data.replaced).toBe(1);
   });
@@ -369,7 +379,7 @@ describe("find_replace_text", () => {
     const a = { id: "1:1", type: "TEXT", characters: "aaa", fontName: { family: "Inter", style: "Regular" } };
     const b = { id: "1:2", type: "TEXT", characters: "ab", fontName: { family: "Inter", style: "Regular" } };
     (globalThis as any).figma.currentPage = { type: "PAGE", children: [a, b] };
-    await handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "a", replace: "x", useRegex: true, regexFlags: "y" }));
+    await handle(writeModifyHandlers, makeRequest("find_replace_text", [], { find: "a", replace: "x", useRegex: true, regexFlags: "y" }));
     expect([a.characters, b.characters]).toEqual(["xaa", "xb"]);
   });
 
@@ -377,17 +387,17 @@ describe("find_replace_text", () => {
     const textNode = { id: "1:1", type: "TEXT", characters: "hello", fontName: { family: "Inter", style: "Regular" } };
     (globalThis as any).figma.currentPage = { type: "PAGE", children: [textNode] };
     await expect(
-      handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "[bad", replace: "x", useRegex: true })),
+      handle(writeModifyHandlers, makeRequest("find_replace_text", [], { find: "[bad", replace: "x", useRegex: true })),
     ).rejects.toThrow(/Invalid regex/);
     expect(textNode.characters).toBe("hello");
   });
 
   it("throws if find is missing", async () => {
-    await expect(handleWriteModifyRequest(makeRequest("find_replace_text", [], { replace: "x" }))).rejects.toThrow("find is required");
+    await expect(handle(writeModifyHandlers, makeRequest("find_replace_text", [], { replace: "x" }))).rejects.toThrow("find is required");
   });
 
   it("throws if replace is missing", async () => {
-    await expect(handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "x" }))).rejects.toThrow("replace is required");
+    await expect(handle(writeModifyHandlers, makeRequest("find_replace_text", [], { find: "x" }))).rejects.toThrow("replace is required");
   });
 });
 
@@ -400,7 +410,7 @@ describe("set_node_properties", () => {
   it("applies several properties in one call with a single undo entry", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Frame", visible: true, opacity: 1, rotation: 0 };
 
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1"], { visible: false, opacity: 0.5, rotation: 45 }),
     );
 
@@ -414,7 +424,7 @@ describe("set_node_properties", () => {
   it("applies falsy values rather than skipping them", async () => {
     mockNodes["1:1"] = { id: "1:1", visible: true, locked: true, opacity: 1 };
 
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1"], { visible: false, locked: false, opacity: 0 }),
     );
 
@@ -424,7 +434,7 @@ describe("set_node_properties", () => {
   it("reports unsupported properties per property, still applying the rest", async () => {
     mockNodes["1:1"] = { id: "1:1", opacity: 1 }; // no rotation support
 
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1"], { opacity: 0.5, rotation: 90 }),
     );
 
@@ -434,7 +444,7 @@ describe("set_node_properties", () => {
   });
 
   it("reports a missing node once, not per property", async () => {
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["9:9"], { opacity: 0.5, visible: false }),
     );
 
@@ -445,7 +455,7 @@ describe("set_node_properties", () => {
   it("merges constraints with the axes not supplied", async () => {
     mockNodes["1:1"] = { id: "1:1", constraints: { horizontal: "MIN", vertical: "MIN" } };
 
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1"], { constraints: { horizontal: "STRETCH" } }),
     );
 
@@ -463,7 +473,7 @@ describe("set_node_properties", () => {
     child.parent = parent;
     mockNodes["1:1"] = child;
 
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1"], { order: "bringToFront" }),
     );
 
@@ -474,20 +484,20 @@ describe("set_node_properties", () => {
   it("rejects an invalid order value", async () => {
     mockNodes["1:1"] = { id: "1:1" };
     await expect(
-      handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], { order: "sideways" })),
+      handle(writeModifyHandlers, makeRequest("set_node_properties", ["1:1"], { order: "sideways" })),
     ).rejects.toThrow(/order must be/);
   });
 
   it("requires at least one property", async () => {
     mockNodes["1:1"] = { id: "1:1", opacity: 1 };
     await expect(
-      handleWriteModifyRequest(makeRequest("set_node_properties", ["1:1"], {})),
+      handle(writeModifyHandlers, makeRequest("set_node_properties", ["1:1"], {})),
     ).rejects.toThrow(/at least one property/);
   });
 
   it("requires nodeIds", async () => {
     await expect(
-      handleWriteModifyRequest(makeRequest("set_node_properties", [], { opacity: 0.5 })),
+      handle(writeModifyHandlers, makeRequest("set_node_properties", [], { opacity: 0.5 })),
     ).rejects.toThrow("nodeIds is required");
   });
 
@@ -495,7 +505,7 @@ describe("set_node_properties", () => {
     mockNodes["1:1"] = { id: "1:1", opacity: 1, rotation: 0 };
     mockNodes["2:2"] = { id: "2:2", opacity: 1 }; // no rotation
 
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1", "2:2"], { opacity: 0.3, rotation: 10 }),
     );
 
@@ -508,7 +518,7 @@ describe("set_node_properties", () => {
 describe("set_paint on fills", () => {
   it("replaces the existing fills", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [{ type: "SOLID" }] };
-    await handleWriteModifyRequest(
+    await handle(writeModifyHandlers,
       makeRequest("set_paint", ["1:1"], { type: "SOLID", color: "#ff0000" }),
     );
     expect(mockNodes["1:1"].fills).toHaveLength(1);
@@ -517,7 +527,7 @@ describe("set_paint on fills", () => {
 
   it("appends to the existing fills", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [{ type: "SOLID" }] };
-    await handleWriteModifyRequest(
+    await handle(writeModifyHandlers,
       makeRequest("set_paint", ["1:1"], { type: "SOLID", color: "#00ff00", mode: "append" }),
     );
     expect(mockNodes["1:1"].fills).toHaveLength(2);
@@ -527,7 +537,7 @@ describe("set_paint on fills", () => {
   // Spreading that throws "fills is not iterable".
   it("appends onto mixed fills instead of throwing", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: Symbol("figma.mixed") };
-    await handleWriteModifyRequest(
+    await handle(writeModifyHandlers,
       makeRequest("set_paint", ["1:1"], { type: "SOLID", color: "#00ff00", mode: "append" }),
     );
     expect(mockNodes["1:1"].fills).toHaveLength(1);
@@ -536,7 +546,7 @@ describe("set_paint on fills", () => {
   it("reports a bad color rather than painting NaN", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [] };
     await expect(
-      handleWriteModifyRequest(makeRequest("set_paint", ["1:1"], { type: "SOLID", color: "red" })),
+      handle(writeModifyHandlers, makeRequest("set_paint", ["1:1"], { type: "SOLID", color: "red" })),
     ).rejects.toThrow(/hex color/i);
   });
 });
@@ -544,7 +554,7 @@ describe("set_paint on fills", () => {
 describe("set_paint on strokes", () => {
   it("appends onto mixed strokes instead of throwing", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", strokes: Symbol("figma.mixed") };
-    await handleWriteModifyRequest(
+    await handle(writeModifyHandlers,
       makeRequest("set_paint", ["1:1"], { type: "SOLID", target: "stroke", color: "#000000", mode: "append" }),
     );
     expect(mockNodes["1:1"].strokes).toHaveLength(1);
@@ -552,7 +562,7 @@ describe("set_paint on strokes", () => {
 
   it("accepts shorthand hex", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", strokes: [] };
-    await handleWriteModifyRequest(
+    await handle(writeModifyHandlers,
       makeRequest("set_paint", ["1:1"], { type: "SOLID", target: "stroke", color: "#f00" }),
     );
     expect(mockNodes["1:1"].strokes[0].color.r).toBeCloseTo(1);
@@ -561,7 +571,7 @@ describe("set_paint on strokes", () => {
 
 describe("set_paint", () => {
   const paint = (params: any) =>
-    handleWriteModifyRequest({ type: "set_paint", requestId: "req-1", nodeIds: ["1:1"], params });
+    handle(writeModifyHandlers, { type: "set_paint", requestId: "req-1", nodeIds: ["1:1"], params });
 
   it("routes SOLID to fills by default", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "Box", fills: [], strokes: [] };
@@ -619,7 +629,7 @@ describe("set_node_properties stroke geometry", () => {
         dashPattern: [],
       };
     }
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1", "1:2"], {
         strokeWeight: 3,
         strokeAlign: "OUTSIDE",
@@ -642,7 +652,7 @@ describe("set_node_properties stroke geometry", () => {
 
   it("reports an unsupported stroke property against that property alone", async () => {
     mockNodes["1:1"] = { id: "1:1", opacity: 1 };
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1"], { opacity: 0.5, strokeCap: "ROUND" }),
     );
     expect(mockNodes["1:1"].opacity).toBe(0.5);
@@ -659,7 +669,7 @@ describe("set_node_properties stroke geometry", () => {
       set: () => { throw new Error("Cannot use a negative dash length"); },
     });
     mockNodes["1:1"] = node;
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_node_properties", ["1:1"], {
         opacity: 0.25, strokeCap: "ROUND", dashPattern: [-1],
       }),
@@ -673,7 +683,7 @@ describe("set_node_properties stroke geometry", () => {
 describe("set_export_settings", () => {
   it("writes the presets in order onto every node", async () => {
     for (const id of ["1:1", "1:2"]) mockNodes[id] = { id, name: id, exportSettings: [] };
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_export_settings", ["1:1", "1:2"], {
         settings: [
           { format: "PNG", suffix: "@2x", constraint: { type: "SCALE", value: 2 } },
@@ -694,7 +704,7 @@ describe("set_export_settings", () => {
   // turn a reasonable preset from the caller into an error.
   it("drops a raster constraint from SVG and PDF presets", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "n", exportSettings: [] };
-    await handleWriteModifyRequest(
+    await handle(writeModifyHandlers,
       makeRequest("set_export_settings", ["1:1"], {
         settings: [{ format: "PDF", constraint: { type: "SCALE", value: 2 } }],
       }),
@@ -704,14 +714,14 @@ describe("set_export_settings", () => {
 
   it("clears the presets on an empty array", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "n", exportSettings: [{ format: "PNG" }] };
-    await handleWriteModifyRequest(makeRequest("set_export_settings", ["1:1"], { settings: [] }));
+    await handle(writeModifyHandlers, makeRequest("set_export_settings", ["1:1"], { settings: [] }));
     expect(mockNodes["1:1"].exportSettings).toEqual([]);
   });
 
   it("reports a node that cannot be exported without failing the call", async () => {
     mockNodes["1:1"] = { id: "1:1", name: "page", type: "PAGE" };
     mockNodes["1:2"] = { id: "1:2", name: "frame", exportSettings: [] };
-    const res = await handleWriteModifyRequest(
+    const res = await handle(writeModifyHandlers,
       makeRequest("set_export_settings", ["1:1", "1:2"], { settings: [{ format: "PNG" }] }),
     );
     expect(res?.data.results[0].error).toContain("cannot be exported");
@@ -734,7 +744,7 @@ describe("find_replace_text progress", () => {
   };
 
   const run = (requestId: string) =>
-    handleWriteModifyRequest({
+    handle(writeModifyHandlers, {
       ...makeRequest("find_replace_text", ["0:1"], { find: "before", replace: "after" }),
       requestId,
     });
@@ -794,7 +804,7 @@ describe("find_replace_text with a font the file lacks", () => {
   };
 
   const run = () =>
-    handleWriteModifyRequest(
+    handle(writeModifyHandlers,
       makeRequest("find_replace_text", ["0:1"], { find: "before", replace: "after" }),
     );
 

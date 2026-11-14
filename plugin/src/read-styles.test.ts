@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { handleReadStyleRequest } from "./read-styles";
+import { readStylesHandlers } from "./read-styles";
+import type { HandlerMap } from "./dispatch";
+
+const handle = (handlers: HandlerMap, request: any) => handlers[request.type](request);
 
 const makeRequest = (type: string, params?: any) => ({
   type,
@@ -24,21 +27,21 @@ beforeEach(() => {
 
 describe("export_tokens", () => {
   it("returns empty token object when there are no variables or styles", async () => {
-    const res = await handleReadStyleRequest(makeRequest("export_tokens", { format: "json" }));
+    const res = await handle(readStylesHandlers, makeRequest("export_tokens", { format: "json" }));
     expect(res?.data.tokens).toBeDefined();
     expect(typeof res?.data.tokens).toBe("object");
     expect(Object.keys(res?.data.tokens)).toHaveLength(0);
   });
 
   it("returns :root CSS block even when empty", async () => {
-    const res = await handleReadStyleRequest(makeRequest("export_tokens", { format: "css" }));
+    const res = await handle(readStylesHandlers, makeRequest("export_tokens", { format: "css" }));
     expect(res?.data.css).toBeDefined();
     expect(res?.data.css).toContain(":root {");
     expect(res?.data.css).toContain("}");
   });
 
   it("defaults to JSON when format is not specified", async () => {
-    const res = await handleReadStyleRequest(makeRequest("export_tokens", {}));
+    const res = await handle(readStylesHandlers, makeRequest("export_tokens", {}));
     expect(res?.data.tokens).toBeDefined();
   });
 
@@ -63,7 +66,7 @@ describe("export_tokens", () => {
           : null,
     };
 
-    const res = await handleReadStyleRequest(makeRequest("export_tokens", { format: "json" }));
+    const res = await handle(readStylesHandlers, makeRequest("export_tokens", { format: "json" }));
     expect(res?.data.tokens["Brand"]).toBeDefined();
     expect(res?.data.tokens["Brand"]["Primary"]["Blue"]).toBeDefined();
     expect(res?.data.tokens["Brand"]["Primary"]["Blue"].type).toBe("COLOR");
@@ -94,7 +97,7 @@ describe("export_tokens", () => {
           : null,
     };
 
-    const res = await handleReadStyleRequest(makeRequest("export_tokens", { format: "json" }));
+    const res = await handle(readStylesHandlers, makeRequest("export_tokens", { format: "json" }));
     const token = res?.data.tokens["Spacing"]["base"];
     expect(token.value["Default"]).toBe(8);
     expect(token.value["Dense"]).toBe(4);
@@ -121,7 +124,7 @@ describe("export_tokens", () => {
           : null,
     };
 
-    const res = await handleReadStyleRequest(makeRequest("export_tokens", { format: "css" }));
+    const res = await handle(readStylesHandlers, makeRequest("export_tokens", { format: "css" }));
     expect(res?.data.css).toContain("--spacing-base: 8;");
   });
 
@@ -146,7 +149,7 @@ describe("export_tokens", () => {
           : null,
     };
 
-    const res = await handleReadStyleRequest(makeRequest("export_tokens", { format: "css" }));
+    const res = await handle(readStylesHandlers, makeRequest("export_tokens", { format: "css" }));
     expect(res?.data.css).toContain("rgba(0, 0, 0, 0.50)");
   });
 
@@ -159,7 +162,7 @@ describe("export_tokens", () => {
       },
     ];
 
-    const res = await handleReadStyleRequest(makeRequest("export_tokens", { format: "json" }));
+    const res = await handle(readStylesHandlers, makeRequest("export_tokens", { format: "json" }));
     expect(res?.data.tokens["_styles"]).toBeDefined();
     const gray = res?.data.tokens["_styles"].paint["Neutral"]["Gray"];
     expect(gray.type).toBe("COLOR");
@@ -175,7 +178,7 @@ describe("export_tokens", () => {
       },
     ];
 
-    const res = await handleReadStyleRequest(makeRequest("export_tokens", { format: "css" }));
+    const res = await handle(readStylesHandlers, makeRequest("export_tokens", { format: "css" }));
     expect(res?.data.css).toContain("--brand-primary:");
   });
 
@@ -188,7 +191,7 @@ describe("export_tokens", () => {
       },
     ];
 
-    const res = await handleReadStyleRequest(makeRequest("export_tokens", { format: "json" }));
+    const res = await handle(readStylesHandlers, makeRequest("export_tokens", { format: "json" }));
     // No _styles key, because nothing was added
     expect(res?.data.tokens["_styles"]).toBeUndefined();
   });

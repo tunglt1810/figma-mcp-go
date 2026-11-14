@@ -411,7 +411,8 @@ const raw: RawHandlerMap = {
     const p = request.params || {};
     const nodeIds = request.nodeIds || [];
     if (nodeIds.length === 0) throw new Error("nodeIds is required");
-    const regex = p.useRegex && p.find !== undefined ? compileRegex(p.find, p.regexFlags) : null;
+    const substitute = p.find !== undefined && p.replace !== undefined;
+    const regex = substitute && p.useRegex ? compileRegex(p.find, p.regexFlags) : null;
     const results: any[] = [];
     for (const nid of nodeIds) {
       const n = await figma.getNodeByIdAsync(nid) as any;
@@ -425,7 +426,7 @@ const raw: RawHandlerMap = {
         results.push({ nodeId: nid, oldName, name: p.name });
         continue;
       }
-      if (p.find !== undefined && p.replace !== undefined) {
+      if (substitute) {
         newName = regex
           ? regex(newName, p.replace)
           : newName.split(p.find).join(p.replace);
@@ -468,7 +469,7 @@ const raw: RawHandlerMap = {
         await reportProgress(
           request.requestId,
           stepProgress(i, textNodes.length),
-          `Scanned ${i}/${textNodes.length} text nodes, ${results.length} changed`,
+          `Scanned ${i}/${textNodes.length} text nodes, ${pending.length} to change`,
         );
       }
       const originalText: string = tn.characters;
@@ -498,8 +499,3 @@ const raw: RawHandlerMap = {
 };
 
 export const writeModifyHandlers: HandlerMap = withEnvelope(raw);
-
-export const handleWriteModifyRequest = async (request: any): Promise<any> => {
-  const handler = writeModifyHandlers[request.type];
-  return handler ? handler(request) : null;
-};
