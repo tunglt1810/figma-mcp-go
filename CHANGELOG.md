@@ -25,6 +25,8 @@ the plugin is installed by hand. An old plugin rejects new commands with
 - `maxNodes` in `get_document` and `get_nodes_info` counts every node in the result. This includes the pages, the selected nodes, the requested nodes and each `componentDefs` entry. With `dedupe_components`, each entry in `overrides` also counts.
 - `find_replace_text` and `batch_rename_nodes` fail the call when the regular expression is not valid. They returned one error for each node before.
 
+- `--read-only` also offers `set_selection`, `save_version_checkpoint`, `manage_page` (action `navigate` only) and `manage_plugin_data` (actions `get` and `keys` only). The panel's `read-only` guard already allowed these calls. A test now keeps the two modes the same.
+
 ### Fixed
 
 - `export_screenshots` through a follower works when the leader runs with `--read-only`.

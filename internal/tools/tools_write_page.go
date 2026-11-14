@@ -21,7 +21,8 @@ func requirePageTarget(_ []string, params map[string]any) string {
 
 var writePageSpecs = []toolSpec{
 	{
-		Name: "manage_page",
+		Name:            "manage_page",
+		HarmlessActions: []string{"navigate"},
 		Desc: "Add, delete, rename, or go to a page. Args per `action`: " +
 			"add: name, index. " +
 			"delete, navigate: pageId or pageName. " +

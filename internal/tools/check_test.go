@@ -3,6 +3,8 @@ package tools
 import (
 	"reflect"
 	"strings"
+
+	"github.com/mark3labs/mcp-go/server"
 	"testing"
 )
 
@@ -205,5 +207,63 @@ func TestPipelineSteps_NeedNoWireRename(t *testing.T) {
 				t.Errorf("%s.%s has Wire %q. Rename it in the pipeline steps too", spec.Name, p.Name, p.Wire)
 			}
 		}
+	}
+}
+
+func TestCheckReadOnly_RunsOnlyTheHarmlessActions(t *testing.T) {
+	allowed := []struct {
+		tool    string
+		nodeIDs []string
+		params  map[string]any
+	}{
+		{"set_selection", []string{"1:2"}, nil},
+		{"save_version_checkpoint", nil, map[string]any{"title": "Before"}},
+		{"manage_page", nil, map[string]any{"action": "navigate", "pageId": "0:2"}},
+		{"manage_plugin_data", []string{"1:2"}, map[string]any{"action": "get", "key": "k"}},
+		{"manage_plugin_data", []string{"1:2"}, map[string]any{"action": "keys"}},
+	}
+	for _, c := range allowed {
+		if _, _, err := CheckReadOnly(c.tool, c.nodeIDs, c.params); err != nil {
+			t.Errorf("CheckReadOnly(%s %v) = %v, want nil", c.tool, c.params, err)
+		}
+	}
+
+	refused := []struct {
+		tool    string
+		nodeIDs []string
+		params  map[string]any
+		want    string
+	}{
+		{"manage_page", nil, map[string]any{"action": "delete", "pageId": "0:2"}, "manage_page accepts only action navigate"},
+		{"manage_page", nil, nil, "manage_page accepts only action navigate"},
+		{"manage_plugin_data", []string{"1:2"}, map[string]any{"action": "set", "key": "k", "value": "v"}, "accepts only action get or keys"},
+	}
+	for _, c := range refused {
+		_, _, err := CheckReadOnly(c.tool, c.nodeIDs, c.params)
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("CheckReadOnly(%s %v) = %v, want %q", c.tool, c.params, err, c.want)
+		}
+	}
+}
+
+// The MCP handler of a read-only server must refuse what the /rpc guard
+// refuses. The tool is registered for its harmless action, so the handler is
+// the only thing between a local client and the other actions.
+func TestReadOnlyServer_RefusesAWriteActionOfAnOfferedTool(t *testing.T) {
+	s := server.NewMCPServer("test", "0.0.1")
+	fake := &fakeSender{}
+	RegisterReadOnlyTools(s, fake)
+
+	res := callToolResult(t, s, "manage_page", map[string]any{"action": "add", "name": "New"})
+	if !res.IsError || !strings.Contains(res.Text, "accepts only action navigate") {
+		t.Errorf("add = %+v, want a read-only refusal", res)
+	}
+	if len(fake.calls) != 0 {
+		t.Errorf("the refused call reached the plugin: %v", fake.calls)
+	}
+
+	callTool(t, s, "manage_page", map[string]any{"action": "navigate", "pageId": "0:2"})
+	if len(fake.calls) != 1 {
+		t.Errorf("navigate reached the plugin %d times, want 1", len(fake.calls))
 	}
 }

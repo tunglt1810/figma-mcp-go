@@ -16,18 +16,18 @@ import (
 
 // RegisterTools registers every table-declared tool on the server.
 func RegisterTools(s *server.MCPServer, sender Sender) {
-	registerSpecs(s, sender, allSpecs())
+	registerSpecs(s, sender, allSpecs(), false)
 }
 
-// RegisterReadOnlyTools registers only the tools that cannot change the Figma
-// file. A client that only reads designs then gets a much smaller tools/list.
+// RegisterReadOnlyTools registers only the tools that cannot change the
+// design. A client that only reads designs then gets a much smaller tools/list.
 func RegisterReadOnlyTools(s *server.MCPServer, sender Sender) {
-	registerSpecs(s, sender, readOnlyModeSpecs())
+	registerSpecs(s, sender, readOnlyModeSpecs(), true)
 }
 
-func registerSpecs(s *server.MCPServer, sender Sender, specs []toolSpec) {
+func registerSpecs(s *server.MCPServer, sender Sender, specs []toolSpec, readOnlyMode bool) {
 	for _, spec := range specs {
-		s.AddTool(buildTool(spec), handlerFor(sender, spec))
+		s.AddTool(buildTool(spec), handlerFor(sender, spec, readOnlyMode))
 	}
 }
 

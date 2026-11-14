@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -123,6 +124,14 @@ type toolSpec struct {
 	// ReadOnly marks a tool that changes nothing. Clients see it as
 	// readOnlyHint. allSpecs sets it for the read groups, not per tool.
 	ReadOnly bool
+
+	// Harmless marks a write-side tool that leaves the design as it was: it
+	// moves the selection or the view, or saves a version. Read-only mode
+	// offers it. It carries no readOnlyHint, because it does change state.
+	Harmless bool
+	// HarmlessActions names the values of `action` that are harmless, for a
+	// tool that is not harmless as a whole.
+	HarmlessActions []string
 
 	// Validate holds rules a paramSpec cannot express: "at least one of x or
 	// y", mutually exclusive arguments, nested shapes.
@@ -513,10 +522,32 @@ func CheckReadOnly(tool string, nodeIDs []string, params map[string]any) ([]stri
 	if !ok {
 		return nil, nil, fmt.Errorf("%s is not a tool of this server", tool)
 	}
-	if !spec.ReadOnly && !slices.Contains(readOnlyModeExports, tool) {
-		return nil, nil, fmt.Errorf("%s is disabled because the server is running in --read-only mode", tool)
+	if err := readOnlyRefusal(spec, params); err != nil {
+		return nil, nil, err
 	}
 	return Check(tool, nodeIDs, params)
+}
+
+// offeredReadOnly reports whether read-only mode offers the tool at all.
+func offeredReadOnly(spec toolSpec) bool {
+	return spec.ReadOnly || spec.Harmless || len(spec.HarmlessActions) > 0 ||
+		slices.Contains(readOnlyModeExports, spec.Name)
+}
+
+// readOnlyRefusal returns the error for a call that read-only mode does not
+// run, or nil.
+func readOnlyRefusal(spec toolSpec, params map[string]any) error {
+	if !offeredReadOnly(spec) {
+		return fmt.Errorf("%s is disabled because the server is running in --read-only mode", spec.Name)
+	}
+	if len(spec.HarmlessActions) == 0 {
+		return nil
+	}
+	if action, _ := params["action"].(string); slices.Contains(spec.HarmlessActions, action) {
+		return nil
+	}
+	return fmt.Errorf("%s accepts only action %s because the server is running in --read-only mode",
+		spec.Name, strings.Join(spec.HarmlessActions, " or "))
 }
 
 // variantSpec describes one variant of a merged tool: the arguments it accepts
@@ -656,7 +687,7 @@ var readOnlyModeExports = []string{"export_frames_to_pdf", "export_screenshots",
 func readOnlyModeSpecs() []toolSpec {
 	var specs []toolSpec
 	for _, spec := range allSpecs() {
-		if spec.ReadOnly || slices.Contains(readOnlyModeExports, spec.Name) {
+		if offeredReadOnly(spec) {
 			specs = append(specs, spec)
 		}
 	}
@@ -697,7 +728,7 @@ func buildSpecRegistry() map[string]toolSpec {
 // handlerFor builds a tool's MCP handler: split the arguments, check them, then
 // run either the tool's own Go code or the plain forwarder. Both paths check,
 // so no call reaches the plugin unchecked.
-func handlerFor(sender Sender, spec toolSpec) server.ToolHandlerFunc {
+func handlerFor(sender Sender, spec toolSpec, readOnlyMode bool) server.ToolHandlerFunc {
 	var handle customHandler
 	if spec.Custom != nil {
 		// A Custom handler may call a different tool than the one it was called
@@ -712,6 +743,11 @@ func handlerFor(sender Sender, spec toolSpec) server.ToolHandlerFunc {
 
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		nodeIDs, params := specArgs(spec, req.GetArguments())
+		if readOnlyMode {
+			if err := readOnlyRefusal(spec, params); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+		}
 		nodeIDs, params, err := checkSpec(spec, nodeIDs, params)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil

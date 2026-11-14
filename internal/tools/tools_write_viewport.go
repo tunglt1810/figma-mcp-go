@@ -6,8 +6,9 @@ package tools
 
 var writeViewportSpecs = []toolSpec{
 	{
-		Name: "set_selection",
-		Desc: "Select and zoom to nodes (switches page if needed) to show the user your work. No IDs clears the selection. Nodes must share a page.",
+		Name:     "set_selection",
+		Harmless: true,
+		Desc:     "Select and zoom to nodes (switches page if needed) to show the user your work. No IDs clears the selection. Nodes must share a page.",
 
 		NodeIDs:    nodeIDsMulti,
 		NodeIDDesc: "Node IDs. An empty list clears the selection.",

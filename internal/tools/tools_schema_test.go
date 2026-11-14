@@ -207,8 +207,9 @@ func TestToolSchemas_ExpectedToolSet(t *testing.T) {
 }
 
 // TestReadOnlyMode_ToolSet pins what --read-only offers. The mode makes one
-// promise: none of its tools can change the Figma file. A write tool that
-// reaches this list breaks it, so the list is exact.
+// promise: none of its calls can change the design. A write tool that reaches
+// this list breaks it, so the list is exact. manage_page and manage_plugin_data
+// are here for their harmless actions only.
 func TestReadOnlyMode_ToolSet(t *testing.T) {
 	want := []string{
 		"export_frames_to_pdf",
@@ -227,7 +228,11 @@ func TestReadOnlyMode_ToolSet(t *testing.T) {
 		"get_styles",
 		"get_variable_defs",
 		"get_viewport",
+		"manage_page",
+		"manage_plugin_data",
+		"save_version_checkpoint",
 		"search_nodes",
+		"set_selection",
 	}
 
 	var got []string

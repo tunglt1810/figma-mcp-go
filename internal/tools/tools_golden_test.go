@@ -7,6 +7,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -89,5 +90,51 @@ func TestToolSchemas_Golden(t *testing.T) {
 		if err := os.WriteFile(goldenPath+".actual", got, 0o644); err == nil {
 			t.Logf("current output written to %s.actual for diffing", goldenPath)
 		}
+	}
+}
+
+const readOnlyCallsPath = "testdata/read_only_calls.json"
+
+// TestReadOnlyCalls_Golden pins which calls read-only mode runs: true for a
+// whole tool, and for a tool that is only partly harmless, each of its actions
+// with true or false.
+// The plugin panel has its own read-only guard, and its tests read this file,
+// so the two modes cannot drift apart.
+func TestReadOnlyCalls_Golden(t *testing.T) {
+	calls := map[string]any{}
+	for _, spec := range readOnlyModeSpecs() {
+		if len(spec.HarmlessActions) > 0 {
+			actions := map[string]bool{}
+			for _, p := range spec.Params {
+				if p.Name != "action" {
+					continue
+				}
+				for _, action := range p.Enum {
+					actions[action] = slices.Contains(spec.HarmlessActions, action)
+				}
+			}
+			calls[spec.Name] = actions
+		} else {
+			calls[spec.Name] = true
+		}
+	}
+	got, err := json.Marshal(calls, jsontext.WithIndent("  "), json.Deterministic(true))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got = append(got, '\n')
+
+	if *updateGolden {
+		if err := os.WriteFile(readOnlyCallsPath, got, 0o644); err != nil {
+			t.Fatalf("write golden: %v", err)
+		}
+		return
+	}
+	want, err := os.ReadFile(readOnlyCallsPath)
+	if err != nil {
+		t.Fatalf("read golden (run with -update to create it): %v", err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("read-only calls changed. If this is intended, re-run with -update.\ngot:\n%s", got)
 	}
 }

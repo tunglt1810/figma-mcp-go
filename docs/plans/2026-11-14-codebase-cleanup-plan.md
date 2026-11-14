@@ -19,13 +19,10 @@
 
 Check: `make test`, then the experiment of step 1 as a manual regression.
 
-## Phase 11 — Product decisions (need the owner's answer before work)
+## Phase 11 — Auto-copy
 
-1. One read/write classification. Decide whether `set_selection`, page navigation and `save_version_checkpoint` are allowed in read-only mode. Then make the server flag and the panel guard use the same list, generated from the Go spec table.
-2. Auto-copy. Decide between: default off, or delete it (`plugin/src/ui/copy-helper.ts`, `internal/bridge/clipboard.go`, the `copy_to_clipboard` frame, the `autoCopyBroken` state) and keep pin plus manual copy.
-
-Check: `make test`; manual check of the panel in Figma.
+The owner decided on 2026-11-15: read-only mode allows selection, page navigation, version checkpoints and plugin data reads (done). Auto-copy stays: the owner uses it all the time. No work remains in this phase.
 
 ## Last step
 
-Move each lasting decision to `docs/specs` (the `/rpc` rule, the pipeline contract, the `get_document` node limit, the rollback method, the read-only list, the auto-copy decision). Then delete this plan.
+Move each lasting decision to `docs/specs` (the `/rpc` rule, the pipeline contract, the `get_document` node limit, the rollback method, the read-only list (the Go spec table is the source, `internal/tools/testdata/read_only_calls.json` is its snapshot, and `plugin/src/tool-contract.test.ts` checks the panel against it), the auto-copy decision (keep it)). Then delete this plan.

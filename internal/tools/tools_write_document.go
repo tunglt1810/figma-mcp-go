@@ -24,11 +24,12 @@ var writeDocumentSpecs = []toolSpec{
 		},
 	},
 	{
-		Name:       "manage_plugin_data",
-		Desc:       "Store string key/values on a node, saved in the file. Use JSON for complex values.",
-		NodeIDs:    nodeIDsSingle,
-		NodeIDsReq: true,
-		NodeIDDesc: "Node ID",
+		Name:            "manage_plugin_data",
+		HarmlessActions: []string{"get", "keys"},
+		Desc:            "Store string key/values on a node, saved in the file. Use JSON for complex values.",
+		NodeIDs:         nodeIDsSingle,
+		NodeIDsReq:      true,
+		NodeIDDesc:      "Node ID",
 		Params: []paramSpec{
 			{Name: "action", Kind: kindString, Required: true,
 				Enum: []string{"get", "set", "delete", "keys"},
@@ -57,8 +58,9 @@ var writeDocumentSpecs = []toolSpec{
 		},
 	},
 	{
-		Name: "save_version_checkpoint",
-		Desc: "Save a named version in file history, before big or risky changes. This tool operates only in a Design file.",
+		Name:     "save_version_checkpoint",
+		Harmless: true,
+		Desc:     "Save a named version in file history, before big or risky changes. This tool operates only in a Design file.",
 
 		Params: []paramSpec{
 			{Name: "title", Kind: kindString, Required: true,
