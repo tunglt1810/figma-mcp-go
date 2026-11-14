@@ -35,7 +35,7 @@
           "items": {
             "properties": {
               "action": {
-                "description": "Tool name to run e.g. create_frame",
+                "description": "Write tool to run e.g. create_node",
                 "type": "string"
               },
               "export_vars": {
@@ -47,7 +47,7 @@
                 "type": "string"
               },
               "params": {
-                "description": "Arguments for the action",
+                "description": "The tool's arguments",
                 "type": "object"
               }
             },

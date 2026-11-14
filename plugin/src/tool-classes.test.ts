@@ -47,7 +47,7 @@ describe("isMutating", () => {
   });
 
   it("ordinary writes mutate", () => {
-    expect(isMutating("create_frame")).toBe(true);
+    expect(isMutating("create_node")).toBe(true);
     expect(isMutating("set_text")).toBe(true);
   });
 
@@ -76,7 +76,7 @@ describe("isMutating", () => {
       steps: [{ action: "get_nodes_info" }, { action: "set_selection" }],
     })).toBe(false);
     expect(isMutating("batch_execute_pipeline", {
-      steps: [{ action: "get_nodes_info" }, { action: "create_frame" }],
+      steps: [{ action: "get_nodes_info" }, { action: "create_node" }],
     })).toBe(true);
   });
 
@@ -98,7 +98,7 @@ describe("isDestructive", () => {
 
   it("leaves ordinary edits alone", () => {
     expect(isDestructive("set_text")).toBe(false);
-    expect(isDestructive("create_frame")).toBe(false);
+    expect(isDestructive("create_node")).toBe(false);
     expect(isDestructive("ungroup_nodes")).toBe(false);
   });
 
@@ -122,10 +122,10 @@ describe("isDestructive", () => {
 
   it("flags a pipeline carrying a destructive step", () => {
     expect(isDestructive("batch_execute_pipeline", {
-      steps: [{ action: "create_frame" }, { action: "delete_nodes" }],
+      steps: [{ action: "create_node" }, { action: "delete_nodes" }],
     })).toBe(true);
     expect(isDestructive("batch_execute_pipeline", {
-      steps: [{ action: "create_frame" }],
+      steps: [{ action: "create_node" }],
     })).toBe(false);
   });
 
@@ -143,7 +143,7 @@ describe("destructiveReason", () => {
 
   it("names the offending step for a pipeline", () => {
     expect(destructiveReason("batch_execute_pipeline", {
-      steps: [{ action: "create_frame" }, { action: "delete_nodes" }],
+      steps: [{ action: "create_node" }, { action: "delete_nodes" }],
     })).toBe("pipeline containing delete_nodes");
   });
 

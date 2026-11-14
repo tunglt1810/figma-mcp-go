@@ -74,7 +74,7 @@ describe('executeBatchPipeline', () => {
     };
 
     const mockDispatcher = async (action: string, params: any) => {
-      if (action === 'create_frame') {
+      if (action === 'create_node') {
         return { id: 'frame_1', name: params.name };
       }
       if (action === 'create_text') {
@@ -90,7 +90,7 @@ describe('executeBatchPipeline', () => {
       steps: [
         {
           id: 'step_1',
-          action: 'create_frame',
+          action: 'create_node',
           params: { name: 'Header' },
           export_vars: { id: '$header_id' }
         },
@@ -129,7 +129,7 @@ describe('handleBatchPipelineRequest — nodeIds wiring', () => {
       {
         type: 'batch_execute_pipeline',
         requestId: 'req-1',
-        params: { steps: [{ id: 's1', action: 'set_fills', params }] },
+        params: { steps: [{ id: 's1', action: 'set_paint', params }] },
       },
       writeDispatcher,
     );
@@ -156,14 +156,14 @@ describe('handleBatchPipelineRequest — nodeIds wiring', () => {
 
 // The WAL used to record `{ type: 'CREATE' }` for any result with an `id`.
 // Modify handlers return the id of an EXISTING node, so a later failure made
-// the rollback delete the user's own nodes. `rename_page` can do this today.
+// the rollback delete the user's own nodes. manage_page with `rename` can do this today.
 
 describe('WAL — only true creates are rolled back', () => {
   const pipelineThatFailsAfter = async (firstStep: any, fakeNodes: Record<string, any>) => {
     const mockDispatcher = async (action: string) => {
       if (action === 'boom') throw new Error('deliberate failure');
-      if (action === 'rename_page') return { id: 'page_1', name: 'Landing' };
-      if (action === 'create_frame') return { id: 'frame_1', name: 'Header' };
+      if (action === 'manage_page') return { id: 'page_1', name: 'Landing' };
+      if (action === 'create_node') return { id: 'frame_1', name: 'Header' };
       return {};
     };
     const { executeBatchPipeline } = await import('./batch-pipeline');
@@ -174,12 +174,12 @@ describe('WAL — only true creates are rolled back', () => {
     );
   };
 
-  it('does not remove a pre-existing page returned by rename_page', async () => {
+  it('does not remove a pre-existing page returned by a page rename', async () => {
     const removed: string[] = [];
     const fakeNodes = { page_1: { id: 'page_1', remove: () => removed.push('page_1') } };
 
     const res = await pipelineThatFailsAfter(
-      { id: 's1', action: 'rename_page', params: { pageName: 'Home', newName: 'Landing' } },
+      { id: 's1', action: 'manage_page', params: { action: 'rename', pageName: 'Home', newName: 'Landing' } },
       fakeNodes,
     );
 
@@ -192,7 +192,7 @@ describe('WAL — only true creates are rolled back', () => {
     const fakeNodes = { frame_1: { id: 'frame_1', remove: () => removed.push('frame_1') } };
 
     const res = await pipelineThatFailsAfter(
-      { id: 's1', action: 'create_frame', params: { name: 'Header' } },
+      { id: 's1', action: 'create_node', params: { name: 'Header' } },
       fakeNodes,
     );
 
@@ -217,7 +217,7 @@ describe('WAL — MODIFY snapshot and restore', () => {
     const fakeNodes: Record<string, any> = { '1:1': node };
 
     const mockDispatcher = async (action: string, params: any) => {
-      if (action === 'set_fills') {
+      if (action === 'set_paint') {
         node.fills = [{ type: 'SOLID', color: { r: 1, g: 0, b: 0 } }];
         return { id: node.id };
       }
@@ -232,7 +232,7 @@ describe('WAL — MODIFY snapshot and restore', () => {
     const res = await executeBatchPipeline(
       {
         steps: [
-          { id: 's1', action: 'set_fills', params: { nodeIds: ['1:1'], color: '#ff0000' } },
+          { id: 's1', action: 'set_paint', params: { nodeIds: ['1:1'], color: '#ff0000' } },
           { id: 's2', action: 'set_node_properties', params: { nodeIds: ['1:1'], x: 999 } },
           { id: 's3', action: 'boom', params: { nodeIds: ['1:1'] } },
         ],
@@ -281,7 +281,7 @@ describe('WAL — MODIFY snapshot and restore', () => {
     };
 
     const mockDispatcher = async (action: string) => {
-      if (action === 'create_frame') return { id: 'frame_1' };
+      if (action === 'create_node') return { id: 'frame_1' };
       if (action === 'set_opacity') { existing.opacity = 0.5; return { id: '1:1' }; }
       throw new Error('deliberate failure');
     };
@@ -290,7 +290,7 @@ describe('WAL — MODIFY snapshot and restore', () => {
     const res = await executeBatchPipeline(
       {
         steps: [
-          { id: 's1', action: 'create_frame', params: {} },
+          { id: 's1', action: 'create_node', params: {} },
           { id: 's2', action: 'set_opacity', params: { nodeIds: ['1:1'], opacity: 0.5 } },
           { id: 's3', action: 'boom', params: {} },
         ],
@@ -308,14 +308,14 @@ describe('WAL — MODIFY snapshot and restore', () => {
 describe('executeBatchPipeline — results on failure', () => {
   it('returns per-step results even when the pipeline fails', async () => {
     const mockDispatcher = async (action: string) => {
-      if (action === 'create_frame') return { id: 'frame_1' };
+      if (action === 'create_node') return { id: 'frame_1' };
       throw new Error('deliberate failure');
     };
     const { executeBatchPipeline } = await import('./batch-pipeline');
     const res = await executeBatchPipeline(
       {
         steps: [
-          { id: 's1', action: 'create_frame', params: {} },
+          { id: 's1', action: 'create_node', params: {} },
           { id: 's2', action: 'boom', params: {} },
         ],
       },
@@ -361,7 +361,7 @@ describe('batch pipeline → real write handlers', () => {
     mockNodes['1:1'] = { id: '1:1', name: 'Button', fills: [] };
 
     const res = await runPipeline([
-      { id: 's1', action: 'set_fills', params: { nodeId: '1:1', color: '#FF0000' } },
+      { id: 's1', action: 'set_paint', params: { nodeId: '1:1', type: 'SOLID', color: '#FF0000' } },
     ]);
 
     expect(res.data.success).toBe(true);
@@ -369,6 +369,18 @@ describe('batch pipeline → real write handlers', () => {
     expect(mockNodes['1:1'].fills).toEqual([
       { type: 'SOLID', color: { r: 1, g: 0, b: 0 } },
     ]);
+  });
+
+  // The implementations behind a merged tool have no spec on the server, so a
+  // step that named one would run with arguments nothing had checked.
+  it.each(['set_fills', 'create_frame', 'delete_page'])('does not run the internal handler %s', async (action) => {
+    mockNodes['1:1'] = { id: '1:1', name: 'Button', fills: [] };
+
+    const res = await runPipeline([{ id: 's1', action, params: { nodeId: '1:1', color: '#FF0000' } }]);
+
+    expect(res.data.success).toBe(false);
+    expect(res.data.failed_step.error).toBe(`Unknown pipeline action: ${action}`);
+    expect(mockNodes['1:1'].fills).toEqual([]);
   });
 
   it('restores an existing node when a later step fails', async () => {
@@ -395,7 +407,7 @@ describe('batch pipeline → real write handlers', () => {
     mockNodes['page_1'] = page;
 
     const res = await runPipeline([
-      { id: 's1', action: 'rename_page', params: { pageId: 'page_1', newName: 'Landing' } },
+      { id: 's1', action: 'manage_page', params: { action: 'rename', pageId: 'page_1', newName: 'Landing' } },
       { id: 's2', action: 'set_text', params: { nodeId: '9:9', text: 'nope' } },
     ]);
 
@@ -418,7 +430,7 @@ describe('isCreateStep', () => {
   });
 
   it('still recognises the plain create actions', () => {
-    expect(isCreateStep('create_frame', {})).toBe(true);
+    expect(isCreateStep('create_node', {})).toBe(true);
     expect(isCreateStep('create_vector', { svg: '<svg/>' })).toBe(true);
     expect(isCreateStep('create_component', { nodeId: '1:1' })).toBe(false);
     expect(isCreateStep('batch_rename_nodes', { nodeId: '1:1' })).toBe(false);
@@ -561,8 +573,8 @@ describe('withSingleUndoCheckpoint', () => {
 describe('executeBatchPipeline cancellation', () => {
   const twoSteps = {
     steps: [
-      { id: 's1', action: 'create_frame', params: {} },
-      { id: 's2', action: 'create_frame', params: {} },
+      { id: 's1', action: 'create_node', params: {} },
+      { id: 's2', action: 'create_node', params: {} },
     ],
   };
 
@@ -689,7 +701,7 @@ describe('batch pipeline progress through handleWriteRequest', () => {
 
 // The comment above CREATE_ACTIONS warns that a create-style handler added
 // without a matching entry rolls back wrongly. But nothing enforced it.
-// `rename_page` is the warning example in the other direction: it returns an
+// A page rename is the warning example in the other direction: it returns an
 // id the user already had, so removing it destroys their page.
 //
 // So every write handler is listed here as CREATE or KEEPS. A new handler
@@ -733,26 +745,6 @@ const KEEPS_EXISTING_NODES = [
   'swap_component',
   'ungroup_nodes',
   'update_paint_style',
-  // Internal delegation targets: the names the merged tools dispatch to.
-  // They are real entries in the write handler map, so they need a class too.
-  'set_fills',
-  'set_gradient_fills',
-  'set_strokes',
-  'delete_page',
-  'navigate_to_page',
-  'rename_page',
-  'create_variable_collection',
-  'add_variable_mode',
-  'create_variable',
-  'set_variable_value',
-  'delete_variable',
-  'bind_variable_to_node',
-  // These create a style, not a node. Rollback removes by node id, so it
-  // cannot take a style back. That is why they are not creates here.
-  'create_paint_style',
-  'create_text_style',
-  'create_effect_style',
-  'create_grid_style',
 ];
 
 describe('CREATE_ACTIONS', () => {
@@ -764,10 +756,7 @@ describe('CREATE_ACTIONS', () => {
 
   it('lists nothing that is not a write handler', () => {
     const handlers = new Set(Object.keys(writeHandlers));
-    // The internal names the merged tools delegate to are not in the map.
-    // They are the ones CREATE_ACTIONS rightly names (create_frame and the
-    // others behind create_node), so only the KEEPS side is checked here.
-    for (const name of KEEPS_EXISTING_NODES) {
+    for (const name of [...CREATE_ACTIONS, ...KEEPS_EXISTING_NODES]) {
       expect(handlers.has(name), `${name} is not a write handler`).toBe(true);
     }
   });

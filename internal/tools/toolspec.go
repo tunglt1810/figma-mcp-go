@@ -461,10 +461,27 @@ func Check(tool string, nodeIDs []string, params map[string]any) ([]string, map[
 	// Normalize first. The hyphen format LLMs produce must be accepted, not
 	// rejected by the validation that exists to accept it.
 	nodeIDs, params = normalizeArgs(nodeIDs, params)
-	if msg := ValidateRPC(tool, nodeIDs, params); msg != "" {
+	if msg := validateCall(tool, nodeIDs, params); msg != "" {
 		return nil, nil, errors.New(msg)
 	}
 	return nodeIDs, params, nil
+}
+
+// validateCall checks a call against its tool's spec. It returns the reason
+// the call is not valid, or "". A name with no spec is refused: an unknown
+// name would otherwise reach the plugin with nothing checked.
+func validateCall(tool string, nodeIDs []string, params map[string]any) string {
+	spec, ok := specRegistry[tool]
+	if !ok {
+		return fmt.Sprintf("unknown tool: %s", tool)
+	}
+	if msg := validateSpec(spec, nodeIDs, params); msg != "" {
+		return msg
+	}
+	if tool == pipelineTool {
+		return validatePipelineSteps(params)
+	}
+	return ""
 }
 
 // CheckReadOnly applies Check after rejecting any tool that can modify the
@@ -472,7 +489,10 @@ func Check(tool string, nodeIDs []string, params map[string]any) ([]string, map[
 // cluster.NewNode so its /rpc endpoint enforces the same boundary.
 func CheckReadOnly(tool string, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
 	spec, ok := specRegistry[tool]
-	if !ok || (!spec.ReadOnly && !slices.Contains(readOnlyModeExports, tool)) {
+	if !ok {
+		return nil, nil, fmt.Errorf("unknown tool: %s", tool)
+	}
+	if !spec.ReadOnly && !slices.Contains(readOnlyModeExports, tool) {
 		return nil, nil, fmt.Errorf("%s is disabled because the server is running in --read-only mode", tool)
 	}
 	return Check(tool, nodeIDs, params)
@@ -583,6 +603,20 @@ func allSpecs() []toolSpec {
 	return all
 }
 
+// internalSpecs are plugin requests that a Go handler sends under a name no
+// client sees. They have a spec so that the call is checked like any other, and
+// so that a leader accepts it from a follower.
+var internalSpecs = readOnly([]toolSpec{
+	{
+		Name:    "get_screenshot",
+		NodeIDs: nodeIDsMulti,
+		Params: []paramSpec{
+			{Name: "format", Kind: kindString, Enum: exportFormats},
+			{Name: "scale", Kind: kindNumber, Positive: true},
+		},
+	},
+})
+
 // readOnlyModeExports are the export tools that read-only mode also offers.
 // They never change the Figma file. They carry no readOnlyHint, because that
 // hint also covers the disk, and an export can write a file there.
@@ -616,7 +650,7 @@ var specRegistry = buildSpecRegistry()
 
 func buildSpecRegistry() map[string]toolSpec {
 	registry := map[string]toolSpec{}
-	for _, spec := range allSpecs() {
+	for _, spec := range append(allSpecs(), internalSpecs...) {
 		if _, duplicate := registry[spec.Name]; duplicate {
 			panic("duplicate tool spec: " + spec.Name)
 		}

@@ -28,22 +28,8 @@ const SERVER_SIDE_TOOLS = new Set([
   "export_screenshots",
 ]);
 
-/**
- * Handlers the merged tools delegate to.
- *
- * The MCP tool list merged seven shape tools into create_node, four page
- * tools into manage_page, and so on. The originals stayed as implementations,
- * because a pipeline step can still name them directly. So they are handlers
- * without being tools.
- */
+/** Handlers that a Go handler calls under a name no client sees. */
 const INTERNAL_DISPATCH_TARGETS = new Set([
-  "create_frame", "create_rectangle", "create_ellipse", "create_star",
-  "create_polygon", "create_line", "create_section",
-  "add_page", "delete_page", "rename_page", "navigate_to_page",
-  "create_variable_collection", "add_variable_mode", "create_variable",
-  "set_variable_value", "delete_variable", "bind_variable_to_node",
-  "create_paint_style", "create_text_style", "create_effect_style", "create_grid_style",
-  "set_fills", "set_strokes", "set_gradient_fills",
   // export_screenshots calls this once per item, with params it builds itself.
   "get_screenshot",
 ]);
@@ -56,7 +42,7 @@ describe("the plugin implements what the server offers", () => {
     expect(missing).toEqual([]);
   });
 
-  it("every handler is reachable — as a tool, or as a documented delegation target", () => {
+  it("every handler is reachable — as a tool, or as a documented internal call", () => {
     const unreachable = [...pluginHandlers]
       .filter((name) => !goTools.has(name) && !INTERNAL_DISPATCH_TARGETS.has(name))
       .sort();

@@ -555,9 +555,12 @@ const raw: RawHandlerMap = {
   },
 };
 
-export const writeModifyHandlers: HandlerMap = withEnvelope(raw);
+export const writeModifyHandlers: HandlerMap = withEnvelope(raw, ["set_fills", "set_strokes", "set_gradient_fills"]);
+
+// For tests: every implementation by name, the internal ones too.
+const allHandlers: HandlerMap = withEnvelope(raw);
 
 export const handleWriteModifyRequest = async (request: any): Promise<any> => {
-  const handler = writeModifyHandlers[request.type];
+  const handler = allHandlers[request.type];
   return handler ? handler(request) : null;
 };

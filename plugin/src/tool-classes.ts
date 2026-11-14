@@ -23,7 +23,6 @@ export const READ_TOOLS: ReadonlySet<string> = new Set([
  */
 export const HARMLESS_WRITE_TOOLS: ReadonlySet<string> = new Set([
   "set_selection",
-  "navigate_to_page",
   "save_version_checkpoint",
 ]);
 
@@ -39,11 +38,7 @@ const READ_ONLY_PLUGIN_DATA_ACTIONS = new Set(["get", "keys"]);
  */
 export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
   "delete_nodes",
-  "delete_page",
   "delete_style",
-  // Still a handler, reached through manage_variable or named directly by a
-  // pipeline step, just like delete_page.
-  "delete_variable",
   "detach_instance",
   "find_replace_text",
   "batch_rename_nodes",

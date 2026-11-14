@@ -13,24 +13,16 @@ export type WALStack = LogEntry[];
 // by removing the node. Every other action returns the id of a node the user
 // already had, and removing it would destroy their work.
 //
-// Keep this in sync when adding a create-style handler. `rename_page` is the
-// warning example: it returns the id of an existing PAGE.
+// Keep this in sync when adding a create-style handler. manage_page with
+// `rename` is the warning example: it returns the id of an existing PAGE.
 export const CREATE_ACTIONS = new Set([
   'create_node',
-  'create_frame',
-  'create_rectangle',
-  'create_ellipse',
-  'create_star',
-  'create_polygon',
-  'create_line',
   'create_text',
-  'create_section',
   'create_component_instance',
   'create_connector',
   'create_vector',
   'import_image',
   'clone_node',
-  'add_page',
 ]);
 
 /**

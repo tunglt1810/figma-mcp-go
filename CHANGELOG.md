@@ -11,6 +11,20 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 ## [Unreleased]
 
+### Security
+
+- The leader's `/rpc` endpoint refuses a request from a browser (one that has an `Origin` header) and a `Content-Type` other than `application/json`. A web page could post a tool call to the local port before.
+
+### Changed
+
+- **Breaking:** a `batch_execute_pipeline` step must name a write tool from the tool list (`create_node`, `set_paint`, `manage_page`, ...). The pre-merge names (`create_frame`, `set_fills`, `add_page`, ...) are refused. Read tools and the export tools that write files cannot be steps.
+- The server checks the arguments of each pipeline step against the tool's rules before the pipeline starts. An argument that holds a `$variable` is not checked.
+- The server refuses a tool name it does not know, on every entry point.
+
+### Fixed
+
+- `export_screenshots` through a follower works when the leader runs with `--read-only`.
+
 ## [0.6.0] - 2026-10-14
 
 ### Changed

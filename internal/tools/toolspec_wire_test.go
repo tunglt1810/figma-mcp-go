@@ -171,8 +171,12 @@ func TestSpecRegistry_MatchesRegisteredTools(t *testing.T) {
 	for _, tool := range listTools(t).Result.Tools {
 		registered[tool.Name] = true
 	}
+	internal := map[string]bool{}
+	for _, spec := range internalSpecs {
+		internal[spec.Name] = true
+	}
 	for name := range specRegistry {
-		if !registered[name] {
+		if !registered[name] && !internal[name] {
 			t.Errorf("spec %q is in the registry but not registered with the server", name)
 		}
 	}

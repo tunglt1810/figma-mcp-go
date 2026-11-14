@@ -29,12 +29,12 @@ func TestAutoLayoutParamNamesCoverTheSpecs(t *testing.T) {
 func TestSetAutoLayout_AcceptsLayoutSizing(t *testing.T) {
 	for _, value := range []string{"FIXED", "HUG", "FILL"} {
 		params := map[string]any{"layoutSizingHorizontal": value}
-		if msg := ValidateRPC("set_auto_layout", []string{"1:2"}, params); msg != "" {
+		if msg := validateCall("set_auto_layout", []string{"1:2"}, params); msg != "" {
 			t.Errorf("layoutSizingHorizontal=%s rejected: %s", value, msg)
 		}
 	}
 	params := map[string]any{"layoutSizingHorizontal": "STRETCH"}
-	if msg := ValidateRPC("set_auto_layout", []string{"1:2"}, params); msg == "" {
+	if msg := validateCall("set_auto_layout", []string{"1:2"}, params); msg == "" {
 		t.Error("expected an unknown layoutSizing value to be rejected")
 	}
 }
@@ -59,7 +59,7 @@ func TestSetAutoLayout_NullClearsAConstraint(t *testing.T) {
 		t.Errorf("maxWidth = %v, want nil", value)
 	}
 
-	if msg := ValidateRPC("set_auto_layout", []string{"1:2"}, params); msg != "" {
+	if msg := validateCall("set_auto_layout", []string{"1:2"}, params); msg != "" {
 		t.Errorf("a null constraint was rejected: %s", msg)
 	}
 }
@@ -67,7 +67,7 @@ func TestSetAutoLayout_NullClearsAConstraint(t *testing.T) {
 // Nullable only covers null. A value of the wrong type is still an error.
 func TestSetAutoLayout_RejectsANonNumericConstraint(t *testing.T) {
 	params := map[string]any{"maxWidth": "wide"}
-	if msg := ValidateRPC("set_auto_layout", []string{"1:2"}, params); msg == "" {
+	if msg := validateCall("set_auto_layout", []string{"1:2"}, params); msg == "" {
 		t.Error("expected a string maxWidth to be rejected")
 	}
 }
@@ -90,13 +90,13 @@ func TestSpecArgs_DropsNullForANonNullableParam(t *testing.T) {
 // set_selection takes no nodes only when it clears the selection, which needs
 // select on. With select off, the call would have nothing left to do.
 func TestSetSelection_RequiresNodesWhenNotSelecting(t *testing.T) {
-	if msg := ValidateRPC("set_selection", nil, map[string]any{"select": false}); msg == "" {
+	if msg := validateCall("set_selection", nil, map[string]any{"select": false}); msg == "" {
 		t.Error("expected select:false with no nodes to be rejected")
 	}
-	if msg := ValidateRPC("set_selection", nil, nil); msg != "" {
+	if msg := validateCall("set_selection", nil, nil); msg != "" {
 		t.Errorf("clearing the selection should be allowed, got: %s", msg)
 	}
-	if msg := ValidateRPC("set_selection", []string{"1:2"}, map[string]any{"select": false, "zoom": true}); msg != "" {
+	if msg := validateCall("set_selection", []string{"1:2"}, map[string]any{"select": false, "zoom": true}); msg != "" {
 		t.Errorf("focus without selecting should be allowed, got: %s", msg)
 	}
 }
@@ -106,10 +106,10 @@ func TestSetSelection_RequiresNodesWhenNotSelecting(t *testing.T) {
 // a row of siblings must still be a single call.
 func TestSetAutoLayout_AcceptsSeveralNodes(t *testing.T) {
 	params := map[string]any{"layoutSizingHorizontal": "FILL"}
-	if msg := ValidateRPC("set_auto_layout", []string{"1:2", "1:3"}, params); msg != "" {
+	if msg := validateCall("set_auto_layout", []string{"1:2", "1:3"}, params); msg != "" {
 		t.Errorf("FILL across two nodes was rejected: %s", msg)
 	}
-	if msg := ValidateRPC("set_auto_layout", nil, params); msg == "" {
+	if msg := validateCall("set_auto_layout", nil, params); msg == "" {
 		t.Error("expected a call with no node ids to be rejected")
 	}
 }

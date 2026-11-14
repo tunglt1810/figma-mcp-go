@@ -1,6 +1,6 @@
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
-// manage_page replaced add/delete/rename/navigate_to_page in the MCP tool list.
-// The four implementations below stay separate. Only the tool surface merged.
+// manage_page is one tool for four page actions. The four implementations
+// below stay separate, and only manage_page can reach them.
 const PAGE_ACTIONS: Record<string, string> = {
   add: "add_page",
   delete: "delete_page",
@@ -97,9 +97,12 @@ const raw: RawHandlerMap = {
   },
 };
 
-export const writePageHandlers: HandlerMap = withEnvelope(raw);
+export const writePageHandlers: HandlerMap = withEnvelope(raw, Object.values(PAGE_ACTIONS));
+
+// For tests: every implementation by name, the internal ones too.
+const allHandlers: HandlerMap = withEnvelope(raw);
 
 export const handleWritePageRequest = async (request: any): Promise<any> => {
-  const handler = writePageHandlers[request.type];
+  const handler = allHandlers[request.type];
   return handler ? handler(request) : null;
 };

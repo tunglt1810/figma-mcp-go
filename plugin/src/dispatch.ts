@@ -11,10 +11,17 @@ export type HandlerMap = Record<string, PluginHandler>;
 /** A handler as a module writes it: it returns only the response data. */
 export type RawHandlerMap = Record<string, (request: any) => Promise<any>>;
 
-/** Wrap each handler's data in the response frame the server matches on. */
-export function withEnvelope(raw: RawHandlerMap): HandlerMap {
+/**
+ * Wrap each handler's data in the response frame the server matches on.
+ *
+ * `internal` names the implementations a merged tool calls. They are left out
+ * of the result, so no request can name one: its arguments would arrive with
+ * no check by the server.
+ */
+export function withEnvelope(raw: RawHandlerMap, internal: string[] = []): HandlerMap {
   const wrapped: HandlerMap = {};
   for (const name of Object.keys(raw)) {
+    if (internal.includes(name)) continue;
     wrapped[name] = async (request) => ({
       type: request.type,
       requestId: request.requestId,

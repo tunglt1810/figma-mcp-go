@@ -33,11 +33,25 @@ func TestCheck_RejectsInvalidArguments(t *testing.T) {
 	}
 }
 
-func TestCheck_UnknownToolIsNotRejected(t *testing.T) {
-	// A tool with no spec has no rules to break. ValidateRPC has always
-	// returned "" for one, and Check must not make that an error.
-	if _, _, err := Check("not_a_tool", nil, nil); err != nil {
-		t.Errorf("unknown tool should pass through, got %v", err)
+// A name with no spec has no rules, so letting it through would send
+// unchecked arguments to whatever plugin handler has that name.
+func TestCheck_RefusesUnknownTool(t *testing.T) {
+	for _, tool := range []string{"not_a_tool", "create_frame", "set_fills"} {
+		if _, _, err := Check(tool, nil, nil); err == nil {
+			t.Errorf("Check(%q) = nil error, want refusal", tool)
+		}
+	}
+}
+
+// export_screenshots reaches the plugin as get_screenshot. A follower sends
+// that name to the leader's /rpc, so both guards must know it.
+func TestCheck_AcceptsTheInternalScreenshotCall(t *testing.T) {
+	params := map[string]any{"format": "PNG", "scale": 1.0}
+	if _, _, err := Check("get_screenshot", []string{"1:2"}, params); err != nil {
+		t.Errorf("Check: %v", err)
+	}
+	if _, _, err := CheckReadOnly("get_screenshot", []string{"1:2"}, params); err != nil {
+		t.Errorf("CheckReadOnly: %v", err)
 	}
 }
 

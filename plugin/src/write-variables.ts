@@ -14,8 +14,8 @@ const parseVariableValue = (type: string, value: any): VariableValue => {
   return String(value); // STRING
 };
 
-// manage_variable replaced the six single-purpose variable tools in the MCP
-// tool list. The implementations below stay separate. Only the tool surface merged.
+// manage_variable is one tool for six variable actions. The implementations
+// below stay separate, and only manage_variable can reach them.
 const VARIABLE_ACTIONS: Record<string, string> = {
   create_collection: "create_variable_collection",
   add_mode: "add_variable_mode",
@@ -149,9 +149,12 @@ const raw: RawHandlerMap = {
   },
 };
 
-export const writeVariablesHandlers: HandlerMap = withEnvelope(raw);
+export const writeVariablesHandlers: HandlerMap = withEnvelope(raw, Object.values(VARIABLE_ACTIONS));
+
+// For tests: every implementation by name, the internal ones too.
+const allHandlers: HandlerMap = withEnvelope(raw);
 
 export const handleWriteVariableRequest = async (request: any): Promise<any> => {
-  const handler = writeVariablesHandlers[request.type];
+  const handler = allHandlers[request.type];
   return handler ? handler(request) : null;
 };
