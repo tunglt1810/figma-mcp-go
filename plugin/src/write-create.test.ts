@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { cropToTransform, handleWriteCreateRequest } from "./write-create";
 
-// ── Figma global mock ─────────────────────────────────────────────────────────
-
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
 let createdNodes: any[];
@@ -56,8 +54,6 @@ beforeEach(() => {
     mixed: Symbol("mixed"),
   };
 });
-
-// ── create_component ──────────────────────────────────────────────────────────
 
 describe("create_component", () => {
   const makeParent = () => ({
@@ -169,8 +165,6 @@ describe("create_component", () => {
   });
 });
 
-// ── create_section ────────────────────────────────────────────────────────────
-
 describe("create_section", () => {
   let createdSection: any;
 
@@ -216,8 +210,6 @@ describe("create_section", () => {
   });
 });
 
-// ── create_star ───────────────────────────────────────────────────────────────
-
 describe("create_star", () => {
   it("creates a star with default values", async () => {
     let appendedChild: any = null;
@@ -257,8 +249,6 @@ describe("create_star", () => {
   });
 });
 
-// ── create_polygon ────────────────────────────────────────────────────────────
-
 describe("create_polygon", () => {
   it("creates a polygon with default values", async () => {
     let appendedChild: any = null;
@@ -296,8 +286,6 @@ describe("create_polygon", () => {
   });
 });
 
-// ── create_line ───────────────────────────────────────────────────────────────
-
 describe("create_line", () => {
   it("creates a line with default values", async () => {
     let appendedChild: any = null;
@@ -333,8 +321,6 @@ describe("create_line", () => {
     expect(appendedChild.strokeWeight).toBe(4);
   });
 });
-
-// ── create_ellipse ────────────────────────────────────────────────────────────
 
 describe("create_ellipse", () => {
   it("sets arcData when provided", async () => {
@@ -410,8 +396,6 @@ describe("create_node", () => {
     await expect(create({ type: "TRIANGLE" })).rejects.toThrow(/FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION/);
   });
 });
-
-// ── import_image: crop and filters ────────────────────────────────────────────
 
 describe("cropToTransform", () => {
   // Figma takes the affine transform that maps the fill's unit square onto the

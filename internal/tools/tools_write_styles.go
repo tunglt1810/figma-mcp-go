@@ -22,9 +22,8 @@ func styleDescriptionParam(desc string) paramSpec {
 	return paramSpec{Name: "description", Kind: kindString, Desc: desc}
 }
 
-// styleVariants say which arguments belong to which kind of style. Four
-// create_*_style tools became one. Without this, arguments for the other three
-// would be accepted and quietly dropped.
+// styleVariants say which arguments belong to which kind of style. Without
+// this, arguments for another kind would be accepted and quietly dropped.
 var styleVariants = map[string]variantSpec{
 	"PAINT": {Allowed: []string{"color"}, Required: []string{"color"}},
 	"TEXT": {Allowed: []string{

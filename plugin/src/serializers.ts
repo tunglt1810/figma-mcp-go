@@ -542,8 +542,8 @@ export const serializeNodeProperties = (node: any) => {
 /**
  * What a component or variant set exposes to its instances.
  *
- * Reading a component used to show its layers but nothing about its API. The
- * only way to learn a property's name was to place an instance and inspect it.
+ * A component's layers say nothing about its API. Without this, the only way
+ * to learn a property's name is to place an instance and inspect it.
  * The `#1:2` suffix Figma adds is kept, because every write must quote that
  * id back. The bare name is included too, for reading.
  */

@@ -45,8 +45,6 @@ func setupBridgeWithClient(t *testing.T) (*Bridge, *websocket.Conn) {
 	return bridge, clientConn
 }
 
-// ── NewBridge ─────────────────────────────────────────────────────────────────
-
 func TestNewBridge(t *testing.T) {
 	b := NewBridge("0.1.1")
 	if b == nil {
@@ -56,8 +54,6 @@ func TestNewBridge(t *testing.T) {
 		t.Error("new bridge should not be connected")
 	}
 }
-
-// ── nextID ────────────────────────────────────────────────────────────────────
 
 func TestBridgeNextID(t *testing.T) {
 	b := NewBridge("0.1.1")
@@ -76,8 +72,6 @@ func TestBridgeNextID(t *testing.T) {
 		t.Errorf("ID %q has wrong format (want 3 dash-separated parts)", id1)
 	}
 }
-
-// ── Close ─────────────────────────────────────────────────────────────────────
 
 func TestBridgeClose_NoPanic(t *testing.T) {
 	b := NewBridge("0.1.1")
@@ -109,8 +103,6 @@ func TestBridgeClose_DrainsPending(t *testing.T) {
 		t.Error("timed out waiting for channel to be closed")
 	}
 }
-
-// ── Send ─────────────────────────────────────────────────────────────────────
 
 func TestBridgeSend_NotConnected(t *testing.T) {
 	b := NewBridge("0.1.1")
@@ -225,8 +217,6 @@ func TestBridgeSend_TimesOutWhenThePluginNeverAnswers(t *testing.T) {
 		t.Errorf("pending = %d after a timeout, want 0", n)
 	}
 }
-
-// ── IsConnected ───────────────────────────────────────────────────────────────
 
 func TestBridgeIsConnected(t *testing.T) {
 	b := NewBridge("0.1.1")

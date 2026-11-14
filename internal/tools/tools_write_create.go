@@ -68,8 +68,8 @@ func autoLayoutParams() []paramSpec {
 
 var layoutSizingValues = []string{"FIXED", "HUG", "FILL"}
 
-// nodeVariants say which arguments belong to which shape. Seven create_* tools
-// became one, and the shapes really do differ: a star takes pointCount, a line
+// nodeVariants say which arguments belong to which shape. The shapes
+// really do differ: a star takes pointCount, a line
 // takes length. So an argument for the wrong shape is an error, not something
 // quietly dropped on the way to Figma.
 //

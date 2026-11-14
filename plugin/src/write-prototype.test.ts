@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { handleWritePrototypeRequest } from "./write-prototype";
 
-// ── Figma global mock ─────────────────────────────────────────────────────────
-
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
 
@@ -31,8 +29,6 @@ beforeEach(() => {
     commitUndo: () => { commitUndoCalled = true; },
   };
 });
-
-// ── set_reactions ─────────────────────────────────────────────────────────────
 
 describe("set_reactions", () => {
   it("replaces all reactions (default mode)", async () => {
@@ -104,8 +100,6 @@ describe("set_reactions", () => {
     ).rejects.toThrow("nodeId is required");
   });
 });
-
-// ── set_reactions: the removal it absorbed ────────────────────────────────────
 
 describe("set_reactions with removeIndices", () => {
   it("removes every reaction when removeIndices is empty", async () => {
@@ -195,8 +189,6 @@ describe("set_reactions with removeIndices", () => {
     ).rejects.toThrow("nodeId is required");
   });
 });
-
-// ── unknown type ──────────────────────────────────────────────────────────────
 
 describe("unknown type", () => {
   it("returns null for unrecognised type", async () => {

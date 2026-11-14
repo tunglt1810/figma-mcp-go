@@ -2,8 +2,6 @@ import { describe, it, expect, beforeEach } from "bun:test";
 import { handleWriteStyleRequest } from "./write-styles";
 import { handleWriteVariableRequest } from "./write-variables";
 
-// ── Figma global mock ─────────────────────────────────────────────────────────
-
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
 
@@ -32,8 +30,6 @@ beforeEach(() => {
     },
   };
 });
-
-// ── set_effects ───────────────────────────────────────────────────────────────
 
 describe("set_effects", () => {
   it("sets a drop shadow effect", async () => {
@@ -252,8 +248,6 @@ describe("set_effects", () => {
   });
 });
 
-// ── bind_variable_to_node – strokeColor ──────────────────────────────────────
-//
 // It moved to the variables module when manage_variable took it over.
 
 describe("bind_variable_to_node strokeColor", () => {

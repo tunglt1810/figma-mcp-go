@@ -20,8 +20,6 @@ import {
 } from "./serializers";
 import { makeGradientPaint, makeEffect } from "./write-helpers";
 
-// ── Figma global mock ─────────────────────────────────────────────────────────
-
 let mockGetStyleByIdAsync: (id: string) => Promise<{ name: string } | null>;
 
 beforeEach(() => {
@@ -30,8 +28,6 @@ beforeEach(() => {
     getStyleByIdAsync: (id: string) => mockGetStyleByIdAsync(id),
   };
 });
-
-// ── isMixed ──────────────────────────────────────────────────────────────────
 
 describe("isMixed", () => {
   it("returns true for symbols", () => {
@@ -44,8 +40,6 @@ describe("isMixed", () => {
     expect(isMixed(undefined)).toBe(false);
   });
 });
-
-// ── toHex ────────────────────────────────────────────────────────────────────
 
 describe("toHex", () => {
   it("converts full white", () => {
@@ -68,8 +62,6 @@ describe("toHex", () => {
     expect(toHex({ r: 0.5, g: 0.5, b: 0.5 })).toBe("#808080");
   });
 });
-
-// ── serializePaints ───────────────────────────────────────────────────────────
 
 describe("serializePaints", () => {
   it("returns 'mixed' for symbol input", () => {
@@ -333,8 +325,6 @@ describe("serializePaints", () => {
   });
 });
 
-// ── getBounds ─────────────────────────────────────────────────────────────────
-
 describe("getBounds", () => {
   it("returns bounds for a node with x/y/width/height", () => {
     expect(getBounds({ x: 10, y: 20, width: 100, height: 50 })).toEqual({
@@ -351,8 +341,6 @@ describe("getBounds", () => {
     expect(getBounds({ x: 0, y: 0 })).toBeUndefined();
   });
 });
-
-// ── serializeLineHeight ───────────────────────────────────────────────────────
 
 describe("serializeLineHeight", () => {
   it("returns 'mixed' for symbol", () => {
@@ -373,8 +361,6 @@ describe("serializeLineHeight", () => {
   });
 });
 
-// ── serializeLetterSpacing ────────────────────────────────────────────────────
-
 describe("serializeLetterSpacing", () => {
   it("returns 'mixed' for symbol", () => {
     expect(serializeLetterSpacing(Symbol())).toBe("mixed");
@@ -389,8 +375,6 @@ describe("serializeLetterSpacing", () => {
     expect(serializeLetterSpacing({ value: 1.5, unit: "PIXELS" })).toEqual({ value: 1.5, unit: "PIXELS" });
   });
 });
-
-// ── deduplicateStyles ─────────────────────────────────────────────────────────
 
 describe("deduplicateStyles", () => {
   it("returns original tree and undefined globalVars when nothing is repeated", () => {
@@ -456,8 +440,6 @@ describe("deduplicateStyles", () => {
   });
 });
 
-// ── serializeVariableValue ────────────────────────────────────────────────────
-
 describe("serializeVariableValue", () => {
   it("passes through primitives unchanged", () => {
     expect(serializeVariableValue(42)).toBe(42);
@@ -486,8 +468,6 @@ describe("serializeVariableValue", () => {
     expect(serializeVariableValue(val)).toEqual({ foo: "bar" });
   });
 });
-
-// ── serializeStyles ───────────────────────────────────────────────────────────
 
 describe("serializeStyles", () => {
   it("returns empty object for node with no relevant properties", async () => {
@@ -623,8 +603,6 @@ describe("serializeStyles", () => {
   });
 });
 
-// ── serializeEffects ──────────────────────────────────────────────────────────
-
 describe("serializeEffects", () => {
   it("returns 'mixed' for symbol input", () => {
     expect(serializeEffects(Symbol())).toBe("mixed");
@@ -755,8 +733,6 @@ describe("serializeEffects", () => {
   });
 });
 
-// ── serializeNodeProperties ───────────────────────────────────────────────────
-
 describe("serializeNodeProperties", () => {
   it("reports nothing for a node at every default", () => {
     const node = { opacity: 1, visible: true, locked: false, blendMode: "PASS_THROUGH",
@@ -785,8 +761,6 @@ describe("serializeNodeProperties", () => {
     });
   });
 });
-
-// ── serializeText ─────────────────────────────────────────────────────────────
 
 describe("serializeText", () => {
   const makeBase = () => ({ id: "t1", name: "Text", type: "TEXT", bounds: undefined, styles: {} });
@@ -941,8 +915,6 @@ describe("serializeText", () => {
   });
 });
 
-// ── serializeNode ─────────────────────────────────────────────────────────────
-
 describe("serializeNode", () => {
   it("serializes a plain node with bounds", async () => {
     const node = { id: "1:1", name: "Box", type: "RECTANGLE", x: 0, y: 0, width: 100, height: 50 };
@@ -1095,8 +1067,6 @@ describe("serializeNode", () => {
   });
 });
 
-// ── serializeStyledSegments ───────────────────────────────────────────────────
-
 describe("serializeStyledSegments", () => {
   const nodeWith = (segments: any) => ({
     getStyledTextSegments: () => segments,
@@ -1151,8 +1121,6 @@ describe("serializeStyledSegments", () => {
   });
 });
 
-// ── serializeComponentPropertyDefinitions ─────────────────────────────────────
-
 describe("serializeComponentPropertyDefinitions", () => {
   it("ignores a node that is not a component", () => {
     expect(serializeComponentPropertyDefinitions({
@@ -1186,8 +1154,6 @@ describe("serializeComponentPropertyDefinitions", () => {
     expect(defs["Disabled#2:0"].name).toBe("Disabled");
   });
 });
-
-// ── serialization budget ──────────────────────────────────────────────────────
 
 describe("serializeNode budget", () => {
   // A tree of `breadth` children, each with `breadth` children of its own.

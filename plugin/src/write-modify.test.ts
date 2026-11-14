@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { handleWriteModifyRequest } from "./write-modify";
 
-// ── Figma global mock ─────────────────────────────────────────────────────────
-
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
 let progressPosts: any[] = [];
@@ -23,8 +21,6 @@ beforeEach(() => {
   };
 });
 
-// ── set_node_properties: the geometry it absorbed ─────────────────────────────
-//
 // move_nodes, resize_nodes and set_corner_radius were three tools with the same
 // per-node loop. They are properties now, and report per property like the rest.
 
@@ -138,8 +134,6 @@ describe("set_node_properties geometry", () => {
   });
 });
 
-// ── set_visible ───────────────────────────────────────────────────────────────
-
 describe("reparent_nodes", () => {
   it("moves a node to a new parent", async () => {
     const children: any[] = [];
@@ -174,8 +168,6 @@ describe("reparent_nodes", () => {
     expect(res?.data.results[0].error).toBe("Node not found");
   });
 });
-
-// ── set_auto_layout ───────────────────────────────────────────────────────────
 
 // It took over set_layout_sizing, so setting one sizing on a row of siblings
 // must stay a single call. That was the whole reason the plural tool existed.
@@ -252,8 +244,6 @@ describe("set_auto_layout", () => {
   });
 });
 
-// ── batch_rename_nodes ────────────────────────────────────────────────────────
-
 describe("batch_rename_nodes", () => {
   // It took over rename_node, so setting a name directly is one of its modes.
   it("sets a literal name on every node listed", async () => {
@@ -315,8 +305,6 @@ describe("batch_rename_nodes", () => {
     await expect(handleWriteModifyRequest(makeRequest("batch_rename_nodes", [], { prefix: "x" }))).rejects.toThrow();
   });
 });
-
-// ── find_replace_text ─────────────────────────────────────────────────────────
 
 describe("find_replace_text", () => {
   beforeEach(() => {
@@ -394,8 +382,6 @@ describe("find_replace_text", () => {
   });
 });
 
-// ── set_node_properties ───────────────────────────────────────────────────────
-//
 // Replaces set_visible, lock_nodes, unlock_nodes, set_opacity, rotate_nodes,
 // reorder_nodes, set_blend_mode and set_constraints. Errors stay per property:
 // a node may support opacity but not rotation. Merging that into one error per
@@ -617,8 +603,6 @@ describe("set_paint", () => {
   });
 });
 
-// ── stroke geometry ───────────────────────────────────────────────────────────
-
 describe("set_node_properties stroke geometry", () => {
   it("sets caps, joins, dashes and the miter limit across nodes", async () => {
     for (const id of ["1:1", "1:2"]) {
@@ -680,8 +664,6 @@ describe("set_node_properties stroke geometry", () => {
   });
 });
 
-// ── set_export_settings ───────────────────────────────────────────────────────
-
 describe("set_export_settings", () => {
   it("writes the presets in order onto every node", async () => {
     for (const id of ["1:1", "1:2"]) mockNodes[id] = { id, name: id, exportSettings: [] };
@@ -731,8 +713,6 @@ describe("set_export_settings", () => {
   });
 });
 
-// ── find_replace_text progress ────────────────────────────────────────────────
-
 describe("find_replace_text progress", () => {
   const buildPage = (count: number) => {
     const children = Array.from({ length: count }, (_, i) => ({
@@ -780,8 +760,6 @@ describe("find_replace_text progress", () => {
     expect(progressPosts.filter((m) => m.type === "progress_update")).toEqual([]);
   });
 });
-
-// ── missing fonts ─────────────────────────────────────────────────────────────
 
 describe("find_replace_text with a font the file lacks", () => {
   const textNode = (id: string, family: string) => ({

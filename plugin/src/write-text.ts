@@ -138,9 +138,9 @@ export const loadNodeFonts = async (node: any) => {
  * for no font change.
  *
  * Fonts are resolved before anything is written, for two reasons. First, a
- * range that asked for a font the file does not have used to fail only after
- * the earlier ranges were applied. The node was left in a state nobody asked
- * for, and the caller learned about one missing font at a time. Second, a
+ * range that asks for a font the file does not have would fail only after
+ * the earlier ranges were applied. The node would be left in a state nobody
+ * asked for, and the caller would learn about one missing font at a time. Second, a
  * range that inherits half its font from the text would resolve differently
  * at load time and at write time once an earlier range changed that text, so
  * the font written was one that was never loaded.

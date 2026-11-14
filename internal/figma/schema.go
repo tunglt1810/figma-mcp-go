@@ -36,8 +36,8 @@ func ValidNodeID(s string) bool {
 var hexColorPattern = regexp.MustCompile(`^#?([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`)
 
 // ValidHexColor reports whether s is a hex color the plugin can read. Anything
-// else (a color name, an rgb() call, a cut-off hex) used to reach Figma as NaN
-// channels and paint a broken fill with no error.
+// else (a color name, an rgb() call, a cut-off hex) reaches Figma as NaN
+// channels and paints a broken fill with no error.
 func ValidHexColor(s string) bool {
 	return hexColorPattern.MatchString(s)
 }

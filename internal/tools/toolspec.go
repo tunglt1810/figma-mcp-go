@@ -145,8 +145,6 @@ func (s toolSpec) nodeIDsArg() string {
 	return "nodeId"
 }
 
-// ── Schema ───────────────────────────────────────────────────────────────────
-
 func (p paramSpec) toolOption() mcp.ToolOption {
 	opts := []mcp.PropertyOption{}
 	if p.Required {
@@ -185,8 +183,8 @@ func (p paramSpec) toolOption() mcp.ToolOption {
 	}
 }
 
-// buildTool turns a spec into the MCP tool definition. Node IDs come first, so
-// the generated schema matches how these tools have always been declared.
+// buildTool turns a spec into the MCP tool definition. Node IDs come first in
+// the generated schema.
 func buildTool(spec toolSpec) mcp.Tool {
 	opts := []mcp.ToolOption{mcp.WithDescription(spec.Desc)}
 
@@ -218,8 +216,6 @@ func buildTool(spec toolSpec) mcp.Tool {
 	}
 	return tool
 }
-
-// ── Handler ──────────────────────────────────────────────────────────────────
 
 // specArgs splits a request's arguments into node IDs and plugin params.
 // Arguments the caller left out stay out entirely, so the plugin can apply
@@ -270,8 +266,6 @@ func specArgs(spec toolSpec, args map[string]any) ([]string, map[string]any) {
 
 	return nodeIDs, params
 }
-
-// ── Normalization ────────────────────────────────────────────────────────────
 
 // nodeIDParams name the arguments that hold a single Figma node ID. Like the
 // nodeIDs slice, they need hyphen-to-colon normalization. They are matched at
@@ -351,8 +345,6 @@ func normalizeIDList(v any) any {
 	}
 	return out
 }
-
-// ── Validation ───────────────────────────────────────────────────────────────
 
 // validateSpec applies the rules the spec states directly. Rules that span
 // several fields live in spec.Validate.
@@ -562,8 +554,6 @@ func requireAnyOf(msg string, keys ...string) func([]string, map[string]any) str
 		return msg
 	}
 }
-
-// ── Registry ─────────────────────────────────────────────────────────────────
 
 // allSpecs is every tool the server offers. Registration and validation both
 // read this one list. So a tool cannot be registered without reaching clients,

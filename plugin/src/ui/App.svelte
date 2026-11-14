@@ -282,8 +282,6 @@
     }
   }
 
-  // ── Request admission ──────────────────────────────────────────────────────
-
   function sendToServer(message: any) {
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(message));
@@ -359,8 +357,6 @@
     pendingApprovals = pendingApprovals.slice(1);
     refuse(held.payload, `Declined in the Figma plugin panel — ${held.payload.type} was not run`);
   }
-
-  // ── Panel controls ─────────────────────────────────────────────────────────
 
   function resizePanel() {
     parent.postMessage(
@@ -527,8 +523,6 @@
     // succeed where the automatic one could not.
     if (selectedNodes.length > 0) copyAllNodes();
   }
-
-  // ── Pinned context ─────────────────────────────────────────────────────────
 
   function pinSelection() {
     parent.postMessage(

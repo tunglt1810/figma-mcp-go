@@ -57,7 +57,7 @@ var writeComponentSpecs = []toolSpec{
 				return msg
 			}
 			// The plugin sets a position only when it has both values. One
-			// alone used to be dropped without a word.
+			// alone would be dropped without a word.
 			_, hasX := params["x"]
 			_, hasY := params["y"]
 			if hasX != hasY {

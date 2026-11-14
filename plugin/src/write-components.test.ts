@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { handleWriteComponentRequest } from "./write-components";
 
-// ── Figma global mock ─────────────────────────────────────────────────────────
-
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
 let navigatedTo: any;
@@ -38,8 +36,6 @@ beforeEach(() => {
   };
 });
 
-// ── group_nodes ───────────────────────────────────────────────────────────────
-
 describe("group_nodes", () => {
   it("groups nodes and returns the GROUP", async () => {
     const parent = { id: "0:1", children: [] as any[], appendChild: () => {} };
@@ -70,8 +66,6 @@ describe("group_nodes", () => {
     ).rejects.toThrow("No valid scene nodes found");
   });
 });
-
-// ── ungroup_nodes ─────────────────────────────────────────────────────────────
 
 describe("ungroup_nodes", () => {
   it("ungroups a GROUP node and returns child IDs", async () => {
@@ -121,8 +115,6 @@ describe("ungroup_nodes", () => {
   });
 });
 
-// ── create_component_instance / swap_component ────────────────────────────────
-
 describe("component by ID or key", () => {
   const component = (id: string) => ({
     id, name: "Button", type: "COMPONENT",
@@ -162,8 +154,6 @@ describe("component by ID or key", () => {
     expect(mockNodes["1:1"].mainComponent.id).toBe("9:9");
   });
 });
-
-// ── set_annotations ───────────────────────────────────────────────────────────
 
 // It took over clear_annotations, whose only advantage was taking several
 // nodes. Clearing ten nodes must not take ten calls.

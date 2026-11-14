@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-// ── tick: RoleLeader ──────────────────────────────────────────────────────────
-
 func TestElectionTick_LeaderDoesNothing(t *testing.T) {
 	port := freePort(t)
 	n := NewNode("127.0.0.1", port, "test", passthroughGuard)
@@ -31,8 +29,6 @@ func TestElectionTick_LeaderDoesNothing(t *testing.T) {
 		t.Errorf("role = %v after tick, want LEADER", n.Role())
 	}
 }
-
-// ── tick: RoleFollower — healthy leader ───────────────────────────────────────
 
 func TestElectionTick_FollowerHealthyLeader(t *testing.T) {
 	// Fake leader server that responds to /ping.
@@ -61,8 +57,6 @@ func TestElectionTick_FollowerHealthyLeader(t *testing.T) {
 	}
 }
 
-// ── tick: RoleFollower — dead leader → takeover ───────────────────────────────
-
 func TestElectionTick_FollowerDeadLeader_TakesOver(t *testing.T) {
 	port := freePort(t)
 
@@ -81,8 +75,6 @@ func TestElectionTick_FollowerDeadLeader_TakesOver(t *testing.T) {
 	}
 }
 
-// ── tick: RoleUnknown → determineRole ────────────────────────────────────────
-
 func TestElectionTick_UnknownBecomesLeader(t *testing.T) {
 	port := freePort(t)
 	n := NewNode("127.0.0.1", port, "test", passthroughGuard)
@@ -98,8 +90,6 @@ func TestElectionTick_UnknownBecomesLeader(t *testing.T) {
 		t.Errorf("role = %v, want LEADER", n.Role())
 	}
 }
-
-// ── Start / Stop ──────────────────────────────────────────────────────────────
 
 func TestElectionStart_Stop(t *testing.T) {
 	port := freePort(t)
@@ -121,8 +111,6 @@ func TestElectionStart_Stop(t *testing.T) {
 
 	e.Stop() // must not panic
 }
-
-// ── Concurrent: two nodes race to become leader ───────────────────────────────
 
 // TestElection_ConcurrentStart_OneLeader starts two elections on the same port
 // at the same time. Exactly one node must become leader, and the other must
@@ -165,8 +153,6 @@ func TestElection_ConcurrentStart_OneLeader(t *testing.T) {
 		t.Errorf("expected 1 follower, got %d (n1=%s n2=%s)", followers, n1.RoleName(), n2.RoleName())
 	}
 }
-
-// ── Concurrent: multiple followers race for takeover ─────────────────────────
 
 // TestElection_ConcurrentTakeover_OneLeader checks that when a leader dies and
 // several followers call tick() at the same time, exactly one wins the port.

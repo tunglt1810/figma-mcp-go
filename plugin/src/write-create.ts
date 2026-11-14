@@ -3,9 +3,8 @@ import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from ".
 import { HandlerMap } from "./dispatch";
 import { loadFonts } from "./fonts";
 
-// create_node replaced seven create_* tools in the MCP tool list. The seven
-// implementations below stay separate, because the shapes really do differ.
-// Only the tool surface merged.
+// create_node is one tool for seven shapes. The seven implementations below
+// stay separate, because the shapes really do differ.
 const NODE_ACTIONS: Record<string, string> = {
   FRAME: "create_frame",
   RECTANGLE: "create_rectangle",

@@ -31,8 +31,6 @@ func registerSpecs(s *server.MCPServer, sender Sender, specs []toolSpec) {
 	}
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 // renderResponse converts a sender's answer into an MCP tool result.
 func renderResponse(data any, err error) (*mcp.CallToolResult, error) {
 	if err != nil {
@@ -59,8 +57,6 @@ func toStringSlice(raw []any) []string {
 	return out
 }
 
-// ── export_screenshots ───────────────────────────────────────────────────────
-//
 // get_screenshot and save_screenshots exported the same nodes through the same
 // plugin call. They only differed in where the picture went. That is one
 // argument, not two tools: an item with an outputPath is written to disk, an
@@ -111,8 +107,7 @@ func executeExportScreenshots(ctx context.Context, sender Sender, params map[str
 
 	var results []exportResult
 	if len(rawItems) == 0 {
-		// No items: export the current selection, in memory. This is what
-		// get_screenshot with no node ids has always done.
+		// No items: export the current selection, in memory.
 		results, err = exportSelection(ctx, sender, defaultFormat, defaultScale)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil

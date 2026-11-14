@@ -61,7 +61,7 @@ export const PIPELINE_TOOL = "batch_execute_pipeline";
 export function isMutating(type: string, params?: any): boolean {
   if (READ_TOOLS.has(type)) return false;
   if (HARMLESS_WRITE_TOOLS.has(type)) return false;
-  // manage_page merged four page tools behind an action. Only navigating is
+  // manage_page puts four page actions behind one argument. Only navigating is
   // harmless, and blocking it would stop the model from moving around a file
   // it is allowed to look at.
   if (type === "manage_page") return params?.action !== "navigate";

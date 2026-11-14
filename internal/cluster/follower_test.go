@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// ── Ping ─────────────────────────────────────────────────────────────────────
-
 func TestFollowerPing_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/ping" || r.Method != http.MethodGet {
@@ -45,8 +43,6 @@ func TestFollowerPing_NonOKStatus(t *testing.T) {
 		t.Error("expected Ping to return false for non-200 response")
 	}
 }
-
-// ── Send ─────────────────────────────────────────────────────────────────────
 
 func TestFollowerSend_Success(t *testing.T) {
 	wantData := map[string]any{"id": "1:1", "name": "Frame"}

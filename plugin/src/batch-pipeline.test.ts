@@ -113,8 +113,6 @@ describe('executeBatchPipeline', () => {
   });
 });
 
-// ── P0-2: the dispatcher must forward nodeIds to write handlers ───────────────
-//
 // Write handlers read `request.nodeIds[0]`, not `params.nodeId`. The pipeline
 // dispatcher used to build `{ type, requestId, params }` with no nodeIds field,
 // so every tool that uses nodeIds failed with "nodeId is required".
@@ -156,8 +154,6 @@ describe('handleBatchPipelineRequest — nodeIds wiring', () => {
   });
 });
 
-// ── P0-1: rollback must never delete a node the pipeline did not create ───────
-//
 // The WAL used to record `{ type: 'CREATE' }` for any result with an `id`.
 // Modify handlers return the id of an EXISTING node, so a later failure made
 // the rollback delete the user's own nodes. `rename_page` can do this today.
@@ -205,8 +201,6 @@ describe('WAL — only true creates are rolled back', () => {
   });
 });
 
-// ── P0-3: rollback must restore properties changed on existing nodes ──────────
-//
 // The design doc specified MODIFY snapshot and restore, but only CREATE was
 // built. So "transactional" changes to existing nodes silently could not be undone.
 
@@ -311,8 +305,6 @@ describe('WAL — MODIFY snapshot and restore', () => {
   });
 });
 
-// ── P2-11: a failed pipeline must still report what ran ──────────────────────
-
 describe('executeBatchPipeline — results on failure', () => {
   it('returns per-step results even when the pipeline fails', async () => {
     const mockDispatcher = async (action: string) => {
@@ -338,8 +330,6 @@ describe('executeBatchPipeline — results on failure', () => {
 
 
 
-// ── Integration: pipeline through the REAL write dispatcher ──────────────────
-//
 // The unit tests above run executeBatchPipeline with a mock dispatcher. That
 // is exactly why P0-2 went unnoticed: the nodeIds were dropped in
 // handleBatchPipelineRequest, a layer the mocks never ran. These tests go
@@ -440,8 +430,6 @@ describe('isCreateStep', () => {
     expect(isCreateStep('import_image', { imageUrl: 'https://x/i.png', nodeIds: ['1:1'] })).toBe(false);
   });
 });
-
-// ── withSingleUndoCheckpoint ──────────────────────────────────────────────────
 
 describe('withSingleUndoCheckpoint', () => {
   const withFigma = (commitUndo: any) => {
@@ -569,8 +557,6 @@ describe('withSingleUndoCheckpoint', () => {
     }
   });
 });
-
-// ── cancellation between steps ───────────────────────────────────────────────
 
 describe('executeBatchPipeline cancellation', () => {
   const twoSteps = {
@@ -701,8 +687,6 @@ describe('batch pipeline progress through handleWriteRequest', () => {
   });
 });
 
-// ── CREATE_ACTIONS must keep up with the write handlers ──────────────────────
-//
 // The comment above CREATE_ACTIONS warns that a create-style handler added
 // without a matching entry rolls back wrongly. But nothing enforced it.
 // `rename_page` is the warning example in the other direction: it returns an

@@ -4,9 +4,8 @@ import "time"
 
 // One table sets how long each tool may take. Three places use it: the bridge
 // times a request out, the follower's HTTP request must last longer, and a
-// progress update resets the bridge's timer. Each place used to keep its own
-// number. That is how batch_execute_pipeline ended up with 120s on the leader
-// but a hardcoded 35s limit through a follower.
+// progress update resets the bridge's timer. With one number per place, a tool
+// can get 120s on the leader but a shorter limit through a follower.
 
 const (
 	// defaultToolTimeout covers tools that finish in one plugin round-trip.

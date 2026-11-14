@@ -2,8 +2,6 @@ import { describe, expect, it, beforeEach } from "bun:test";
 import { DEFAULT_MAX_NODES, readDocumentHandlers } from "./read-document";
 import { clearPinned, setPinned } from "./pinned";
 
-// ── Figma mock ────────────────────────────────────────────────────────────────
-
 let nodes: Record<string, any>;
 let pages: any[];
 let currentPage: any;
@@ -73,8 +71,6 @@ const search = (params: any) =>
     params,
   });
 
-// ── search_nodes ──────────────────────────────────────────────────────────────
-
 describe("search_nodes", () => {
   it("searches the current page by default and ignores the others", async () => {
     const result = await search({ query: "button" });
@@ -121,8 +117,6 @@ describe("search_nodes", () => {
     const result = await search({ types: ["RECTANGLE"], scope: "document" });
     expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:2"]);
   });
-
-  // ── what scan_nodes_by_types and scan_text_nodes used to do ────────────────
 
   // scan_nodes_by_types skipped hidden nodes, and this tool never has. Both
   // behaviours must be available, and the default must stay the old one.
@@ -207,8 +201,6 @@ describe("search_nodes", () => {
   });
 });
 
-// ── get_document ──────────────────────────────────────────────────────────────
-
 const getDocument = (params?: any) =>
   readDocumentHandlers["get_document"]({
     type: "get_document",
@@ -250,8 +242,6 @@ describe("get_document", () => {
     expect(updates.length).toBe(2);
     expect(updates[updates.length - 1].progress).toBe(99);
   });
-
-  // ── what get_design_context used to do ─────────────────────────────────────
 
   it("walks the selection when asked, and says how much was selected", async () => {
     currentPage.selection = [nodes["1:1"]];
@@ -314,8 +304,6 @@ describe("get_document", () => {
     expect(result.data.nodes[0].childCount).toBe(2);
   });
 });
-
-// ── get_nodes_info ────────────────────────────────────────────────────────────
 
 describe("get_nodes_info", () => {
   it("answers under a nodes key whether or not anything was deduped", async () => {
@@ -390,8 +378,6 @@ describe("get_nodes_info", () => {
     expect(result.data.nodes[0].styles.fills).toBe(result.data.nodes[1].styles.fills);
   });
 });
-
-// ── get_selection ─────────────────────────────────────────────────────────────
 
 describe("get_selection", () => {
   const getSelection = (params?: any) =>

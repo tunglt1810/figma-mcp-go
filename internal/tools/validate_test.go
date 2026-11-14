@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// ── figma.ValidNodeID ──────────────────────────────────────────────────────────────
-
 func TestValidateRPC_GetNodesInfo(t *testing.T) {
 	if msg := ValidateRPC("get_nodes_info", nil, nil); msg == "" {
 		t.Error("expected error for empty nodeIds")
@@ -650,8 +648,6 @@ func TestValidateAutoLayoutParams_InvalidValues(t *testing.T) {
 	}
 }
 
-// ── set_reactions ─────────────────────────────────────────────────────────────
-
 func TestValidateRPC_SetReactions(t *testing.T) {
 	validReaction := map[string]any{
 		"trigger": map[string]any{"type": "ON_CLICK"},
@@ -779,8 +775,6 @@ func TestValidateRPC_SetReactions(t *testing.T) {
 	}
 }
 
-// ── set_reactions: the removal it absorbed ───────────────────────────────────
-
 func TestValidateRPC_SetReactions_RemoveIndices(t *testing.T) {
 	// missing nodeId
 	if msg := ValidateRPC("set_reactions", nil, map[string]any{"removeIndices": []any{}}); msg == "" {
@@ -827,8 +821,6 @@ func TestValidateRPC_SetReactions_RemoveIndices(t *testing.T) {
 	}
 }
 
-// ── set_visible ─────────────────────────────────────────────────────
-
 func TestValidateRPC_ReparentNodes(t *testing.T) {
 	// missing nodeIds
 	if msg := ValidateRPC("reparent_nodes", nil, map[string]any{"parentId": "2:2"}); msg == "" {
@@ -847,8 +839,6 @@ func TestValidateRPC_ReparentNodes(t *testing.T) {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
-
-// ── batch_rename_nodes ──────────────────────────────────────────────
 
 func TestValidateRPC_BatchRenameNodes(t *testing.T) {
 	// missing nodeIds
@@ -873,8 +863,6 @@ func TestValidateRPC_BatchRenameNodes(t *testing.T) {
 	}
 }
 
-// ── find_replace_text ───────────────────────────────────────────────
-
 func TestValidateRPC_FindReplaceText(t *testing.T) {
 	// missing find
 	if msg := ValidateRPC("find_replace_text", nil, map[string]any{"replace": "x"}); msg == "" {
@@ -893,8 +881,6 @@ func TestValidateRPC_FindReplaceText(t *testing.T) {
 		t.Errorf("unexpected error for empty replace: %s", msg)
 	}
 }
-
-// ── Page management ─────────────────────────────────────────────────
 
 func TestValidateRPC_SetEffects(t *testing.T) {
 	// missing nodeId

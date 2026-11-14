@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { handleReadStyleRequest } from "./read-styles";
 
-// ── Figma global mock ─────────────────────────────────────────────────────────
-
 const makeRequest = (type: string, params?: any) => ({
   type,
   requestId: "req-test-1",
@@ -23,8 +21,6 @@ beforeEach(() => {
     getStyleByIdAsync: async () => null,
   };
 });
-
-// ── export_tokens ─────────────────────────────────────────────────────────────
 
 describe("export_tokens", () => {
   it("returns empty token object when there are no variables or styles", async () => {

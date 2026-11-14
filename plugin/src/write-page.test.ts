@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { handleWritePageRequest } from "./write-page";
 
-// ── Figma global mock ─────────────────────────────────────────────────────────
-
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
 let mockPages: any[];
@@ -47,8 +45,6 @@ beforeEach(() => {
   };
 });
 
-// ── add_page ──────────────────────────────────────────────────────────────────
-
 describe("add_page", () => {
   it("creates a new page with name", async () => {
     const res = await handleWritePageRequest(makeRequest("add_page", [], { name: "Flows" }));
@@ -77,8 +73,6 @@ describe("add_page", () => {
     expect(typeof res?.data.index).toBe("number");
   });
 });
-
-// ── delete_page ───────────────────────────────────────────────────────────────
 
 describe("delete_page", () => {
   it("deletes page by pageId", async () => {
@@ -124,8 +118,6 @@ describe("delete_page", () => {
   });
 });
 
-// ── rename_page ───────────────────────────────────────────────────────────────
-
 describe("rename_page", () => {
   it("renames page by pageId", async () => {
     mockNodes["0:1"] = mockPages[0];
@@ -166,16 +158,12 @@ describe("rename_page", () => {
   });
 });
 
-// ── unknown type ──────────────────────────────────────────────────────────────
-
 describe("handleWritePageRequest unknown", () => {
   it("returns null for unrecognised type", async () => {
     const res = await handleWritePageRequest(makeRequest("unknown_page_op"));
     expect(res).toBeNull();
   });
 });
-
-// ── navigate_to_page ──────────────────────────────────────────────────────────
 
 describe("navigate_to_page", () => {
   it("navigates by pageId", async () => {

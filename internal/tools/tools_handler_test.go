@@ -106,14 +106,10 @@ func callToolResult(t *testing.T, s *server.MCPServer, name string, args map[str
 	return toolResult{IsError: envelope.Result.IsError, Text: strings.Join(texts, "\n"), Blocks: envelope.Result.Content}
 }
 
-// ── Registration smoke tests ──────────────────────────────────────────────────
-
 func TestRegisterTools_Smoke(t *testing.T) {
 	s := server.NewMCPServer("test", "0.0.1")
 	RegisterTools(s, &fakeSender{})
 }
-
-// ── Read – no-param tools ───────────────────────────────
 
 func TestHandlers_NoParamReadTools(t *testing.T) {
 	s, _ := newTestServer(t)
@@ -126,8 +122,6 @@ func TestHandlers_NoParamReadTools(t *testing.T) {
 		callTool(t, s, name, nil)
 	}
 }
-
-// ── Read – param tools ────────────────────────────────────────────────────────
 
 func TestHandlers_GetNodesInfo(t *testing.T) {
 	s, _ := newTestServer(t)
@@ -175,8 +169,6 @@ func TestHandlers_GetReactions(t *testing.T) {
 	callTool(t, s, "get_reactions", map[string]any{"nodeId": "1:1"})
 }
 
-// ── Read – export tools ───────────────────────────────────────────────────────
-
 // TestHandlers_ExportScreenshots runs executeExportScreenshots and
 // exportScreenshotItem. The fake sender returns no export data, so each item
 // ends up as an error inside the result JSON, not a panic.
@@ -218,8 +210,6 @@ func TestHandlers_ExportScreenshots(t *testing.T) {
 	})
 }
 
-// ── Write – create tools ──────────────────────────────────────────────────────
-
 func TestHandlers_WriteCreateTools(t *testing.T) {
 	s, _ := newTestServer(t)
 
@@ -259,8 +249,6 @@ func TestHandlers_WriteCreateTools(t *testing.T) {
 	callTool(t, s, "import_image", map[string]any{"imageData": "abc123"})
 }
 
-// ── Write – modify tools ──────────────────────────────────────────────────────
-
 func TestHandlers_WriteModifyTools(t *testing.T) {
 	s, _ := newTestServer(t)
 
@@ -298,8 +286,6 @@ func TestHandlers_WriteModifyTools(t *testing.T) {
 	callTool(t, s, "delete_nodes", map[string]any{"nodeIds": []any{"1:1", "2:2"}})
 }
 
-// ── Write – style tools ───────────────────────────────────────────────────────
-
 func TestHandlers_WriteStyleTools(t *testing.T) {
 	s, _ := newTestServer(t)
 
@@ -314,8 +300,6 @@ func TestHandlers_WriteStyleTools(t *testing.T) {
 	callTool(t, s, "delete_style", map[string]any{"styleId": "S:abc"})
 }
 
-// ── Write – variable tools ────────────────────────────────────────────────────
-
 func TestHandlers_WriteVariableTools(t *testing.T) {
 	s, _ := newTestServer(t)
 
@@ -327,16 +311,12 @@ func TestHandlers_WriteVariableTools(t *testing.T) {
 	callTool(t, s, "manage_variable", map[string]any{"action": "delete", "collectionId": "c1"})
 }
 
-// ── Write – component tools ───────────────────────────────────────────────────
-
 func TestHandlers_WriteComponentTools(t *testing.T) {
 	s, _ := newTestServer(t)
 
 	callTool(t, s, "swap_component", map[string]any{"nodeId": "1:1", "componentId": "2:2"})
 	callTool(t, s, "detach_instance", map[string]any{"nodeIds": []any{"1:1", "2:2"}})
 }
-
-// ── Write – linked tools (apply_style_to_node, manage_variable bind) ─────────
 
 func TestHandlers_LinkedTools(t *testing.T) {
 	s, _ := newTestServer(t)
@@ -381,8 +361,6 @@ func TestHandlers_NodeControlTools(t *testing.T) {
 	callTool(t, s, "set_constraints", map[string]any{"nodeIds": []any{"1:1"}, "vertical": "CENTER"})
 	callTool(t, s, "set_constraints", map[string]any{"nodeIds": []any{"1:1"}, "horizontal": "MIN", "vertical": "MAX"})
 }
-
-// ── Write – page management tools ───────────────────────────────────
 
 func TestHandlers_PageManagementTools(t *testing.T) {
 	s, _ := newTestServer(t)

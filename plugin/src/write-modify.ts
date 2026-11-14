@@ -75,9 +75,8 @@ const applyNodeProperties = (n: any, p: any) => {
     }
   }
 
-  // Position, size and corner radius used to be move_nodes, resize_nodes and
-  // set_corner_radius. They report per property like everything above, and
-  // moving plus resizing is now one undo entry instead of two.
+  // Position, size and corner radius report per property like everything
+  // above. Moving plus resizing in one call is one undo entry.
   if (p.x !== undefined || p.y !== undefined) {
     if (!("x" in n)) {
       if (p.x !== undefined) errors.x = "Node does not support position";
@@ -235,7 +234,7 @@ export const writeModifyHandlers: HandlerMap = {
       ? { family: "Inter", style: "Regular" }
       : node.fontName;
     await loadFonts([fontName]);
-    // text is optional now that this tool also handles paragraph settings.
+    // text is optional, because this tool also handles paragraph settings.
     // A call that only changes the wrap mode should not empty the node.
     if (p.text != null) node.characters = p.text;
     applyParagraphProperties(node, p);

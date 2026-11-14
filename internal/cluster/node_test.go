@@ -13,8 +13,6 @@ import (
 	"github.com/tunglt1810/figma-mcp-go/internal/bridge"
 )
 
-// ── RoleName ─────────────────────────────────────────────────────────────────
-
 func TestNodeRoleName(t *testing.T) {
 	cases := []struct {
 		role Role
@@ -32,16 +30,12 @@ func TestNodeRoleName(t *testing.T) {
 	}
 }
 
-// ── NewNode ───────────────────────────────────────────────────────────────────
-
 func TestNewNode_StartsUnknown(t *testing.T) {
 	n := NewNode("127.0.0.1", 19940, "test", passthroughGuard)
 	if n.Role() != RoleUnknown {
 		t.Errorf("new node role = %v, want UNKNOWN", n.Role())
 	}
 }
-
-// ── BecomeLeader ─────────────────────────────────────────────────────────────
 
 func TestNodeBecomeLeader(t *testing.T) {
 	port := freePort(t)
@@ -86,8 +80,6 @@ func TestNodeBecomeLeader_Idempotent(t *testing.T) {
 	}
 }
 
-// ── BecomeFollower ────────────────────────────────────────────────────────────
-
 func TestNodeBecomeFollower(t *testing.T) {
 	n := NewNode("127.0.0.1", 19940, "test", passthroughGuard)
 	n.BecomeFollower()
@@ -128,8 +120,6 @@ func TestNodeBecomeFollower_FromLeader(t *testing.T) {
 	n2.Stop()
 }
 
-// ── Stop ─────────────────────────────────────────────────────────────────────
-
 func TestNodeStop_ResetsRole(t *testing.T) {
 	port := freePort(t)
 	n := NewNode("127.0.0.1", port, "test", passthroughGuard)
@@ -148,8 +138,6 @@ func TestNodeStop_Idempotent(t *testing.T) {
 	n.Stop()
 	n.Stop() // should not panic
 }
-
-// ── Send: ID normalisation ────────────────────────────────────────────────────
 
 // A follower posts the call to the leader's /rpc as is. Checking already
 // happened earlier, so any rewrite by the node here would be a second, silent
@@ -184,8 +172,6 @@ func TestNodeSend_ProxiesToTheLeaderVerbatim(t *testing.T) {
 		t.Errorf("params = %v, want them carried through unchanged", capturedReq.Params)
 	}
 }
-
-// ── Routing ──────────────────────────────────────────────────────────────────
 
 // fakeBackend stands in for a Follower or a Bridge behind the internal
 // sender interface, which uses bridge.Response.

@@ -74,8 +74,6 @@ beforeEach(() => {
 const call = (type: string, nodeIds: string[], params: any = {}) =>
   writeVectorHandlers[type]({ type, requestId: "r1", nodeIds, params });
 
-// ── commonParent ──────────────────────────────────────────────────────────────
-
 describe("commonParent", () => {
   it("returns the shared parent", () => {
     const a = makeNode("1:1", page);
@@ -93,8 +91,6 @@ describe("commonParent", () => {
     expect(() => commonParent([makeNode("1:1", null)])).toThrow(/no parent/);
   });
 });
-
-// ── boolean_operation ─────────────────────────────────────────────────────────
 
 describe("boolean_operation", () => {
   beforeEach(() => {
@@ -145,8 +141,6 @@ describe("boolean_operation", () => {
   });
 });
 
-// ── flatten_nodes ─────────────────────────────────────────────────────────────
-
 describe("flatten_nodes", () => {
   it("flattens into the shared parent", async () => {
     makeNode("1:1", page);
@@ -162,8 +156,6 @@ describe("flatten_nodes", () => {
     expect(opCalls[0].ids).toEqual(["1:1"]);
   });
 });
-
-// ── outline_stroke ────────────────────────────────────────────────────────────
 
 describe("outline_stroke", () => {
   it("outlines what it can", async () => {
@@ -190,8 +182,6 @@ describe("outline_stroke", () => {
     expect(res.data.skipped[0].reason).toMatch(/no stroke to outline/);
   });
 });
-
-// ── create_vector ─────────────────────────────────────────────────────────────
 
 describe("create_vector", () => {
   const svg = '<svg><path d="M0 0 L10 10"/></svg>';

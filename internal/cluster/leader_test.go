@@ -16,8 +16,6 @@ import (
 	"github.com/coder/websocket"
 )
 
-// ── handlePing ────────────────────────────────────────────────────────────────
-
 func TestLeaderHandlePing_OK(t *testing.T) {
 	l := NewLeader("127.0.0.1", 0, "v1.2.3", passthroughGuard)
 
@@ -54,8 +52,6 @@ func TestLeaderHandlePing_MethodNotAllowed(t *testing.T) {
 		}
 	}
 }
-
-// ── handleRPC ─────────────────────────────────────────────────────────────────
 
 func TestLeaderHandleRPC_MethodNotAllowed(t *testing.T) {
 	l := NewLeader("127.0.0.1", 0, "", passthroughGuard)
@@ -186,8 +182,6 @@ func TestLeaderHandleRPC_BridgeNotConnected(t *testing.T) {
 	}
 }
 
-// ── Start / Stop ──────────────────────────────────────────────────────────────
-
 func TestLeaderStart_BindsPort(t *testing.T) {
 	port := freePort(t)
 	l := NewLeader("127.0.0.1", port, "", passthroughGuard)
@@ -230,8 +224,6 @@ func TestLeaderStop_Idempotent(t *testing.T) {
 	l.Stop()
 	l.Stop()
 }
-
-// ── /ping endpoint (integration via httptest.Server) ─────────────────────────
 
 func TestLeaderPingEndpoint(t *testing.T) {
 	port := freePort(t)

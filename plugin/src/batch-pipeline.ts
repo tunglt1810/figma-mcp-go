@@ -35,8 +35,8 @@ export const CREATE_ACTIONS = new Set([
 
 /**
  * Whether a step added a new node to the document, so it may be rolled back
- * by removing the node. manage_page merged four page tools behind an `action`
- * argument, so the step's name alone no longer tells us. Only `add` creates a
+ * by removing the node. manage_page puts four page actions behind an `action`
+ * argument, so the step's name alone does not tell us. Only `add` creates a
  * page. Treating the others as creates would remove a page the user had.
  * Likewise, import_image with a `nodeId` or `nodeIds` paints an existing node in place.
  */

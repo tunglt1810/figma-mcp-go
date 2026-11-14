@@ -94,7 +94,7 @@ export const readDocumentHandlers: HandlerMap = {
     const serialized: any[] = [];
     for (const n of found) serialized.push(await serializeNode(n, budget, 0));
     // Fetching several nodes at once is exactly when the same fill repeats, so
-    // the dedupe that get_document has always done applies here too.
+    // the dedupe that get_document does applies here too.
     //
     // The wrapper is always there. Returning a bare array when nothing was
     // deduped and an object when something was would give the caller two shapes
@@ -120,8 +120,7 @@ export const readDocumentHandlers: HandlerMap = {
     // Two limits, because they cut in different ways: maxNodes counts nodes
     // through a shared budget, depth counts levels. Selection scope defaults
     // to 2 levels, as get_design_context did. It is the "what am I looking at"
-    // scope. A page or document walk has no depth limit, which is what
-    // get_document has always meant.
+    // scope. A page or document walk has no depth limit.
     const depth = p.depth != null ? Number(p.depth) : scope === "selection" ? 2 : Infinity;
     // The budget also carries the selection's default depth. Without it, the
     // plain walk below, which only reads the budget, returned the whole subtree

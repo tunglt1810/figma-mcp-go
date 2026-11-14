@@ -1,10 +1,9 @@
 import { makeSolidPaint, hexToRgb, makeEffect, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap } from "./dispatch";
 
-// create_style replaced four create_*_style tools in the MCP tool list. The four
-// implementations below stay separate, because they really are different.
-// Only the tool surface merged. `effectType` is mapped back to `type`, since
-// the style kind now uses `type` at the outer level.
+// create_style is one tool for four kinds of style. The four implementations
+// below stay separate, because they really are different. `effectType` is
+// mapped back to `type`, since the style kind uses `type` at the outer level.
 const STYLE_ACTIONS: Record<string, string> = {
   PAINT: "create_paint_style",
   TEXT: "create_text_style",

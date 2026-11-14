@@ -10,8 +10,6 @@ import {
   isMutating,
 } from "./tool-classes";
 
-// ── The lists must track the real handler maps ───────────────────────────────
-
 describe("tool classification covers the real handlers", () => {
   it("READ_TOOLS is exactly the read handler map", () => {
     expect([...READ_TOOLS].sort()).toEqual(Object.keys(readHandlers).sort());
@@ -41,8 +39,6 @@ describe("tool classification covers the real handlers", () => {
     }
   });
 });
-
-// ── isMutating ───────────────────────────────────────────────────────────────
 
 describe("isMutating", () => {
   it("reads never mutate", () => {
@@ -93,8 +89,6 @@ describe("isMutating", () => {
   });
 });
 
-// ── isDestructive ────────────────────────────────────────────────────────────
-
 describe("isDestructive", () => {
   it("flags the deletes and the bulk rewrites", () => {
     expect(isDestructive("delete_nodes")).toBe(true);
@@ -141,8 +135,6 @@ describe("isDestructive", () => {
     })).toBe(true);
   });
 });
-
-// ── destructiveReason ────────────────────────────────────────────────────────
 
 describe("destructiveReason", () => {
   it("names the tool for a plain call", () => {

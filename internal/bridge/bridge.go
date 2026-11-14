@@ -137,7 +137,7 @@ func allowedOrigin(origin string) bool {
 
 // HandleUpgrade upgrades an HTTP request to a WebSocket connection.
 // Only one plugin connection is kept at a time. A new connection replaces the
-// old one, as in the TypeScript version.
+// old one.
 func (b *Bridge) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	if origin := r.Header.Get("Origin"); !allowedOrigin(origin) {
 		log().Warn("upgrade refused: origin not allowed", "origin", origin)
@@ -488,12 +488,12 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 	log().Debug("request params", "id", requestID, "params", params)
 	start := time.Now()
 
-	// Wait for the write slot before registering. A request used to spend its
-	// whole budget behind another write and then time out as if the plugin had
-	// gone quiet, leaving a pending entry for a message never sent. Now the
-	// timer starts once this request owns the socket. Registration still happens
-	// before the write, and that order matters: the response can arrive before
-	// writeJSON returns.
+	// Wait for the write slot before registering, so the timer starts once this
+	// request owns the socket. Otherwise a request spends its whole budget
+	// behind another write and then times out as if the plugin had gone quiet,
+	// leaving a pending entry for a message never sent. Registration still
+	// happens before the write, and that order matters: the response can arrive
+	// before writeJSON returns.
 	if err := b.lockWrite(ctx); err != nil {
 		log().Info("request gave up queueing for the connection", "id", requestID, "tool", requestType, "err", err)
 		return Response{}, err
@@ -562,7 +562,7 @@ func (b *Bridge) Send(ctx context.Context, requestType string, nodeIDs []string,
 
 // closeBounded closes conn gracefully, but returns after grace at the latest.
 // The close frame is still sent in the normal case. A peer that has gone away
-// no longer holds the caller for the library's full handshake budget: 5s for
+// does not hold the caller for the library's full handshake budget: 5s for
 // the peer's reply (close.go:199) plus 15s for its goroutines (close.go:231).
 // The goroutine finishes by itself, and the library drops the socket anyway.
 func closeBounded(conn *websocket.Conn, reason string, grace time.Duration) {
