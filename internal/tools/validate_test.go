@@ -1069,6 +1069,8 @@ func TestValidateRPC_PipelineStepsAreCheckedLikeCalls(t *testing.T) {
 		{"a pre-merge handler name", map[string]any{"action": "create_frame"}, "not a write tool"},
 		{"a read tool", map[string]any{"action": "get_document"}, "not a write tool"},
 		{"a tool that runs in Go", map[string]any{"action": "export_screenshots"}, "not a write tool"},
+		{"an export that reads", map[string]any{"action": "get_image_bytes",
+			"params": map[string]any{"nodeIds": []any{"1:2"}}}, "not a write tool"},
 		{"a nested pipeline", map[string]any{"action": "batch_execute_pipeline"}, "not a write tool"},
 		{"a bad hex color", map[string]any{"action": "create_node",
 			"params": map[string]any{"type": "FRAME", "fillColor": "red"}}, "hex color"},

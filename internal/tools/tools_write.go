@@ -3,6 +3,7 @@ package tools
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -81,7 +82,8 @@ func validatePipelineSteps(params map[string]any) string {
 		spec, ok := specRegistry[action]
 		// The plugin runs steps through its write handlers only. A tool that
 		// reads, or that does its work in Go, cannot be a step.
-		if !ok || spec.ReadOnly || spec.Custom != nil || action == pipelineTool {
+		if !ok || spec.ReadOnly || spec.Custom != nil || action == pipelineTool ||
+			slices.Contains(readOnlyModeExports, action) {
 			return fmt.Sprintf("steps[%d].action %q is not a write tool. Use a tool that changes the file, for example create_node or set_paint", i, action)
 		}
 		stepParams, _ := step["params"].(map[string]any)
