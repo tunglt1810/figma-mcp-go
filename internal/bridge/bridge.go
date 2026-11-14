@@ -660,16 +660,3 @@ func writeJSON(ctx context.Context, conn *websocket.Conn, v any) error {
 	}
 	return conn.Write(ctx, websocket.MessageText, data)
 }
-
-// MarshalJSON is used for logging, so the full conn object is not printed.
-
-func (b *Bridge) MarshalJSON() ([]byte, error) {
-	b.mu.RLock()
-	connected := b.conn != nil
-	pending := len(b.pending)
-	b.mu.RUnlock()
-	return json.Marshal(map[string]any{
-		"connected": connected,
-		"pending":   pending,
-	}, json.Deterministic(true))
-}

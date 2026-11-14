@@ -3,7 +3,6 @@ package bridge
 import (
 	"bytes"
 	"context"
-	"encoding/json/v2"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -75,37 +74,6 @@ func TestBridgeNextID(t *testing.T) {
 	parts := strings.Split(id1, "-")
 	if len(parts) != 3 {
 		t.Errorf("ID %q has wrong format (want 3 dash-separated parts)", id1)
-	}
-}
-
-// ── MarshalJSON ───────────────────────────────────────────────────────────────
-
-func TestBridgeMarshalJSON_Disconnected(t *testing.T) {
-	b := NewBridge("0.1.1")
-	data, err := b.MarshalJSON()
-	if err != nil {
-		t.Fatalf("MarshalJSON: %v", err)
-	}
-	var m map[string]any
-	json.Unmarshal(data, &m)
-	if m["connected"] != false {
-		t.Errorf("connected = %v, want false", m["connected"])
-	}
-	if m["pending"] != float64(0) {
-		t.Errorf("pending = %v, want 0", m["pending"])
-	}
-}
-
-func TestBridgeMarshalJSON_Connected(t *testing.T) {
-	b, _ := setupBridgeWithClient(t)
-	data, err := b.MarshalJSON()
-	if err != nil {
-		t.Fatalf("MarshalJSON: %v", err)
-	}
-	var m map[string]any
-	json.Unmarshal(data, &m)
-	if m["connected"] != true {
-		t.Errorf("connected = %v, want true", m["connected"])
 	}
 }
 

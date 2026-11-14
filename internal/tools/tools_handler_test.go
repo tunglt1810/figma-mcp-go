@@ -3,12 +3,10 @@ package tools
 import (
 	"context"
 	"encoding/json/v2"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
@@ -115,20 +113,7 @@ func TestRegisterTools_Smoke(t *testing.T) {
 	RegisterTools(s, &fakeSender{})
 }
 
-// ── makeHandler ───────────────────────────────────────────────────────────────
-
-func TestMakeHandler_SenderError(t *testing.T) {
-	handler := makeHandler(&fakeSender{err: errors.New("plugin not connected")}, "get_document", nil, nil)
-	result, err := handler(context.Background(), mcp.CallToolRequest{})
-	if err != nil {
-		t.Fatalf("handler returned Go error: %v", err)
-	}
-	if !result.IsError {
-		t.Error("expected IsError=true when the sender fails")
-	}
-}
-
-// ── Read – no-param tools (all use makeHandler) ───────────────────────────────
+// ── Read – no-param tools ───────────────────────────────
 
 func TestHandlers_NoParamReadTools(t *testing.T) {
 	s, _ := newTestServer(t)

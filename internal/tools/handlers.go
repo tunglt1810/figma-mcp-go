@@ -33,14 +33,6 @@ func registerSpecs(s *server.MCPServer, sender Sender, specs []toolSpec) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-// makeHandler creates a simple tool handler with no parameters.
-func makeHandler(sender Sender, command string, nodeIDs []string, params map[string]any) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		resp, err := sender.Send(ctx, command, nodeIDs, params)
-		return renderResponse(resp, err)
-	}
-}
-
 // renderResponse converts a sender's answer into an MCP tool result.
 func renderResponse(data any, err error) (*mcp.CallToolResult, error) {
 	if err != nil {

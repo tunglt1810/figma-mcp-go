@@ -149,8 +149,3 @@ export const readExportHandlers: HandlerMap = {
     };
   },
 };
-
-export const handleReadExportRequest = async (request: any): Promise<any> => {
-  const handler = readExportHandlers[request.type];
-  return handler ? handler(request) : null;
-};

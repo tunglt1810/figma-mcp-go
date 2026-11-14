@@ -14,7 +14,6 @@ func electionLog() *slog.Logger { return slog.Default().With("component", "elect
 // Election determines the initial role and monitors leader health.
 // If the leader dies, a follower will attempt a takeover.
 type Election struct {
-	port     int
 	node     *Node
 	follower *Follower // reused across health-check ticks to avoid HTTP client pool leaks
 	cancel   context.CancelFunc
@@ -23,7 +22,6 @@ type Election struct {
 // NewElection creates an Election for the given ip, port, and node.
 func NewElection(ip string, port int, node *Node) *Election {
 	return &Election{
-		port:     port,
 		node:     node,
 		follower: NewFollower("http://" + net.JoinHostPort(ip, itoa(port))),
 	}

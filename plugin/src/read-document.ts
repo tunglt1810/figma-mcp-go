@@ -503,8 +503,3 @@ export const readDocumentHandlers: HandlerMap = {
     };
   },
 };
-
-export const handleReadDocumentRequest = async (request: any): Promise<any> => {
-  const handler = readDocumentHandlers[request.type];
-  return handler ? handler(request) : null;
-};

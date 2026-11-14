@@ -8,8 +8,3 @@ export const readHandlers: HandlerMap = mergeHandlers(
   readStylesHandlers,
   readExportHandlers,
 );
-
-export const handleReadRequest = async (request: any): Promise<any> => {
-  const handler = readHandlers[request.type];
-  return handler ? handler(request) : null;
-};
