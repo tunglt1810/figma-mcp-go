@@ -299,6 +299,20 @@ describe("get_document", () => {
     },
   );
 
+  it("spends the same budget on a component definition", async () => {
+    const main = makeNode("5:0", "Main", "COMPONENT", [
+      makeNode("5:1", "A", "RECTANGLE"),
+      makeNode("5:2", "B", "RECTANGLE"),
+      makeNode("5:3", "C", "RECTANGLE"),
+    ]);
+    const instance = makeNode("1:5", "Use", "INSTANCE");
+    instance.getMainComponentAsync = async () => main;
+    currentPage.children = [instance];
+    const result = await getDocument({ dedupeComponents: true, maxNodes: 2 });
+    expect(result.data.componentDefs["5:0"].children).toHaveLength(1);
+    expect(result.data.truncated).toBe(true);
+  });
+
   it("does not mark a complete trimmed walk as truncated", async () => {
     const result = await getDocument({ detail: "minimal" });
     expect(result.data.truncated).toBeUndefined();

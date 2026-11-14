@@ -365,6 +365,14 @@ describe("find_replace_text", () => {
     expect(res?.data.replaced).toBe(1);
   });
 
+  it("starts each node from the beginning with a sticky flag", async () => {
+    const a = { id: "1:1", type: "TEXT", characters: "aaa", fontName: { family: "Inter", style: "Regular" } };
+    const b = { id: "1:2", type: "TEXT", characters: "ab", fontName: { family: "Inter", style: "Regular" } };
+    (globalThis as any).figma.currentPage = { type: "PAGE", children: [a, b] };
+    await handleWriteModifyRequest(makeRequest("find_replace_text", [], { find: "a", replace: "x", useRegex: true, regexFlags: "y" }));
+    expect([a.characters, b.characters]).toEqual(["xaa", "xb"]);
+  });
+
   it("fails the call on an invalid regex and changes no text", async () => {
     const textNode = { id: "1:1", type: "TEXT", characters: "hello", fontName: { family: "Inter", style: "Regular" } };
     (globalThis as any).figma.currentPage = { type: "PAGE", children: [textNode] };

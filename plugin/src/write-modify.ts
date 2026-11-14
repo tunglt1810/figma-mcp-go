@@ -37,12 +37,20 @@ const CORNER_RADIUS_KEYS = [
   "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius",
 ];
 
-const compileRegex = (find: string, flags?: string): RegExp => {
+// One compiled expression serves every node of a call. replaceAll-style use
+// with a sticky or global flag keeps lastIndex between strings, so each use
+// starts from zero.
+const compileRegex = (find: string, flags?: string): ((text: string, replace: string) => string) => {
+  let regex: RegExp;
   try {
-    return new RegExp(find, flags || "g");
+    regex = new RegExp(find, flags || "g");
   } catch (e: any) {
     throw new Error(`Invalid regex: ${e.message}`);
   }
+  return (text, replace) => {
+    regex.lastIndex = 0;
+    return text.replace(regex, replace);
+  };
 };
 
 const reorderIndex = (order: string, currentIndex: number, siblingCount: number): number => {
@@ -419,7 +427,7 @@ const raw: RawHandlerMap = {
       }
       if (p.find !== undefined && p.replace !== undefined) {
         newName = regex
-          ? newName.replace(regex, p.replace)
+          ? regex(newName, p.replace)
           : newName.split(p.find).join(p.replace);
       }
       if (p.prefix) newName = p.prefix + newName;
@@ -465,7 +473,7 @@ const raw: RawHandlerMap = {
       }
       const originalText: string = tn.characters;
       const newText = regex
-        ? originalText.replace(regex, p.replace)
+        ? regex(originalText, p.replace)
         : originalText.split(p.find).join(p.replace);
       if (newText !== originalText) {
         pending.push({ node: tn, originalText, newText });

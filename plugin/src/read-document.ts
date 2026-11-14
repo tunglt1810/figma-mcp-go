@@ -209,7 +209,7 @@ const raw: RawHandlerMap = {
       if (dedupeComponents && node.type === "INSTANCE") {
         const mc = await node.getMainComponentAsync();
         if (mc && !componentDefs.has(mc.id)) {
-          componentDefs.set(mc.id, await serializeNode(mc));
+          componentDefs.set(mc.id, await serializeNode(mc, budget, 0));
         }
         const props: Record<string, any> = {};
         if (node.componentProperties) {
