@@ -1,4 +1,4 @@
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { makeSolidPaint } from "./write-helpers";
 import { FontName, loadFonts } from "./fonts";
 
@@ -159,7 +159,7 @@ const getTextNode = async (nodeId: string | undefined) => {
   return node as any;
 };
 
-export const writeTextHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "set_text_ranges": async (request) => {
     const p = request.params || {};
     const node = await getTextNode(request.nodeIds && request.nodeIds[0]);
@@ -183,14 +183,12 @@ export const writeTextHandlers: HandlerMap = {
 
     figma.commitUndo();
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: node.id,
-        name: node.name,
-        characters: node.characters,
-        rangesApplied: ranges.length,
-      },
+      id: node.id,
+      name: node.name,
+      characters: node.characters,
+      rangesApplied: ranges.length,
     };
   },
 };
+
+export const writeTextHandlers: HandlerMap = withEnvelope(raw);

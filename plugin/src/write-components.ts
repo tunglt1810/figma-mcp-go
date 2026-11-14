@@ -1,4 +1,4 @@
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
 const defaultVariantOf = (set: ComponentSetNode): ComponentNode | null =>
   set.defaultVariant || (set.children[0] as ComponentNode) || null;
@@ -37,7 +37,7 @@ const resolveComponent = async (p: any): Promise<ComponentNode> => {
   if (!component) throw new Error("Could not resolve a ComponentNode to instantiate");
   return component;
 };
-export const writeComponentsHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "swap_component": async (request) => {
     const p = request.params || {};
     const nodeId = request.nodeIds && request.nodeIds[0];
@@ -48,11 +48,7 @@ export const writeComponentsHandlers: HandlerMap = {
     const component = await resolveComponent(p);
     node.mainComponent = component;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name, componentId: component.id, componentName: component.name },
-    };
+    return { id: node.id, name: node.name, componentId: component.id, componentName: component.name };
   },
 
   "detach_instance": async (request) => {
@@ -67,11 +63,7 @@ export const writeComponentsHandlers: HandlerMap = {
       results.push({ nodeId: nid, newId: frame.id, name: frame.name });
     }
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { results },
-    };
+    return { results };
   },
 
   "delete_nodes": async (request) => {
@@ -85,7 +77,7 @@ export const writeComponentsHandlers: HandlerMap = {
       results.push({ nodeId: nid, deleted: true });
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   "group_nodes": async (request) => {
@@ -100,11 +92,7 @@ export const writeComponentsHandlers: HandlerMap = {
     const group = figma.group(validNodes, parent as any);
     if (p.name) group.name = p.name;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: group.id, name: group.name, type: group.type },
-    };
+    return { id: group.id, name: group.name, type: group.type };
   },
 
   "ungroup_nodes": async (request) => {
@@ -127,7 +115,7 @@ export const writeComponentsHandlers: HandlerMap = {
       results.push({ nodeId: nid, childIds });
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   "create_component_instance": async (request) => {
@@ -161,11 +149,7 @@ export const writeComponentsHandlers: HandlerMap = {
     }
 
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: instance.id, name: instance.name },
-    };
+    return { id: instance.id, name: instance.name };
   },
 
   "set_instance_overrides": async (request) => {
@@ -184,11 +168,7 @@ export const writeComponentsHandlers: HandlerMap = {
     }
     
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name, success: true },
-    };
+    return { id: node.id, name: node.name, success: true };
   },
 
   "create_connector": async (request) => {
@@ -224,11 +204,7 @@ export const writeComponentsHandlers: HandlerMap = {
     }
     
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: connector.id },
-    };
+    return { id: connector.id };
   },
 
   // This took over clear_annotations, which did the same with an empty array,
@@ -259,9 +235,11 @@ export const writeComponentsHandlers: HandlerMap = {
       }
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 };
+
+export const writeComponentsHandlers: HandlerMap = withEnvelope(raw);
 
 export const handleWriteComponentRequest = async (request: any): Promise<any> => {
   const handler = writeComponentsHandlers[request.type];

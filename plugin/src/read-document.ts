@@ -1,5 +1,5 @@
 import { serializeNode, getBounds, serializeStyles, serializeNodeProperties, isMixed, deduplicateStyles, makeBudget } from "./serializers";
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { throwIfCancelled } from "./cancellation";
 import { getPinned } from "./pinned";
 import { reportProgress, stepProgress } from "./progress";
@@ -9,7 +9,7 @@ import { reportProgress, stepProgress } from "./progress";
 // well inside a model's context while still covering a screen.
 export const DEFAULT_MAX_NODES = 500;
 
-export const readDocumentHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
 
   "get_selection": async (request) => {
     // source "pinned" reads the set the designer pinned in the panel, instead
@@ -19,17 +19,9 @@ export const readDocumentHandlers: HandlerMap = {
       const ids = getPinned();
       const nodes = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
       const live = nodes.filter((n) => n !== null && n.type !== "DOCUMENT");
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: await Promise.all(live.map((node) => serializeNode(node as any))),
-      };
+      return await Promise.all(live.map((node) => serializeNode(node as any)));
     }
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: await Promise.all(figma.currentPage.selection.map((node) => serializeNode(node))),
-    };
+    return await Promise.all(figma.currentPage.selection.map((node) => serializeNode(node)));
 
   },
 
@@ -53,13 +45,9 @@ export const readDocumentHandlers: HandlerMap = {
       }
     }
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: node.id,
-        name: node.name,
-        componentProperties,
-      },
+      id: node.id,
+      name: node.name,
+      componentProperties,
     };
   },
 
@@ -104,7 +92,7 @@ export const readDocumentHandlers: HandlerMap = {
     if (globalVars) data.globalVars = globalVars;
     if (budget.truncated) data.truncated = true;
     if (missing.length > 0) data.missing = missing;
-    return { type: request.type, requestId: request.requestId, data };
+    return data;
   },
 
   // get_design_context was merged into this tool. It returned the same
@@ -330,39 +318,31 @@ export const readDocumentHandlers: HandlerMap = {
     if (componentDefs.size > 0) data.componentDefs = Object.fromEntries(componentDefs);
     if (globalVars) data.globalVars = globalVars;
     if (budget.truncated || serializedRoots.length < roots.length) data.truncated = true;
-    return { type: request.type, requestId: request.requestId, data };
+    return data;
   },
   "get_metadata": async (request) => {
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        fileName: figma.root.name,
-        currentPageId: figma.currentPage.id,
-        currentPageName: figma.currentPage.name,
-        pageCount: figma.root.children.length,
-        pages: figma.root.children.map((page) => ({
-          id: page.id,
-          name: page.name,
-        })),
-      },
+      fileName: figma.root.name,
+      currentPageId: figma.currentPage.id,
+      currentPageName: figma.currentPage.name,
+      pageCount: figma.root.children.length,
+      pages: figma.root.children.map((page) => ({
+        id: page.id,
+        name: page.name,
+      })),
     };
 
   },
 
   "get_viewport": async (request) => {
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        center: { x: figma.viewport.center.x, y: figma.viewport.center.y },
-        zoom: figma.viewport.zoom,
-        bounds: {
-          x: figma.viewport.bounds.x,
-          y: figma.viewport.bounds.y,
-          width: figma.viewport.bounds.width,
-          height: figma.viewport.bounds.height,
-        },
+      center: { x: figma.viewport.center.x, y: figma.viewport.center.y },
+      zoom: figma.viewport.zoom,
+      bounds: {
+        x: figma.viewport.bounds.x,
+        y: figma.viewport.bounds.y,
+        width: figma.viewport.bounds.width,
+        height: figma.viewport.bounds.height,
       },
     };
 
@@ -385,11 +365,7 @@ export const readDocumentHandlers: HandlerMap = {
     };
     collectFonts(figma.currentPage);
     const fonts = Array.from(fontMap.values()).sort((a, b) => b.nodeCount - a.nodeCount);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { count: fonts.length, fonts },
-    };
+    return { count: fonts.length, fonts };
   },
 
   "search_nodes": async (request) => {
@@ -476,16 +452,12 @@ export const readDocumentHandlers: HandlerMap = {
     }
 
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        count: results.length,
-        nodes: results,
-        scope: scopeNodeId ? "node" : scope,
-        // Otherwise a caller that gets exactly `limit` results cannot tell a
-        // complete answer from a truncated one.
-        truncated: results.length >= limit,
-      },
+      count: results.length,
+      nodes: results,
+      scope: scopeNodeId ? "node" : scope,
+      // Otherwise a caller that gets exactly `limit` results cannot tell a
+      // complete answer from a truncated one.
+      truncated: results.length >= limit,
     };
   },
 
@@ -495,10 +467,8 @@ export const readDocumentHandlers: HandlerMap = {
     const node = await figma.getNodeByIdAsync(nodeId);
     if (!node || node.type === "DOCUMENT") throw new Error(`Node not found: ${nodeId}`);
     const reactions = "reactions" in node ? node.reactions : [];
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { nodeId: node.id, name: node.name, reactions },
-    };
+    return { nodeId: node.id, name: node.name, reactions };
   },
 };
+
+export const readDocumentHandlers: HandlerMap = withEnvelope(raw);

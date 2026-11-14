@@ -1,11 +1,11 @@
 import { serializeVariableValue } from "./serializers";
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { throwIfCancelled } from "./cancellation";
 
 const cssVarName = (name: string): string =>
   "--" + name.toLowerCase().replace(/[/\s]+/g, "-").replace(/[^a-z0-9-]/g, "");
 
-export const readStylesHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "get_styles": async (request) => {
     const [paintStyles, textStyles, effectStyles, gridStyles] =
       await Promise.all([
@@ -15,36 +15,32 @@ export const readStylesHandlers: HandlerMap = {
         figma.getLocalGridStylesAsync(),
       ]);
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        paints: paintStyles.map((s) => ({
-          id: s.id,
-          name: s.name,
-          paints: s.paints,
-        })),
-        text: textStyles.map((s) => ({
-          id: s.id,
-          name: s.name,
-          fontSize: s.fontSize,
-          fontFamily: s.fontName ? s.fontName.family : undefined,
-          fontStyle: s.fontName ? s.fontName.style : undefined,
-          textDecoration:
-            s.textDecoration !== "NONE" ? s.textDecoration : undefined,
-          lineHeight: (s as any).lineHeight,
-          letterSpacing: (s as any).letterSpacing,
-        })),
-        effects: effectStyles.map((s) => ({
-          id: s.id,
-          name: s.name,
-          effects: s.effects,
-        })),
-        grids: gridStyles.map((s) => ({
-          id: s.id,
-          name: s.name,
-          layoutGrids: s.layoutGrids,
-        })),
-      },
+      paints: paintStyles.map((s) => ({
+        id: s.id,
+        name: s.name,
+        paints: s.paints,
+      })),
+      text: textStyles.map((s) => ({
+        id: s.id,
+        name: s.name,
+        fontSize: s.fontSize,
+        fontFamily: s.fontName ? s.fontName.family : undefined,
+        fontStyle: s.fontName ? s.fontName.style : undefined,
+        textDecoration:
+          s.textDecoration !== "NONE" ? s.textDecoration : undefined,
+        lineHeight: (s as any).lineHeight,
+        letterSpacing: (s as any).letterSpacing,
+      })),
+      effects: effectStyles.map((s) => ({
+        id: s.id,
+        name: s.name,
+        effects: s.effects,
+      })),
+      grids: gridStyles.map((s) => ({
+        id: s.id,
+        name: s.name,
+        layoutGrids: s.layoutGrids,
+      })),
     };
   },
 
@@ -83,11 +79,7 @@ export const readStylesHandlers: HandlerMap = {
         };
       }),
     );
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { collections: variableData },
-    };
+    return { collections: variableData };
   },
 
   "get_local_components": async (request) => {
@@ -130,13 +122,9 @@ export const readStylesHandlers: HandlerMap = {
       await new Promise((r) => setTimeout(r, 0));
     }
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        count: allComponents.length,
-        components: allComponents,
-        componentSets: Array.from(componentSetsMap.values()),
-      },
+      count: allComponents.length,
+      components: allComponents,
+      componentSets: Array.from(componentSetsMap.values()),
     };
   },
 
@@ -160,13 +148,9 @@ export const readStylesHandlers: HandlerMap = {
       };
       await collect(node);
       return {
-        type: request.type,
-        requestId: request.requestId,
-        data: {
-          nodeId: node.id,
-          name: node.name,
-          annotations: mergedAnnotations,
-        },
+        nodeId: node.id,
+        name: node.name,
+        annotations: mergedAnnotations,
       };
     }
     const annotated: any[] = [];
@@ -178,11 +162,7 @@ export const readStylesHandlers: HandlerMap = {
         for (const child of n.children) await processNode(child);
     };
     await processNode(figma.currentPage);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { annotatedNodes: annotated },
-    };
+    return { annotatedNodes: annotated };
   },
 
   "export_tokens": async (request) => {
@@ -233,7 +213,7 @@ export const readStylesHandlers: HandlerMap = {
         }
       }
       lines.push("}");
-      return { type: request.type, requestId: request.requestId, data: { css: lines.join("\n") } };
+      return { css: lines.join("\n") };
     }
 
     // JSON format: nested token tree per collection
@@ -280,9 +260,11 @@ export const readStylesHandlers: HandlerMap = {
     if (Object.keys(styleTokens).length > 0) {
       tokens["_styles"] = { paint: styleTokens };
     }
-    return { type: request.type, requestId: request.requestId, data: { tokens } };
+    return { tokens };
   },
 };
+
+export const readStylesHandlers: HandlerMap = withEnvelope(raw);
 
 export const handleReadStyleRequest = async (request: any): Promise<any> => {
   const handler = readStylesHandlers[request.type];

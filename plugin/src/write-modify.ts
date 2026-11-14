@@ -1,6 +1,6 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint, gradientTypes, makeLayoutGrid } from "./write-helpers";
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { reportProgress, stepProgress } from "./progress";
 import { loadFonts } from "./fonts";
 
@@ -173,7 +173,7 @@ const applyParagraphProperties = (node: any, p: any) => {
   if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
 };
 
-export const writeModifyHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "set_paint": async (request) => {
   const { target = "fill", type, ...rest } = request.params || {};
   let action: string;
@@ -187,9 +187,7 @@ export const writeModifyHandlers: HandlerMap = {
   } else {
     throw new Error(`type must be SOLID, ${gradientTypes.join(", ")}, got: ${type}`);
   }
-  const result = await handleWriteModifyRequest({ ...request, type: action, params });
-  // Answer with the name the caller used, not the one we delegated to.
-  return { ...result, type: request.type }
+  return raw[action]({ ...request, params });
   },
 
   "set_node_properties": async (request) => {
@@ -220,7 +218,7 @@ export const writeModifyHandlers: HandlerMap = {
       results.push(entry);
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   "set_text": async (request) => {
@@ -239,11 +237,7 @@ export const writeModifyHandlers: HandlerMap = {
     if (p.text != null) node.characters = p.text;
     applyParagraphProperties(node, p);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name, characters: node.characters },
-    };
+    return { id: node.id, name: node.name, characters: node.characters };
   },
 
   "set_gradient_fills": async (request) => {
@@ -264,11 +258,7 @@ export const writeModifyHandlers: HandlerMap = {
     }
     if (prop === "strokes" && p.strokeWeight != null) (node as any).strokeWeight = p.strokeWeight;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name },
-    };
+    return { id: node.id, name: node.name };
   },
 
   "set_fills": async (request) => {
@@ -287,11 +277,7 @@ export const writeModifyHandlers: HandlerMap = {
       (node as any).fills = [newFill];
     }
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name },
-    };
+    return { id: node.id, name: node.name };
   },
 
   "set_strokes": async (request) => {
@@ -311,11 +297,7 @@ export const writeModifyHandlers: HandlerMap = {
     }
     if (p.strokeWeight != null) (node as any).strokeWeight = p.strokeWeight;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name },
-    };
+    return { id: node.id, name: node.name };
   },
 
   "clone_node": async (request) => {
@@ -332,11 +314,7 @@ export const writeModifyHandlers: HandlerMap = {
       (parent as any).appendChild(clone);
     }
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: clone.id, name: clone.name, type: clone.type, bounds: getBounds(clone) },
-    };
+    return { id: clone.id, name: clone.name, type: clone.type, bounds: getBounds(clone) };
   },
 
   "set_layout_grids": async (request) => {
@@ -359,7 +337,7 @@ export const writeModifyHandlers: HandlerMap = {
       results.push({ nodeId: nid, gridCount: node.layoutGrids.length });
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   // This took over set_layout_sizing, which had these same arguments over many
@@ -403,7 +381,7 @@ export const writeModifyHandlers: HandlerMap = {
       }
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   // This writes the presets. It does not export. export_screenshots still
@@ -446,7 +424,7 @@ export const writeModifyHandlers: HandlerMap = {
       }
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   "reparent_nodes": async (request) => {
@@ -469,7 +447,7 @@ export const writeModifyHandlers: HandlerMap = {
       }
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   "batch_rename_nodes": async (request) => {
@@ -507,7 +485,7 @@ export const writeModifyHandlers: HandlerMap = {
       results.push({ nodeId: nid, oldName, name: newName });
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   "find_replace_text": async (request) => {
@@ -573,9 +551,11 @@ export const writeModifyHandlers: HandlerMap = {
     }
     figma.commitUndo();
     const successCount = results.filter((r: any) => !r.error).length;
-    return { type: request.type, requestId: request.requestId, data: { replaced: successCount, results } };
+    return { replaced: successCount, results };
   },
 };
+
+export const writeModifyHandlers: HandlerMap = withEnvelope(raw);
 
 export const handleWriteModifyRequest = async (request: any): Promise<any> => {
   const handler = writeModifyHandlers[request.type];

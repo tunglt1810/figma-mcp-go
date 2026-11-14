@@ -1,4 +1,4 @@
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { getBounds } from "./serializers";
 import { getParentNode, hexToRgb } from "./write-helpers";
 
@@ -56,7 +56,7 @@ const describe = (node: any) => ({
   bounds: getBounds(node),
 });
 
-export const writeVectorHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "boolean_operation": async (request) => {
     const p = request.params || {};
     const operation = String(p.operation || "").toUpperCase();
@@ -73,11 +73,7 @@ export const writeVectorHandlers: HandlerMap = {
     const result = (figma as any)[method](nodes, parent);
     if (p.name) result.name = p.name;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: describe(result),
-    };
+    return describe(result);
   },
 
   "flatten_nodes": async (request) => {
@@ -87,11 +83,7 @@ export const writeVectorHandlers: HandlerMap = {
     const result = figma.flatten(nodes, parent);
     if (p.name) result.name = p.name;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: describe(result),
-    };
+    return describe(result);
   },
 
   "outline_stroke": async (request) => {
@@ -111,11 +103,7 @@ export const writeVectorHandlers: HandlerMap = {
       else skipped.push({ id: node.id, reason: "no visible stroke" });
     }
     if (outlined.length > 0) figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { outlined, skipped },
-    };
+    return { outlined, skipped };
   },
 
   "create_vector": async (request) => {
@@ -144,10 +132,8 @@ export const writeVectorHandlers: HandlerMap = {
       node.fills = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
     }
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: describe(node),
-    };
+    return describe(node);
   },
 };
+
+export const writeVectorHandlers: HandlerMap = withEnvelope(raw);

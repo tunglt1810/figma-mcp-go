@@ -1,4 +1,4 @@
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
 function buildReaction(r: any): Reaction {
   // `actions` (plural array) is the current API. `action` (singular) is deprecated.
@@ -30,7 +30,7 @@ async function setReactions(node: any, reactions: Reaction[]): Promise<void> {
   }
 }
 
-export const writePrototypeHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   // This took over remove_reactions. Removing everything is already
   // set_reactions(replace, []). But removing #1 and #3 by index needed a
   // get, filter, set round trip, so removeIndices is what was carried over.
@@ -65,17 +65,15 @@ export const writePrototypeHandlers: HandlerMap = {
     await setReactions(node, final);
     figma.commitUndo();
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: node.id,
-        name: (node as any).name,
-        reactionCount: final.length,
-        ...(removing ? { removed: current.length - final.length } : {}),
-      },
+      id: node.id,
+      name: (node as any).name,
+      reactionCount: final.length,
+      ...(removing ? { removed: current.length - final.length } : {}),
     };
   },
 };
+
+export const writePrototypeHandlers: HandlerMap = withEnvelope(raw);
 
 export const handleWritePrototypeRequest = async (request: any): Promise<any> => {
   const handler = writePrototypeHandlers[request.type];
