@@ -2,7 +2,6 @@
 
 **Date:** 2026-10-14
 **Spec:** `docs/specs/2026-10-14-runtime-defects-and-enhancements-design.md`
-**Plan:** `docs/plans/2026-10-14-runtime-defects-and-enhancements-plan.md`
 
 ## 1. Introduction
 

@@ -335,6 +335,14 @@ macOS binaries need macOS 13 or later (Go 1.27).
 
 Issues and PRs are welcome.
 
+## Acknowledgements
+
+This project builds on ideas and code from these MIT-licensed projects. Their license texts are in [`licenses/`](licenses/).
+
+- [gethopp/figma-mcp-bridge](https://github.com/gethopp/figma-mcp-bridge)
+- [grab/cursor-talk-to-figma-mcp](https://github.com/grab/cursor-talk-to-figma-mcp)
+- [magic-spells/figma-mcp-bridge](https://github.com/magic-spells/figma-mcp-bridge)
+
 ## Star History
 
 <a href="https://www.star-history.com/?repos=tunglt1810%2Ffigma-mcp-go&type=date&legend=top-left">
