@@ -47,6 +47,9 @@ jobs:
         working-directory: plugin
         run: bun install --frozen-lockfile
 
+      - name: Typecheck plugin
+        run: make typecheck-ts
+
       - name: Test plugin
         run: make test-ts
 

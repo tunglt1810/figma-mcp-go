@@ -31,13 +31,15 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.value }}
         run: |
-          for f in server.json npm/package.json; do
-            got=$(jq -r .version "$f")
-            if [ "$got" != "$VERSION" ]; then
-              echo "::error::$f says $got, tag says $VERSION — bump it and re-tag"
+          check() {
+            if [ "$2" != "$VERSION" ]; then
+              echo "::error::$1 says $2, tag says $VERSION — bump it and re-tag"
               exit 1
             fi
-          done
+          }
+          check server.json "$(jq -r .version server.json)"
+          check "server.json packages[0]" "$(jq -r '.packages[0].version' server.json)"
+          check npm/package.json "$(jq -r .version npm/package.json)"
 
       - name: Build binaries
         run: |
@@ -74,7 +76,6 @@ jobs:
           VERSION: ${{ steps.version.outputs.value }}
         run: |
           cp ../README.md .
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
           # Skip if this version is already published, so re-running a release
           # whose later steps failed does not stop on "cannot publish over".
           NAME=$(jq -r .name package.json)
@@ -100,12 +101,6 @@ jobs:
         with:
           files: plugin.zip
           generate_release_notes: true
-
-      - name: Set version in server.json
-        env:
-          VERSION: ${{ steps.version.outputs.value }}
-        run: |
-          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json
 
       - name: Install mcp-publisher
         run: |

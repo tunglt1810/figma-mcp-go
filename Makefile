@@ -1,4 +1,4 @@
-.PHONY: fmt fmt-check vet deps-check test test-go test-ts coverage coverage-go coverage-go-html coverage-ts build build-go build-ts
+.PHONY: fmt fmt-check vet deps-check typecheck-ts test test-go test-ts coverage coverage-go coverage-go-html coverage-ts build build-go build-ts
 
 fmt:
 	gofmt -w .
@@ -60,10 +60,13 @@ build-go:
 build-ts:
 	cd plugin && bun run build
 
-test: deps-check test-go test-ts
+test: deps-check test-go typecheck-ts test-ts
 
 test-go:
 	go test ./...
+
+typecheck-ts:
+	cd plugin && bun run typecheck
 
 test-ts:
 	cd plugin && bun test
