@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"time"
@@ -171,6 +172,22 @@ func (l *Leader) handleWS(w http.ResponseWriter, r *http.Request) {
 func (l *Leader) handleRPC(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// A follower is a Go process, not a page. A browser sets Origin on every
+	// cross-site POST and a script cannot remove it, so its presence means a
+	// web page is calling. Without this, any open page could post a tool call
+	// to the local port and edit the Figma file.
+	if origin := r.Header.Get("Origin"); origin != "" {
+		leaderLog().Warn("rpc refused: request from a browser", "origin", origin, "remote", r.RemoteAddr)
+		http.Error(w, "origin not allowed", http.StatusForbidden)
+		return
+	}
+	// A page can post text/plain or a form without a preflight. It cannot post
+	// application/json without one, and this server answers no preflight.
+	if mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mediaType != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
 		return
 	}
 
