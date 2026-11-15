@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addBulkRenameStrategy(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("bulk_rename_strategy",
-		mcp.WithPromptDescription("Rename nodes across a design following a naming convention"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Rename nodes across a design following a naming convention",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`# Bulk Rename Strategy
+var bulkRenameStrategy = prompt{
+	name:        "bulk_rename_strategy",
+	description: "Rename nodes across a design following a naming convention",
+	body: `# Bulk Rename Strategy
 
 Systematically rename nodes to follow a consistent naming convention without moving or
 modifying any visual properties.
@@ -69,9 +56,5 @@ modifying any visual properties.
 - Never change names of COMPONENT master nodes (only instances and frames).
 - Preserve "/" hierarchy separators — do not flatten them.
 - If unsure about a name, leave it and flag it for the user to decide.
-`),
-				),
-			},
-		), nil
-	})
+`,
 }

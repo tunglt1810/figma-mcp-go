@@ -11,6 +11,27 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 ## [Unreleased]
 
+### Security
+
+- The leader's `/rpc` endpoint refuses a request from a browser (one that has an `Origin` header) and a `Content-Type` other than `application/json`. A web page could post a tool call to the local port before.
+
+### Changed
+
+- **Breaking:** a `batch_execute_pipeline` step must name a write tool from the tool list (`create_node`, `set_paint`, `manage_page`, ...). The pre-merge names (`create_frame`, `set_fills`, `add_page`, ...) are refused. Read tools and the export tools that write files cannot be steps.
+- The server checks the arguments of each pipeline step against the tool's rules before the pipeline starts. An argument that holds a `$variable` is not checked.
+- The server removes the null, empty and undeclared arguments of each pipeline step before it sends the pipeline to the plugin, as it does for a direct call. A step with `x: null` set the property to null before.
+- The server refuses a tool name it does not know, on every entry point.
+- `get_document` applies `maxNodes` (default 500) at every `detail` level and with `dedupe_components`. These calls returned the full tree before. A result that stops early has `truncated: true`.
+- `maxNodes` in `get_document` and `get_nodes_info` counts every node in the result. This includes the pages, the selected nodes, the requested nodes and each `componentDefs` entry. With `dedupe_components`, each entry in `overrides` also counts.
+- `find_replace_text` and `batch_rename_nodes` fail the call when the regular expression is not valid. They returned one error for each node before.
+
+- `--read-only` also offers `set_selection`, `save_version_checkpoint`, `manage_page` (action `navigate` only) and `manage_plugin_data` (actions `get` and `keys` only). The panel's `read-only` guard already allowed these calls. A test now keeps the two modes the same.
+
+### Fixed
+
+- `export_screenshots` through a follower works when the leader runs with `--read-only`.
+- `export_frames_to_pdf` reaches the plugin. The tool refused its own inner call before, because that call did not carry `outputPath`.
+
 ## [0.6.0] - 2026-10-14
 
 ### Changed

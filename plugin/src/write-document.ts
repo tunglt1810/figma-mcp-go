@@ -1,4 +1,4 @@
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { CODEGEN_KEY, PLUGIN_DATA_NAMESPACE, normalizeLanguage } from "./codegen";
 
 // File-level operations. The pipeline's rollback lives in memory and is lost
@@ -15,7 +15,7 @@ const getNode = async (nodeId: string | undefined) => {
   return node as any;
 };
 
-export const writeDocumentHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "set_codegen_result": async (request) => {
     const p = request.params || {};
     const node = await getNode(request.nodeIds && request.nodeIds[0]);
@@ -51,18 +51,14 @@ export const writeDocumentHandlers: HandlerMap = {
 
     figma.commitUndo();
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: node.id,
-        name: node.name,
-        blocks: stored.map((block: any) => ({
-          title: block.title,
-          language: block.language,
-          bytes: block.code.length,
-        })),
-        cleared: stored.length === 0,
-      },
+      id: node.id,
+      name: node.name,
+      blocks: stored.map((block: any) => ({
+        title: block.title,
+        language: block.language,
+        bytes: block.code.length,
+      })),
+      cleared: stored.length === 0,
     };
   },
 
@@ -73,24 +69,16 @@ export const writeDocumentHandlers: HandlerMap = {
     const namespace = p.namespace || PLUGIN_DATA_NAMESPACE;
 
     if (action === "keys") {
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: node.id, namespace, keys: node.getSharedPluginDataKeys(namespace) },
-      };
+      return { id: node.id, namespace, keys: node.getSharedPluginDataKeys(namespace) };
     }
 
     if (!p.key) throw new Error(`key is required when action is ${action}`);
 
     if (action === "get") {
       const value = node.getSharedPluginData(namespace, p.key);
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        // In Figma's model, "" means both "not set" and "set to empty".
-        // Reporting null for it is the closest honest answer.
-        data: { id: node.id, namespace, key: p.key, value: value === "" ? null : value },
-      };
+      // In Figma's model, "" means both "not set" and "set to empty".
+      // Reporting null for it is the closest honest answer.
+      return { id: node.id, namespace, key: p.key, value: value === "" ? null : value };
     }
 
     if (action === "set" || action === "delete") {
@@ -99,11 +87,7 @@ export const writeDocumentHandlers: HandlerMap = {
       }
       node.setSharedPluginData(namespace, p.key, action === "set" ? p.value : "");
       figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: node.id, namespace, key: p.key, ...(action === "set" ? { stored: true } : { deleted: true }) },
-      };
+      return { id: node.id, namespace, key: p.key, ...(action === "set" ? { stored: true } : { deleted: true }) };
     }
 
     throw new Error(`action must be get, set, delete, or keys, got: ${p.action}`);
@@ -122,13 +106,11 @@ export const writeDocumentHandlers: HandlerMap = {
       p.description,
     );
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: version && version.id ? version.id : null,
-        title: p.title,
-        description: p.description ?? null,
-      },
+      id: version && version.id ? version.id : null,
+      title: p.title,
+      description: p.description ?? null,
     };
   },
 };
+
+export const writeDocumentHandlers: HandlerMap = withEnvelope(raw);

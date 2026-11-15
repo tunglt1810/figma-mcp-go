@@ -23,8 +23,6 @@ func makeTestPDF(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// ── extractFramePDFs ──────────────────────────────────────────────────────────
-
 func TestExtractFramePDFs_Valid(t *testing.T) {
 	pdf := makeTestPDF(t)
 	b64 := base64.StdEncoding.EncodeToString(pdf)
@@ -96,8 +94,6 @@ func TestExtractFramePDFs_UnmarshalError(t *testing.T) {
 	}
 }
 
-// ── mergePDFPages ─────────────────────────────────────────────────────────────
-
 func TestMergePDFPages_SinglePage(t *testing.T) {
 	pdf := makeTestPDF(t)
 	merged, err := mergePDFPages([][]byte{pdf})
@@ -144,8 +140,6 @@ func TestMergePDFPages_InvalidPDFBytes(t *testing.T) {
 		t.Error("expected error for invalid PDF bytes")
 	}
 }
-
-// ── export_screenshots ────────────────────────────────────────────────────────
 
 // The main point of the merge: where the picture goes is an argument, so one
 // call can write some items to disk and return the rest as base64.

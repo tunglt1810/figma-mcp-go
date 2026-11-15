@@ -171,8 +171,12 @@ func TestSpecRegistry_MatchesRegisteredTools(t *testing.T) {
 	for _, tool := range listTools(t).Result.Tools {
 		registered[tool.Name] = true
 	}
+	internal := map[string]bool{}
+	for _, spec := range internalSpecs {
+		internal[spec.Name] = true
+	}
 	for name := range specRegistry {
-		if !registered[name] {
+		if !registered[name] && !internal[name] {
 			t.Errorf("spec %q is in the registry but not registered with the server", name)
 		}
 	}
@@ -227,12 +231,10 @@ func TestRegisterTools_ChecksWithoutANodeBehindIt(t *testing.T) {
 }
 
 // export_screenshots calls get_screenshot once per item, with params it builds
-// itself. get_screenshot no longer has a spec of its own, so nothing
-// downstream would reject a bad per-item argument. Before this was noticed, an
-// unknown per-item format went straight through: on a path whose extension
-// implies no format, the format-conflict check does not fire either. The item
-// schema is deeper than any paramSpec enum, so the tool's own Validate must
-// catch it before anything reaches the sender.
+// itself. The item schema is deeper than any paramSpec enum, so the tool's own
+// Validate must catch a bad per-item argument before anything reaches the
+// sender. On a path whose extension implies no format, the format-conflict
+// check does not fire either.
 func TestExportScreenshots_BadItemIsRejectedBeforeTheSender(t *testing.T) {
 	s, fake := newTestServer(t)
 
@@ -289,7 +291,8 @@ func TestExportScreenshots_InMemoryHalf(t *testing.T) {
 
 	t.Run("no items asks for the selection", func(t *testing.T) {
 		s, fake := newTestServer(t)
-		callTool(t, s, "export_screenshots", map[string]any{"format": "SVG"})
+		// The fake sender returns no export, so the call fails after the send.
+		callToolResult(t, s, "export_screenshots", map[string]any{"format": "SVG"})
 		if len(fake.calls) != 1 {
 			t.Fatalf("expected one inner call, got %d", len(fake.calls))
 		}
@@ -300,4 +303,42 @@ func TestExportScreenshots_InMemoryHalf(t *testing.T) {
 			t.Errorf("inner params = %v, want format SVG", fake.calls[0].params)
 		}
 	})
+}
+
+// The public tool requires outputPath, because the Go handler writes the file.
+// The plugin request of the same name only carries the frame ids. A follower
+// sends that request over /rpc, and one built before outputPath was sent with
+// it sends no params at all.
+func TestExportFramesToPDF_ReachesThePlugin(t *testing.T) {
+	s, fake := newTestServer(t)
+
+	callToolResult(t, s, "export_frames_to_pdf", map[string]any{
+		"nodeIds": []any{"1:2"}, "outputPath": "out.pdf",
+	})
+
+	if len(fake.calls) != 1 {
+		t.Fatalf("expected one call to the plugin, got %d", len(fake.calls))
+	}
+	if got := fake.calls[0]; got.tool != "export_frames_to_pdf" || !reflect.DeepEqual(got.nodeIDs, []string{"1:2"}) {
+		t.Errorf("inner call = %s %v, want export_frames_to_pdf [1:2]", got.tool, got.nodeIDs)
+	}
+	if len(fake.calls[0].params) != 0 {
+		t.Errorf("inner params = %v, want none", fake.calls[0].params)
+	}
+
+	res := callToolResult(t, s, "export_frames_to_pdf", map[string]any{"nodeIds": []any{"1:2"}})
+	if !res.IsError || !strings.Contains(res.Text, "outputPath is required") {
+		t.Errorf("a call without outputPath = %q, want it refused", res.Text)
+	}
+	if len(fake.calls) != 1 {
+		t.Errorf("a refused call reached the plugin: %v", fake.calls)
+	}
+
+	for name, guard := range map[string]func(string, []string, map[string]any) ([]string, map[string]any, error){
+		"Check": Check, "CheckReadOnly": CheckReadOnly,
+	} {
+		if _, _, err := guard("export_frames_to_pdf", []string{"1:2"}, nil); err != nil {
+			t.Errorf("%s refused the plugin request of a follower: %v", name, err)
+		}
+	}
 }

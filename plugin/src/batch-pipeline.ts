@@ -13,30 +13,22 @@ export type WALStack = LogEntry[];
 // by removing the node. Every other action returns the id of a node the user
 // already had, and removing it would destroy their work.
 //
-// Keep this in sync when adding a create-style handler. `rename_page` is the
-// warning example: it returns the id of an existing PAGE.
+// Keep this in sync when adding a create-style handler. manage_page with
+// `rename` is the warning example: it returns the id of an existing PAGE.
 export const CREATE_ACTIONS = new Set([
   'create_node',
-  'create_frame',
-  'create_rectangle',
-  'create_ellipse',
-  'create_star',
-  'create_polygon',
-  'create_line',
   'create_text',
-  'create_section',
   'create_component_instance',
   'create_connector',
   'create_vector',
   'import_image',
   'clone_node',
-  'add_page',
 ]);
 
 /**
  * Whether a step added a new node to the document, so it may be rolled back
- * by removing the node. manage_page merged four page tools behind an `action`
- * argument, so the step's name alone no longer tells us. Only `add` creates a
+ * by removing the node. manage_page puts four page actions behind an `action`
+ * argument, so the step's name alone does not tell us. Only `add` creates a
  * page. Treating the others as creates would remove a page the user had.
  * Likewise, import_image with a `nodeId` or `nodeIds` paints an existing node in place.
  */

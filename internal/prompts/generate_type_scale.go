@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addGenerateTypeScale(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("generate_type_scale",
-		mcp.WithPromptDescription("Generate a complete typography scale (text styles) from a base font and size"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Generate a complete typography scale from a base font and size",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`# Generate Type Scale
+var generateTypeScale = prompt{
+	name:        "generate_type_scale",
+	description: "Generate a complete typography scale (text styles) from a base font and size",
+	body: `# Generate Type Scale
 
 Given a base font family and body size, generate a full typographic scale as Figma text styles.
 
@@ -72,9 +59,5 @@ Show the full table to the user for review before creating anything.
   Adjust if the chosen font uses different style names (ask user to confirm).
 - Line height in PIXELS = round(fontSize × lineHeightRatio).
 - Letter spacing in PERCENT = letterSpacingEm × 100.
-`),
-				),
-			},
-		), nil
-	})
+`,
 }

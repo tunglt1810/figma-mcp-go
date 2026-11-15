@@ -2,9 +2,9 @@ package bridge
 
 // Number and any fields below use omitzero, not omitempty. In encoding/json/v2,
 // omitempty drops a value that encodes to an empty JSON string, object or
-// array. It no longer drops a zero number, and it does drop an any field that
+// array. It does not drop a zero number, and it does drop an any field that
 // holds "" or an empty slice. omitzero drops only the Go zero value, which is
-// what the plugin wire format has always meant here.
+// what the plugin wire format means here.
 
 // Request is sent from the Go server to the Figma plugin over WebSocket.
 type Request struct {

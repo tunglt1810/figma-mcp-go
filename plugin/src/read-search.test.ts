@@ -2,8 +2,6 @@ import { describe, expect, it, beforeEach } from "bun:test";
 import { DEFAULT_MAX_NODES, readDocumentHandlers } from "./read-document";
 import { clearPinned, setPinned } from "./pinned";
 
-// ── Figma mock ────────────────────────────────────────────────────────────────
-
 let nodes: Record<string, any>;
 let pages: any[];
 let currentPage: any;
@@ -73,8 +71,6 @@ const search = (params: any) =>
     params,
   });
 
-// ── search_nodes ──────────────────────────────────────────────────────────────
-
 describe("search_nodes", () => {
   it("searches the current page by default and ignores the others", async () => {
     const result = await search({ query: "button" });
@@ -121,8 +117,6 @@ describe("search_nodes", () => {
     const result = await search({ types: ["RECTANGLE"], scope: "document" });
     expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:2"]);
   });
-
-  // ── what scan_nodes_by_types and scan_text_nodes used to do ────────────────
 
   // scan_nodes_by_types skipped hidden nodes, and this tool never has. Both
   // behaviours must be available, and the default must stay the old one.
@@ -207,8 +201,6 @@ describe("search_nodes", () => {
   });
 });
 
-// ── get_document ──────────────────────────────────────────────────────────────
-
 const getDocument = (params?: any) =>
   readDocumentHandlers["get_document"]({
     type: "get_document",
@@ -250,8 +242,6 @@ describe("get_document", () => {
     expect(updates.length).toBe(2);
     expect(updates[updates.length - 1].progress).toBe(99);
   });
-
-  // ── what get_design_context used to do ─────────────────────────────────────
 
   it("walks the selection when asked, and says how much was selected", async () => {
     currentPage.selection = [nodes["1:1"]];
@@ -298,6 +288,38 @@ describe("get_document", () => {
     expect(result.data.truncated).toBe(true);
   });
 
+  it.each([{ detail: "minimal" }, { detail: "compact" }, { dedupeComponents: true }])(
+    "applies maxNodes with %j",
+    async (params) => {
+      // The page and its first child.
+      const result = await getDocument({ ...params, maxNodes: 2 });
+      const page = result.data.nodes[0];
+      expect(page.children.map((n: any) => n.id)).toEqual(["1:1"]);
+      expect(page.childCount).toBe(2);
+      expect(result.data.truncated).toBe(true);
+    },
+  );
+
+  it("spends the same budget on a component definition", async () => {
+    const main = makeNode("5:0", "Main", "COMPONENT", [
+      makeNode("5:1", "A", "RECTANGLE"),
+      makeNode("5:2", "B", "RECTANGLE"),
+      makeNode("5:3", "C", "RECTANGLE"),
+    ]);
+    const instance = makeNode("1:5", "Use", "INSTANCE");
+    instance.getMainComponentAsync = async () => main;
+    currentPage.children = [instance];
+    // The page, the instance, the definition and its first child.
+    const result = await getDocument({ dedupeComponents: true, maxNodes: 4 });
+    expect(result.data.componentDefs["5:0"].children).toHaveLength(1);
+    expect(result.data.truncated).toBe(true);
+  });
+
+  it("does not mark a complete trimmed walk as truncated", async () => {
+    const result = await getDocument({ detail: "minimal" });
+    expect(result.data.truncated).toBeUndefined();
+  });
+
   it("caps an unscoped walk at DEFAULT_MAX_NODES", async () => {
     const many = Array.from({ length: DEFAULT_MAX_NODES + 5 }, (_, i) =>
       makeNode(`7:${i}`, `N${i}`, "RECTANGLE"),
@@ -305,7 +327,61 @@ describe("get_document", () => {
     currentPage.children.push(...many);
     const result = await getDocument();
     expect(result.data.truncated).toBe(true);
-    expect(result.data.nodes[0].children.length).toBe(DEFAULT_MAX_NODES);
+    // The page itself is one of the DEFAULT_MAX_NODES.
+    expect(result.data.nodes[0].children.length).toBe(DEFAULT_MAX_NODES - 1);
+  });
+
+  // maxNodes counts every node in the answer. A selection of many leaves has
+  // no children to cut, so its roots must spend the budget too.
+  it("counts each selected root against maxNodes", async () => {
+    currentPage.selection = Array.from({ length: 2000 }, (_, i) =>
+      makeNode(`8:${i}`, `Leaf${i}`, "RECTANGLE"),
+    );
+    const result = await getDocument({ scope: "selection", maxNodes: 500 });
+    expect(result.data.nodes).toHaveLength(500);
+    expect(result.data.truncated).toBe(true);
+  });
+
+  it("stops comparing instance overrides when the budget is spent", async () => {
+    const kids = (prefix: string, visible: boolean) =>
+      Array.from({ length: 10 }, (_, i) => {
+        const n = makeNode(`${prefix}:${i}`, `K${i}`, "RECTANGLE");
+        n.visible = visible;
+        return n;
+      });
+    const main = makeNode("5:0", "Main", "COMPONENT", kids("5", true));
+    const instance = makeNode("1:5", "Use", "INSTANCE", kids("6", false));
+    instance.getMainComponentAsync = async () => main;
+    currentPage.children = [instance];
+    // The page, the instance, the definition and its 10 children.
+    const result = await getDocument({ dedupeComponents: true, maxNodes: 13 });
+    expect(result.data.componentDefs["5:0"].children).toHaveLength(10);
+    expect(result.data.nodes[0].children[0].overrides).toBeUndefined();
+    expect(result.data.truncated).toBe(true);
+  });
+
+  it("does not charge an instance child that matches its component", async () => {
+    const kids = (prefix: string) =>
+      Array.from({ length: 10 }, (_, i) => makeNode(`${prefix}:${i}`, `K${i}`, "RECTANGLE"));
+    const main = makeNode("5:0", "Main", "COMPONENT", kids("5"));
+    const instance = makeNode("1:5", "Use", "INSTANCE", kids("6"));
+    instance.getMainComponentAsync = async () => main;
+    currentPage.children = [instance];
+    const result = await getDocument({ dedupeComponents: true, maxNodes: 13 });
+    expect(result.data.truncated).toBeUndefined();
+  });
+
+  it("does not cut a component definition at the tree's depth limit", async () => {
+    const leaf = makeNode("5:3", "Leaf", "RECTANGLE");
+    const inner = makeNode("5:2", "Inner", "FRAME", [leaf]);
+    const outer = makeNode("5:1", "Outer", "FRAME", [inner]);
+    const main = makeNode("5:0", "Main", "COMPONENT", [outer]);
+    const instance = makeNode("1:5", "Use", "INSTANCE");
+    instance.getMainComponentAsync = async () => main;
+    currentPage.selection = [instance];
+    const result = await getDocument({ scope: "selection", dedupeComponents: true });
+    const def = result.data.componentDefs["5:0"];
+    expect(def.children[0].children[0].children[0].id).toBe("5:3");
   });
 
   it("stops at the requested depth and says how many children it withheld", async () => {
@@ -314,8 +390,6 @@ describe("get_document", () => {
     expect(result.data.nodes[0].childCount).toBe(2);
   });
 });
-
-// ── get_nodes_info ────────────────────────────────────────────────────────────
 
 describe("get_nodes_info", () => {
   it("answers under a nodes key whether or not anything was deduped", async () => {
@@ -355,6 +429,17 @@ describe("get_nodes_info", () => {
     expect(result.data.truncated).toBe(true);
   });
 
+  it("counts each requested node against maxNodes", async () => {
+    const result = await readDocumentHandlers["get_nodes_info"]({
+      type: "get_nodes_info",
+      requestId: "r9",
+      params: { maxNodes: 1 },
+      nodeIds: ["1:1", "1:2"],
+    });
+    expect(result.data.nodes.map((n: any) => n.id)).toEqual(["1:1"]);
+    expect(result.data.truncated).toBe(true);
+  });
+
   it("says nothing about missing when every id resolved", async () => {
     const result = await readDocumentHandlers["get_nodes_info"]({
       type: "get_nodes_info",
@@ -390,8 +475,6 @@ describe("get_nodes_info", () => {
     expect(result.data.nodes[0].styles.fills).toBe(result.data.nodes[1].styles.fills);
   });
 });
-
-// ── get_selection ─────────────────────────────────────────────────────────────
 
 describe("get_selection", () => {
   const getSelection = (params?: any) =>

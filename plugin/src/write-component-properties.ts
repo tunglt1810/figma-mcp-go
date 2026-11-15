@@ -1,4 +1,4 @@
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
 // Component properties and variants.
 //
@@ -136,7 +136,7 @@ const ACTIONS: Record<string, (node: any, p: any) => Promise<any> | any> = {
   },
 };
 
-export const writeComponentPropertyHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "manage_component_properties": async (request) => {
     const p = request.params || {};
     const action = String(p.action || "");
@@ -148,14 +148,10 @@ export const writeComponentPropertyHandlers: HandlerMap = {
     const result = await run(node, p);
     figma.commitUndo();
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: node.id,
-        name: node.name,
-        ...result,
-        properties: definitionsOf(node),
-      },
+      id: node.id,
+      name: node.name,
+      ...result,
+      properties: definitionsOf(node),
     };
   },
 
@@ -188,15 +184,13 @@ export const writeComponentPropertyHandlers: HandlerMap = {
     if (p.name) set.name = p.name;
     figma.commitUndo();
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: set.id,
-        name: set.name,
-        type: set.type,
-        variantCount: set.children.length,
-        properties: definitionsOf(set),
-      },
+      id: set.id,
+      name: set.name,
+      type: set.type,
+      variantCount: set.children.length,
+      properties: definitionsOf(set),
     };
   },
 };
+
+export const writeComponentPropertyHandlers: HandlerMap = withEnvelope(raw);

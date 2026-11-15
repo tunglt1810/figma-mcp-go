@@ -16,28 +16,18 @@ import (
 
 // RegisterTools registers every table-declared tool on the server.
 func RegisterTools(s *server.MCPServer, sender Sender) {
-	registerSpecs(s, sender, allSpecs())
+	registerSpecs(s, sender, allSpecs(), false)
 }
 
-// RegisterReadOnlyTools registers only the tools that cannot change the Figma
-// file. A client that only reads designs then gets a much smaller tools/list.
+// RegisterReadOnlyTools registers only the tools that cannot change the
+// design. A client that only reads designs then gets a much smaller tools/list.
 func RegisterReadOnlyTools(s *server.MCPServer, sender Sender) {
-	registerSpecs(s, sender, readOnlyModeSpecs())
+	registerSpecs(s, sender, readOnlyModeSpecs(), true)
 }
 
-func registerSpecs(s *server.MCPServer, sender Sender, specs []toolSpec) {
+func registerSpecs(s *server.MCPServer, sender Sender, specs []toolSpec, readOnlyMode bool) {
 	for _, spec := range specs {
-		s.AddTool(buildTool(spec), handlerFor(sender, spec))
-	}
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-// makeHandler creates a simple tool handler with no parameters.
-func makeHandler(sender Sender, command string, nodeIDs []string, params map[string]any) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		resp, err := sender.Send(ctx, command, nodeIDs, params)
-		return renderResponse(resp, err)
+		s.AddTool(buildTool(spec), handlerFor(sender, spec, readOnlyMode))
 	}
 }
 
@@ -67,8 +57,6 @@ func toStringSlice(raw []any) []string {
 	return out
 }
 
-// ── export_screenshots ───────────────────────────────────────────────────────
-//
 // get_screenshot and save_screenshots exported the same nodes through the same
 // plugin call. They only differed in where the picture went. That is one
 // argument, not two tools: an item with an outputPath is written to disk, an
@@ -119,8 +107,7 @@ func executeExportScreenshots(ctx context.Context, sender Sender, params map[str
 
 	var results []exportResult
 	if len(rawItems) == 0 {
-		// No items: export the current selection, in memory. This is what
-		// get_screenshot with no node ids has always done.
+		// No items: export the current selection, in memory.
 		results, err = exportSelection(ctx, sender, defaultFormat, defaultScale)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil

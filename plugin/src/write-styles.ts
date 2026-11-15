@@ -1,10 +1,9 @@
 import { makeSolidPaint, hexToRgb, makeEffect, makeLayoutGrid } from "./write-helpers";
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
-// create_style replaced four create_*_style tools in the MCP tool list. The four
-// implementations below stay separate, because they really are different.
-// Only the tool surface merged. `effectType` is mapped back to `type`, since
-// the style kind now uses `type` at the outer level.
+// create_style is one tool for four kinds of style. The four implementations
+// below stay separate, because they really are different. `effectType` is
+// mapped back to `type`, since the style kind uses `type` at the outer level.
 const STYLE_ACTIONS: Record<string, string> = {
   PAINT: "create_paint_style",
   TEXT: "create_text_style",
@@ -12,7 +11,7 @@ const STYLE_ACTIONS: Record<string, string> = {
   GRID: "create_grid_style",
 };
 
-export const writeStylesHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "create_style": async (request) => {
   const { type, effectType, ...rest } = request.params || {};
   const action = STYLE_ACTIONS[type];
@@ -20,9 +19,7 @@ export const writeStylesHandlers: HandlerMap = {
     throw new Error(`type must be PAINT, TEXT, EFFECT, or GRID, got: ${type}`);
   }
   const params = effectType != null ? { ...rest, type: effectType } : rest;
-  const result = await handleWriteStyleRequest({ ...request, type: action, params });
-  // Answer with the name the caller used, not the one we delegated to.
-  return { ...result, type: request.type }
+  return raw[action]({ ...request, params });
   },
 
   "create_paint_style": async (request) => {
@@ -31,18 +28,14 @@ export const writeStylesHandlers: HandlerMap = {
     if (!p.color) throw new Error("color is required");
     const existing = (await figma.getLocalPaintStylesAsync()).find(s => s.name === p.name);
     if (existing) {
-      return { type: request.type, requestId: request.requestId, data: { id: existing.id, name: existing.name } };
+      return { id: existing.id, name: existing.name };
     }
     const style = figma.createPaintStyle();
     style.name = p.name;
     style.paints = [makeSolidPaint(p.color)];
     if (p.description) style.description = p.description;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: style.id, name: style.name },
-    };
+    return { id: style.id, name: style.name };
   },
 
   "create_text_style": async (request) => {
@@ -50,7 +43,7 @@ export const writeStylesHandlers: HandlerMap = {
     if (!p.name) throw new Error("name is required");
     const existing = (await figma.getLocalTextStylesAsync()).find(s => s.name === p.name);
     if (existing) {
-      return { type: request.type, requestId: request.requestId, data: { id: existing.id, name: existing.name } };
+      return { id: existing.id, name: existing.name };
     }
     const family = p.fontFamily || "Inter";
     const fontStyle = p.fontStyle || "Regular";
@@ -70,11 +63,7 @@ export const writeStylesHandlers: HandlerMap = {
       style.letterSpacing = { value: Number(p.letterSpacingValue), unit: p.letterSpacingUnit || "PIXELS" };
     }
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: style.id, name: style.name },
-    };
+    return { id: style.id, name: style.name };
   },
 
   "create_effect_style": async (request) => {
@@ -82,7 +71,7 @@ export const writeStylesHandlers: HandlerMap = {
     if (!p.name) throw new Error("name is required");
     const existing = (await figma.getLocalEffectStylesAsync()).find(s => s.name === p.name);
     if (existing) {
-      return { type: request.type, requestId: request.requestId, data: { id: existing.id, name: existing.name } };
+      return { id: existing.id, name: existing.name };
     }
     const effectType = p.type || "DROP_SHADOW";
     let effect: Effect;
@@ -109,11 +98,7 @@ export const writeStylesHandlers: HandlerMap = {
     style.effects = [effect];
     if (p.description) style.description = p.description;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: style.id, name: style.name },
-    };
+    return { id: style.id, name: style.name };
   },
 
   "create_grid_style": async (request) => {
@@ -121,7 +106,7 @@ export const writeStylesHandlers: HandlerMap = {
     if (!p.name) throw new Error("name is required");
     const existing = (await figma.getLocalGridStylesAsync()).find(s => s.name === p.name);
     if (existing) {
-      return { type: request.type, requestId: request.requestId, data: { id: existing.id, name: existing.name } };
+      return { id: existing.id, name: existing.name };
     }
     const grid = makeLayoutGrid(p);
     const style = figma.createGridStyle();
@@ -129,11 +114,7 @@ export const writeStylesHandlers: HandlerMap = {
     style.layoutGrids = [grid];
     if (p.description) style.description = p.description;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: style.id, name: style.name },
-    };
+    return { id: style.id, name: style.name };
   },
 
   "update_paint_style": async (request) => {
@@ -146,11 +127,7 @@ export const writeStylesHandlers: HandlerMap = {
     if (p.color) (style as PaintStyle).paints = [makeSolidPaint(p.color)];
     if (p.description != null) style.description = p.description;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: style.id, name: style.name },
-    };
+    return { id: style.id, name: style.name };
   },
 
   "delete_style": async (request) => {
@@ -160,11 +137,7 @@ export const writeStylesHandlers: HandlerMap = {
     if (!style) throw new Error(`Style not found: ${p.styleId}`);
     style.remove();
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { styleId: p.styleId, deleted: true },
-    };
+    return { styleId: p.styleId, deleted: true };
   },
 
   "apply_style_to_node": async (request) => {
@@ -205,11 +178,7 @@ export const writeStylesHandlers: HandlerMap = {
         throw new Error(`Unknown style type: ${(style as any).type}`);
     }
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: n.id, name: n.name, styleId: p.styleId, styleType: style.type },
-    };
+    return { id: n.id, name: n.name, styleId: p.styleId, styleType: style.type };
   },
 
   "set_effects": async (request) => {
@@ -223,15 +192,8 @@ export const writeStylesHandlers: HandlerMap = {
     const effects: Effect[] = p.effects.map((e: any) => makeEffect(e));
     node.effects = effects;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name, effectCount: effects.length },
-    };
+    return { id: node.id, name: node.name, effectCount: effects.length };
   },
 };
 
-export const handleWriteStyleRequest = async (request: any): Promise<any> => {
-  const handler = writeStylesHandlers[request.type];
-  return handler ? handler(request) : null;
-};
+export const writeStylesHandlers: HandlerMap = withEnvelope(raw, Object.values(STYLE_ACTIONS));

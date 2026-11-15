@@ -1,8 +1,6 @@
 import { describe, expect, it, beforeEach } from "bun:test";
 import { resolveRange, resolveRangeFont, sortRanges, writeTextHandlers } from "./write-text";
 
-// ── resolveRange ──────────────────────────────────────────────────────────────
-
 describe("resolveRange", () => {
   it("accepts a range inside the text", () => {
     expect(resolveRange({ start: 2, end: 5 }, 10)).toEqual([2, 5]);
@@ -30,8 +28,6 @@ describe("resolveRange", () => {
     expect(() => resolveRange({ start: 0.5, end: 3 }, 10)).toThrow(/whole numbers/);
   });
 });
-
-// ── resolveRangeFont ──────────────────────────────────────────────────────────
 
 describe("resolveRangeFont", () => {
   const current = { family: "Inter", style: "Regular" };
@@ -62,8 +58,6 @@ describe("resolveRangeFont", () => {
   });
 });
 
-// ── sortRanges ────────────────────────────────────────────────────────────────
-
 describe("sortRanges", () => {
   it("orders by start so overlapping edits apply as written", () => {
     const sorted = sortRanges([
@@ -80,8 +74,6 @@ describe("sortRanges", () => {
     expect(input[0].start).toBe(5);
   });
 });
-
-// ── set_text_ranges ───────────────────────────────────────────────────────────
 
 let node: any;
 let loadedFonts: any[];

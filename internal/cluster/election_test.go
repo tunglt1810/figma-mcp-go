@@ -6,37 +6,10 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
 )
-
-// ── itoa ─────────────────────────────────────────────────────────────────────
-
-func TestItoa(t *testing.T) {
-	cases := []struct {
-		in   int
-		want string
-	}{
-		{0, "0"},
-		{1, "1"},
-		{1994, "1994"},
-		{-1, "-1"},
-	}
-	for _, c := range cases {
-		got := itoa(c.in)
-		if got != c.want {
-			t.Errorf("itoa(%d) = %q, want %q", c.in, got, c.want)
-		}
-		// Cross-check with stdlib.
-		if got != strconv.Itoa(c.in) {
-			t.Errorf("itoa(%d) diverges from strconv.Itoa", c.in)
-		}
-	}
-}
-
-// ── tick: RoleLeader ──────────────────────────────────────────────────────────
 
 func TestElectionTick_LeaderDoesNothing(t *testing.T) {
 	port := freePort(t)
@@ -47,7 +20,7 @@ func TestElectionTick_LeaderDoesNothing(t *testing.T) {
 	}
 	t.Cleanup(n.Stop)
 
-	e := NewElection("127.0.0.1", port, n)
+	e := NewElection(n)
 	if err := e.tick(context.Background()); err != nil {
 		t.Errorf("tick for LEADER: %v", err)
 	}
@@ -56,8 +29,6 @@ func TestElectionTick_LeaderDoesNothing(t *testing.T) {
 		t.Errorf("role = %v after tick, want LEADER", n.Role())
 	}
 }
-
-// ── tick: RoleFollower — healthy leader ───────────────────────────────────────
 
 func TestElectionTick_FollowerHealthyLeader(t *testing.T) {
 	// Fake leader server that responds to /ping.
@@ -76,7 +47,7 @@ func TestElectionTick_FollowerHealthyLeader(t *testing.T) {
 	n := NewNode("127.0.0.1", testPort, "test", passthroughGuard)
 	n.BecomeFollower()
 
-	e := NewElection("127.0.0.1", testPort, n)
+	e := NewElection(n)
 	if err := e.tick(context.Background()); err != nil {
 		t.Errorf("tick: %v", err)
 	}
@@ -86,8 +57,6 @@ func TestElectionTick_FollowerHealthyLeader(t *testing.T) {
 	}
 }
 
-// ── tick: RoleFollower — dead leader → takeover ───────────────────────────────
-
 func TestElectionTick_FollowerDeadLeader_TakesOver(t *testing.T) {
 	port := freePort(t)
 
@@ -95,7 +64,7 @@ func TestElectionTick_FollowerDeadLeader_TakesOver(t *testing.T) {
 	n.BecomeFollower()
 	t.Cleanup(n.Stop)
 
-	e := NewElection("127.0.0.1", port, n)
+	e := NewElection(n)
 	if err := e.tick(context.Background()); err != nil {
 		t.Errorf("tick: %v", err)
 	}
@@ -106,15 +75,13 @@ func TestElectionTick_FollowerDeadLeader_TakesOver(t *testing.T) {
 	}
 }
 
-// ── tick: RoleUnknown → determineRole ────────────────────────────────────────
-
 func TestElectionTick_UnknownBecomesLeader(t *testing.T) {
 	port := freePort(t)
 	n := NewNode("127.0.0.1", port, "test", passthroughGuard)
 	// Role stays UNKNOWN: no BecomeLeader or BecomeFollower was called.
 	t.Cleanup(n.Stop)
 
-	e := NewElection("127.0.0.1", port, n)
+	e := NewElection(n)
 	if err := e.tick(context.Background()); err != nil {
 		t.Errorf("tick: %v", err)
 	}
@@ -124,14 +91,12 @@ func TestElectionTick_UnknownBecomesLeader(t *testing.T) {
 	}
 }
 
-// ── Start / Stop ──────────────────────────────────────────────────────────────
-
 func TestElectionStart_Stop(t *testing.T) {
 	port := freePort(t)
 	n := NewNode("127.0.0.1", port, "test", passthroughGuard)
 	t.Cleanup(n.Stop)
 
-	e := NewElection("127.0.0.1", port, n)
+	e := NewElection(n)
 	ctx := context.Background()
 
 	if err := e.Start(ctx); err != nil {
@@ -147,8 +112,6 @@ func TestElectionStart_Stop(t *testing.T) {
 	e.Stop() // must not panic
 }
 
-// ── Concurrent: two nodes race to become leader ───────────────────────────────
-
 // TestElection_ConcurrentStart_OneLeader starts two elections on the same port
 // at the same time. Exactly one node must become leader, and the other must
 // become follower.
@@ -160,8 +123,8 @@ func TestElection_ConcurrentStart_OneLeader(t *testing.T) {
 	t.Cleanup(n1.Stop)
 	t.Cleanup(n2.Stop)
 
-	e1 := NewElection("127.0.0.1", port, n1)
-	e2 := NewElection("127.0.0.1", port, n2)
+	e1 := NewElection(n1)
+	e2 := NewElection(n2)
 	t.Cleanup(e1.Stop)
 	t.Cleanup(e2.Stop)
 
@@ -191,8 +154,6 @@ func TestElection_ConcurrentStart_OneLeader(t *testing.T) {
 	}
 }
 
-// ── Concurrent: multiple followers race for takeover ─────────────────────────
-
 // TestElection_ConcurrentTakeover_OneLeader checks that when a leader dies and
 // several followers call tick() at the same time, exactly one wins the port.
 func TestElection_ConcurrentTakeover_OneLeader(t *testing.T) {
@@ -210,7 +171,7 @@ func TestElection_ConcurrentTakeover_OneLeader(t *testing.T) {
 	for i := range nodes {
 		nodes[i] = NewNode("127.0.0.1", port, "test", passthroughGuard)
 		nodes[i].BecomeFollower()
-		elections[i] = NewElection("127.0.0.1", port, nodes[i])
+		elections[i] = NewElection(nodes[i])
 		t.Cleanup(nodes[i].Stop)
 	}
 
@@ -251,7 +212,7 @@ func TestDetermineRole_RetriesQuicklyWhenNothingAnswers(t *testing.T) {
 	}
 
 	n := NewNode("127.0.0.1", port, "test", passthroughGuard)
-	e := NewElection("127.0.0.1", port, n)
+	e := NewElection(n)
 	if err := e.Start(t.Context()); err != nil {
 		t.Fatalf("start: %v", err)
 	}

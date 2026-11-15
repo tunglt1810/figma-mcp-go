@@ -1,7 +1,7 @@
 package tools
 
-// variableVariants say which arguments belong to which variable action. Six
-// tools became one, and their arguments overlap without meaning the same thing:
+// variableVariants say which arguments belong to which variable action. The
+// actions' arguments overlap without meaning the same thing:
 // collectionId names the parent when creating, and the target when deleting.
 // So an argument for the wrong action is rejected, not dropped.
 var variableVariants = map[string]variantSpec{

@@ -23,12 +23,12 @@ func TestTimeoutFor(t *testing.T) {
 func TestFollowerDeadline_OutlastsTheLeader(t *testing.T) {
 	for tool := range toolTimeouts {
 		leader := TimeoutFor(tool)
-		if got := FollowerTimeoutFor(tool); got <= leader {
+		if got := FollowerTimeout; got <= leader {
 			t.Errorf("follower deadline for %s = %s, must exceed the leader's %s", tool, got, leader)
 		}
 	}
-	if got := FollowerTimeoutFor("get_nodes_info"); got <= defaultToolTimeout {
-		t.Errorf("follower default deadline = %s, must exceed the leader's %s", got, defaultToolTimeout)
+	if FollowerTimeout <= MaxToolTimeout {
+		t.Errorf("follower deadline = %s, must exceed the progress ceiling %s", FollowerTimeout, MaxToolTimeout)
 	}
 }
 

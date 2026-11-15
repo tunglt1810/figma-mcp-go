@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -84,7 +85,7 @@ var exportScreenshotsSpec = toolSpec{
 			// The per-item format is nested deeper than a paramSpec enum can
 			// reach. Without this check only the plugin would reject it, after
 			// the round trip.
-			if format, present := m["format"].(string); present && !containsString(exportFormats, format) {
+			if format, present := m["format"].(string); present && !slices.Contains(exportFormats, format) {
 				return fmt.Sprintf("items[%d].format must be one of %v, got: %s", i, exportFormats, format)
 			}
 			if scale, present := m["scale"].(float64); present && scale <= 0 {

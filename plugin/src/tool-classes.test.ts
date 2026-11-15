@@ -10,8 +10,6 @@ import {
   isMutating,
 } from "./tool-classes";
 
-// ── The lists must track the real handler maps ───────────────────────────────
-
 describe("tool classification covers the real handlers", () => {
   it("READ_TOOLS is exactly the read handler map", () => {
     expect([...READ_TOOLS].sort()).toEqual(Object.keys(readHandlers).sort());
@@ -42,8 +40,6 @@ describe("tool classification covers the real handlers", () => {
   });
 });
 
-// ── isMutating ───────────────────────────────────────────────────────────────
-
 describe("isMutating", () => {
   it("reads never mutate", () => {
     expect(isMutating("get_document")).toBe(false);
@@ -51,7 +47,7 @@ describe("isMutating", () => {
   });
 
   it("ordinary writes mutate", () => {
-    expect(isMutating("create_frame")).toBe(true);
+    expect(isMutating("create_node")).toBe(true);
     expect(isMutating("set_text")).toBe(true);
   });
 
@@ -80,7 +76,7 @@ describe("isMutating", () => {
       steps: [{ action: "get_nodes_info" }, { action: "set_selection" }],
     })).toBe(false);
     expect(isMutating("batch_execute_pipeline", {
-      steps: [{ action: "get_nodes_info" }, { action: "create_frame" }],
+      steps: [{ action: "get_nodes_info" }, { action: "create_node" }],
     })).toBe(true);
   });
 
@@ -93,8 +89,6 @@ describe("isMutating", () => {
   });
 });
 
-// ── isDestructive ────────────────────────────────────────────────────────────
-
 describe("isDestructive", () => {
   it("flags the deletes and the bulk rewrites", () => {
     expect(isDestructive("delete_nodes")).toBe(true);
@@ -104,7 +98,7 @@ describe("isDestructive", () => {
 
   it("leaves ordinary edits alone", () => {
     expect(isDestructive("set_text")).toBe(false);
-    expect(isDestructive("create_frame")).toBe(false);
+    expect(isDestructive("create_node")).toBe(false);
     expect(isDestructive("ungroup_nodes")).toBe(false);
   });
 
@@ -128,10 +122,10 @@ describe("isDestructive", () => {
 
   it("flags a pipeline carrying a destructive step", () => {
     expect(isDestructive("batch_execute_pipeline", {
-      steps: [{ action: "create_frame" }, { action: "delete_nodes" }],
+      steps: [{ action: "create_node" }, { action: "delete_nodes" }],
     })).toBe(true);
     expect(isDestructive("batch_execute_pipeline", {
-      steps: [{ action: "create_frame" }],
+      steps: [{ action: "create_node" }],
     })).toBe(false);
   });
 
@@ -142,8 +136,6 @@ describe("isDestructive", () => {
   });
 });
 
-// ── destructiveReason ────────────────────────────────────────────────────────
-
 describe("destructiveReason", () => {
   it("names the tool for a plain call", () => {
     expect(destructiveReason("delete_nodes")).toBe("delete_nodes");
@@ -151,7 +143,7 @@ describe("destructiveReason", () => {
 
   it("names the offending step for a pipeline", () => {
     expect(destructiveReason("batch_execute_pipeline", {
-      steps: [{ action: "create_frame" }, { action: "delete_nodes" }],
+      steps: [{ action: "create_node" }, { action: "delete_nodes" }],
     })).toBe("pipeline containing delete_nodes");
   });
 

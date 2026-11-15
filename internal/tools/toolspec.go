@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -124,6 +125,14 @@ type toolSpec struct {
 	// readOnlyHint. allSpecs sets it for the read groups, not per tool.
 	ReadOnly bool
 
+	// Harmless marks a write-side tool that leaves the design as it was: it
+	// moves the selection or the view, or saves a version. Read-only mode
+	// offers it. It carries no readOnlyHint, because it does change state.
+	Harmless bool
+	// HarmlessActions names the values of `action` that are harmless, for a
+	// tool that is not harmless as a whole.
+	HarmlessActions []string
+
 	// Validate holds rules a paramSpec cannot express: "at least one of x or
 	// y", mutually exclusive arguments, nested shapes.
 	Validate func(nodeIDs []string, params map[string]any) string
@@ -144,8 +153,6 @@ func (s toolSpec) nodeIDsArg() string {
 	}
 	return "nodeId"
 }
-
-// ── Schema ───────────────────────────────────────────────────────────────────
 
 func (p paramSpec) toolOption() mcp.ToolOption {
 	opts := []mcp.PropertyOption{}
@@ -185,8 +192,8 @@ func (p paramSpec) toolOption() mcp.ToolOption {
 	}
 }
 
-// buildTool turns a spec into the MCP tool definition. Node IDs come first, so
-// the generated schema matches how these tools have always been declared.
+// buildTool turns a spec into the MCP tool definition. Node IDs come first in
+// the generated schema.
 func buildTool(spec toolSpec) mcp.Tool {
 	opts := []mcp.ToolOption{mcp.WithDescription(spec.Desc)}
 
@@ -218,8 +225,6 @@ func buildTool(spec toolSpec) mcp.Tool {
 	}
 	return tool
 }
-
-// ── Handler ──────────────────────────────────────────────────────────────────
 
 // specArgs splits a request's arguments into node IDs and plugin params.
 // Arguments the caller left out stay out entirely, so the plugin can apply
@@ -253,17 +258,8 @@ func specArgs(spec toolSpec, args map[string]any) ([]string, map[string]any) {
 			continue
 		}
 
-		switch p.Kind {
-		case kindString:
-			s, ok := v.(string)
-			if !ok || (s == "" && !p.AllowEmpty) {
-				continue
-			}
-		case kindStringArray:
-			raw, ok := v.([]any)
-			if !ok || len(raw) == 0 {
-				continue
-			}
+		if !keepArg(p, v) {
+			continue
 		}
 		params[p.wireName()] = v
 	}
@@ -271,7 +267,20 @@ func specArgs(spec toolSpec, args map[string]any) ([]string, map[string]any) {
 	return nodeIDs, params
 }
 
-// ── Normalization ────────────────────────────────────────────────────────────
+// keepArg reports whether a non-null argument counts as given. An empty
+// string and an empty string array count as absent, so the plugin applies its
+// default.
+func keepArg(p paramSpec, v any) bool {
+	switch p.Kind {
+	case kindString:
+		s, ok := v.(string)
+		return ok && (s != "" || p.AllowEmpty)
+	case kindStringArray:
+		raw, ok := v.([]any)
+		return ok && len(raw) > 0
+	}
+	return true
+}
 
 // nodeIDParams name the arguments that hold a single Figma node ID. Like the
 // nodeIDs slice, they need hyphen-to-colon normalization. They are matched at
@@ -352,8 +361,6 @@ func normalizeIDList(v any) any {
 	return out
 }
 
-// ── Validation ───────────────────────────────────────────────────────────────
-
 // validateSpec applies the rules the spec states directly. Rules that span
 // several fields live in spec.Validate.
 func validateSpec(spec toolSpec, nodeIDs []string, params map[string]any) string {
@@ -389,7 +396,7 @@ func validateSpec(spec toolSpec, nodeIDs []string, params map[string]any) string
 			if !ok {
 				return fmt.Sprintf("%s must be a string", p.Name)
 			}
-			if len(p.Enum) > 0 && !containsString(p.Enum, s) {
+			if len(p.Enum) > 0 && !slices.Contains(p.Enum, s) {
 				return fmt.Sprintf("%s must be one of %v, got: %s", p.Name, p.Enum, s)
 			}
 			if p.IsNodeID && s != "" && !figma.ValidNodeID(s) {
@@ -466,13 +473,45 @@ func validateArrayParam(p paramSpec, v any) string {
 // the leader's /rpc endpoint, which receives input from another process. So
 // there is one answer to "is this call valid", not one per path.
 func Check(tool string, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
+	spec, ok := specRegistry[tool]
+	if !ok {
+		return nil, nil, fmt.Errorf("%s is not a tool of this server", tool)
+	}
+	return checkSpec(spec, nodeIDs, params)
+}
+
+// checkSpec is Check against a given spec. A handler uses it with the spec of
+// its public tool, because the registry holds the plugin request when the two
+// share a name.
+func checkSpec(spec toolSpec, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
 	// Normalize first. The hyphen format LLMs produce must be accepted, not
 	// rejected by the validation that exists to accept it.
 	nodeIDs, params = normalizeArgs(nodeIDs, params)
-	if msg := ValidateRPC(tool, nodeIDs, params); msg != "" {
+	if msg := validateTool(spec, nodeIDs, params); msg != "" {
 		return nil, nil, errors.New(msg)
 	}
 	return nodeIDs, params, nil
+}
+
+// validateCall checks a call against its tool's spec. It returns the reason
+// the call is not valid, or "". A name with no spec is refused: an unknown
+// name would otherwise reach the plugin with nothing checked.
+func validateCall(tool string, nodeIDs []string, params map[string]any) string {
+	spec, ok := specRegistry[tool]
+	if !ok {
+		return fmt.Sprintf("%s is not a tool of this server", tool)
+	}
+	return validateTool(spec, nodeIDs, params)
+}
+
+func validateTool(spec toolSpec, nodeIDs []string, params map[string]any) string {
+	if msg := validateSpec(spec, nodeIDs, params); msg != "" {
+		return msg
+	}
+	if spec.Name == pipelineTool {
+		return validatePipelineSteps(params)
+	}
+	return ""
 }
 
 // CheckReadOnly applies Check after rejecting any tool that can modify the
@@ -480,10 +519,35 @@ func Check(tool string, nodeIDs []string, params map[string]any) ([]string, map[
 // cluster.NewNode so its /rpc endpoint enforces the same boundary.
 func CheckReadOnly(tool string, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
 	spec, ok := specRegistry[tool]
-	if !ok || (!spec.ReadOnly && !slices.Contains(readOnlyModeExports, tool)) {
-		return nil, nil, fmt.Errorf("%s is disabled because the server is running in --read-only mode", tool)
+	if !ok {
+		return nil, nil, fmt.Errorf("%s is not a tool of this server", tool)
+	}
+	if err := readOnlyRefusal(spec, params); err != nil {
+		return nil, nil, err
 	}
 	return Check(tool, nodeIDs, params)
+}
+
+// offeredReadOnly reports whether read-only mode offers the tool at all.
+func offeredReadOnly(spec toolSpec) bool {
+	return spec.ReadOnly || spec.Harmless || len(spec.HarmlessActions) > 0 ||
+		slices.Contains(readOnlyModeExports, spec.Name)
+}
+
+// readOnlyRefusal returns the error for a call that read-only mode does not
+// run, or nil.
+func readOnlyRefusal(spec toolSpec, params map[string]any) error {
+	if !offeredReadOnly(spec) {
+		return fmt.Errorf("%s is disabled because the server is running in --read-only mode", spec.Name)
+	}
+	if len(spec.HarmlessActions) == 0 {
+		return nil
+	}
+	if action, _ := params["action"].(string); slices.Contains(spec.HarmlessActions, action) {
+		return nil
+	}
+	return fmt.Errorf("%s accepts only action %s because the server is running in --read-only mode",
+		spec.Name, strings.Join(spec.HarmlessActions, " or "))
 }
 
 // variantSpec describes one variant of a merged tool: the arguments it accepts
@@ -563,12 +627,6 @@ func requireAnyOf(msg string, keys ...string) func([]string, map[string]any) str
 	}
 }
 
-func containsString(haystack []string, needle string) bool {
-	return slices.Contains(haystack, needle)
-}
-
-// ── Registry ─────────────────────────────────────────────────────────────────
-
 // allSpecs is every tool the server offers. Registration and validation both
 // read this one list. So a tool cannot be registered without reaching clients,
 // or reach clients without rules.
@@ -597,6 +655,28 @@ func allSpecs() []toolSpec {
 	return all
 }
 
+// internalSpecs are plugin requests that a Go handler sends itself. They have a
+// spec so that the call is checked like any other, and so that a leader accepts
+// it from a follower.
+var internalSpecs = readOnly([]toolSpec{
+	{
+		Name:    "get_screenshot",
+		NodeIDs: nodeIDsMulti,
+		Params: []paramSpec{
+			{Name: "format", Kind: kindString, Enum: exportFormats},
+			{Name: "scale", Kind: kindNumber, Positive: true},
+		},
+	},
+	// The public tool of this name requires outputPath, because Go writes the
+	// file. The plugin only needs the frames. A follower built before this spec
+	// existed sends the request with no params.
+	{
+		Name:       "export_frames_to_pdf",
+		NodeIDs:    nodeIDsMulti,
+		NodeIDsReq: true,
+	},
+})
+
 // readOnlyModeExports are the export tools that read-only mode also offers.
 // They never change the Figma file. They carry no readOnlyHint, because that
 // hint also covers the disk, and an export can write a file there.
@@ -607,7 +687,7 @@ var readOnlyModeExports = []string{"export_frames_to_pdf", "export_screenshots",
 func readOnlyModeSpecs() []toolSpec {
 	var specs []toolSpec
 	for _, spec := range allSpecs() {
-		if spec.ReadOnly || slices.Contains(readOnlyModeExports, spec.Name) {
+		if offeredReadOnly(spec) {
 			specs = append(specs, spec)
 		}
 	}
@@ -636,14 +716,19 @@ func buildSpecRegistry() map[string]toolSpec {
 		}
 		registry[spec.Name] = spec
 	}
+	// The registry checks what reaches the plugin. So an internal spec takes
+	// the place of a public tool of the same name. The public tool's handler
+	// checks against its own spec.
+	for _, spec := range internalSpecs {
+		registry[spec.Name] = spec
+	}
 	return registry
 }
 
 // handlerFor builds a tool's MCP handler: split the arguments, check them, then
 // run either the tool's own Go code or the plain forwarder. Both paths check,
-// so "every call is validated exactly once" holds by design, not by
-// remembering to do it.
-func handlerFor(sender Sender, spec toolSpec) server.ToolHandlerFunc {
+// so no call reaches the plugin unchecked.
+func handlerFor(sender Sender, spec toolSpec, readOnlyMode bool) server.ToolHandlerFunc {
 	var handle customHandler
 	if spec.Custom != nil {
 		// A Custom handler may call a different tool than the one it was called
@@ -658,7 +743,12 @@ func handlerFor(sender Sender, spec toolSpec) server.ToolHandlerFunc {
 
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		nodeIDs, params := specArgs(spec, req.GetArguments())
-		nodeIDs, params, err := Check(spec.Name, nodeIDs, params)
+		if readOnlyMode {
+			if err := readOnlyRefusal(spec, params); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+		}
+		nodeIDs, params, err := checkSpec(spec, nodeIDs, params)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}

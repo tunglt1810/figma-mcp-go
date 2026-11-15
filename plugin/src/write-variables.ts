@@ -1,5 +1,5 @@
 import { hexToRgb, makeSolidPaint } from "./write-helpers";
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
 const parseVariableValue = (type: string, value: any): VariableValue => {
   if (type === "COLOR") {
@@ -14,8 +14,8 @@ const parseVariableValue = (type: string, value: any): VariableValue => {
   return String(value); // STRING
 };
 
-// manage_variable replaced the six single-purpose variable tools in the MCP
-// tool list. The implementations below stay separate. Only the tool surface merged.
+// manage_variable is one tool for six variable actions. The implementations
+// below stay separate, and only manage_variable can reach them.
 const VARIABLE_ACTIONS: Record<string, string> = {
   create_collection: "create_variable_collection",
   add_mode: "add_variable_mode",
@@ -25,7 +25,7 @@ const VARIABLE_ACTIONS: Record<string, string> = {
   bind: "bind_variable_to_node",
 };
 
-export const writeVariablesHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "manage_variable": async (request) => {
     const { action, ...params } = request.params || {};
     const type = VARIABLE_ACTIONS[action];
@@ -34,9 +34,7 @@ export const writeVariablesHandlers: HandlerMap = {
         `action must be ${Object.keys(VARIABLE_ACTIONS).join(", ")}, got: ${action}`,
       );
     }
-    const result = await handleWriteVariableRequest({ ...request, type, params });
-    // Answer with the name the caller used, not the one we delegated to.
-    return { ...result, type: request.type };
+    return raw[type]({ ...request, params });
   },
 
   "create_variable_collection": async (request) => {
@@ -48,13 +46,9 @@ export const writeVariablesHandlers: HandlerMap = {
     }
     figma.commitUndo();
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: collection.id,
-        name: collection.name,
-        modes: collection.modes.map((m) => ({ modeId: m.modeId, name: m.name })),
-      },
+      id: collection.id,
+      name: collection.name,
+      modes: collection.modes.map((m) => ({ modeId: m.modeId, name: m.name })),
     };
   },
 
@@ -66,11 +60,7 @@ export const writeVariablesHandlers: HandlerMap = {
     if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
     const modeId = collection.addMode(p.modeName);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { collectionId: p.collectionId, modeId, modeName: p.modeName },
-    };
+    return { collectionId: p.collectionId, modeId, modeName: p.modeName };
   },
 
   "create_variable": async (request) => {
@@ -90,14 +80,10 @@ export const writeVariablesHandlers: HandlerMap = {
     }
     figma.commitUndo();
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: variable.id,
-        name: variable.name,
-        resolvedType: variable.resolvedType,
-        collectionId: p.collectionId,
-      },
+      id: variable.id,
+      name: variable.name,
+      resolvedType: variable.resolvedType,
+      collectionId: p.collectionId,
     };
   },
 
@@ -110,11 +96,7 @@ export const writeVariablesHandlers: HandlerMap = {
     if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
     variable.setValueForMode(p.modeId, parseVariableValue(variable.resolvedType, p.value));
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { variableId: variable.id, name: variable.name, modeId: p.modeId },
-    };
+    return { variableId: variable.id, name: variable.name, modeId: p.modeId };
   },
 
   "delete_variable": async (request) => {
@@ -124,21 +106,13 @@ export const writeVariablesHandlers: HandlerMap = {
       if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
       variable.remove();
       figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { variableId: p.variableId, deleted: true },
-      };
+      return { variableId: p.variableId, deleted: true };
     } else if (p.collectionId) {
       const collection = await figma.variables.getVariableCollectionByIdAsync(p.collectionId);
       if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
       collection.remove();
       figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { collectionId: p.collectionId, deleted: true },
-      };
+      return { collectionId: p.collectionId, deleted: true };
     } else {
       throw new Error("variableId or collectionId is required");
     }
@@ -171,15 +145,8 @@ export const writeVariablesHandlers: HandlerMap = {
       node.setBoundVariable(p.field, variable);
     }
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name, variableId: p.variableId, field: p.field },
-    };
+    return { id: node.id, name: node.name, variableId: p.variableId, field: p.field };
   },
 };
 
-export const handleWriteVariableRequest = async (request: any): Promise<any> => {
-  const handler = writeVariablesHandlers[request.type];
-  return handler ? handler(request) : null;
-};
+export const writeVariablesHandlers: HandlerMap = withEnvelope(raw, Object.values(VARIABLE_ACTIONS));

@@ -5,25 +5,23 @@ import (
 	"testing"
 )
 
-// ── figma.ValidNodeID ──────────────────────────────────────────────────────────────
-
 func TestValidateRPC_GetNodesInfo(t *testing.T) {
-	if msg := ValidateRPC("get_nodes_info", nil, nil); msg == "" {
+	if msg := validateCall("get_nodes_info", nil, nil); msg == "" {
 		t.Error("expected error for empty nodeIds")
 	}
-	if msg := ValidateRPC("get_nodes_info", []string{"bad"}, nil); msg == "" {
+	if msg := validateCall("get_nodes_info", []string{"bad"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
 	// ValidateRPC runs after normalization. A hyphen that reaches it means
 	// nothing normalized it, so it is not a node id.
-	if msg := ValidateRPC("get_nodes_info", []string{"4029-12345"}, nil); msg == "" {
+	if msg := validateCall("get_nodes_info", []string{"4029-12345"}, nil); msg == "" {
 		t.Error("expected error for hyphen nodeId")
 	}
-	if msg := ValidateRPC("get_nodes_info", []string{"1:1", "2:2"}, nil); msg != "" {
+	if msg := validateCall("get_nodes_info", []string{"1:1", "2:2"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 	// This tool took over get_node, so one node is a normal call, not an edge case.
-	if msg := ValidateRPC("get_nodes_info", []string{"4029:12345"}, nil); msg != "" {
+	if msg := validateCall("get_nodes_info", []string{"4029:12345"}, nil); msg != "" {
 		t.Errorf("a single node was rejected: %s", msg)
 	}
 }
@@ -32,54 +30,54 @@ func TestValidateRPC_GetNodesInfo(t *testing.T) {
 // outputPath decides whether a capture goes to disk or comes back as base64.
 func TestValidateRPC_ExportScreenshots(t *testing.T) {
 	// no items at all is the "capture the selection" call, not an error
-	if msg := ValidateRPC("export_screenshots", nil, nil); msg != "" {
+	if msg := validateCall("export_screenshots", nil, nil); msg != "" {
 		t.Errorf("exporting the selection was rejected: %s", msg)
 	}
 	// an explicitly empty array is a caller mistake, not that call
-	if msg := ValidateRPC("export_screenshots", nil, map[string]any{"items": []any{}}); msg == "" {
+	if msg := validateCall("export_screenshots", nil, map[string]any{"items": []any{}}); msg == "" {
 		t.Error("expected error for an empty items array")
 	}
 	// invalid format on the tool itself
-	if msg := ValidateRPC("export_screenshots", nil, map[string]any{"format": "GIF"}); msg == "" {
+	if msg := validateCall("export_screenshots", nil, map[string]any{"format": "GIF"}); msg == "" {
 		t.Error("expected error for invalid format")
 	}
 	for _, f := range []string{"PNG", "SVG", "JPG", "PDF"} {
-		if msg := ValidateRPC("export_screenshots", nil, map[string]any{"format": f}); msg != "" {
+		if msg := validateCall("export_screenshots", nil, map[string]any{"format": f}); msg != "" {
 			t.Errorf("unexpected error for format %s: %s", f, msg)
 		}
 	}
 	// invalid nodeId in item
-	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+	if msg := validateCall("export_screenshots", nil, map[string]any{
 		"items": []any{map[string]any{"nodeId": "bad", "outputPath": "out.png"}},
 	}); msg == "" {
 		t.Error("expected error for bad nodeId in item")
 	}
 	// no outputPath means base64, not an error: this is the get_screenshot part
-	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+	if msg := validateCall("export_screenshots", nil, map[string]any{
 		"items": []any{map[string]any{"nodeId": "1:1"}},
 	}); msg != "" {
 		t.Errorf("an item without outputPath was rejected: %s", msg)
 	}
 	// an empty outputPath is a path the caller got wrong, and must not
 	// quietly become the base64 answer
-	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+	if msg := validateCall("export_screenshots", nil, map[string]any{
 		"items": []any{map[string]any{"nodeId": "1:1", "outputPath": ""}},
 	}); msg == "" {
 		t.Error("expected error for an empty outputPath")
 	}
 	// the per-item format is deeper than any paramSpec enum can reach
-	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+	if msg := validateCall("export_screenshots", nil, map[string]any{
 		"items": []any{map[string]any{"nodeId": "1:1", "format": "GIF"}},
 	}); msg == "" {
 		t.Error("expected error for an invalid per-item format")
 	}
-	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+	if msg := validateCall("export_screenshots", nil, map[string]any{
 		"items": []any{map[string]any{"nodeId": "1:1", "scale": float64(0)}},
 	}); msg == "" {
 		t.Error("expected error for a non-positive per-item scale")
 	}
 	// both kinds in one call
-	if msg := ValidateRPC("export_screenshots", nil, map[string]any{
+	if msg := validateCall("export_screenshots", nil, map[string]any{
 		"items": []any{
 			map[string]any{"nodeId": "1:1", "outputPath": "out.png"},
 			map[string]any{"nodeId": "2:2"},
@@ -93,30 +91,30 @@ func TestValidateRPC_ExportScreenshots(t *testing.T) {
 // a selection scope are now arguments to it.
 func TestValidateRPC_GetDocument(t *testing.T) {
 	// negative depth
-	if msg := ValidateRPC("get_document", nil, map[string]any{"depth": float64(-1)}); msg == "" {
+	if msg := validateCall("get_document", nil, map[string]any{"depth": float64(-1)}); msg == "" {
 		t.Error("expected error for negative depth")
 	}
 	// invalid detail
-	if msg := ValidateRPC("get_document", nil, map[string]any{"detail": "huge"}); msg == "" {
+	if msg := validateCall("get_document", nil, map[string]any{"detail": "huge"}); msg == "" {
 		t.Error("expected error for invalid detail")
 	}
 	// valid detail values
 	for _, d := range []string{"minimal", "compact", "full"} {
-		if msg := ValidateRPC("get_document", nil, map[string]any{"detail": d}); msg != "" {
+		if msg := validateCall("get_document", nil, map[string]any{"detail": d}); msg != "" {
 			t.Errorf("unexpected error for detail %s: %s", d, msg)
 		}
 	}
 	// every scope, including the one that came from get_design_context
 	for _, scope := range []string{"selection", "page", "document"} {
-		if msg := ValidateRPC("get_document", nil, map[string]any{"scope": scope}); msg != "" {
+		if msg := validateCall("get_document", nil, map[string]any{"scope": scope}); msg != "" {
 			t.Errorf("unexpected error for scope %s: %s", scope, msg)
 		}
 	}
-	if msg := ValidateRPC("get_document", nil, map[string]any{"scope": "everything"}); msg == "" {
+	if msg := validateCall("get_document", nil, map[string]any{"scope": "everything"}); msg == "" {
 		t.Error("expected error for an unknown scope")
 	}
 	// what get_design_context did, now on a document walk
-	if msg := ValidateRPC("get_document", nil, map[string]any{
+	if msg := validateCall("get_document", nil, map[string]any{
 		"scope": "document", "detail": "minimal", "dedupeComponents": true, "maxNodes": float64(500),
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
@@ -126,32 +124,32 @@ func TestValidateRPC_GetDocument(t *testing.T) {
 func TestValidateRPC_SearchNodes(t *testing.T) {
 	// neither query nor types. This tool took over scan_nodes_by_types, so
 	// types alone is a full search now. But neither would mean "every node on the page".
-	if msg := ValidateRPC("search_nodes", nil, nil); msg == "" {
+	if msg := validateCall("search_nodes", nil, nil); msg == "" {
 		t.Error("expected error when neither query nor types is given")
 	}
 	// types alone, which is what scan_nodes_by_types was
-	if msg := ValidateRPC("search_nodes", nil, map[string]any{
+	if msg := validateCall("search_nodes", nil, map[string]any{
 		"nodeId": "1:1",
 		"types":  []any{"FRAME", "COMPONENT"},
 	}); msg != "" {
 		t.Errorf("a types-only search was rejected: %s", msg)
 	}
 	// what scan_text_nodes was
-	if msg := ValidateRPC("search_nodes", nil, map[string]any{
+	if msg := validateCall("search_nodes", nil, map[string]any{
 		"nodeId":      "1:1",
 		"types":       []any{"TEXT"},
 		"includeText": true,
 	}); msg != "" {
 		t.Errorf("a text scan was rejected: %s", msg)
 	}
-	if msg := ValidateRPC("search_nodes", nil, map[string]any{
+	if msg := validateCall("search_nodes", nil, map[string]any{
 		"query":         "button",
 		"includeHidden": "no",
 	}); msg == "" {
 		t.Error("expected a non-boolean includeHidden to be rejected")
 	}
 	// invalid nodeId
-	msg := ValidateRPC("search_nodes", nil, map[string]any{
+	msg := validateCall("search_nodes", nil, map[string]any{
 		"query":  "button",
 		"nodeId": "bad",
 	})
@@ -159,7 +157,7 @@ func TestValidateRPC_SearchNodes(t *testing.T) {
 		t.Error("expected error for bad nodeId")
 	}
 	// non-positive limit
-	msg = ValidateRPC("search_nodes", nil, map[string]any{
+	msg = validateCall("search_nodes", nil, map[string]any{
 		"query": "button",
 		"limit": float64(0),
 	})
@@ -167,7 +165,7 @@ func TestValidateRPC_SearchNodes(t *testing.T) {
 		t.Error("expected error for zero limit")
 	}
 	// valid
-	msg = ValidateRPC("search_nodes", nil, map[string]any{"query": "button"})
+	msg = validateCall("search_nodes", nil, map[string]any{"query": "button"})
 	if msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
@@ -175,15 +173,15 @@ func TestValidateRPC_SearchNodes(t *testing.T) {
 
 func TestValidateRPC_SetText(t *testing.T) {
 	// missing nodeId
-	if msg := ValidateRPC("set_text", nil, map[string]any{"text": "hello"}); msg == "" {
+	if msg := validateCall("set_text", nil, map[string]any{"text": "hello"}); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
 	// missing text
-	if msg := ValidateRPC("set_text", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("set_text", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error for missing text")
 	}
 	// valid
-	msg := ValidateRPC("set_text", []string{"1:1"}, map[string]any{"text": "hello"})
+	msg := validateCall("set_text", []string{"1:1"}, map[string]any{"text": "hello"})
 	if msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
@@ -195,7 +193,7 @@ func TestValidateRPC_SetText(t *testing.T) {
 // argument is reported.
 func TestValidateRPC_ManageVariable(t *testing.T) {
 	call := func(nodeIDs []string, params map[string]any) string {
-		return ValidateRPC("manage_variable", nodeIDs, params)
+		return validateCall("manage_variable", nodeIDs, params)
 	}
 
 	t.Run("the action itself", func(t *testing.T) {
@@ -307,83 +305,81 @@ func TestValidateRPC_ManageVariable(t *testing.T) {
 
 func TestValidateRPC_SwapComponent(t *testing.T) {
 	// invalid componentId format
-	msg := ValidateRPC("swap_component", []string{"1:1"}, map[string]any{
+	msg := validateCall("swap_component", []string{"1:1"}, map[string]any{
 		"componentId": "bad-format",
 	})
 	if msg == "" {
 		t.Error("expected error for hyphen componentId")
 	}
 	// valid
-	msg = ValidateRPC("swap_component", []string{"1:1"}, map[string]any{
+	msg = validateCall("swap_component", []string{"1:1"}, map[string]any{
 		"componentId": "2:2",
 	})
 	if msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 	// a library key works in place of an ID
-	if msg := ValidateRPC("swap_component", []string{"1:1"}, map[string]any{"componentKey": "abc"}); msg != "" {
+	if msg := validateCall("swap_component", []string{"1:1"}, map[string]any{"componentKey": "abc"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-	if msg := ValidateRPC("swap_component", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("swap_component", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error for missing componentId/Key")
 	}
 }
 
 func TestValidateRPC_UnknownTool(t *testing.T) {
-	// unknown tools pass through with no error
-	msg := ValidateRPC("unknown_tool", nil, nil)
-	if msg != "" {
-		t.Errorf("expected no error for unknown tool, got: %s", msg)
+	if msg := validateCall("unknown_tool", nil, nil); msg == "" {
+		t.Error("expected an error for an unknown tool")
 	}
 }
 
 func TestValidateRPC_GetReactions(t *testing.T) {
-	if msg := ValidateRPC("get_reactions", nil, nil); msg == "" {
+	if msg := validateCall("get_reactions", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
-	if msg := ValidateRPC("get_reactions", []string{"bad-id"}, nil); msg == "" {
+	if msg := validateCall("get_reactions", []string{"bad-id"}, nil); msg == "" {
 		t.Error("expected error for hyphen nodeId")
 	}
-	if msg := ValidateRPC("get_reactions", []string{"1:1"}, nil); msg != "" {
+	if msg := validateCall("get_reactions", []string{"1:1"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
 func TestValidateRPC_SetAutoLayout(t *testing.T) {
-	if msg := ValidateRPC("set_auto_layout", nil, nil); msg == "" {
+	if msg := validateCall("set_auto_layout", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
-	if msg := ValidateRPC("set_auto_layout", []string{"bad"}, nil); msg == "" {
+	if msg := validateCall("set_auto_layout", []string{"bad"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
-	if msg := ValidateRPC("set_auto_layout", []string{"1:1"}, map[string]any{"layoutMode": "DIAGONAL"}); msg == "" {
+	if msg := validateCall("set_auto_layout", []string{"1:1"}, map[string]any{"layoutMode": "DIAGONAL"}); msg == "" {
 		t.Error("expected error for invalid layoutMode")
 	}
-	if msg := ValidateRPC("set_auto_layout", []string{"1:1"}, map[string]any{"layoutMode": "HORIZONTAL"}); msg != "" {
+	if msg := validateCall("set_auto_layout", []string{"1:1"}, map[string]any{"layoutMode": "HORIZONTAL"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
 func TestValidateRPC_CreateText(t *testing.T) {
-	if msg := ValidateRPC("create_text", nil, nil); msg == "" {
+	if msg := validateCall("create_text", nil, nil); msg == "" {
 		t.Error("expected error for missing text")
 	}
-	if msg := ValidateRPC("create_text", nil, map[string]any{"text": "hi", "parentId": "bad"}); msg == "" {
+	if msg := validateCall("create_text", nil, map[string]any{"text": "hi", "parentId": "bad"}); msg == "" {
 		t.Error("expected error for invalid parentId")
 	}
-	if msg := ValidateRPC("create_text", nil, map[string]any{"text": "hi"}); msg != "" {
+	if msg := validateCall("create_text", nil, map[string]any{"text": "hi"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
 func TestValidateRPC_DeleteNodes(t *testing.T) {
-	if msg := ValidateRPC("delete_nodes", nil, nil); msg == "" {
+	if msg := validateCall("delete_nodes", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeIds")
 	}
-	if msg := ValidateRPC("delete_nodes", []string{"bad-id"}, nil); msg == "" {
+	if msg := validateCall("delete_nodes", []string{"bad-id"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
-	if msg := ValidateRPC("delete_nodes", []string{"1:1"}, nil); msg != "" {
+	if msg := validateCall("delete_nodes", []string{"1:1"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
@@ -391,13 +387,13 @@ func TestValidateRPC_DeleteNodes(t *testing.T) {
 // batch_rename_nodes took over rename_node, so a literal name is one of the ways
 // it builds a name. It is the one way that cannot be mixed with the others.
 func TestValidateRPC_BatchRenameNodes_Name(t *testing.T) {
-	if msg := ValidateRPC("batch_rename_nodes", nil, map[string]any{"name": "Frame 1"}); msg == "" {
+	if msg := validateCall("batch_rename_nodes", nil, map[string]any{"name": "Frame 1"}); msg == "" {
 		t.Error("expected error for missing nodeIds")
 	}
-	if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("batch_rename_nodes", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error when no renaming rule is given")
 	}
-	if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, map[string]any{"name": "Frame 1"}); msg != "" {
+	if msg := validateCall("batch_rename_nodes", []string{"1:1"}, map[string]any{"name": "Frame 1"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 	// A literal name and a substitution in one call have no defined order.
@@ -406,93 +402,93 @@ func TestValidateRPC_BatchRenameNodes_Name(t *testing.T) {
 		if other == "find" {
 			params["replace"] = "y"
 		}
-		if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, params); msg == "" {
+		if msg := validateCall("batch_rename_nodes", []string{"1:1"}, params); msg == "" {
 			t.Errorf("expected name + %s to be rejected", other)
 		}
 	}
 }
 
 func TestValidateRPC_CloneNode(t *testing.T) {
-	if msg := ValidateRPC("clone_node", nil, nil); msg == "" {
+	if msg := validateCall("clone_node", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
-	if msg := ValidateRPC("clone_node", []string{"1:1"}, map[string]any{"parentId": "bad"}); msg == "" {
+	if msg := validateCall("clone_node", []string{"1:1"}, map[string]any{"parentId": "bad"}); msg == "" {
 		t.Error("expected error for invalid parentId")
 	}
-	if msg := ValidateRPC("clone_node", []string{"1:1"}, nil); msg != "" {
+	if msg := validateCall("clone_node", []string{"1:1"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
 func TestValidateRPC_ImportImage(t *testing.T) {
-	if msg := ValidateRPC("import_image", nil, nil); msg == "" {
+	if msg := validateCall("import_image", nil, nil); msg == "" {
 		t.Error("expected error for missing imageData")
 	}
-	if msg := ValidateRPC("import_image", nil, map[string]any{"imageData": "b64", "scaleMode": "STRETCH"}); msg == "" {
+	if msg := validateCall("import_image", nil, map[string]any{"imageData": "b64", "scaleMode": "STRETCH"}); msg == "" {
 		t.Error("expected error for invalid scaleMode")
 	}
-	if msg := ValidateRPC("import_image", nil, map[string]any{"imageData": "b64", "parentId": "bad"}); msg == "" {
+	if msg := validateCall("import_image", nil, map[string]any{"imageData": "b64", "parentId": "bad"}); msg == "" {
 		t.Error("expected error for invalid parentId")
 	}
 	for _, sm := range []string{"FILL", "FIT", "CROP", "TILE"} {
-		if msg := ValidateRPC("import_image", nil, map[string]any{"imageData": "b64", "scaleMode": sm}); msg != "" {
+		if msg := validateCall("import_image", nil, map[string]any{"imageData": "b64", "scaleMode": sm}); msg != "" {
 			t.Errorf("unexpected error for scaleMode %s: %s", sm, msg)
 		}
 	}
 }
 
 func TestValidateRPC_UpdatePaintStyle(t *testing.T) {
-	if msg := ValidateRPC("update_paint_style", nil, nil); msg == "" {
+	if msg := validateCall("update_paint_style", nil, nil); msg == "" {
 		t.Error("expected error for missing styleId")
 	}
-	if msg := ValidateRPC("update_paint_style", nil, map[string]any{"styleId": "S:abc"}); msg == "" {
+	if msg := validateCall("update_paint_style", nil, map[string]any{"styleId": "S:abc"}); msg == "" {
 		t.Error("expected error when no fields to update")
 	}
-	if msg := ValidateRPC("update_paint_style", nil, map[string]any{"styleId": "S:abc", "color": "#fff"}); msg != "" {
+	if msg := validateCall("update_paint_style", nil, map[string]any{"styleId": "S:abc", "color": "#fff"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-	if msg := ValidateRPC("update_paint_style", nil, map[string]any{"styleId": "S:abc", "description": "desc"}); msg != "" {
+	if msg := validateCall("update_paint_style", nil, map[string]any{"styleId": "S:abc", "description": "desc"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
 func TestValidateRPC_DeleteStyle(t *testing.T) {
-	if msg := ValidateRPC("delete_style", nil, nil); msg == "" {
+	if msg := validateCall("delete_style", nil, nil); msg == "" {
 		t.Error("expected error for missing styleId")
 	}
-	if msg := ValidateRPC("delete_style", nil, map[string]any{"styleId": "S:abc"}); msg != "" {
+	if msg := validateCall("delete_style", nil, map[string]any{"styleId": "S:abc"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
 func TestValidateRPC_ApplyStyleToNode(t *testing.T) {
-	if msg := ValidateRPC("apply_style_to_node", nil, nil); msg == "" {
+	if msg := validateCall("apply_style_to_node", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
-	if msg := ValidateRPC("apply_style_to_node", []string{"bad"}, nil); msg == "" {
+	if msg := validateCall("apply_style_to_node", []string{"bad"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
-	if msg := ValidateRPC("apply_style_to_node", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("apply_style_to_node", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error for missing styleId")
 	}
-	if msg := ValidateRPC("apply_style_to_node", []string{"1:1"}, map[string]any{"styleId": "S:abc", "target": "shadow"}); msg == "" {
+	if msg := validateCall("apply_style_to_node", []string{"1:1"}, map[string]any{"styleId": "S:abc", "target": "shadow"}); msg == "" {
 		t.Error("expected error for invalid target")
 	}
 	for _, target := range []string{"fill", "stroke"} {
-		if msg := ValidateRPC("apply_style_to_node", []string{"1:1"}, map[string]any{"styleId": "S:abc", "target": target}); msg != "" {
+		if msg := validateCall("apply_style_to_node", []string{"1:1"}, map[string]any{"styleId": "S:abc", "target": target}); msg != "" {
 			t.Errorf("unexpected error for target %s: %s", target, msg)
 		}
 	}
 }
 
 func TestValidateRPC_DetachInstance(t *testing.T) {
-	if msg := ValidateRPC("detach_instance", nil, nil); msg == "" {
+	if msg := validateCall("detach_instance", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeIds")
 	}
-	if msg := ValidateRPC("detach_instance", []string{"bad-id"}, nil); msg == "" {
+	if msg := validateCall("detach_instance", []string{"bad-id"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
-	if msg := ValidateRPC("detach_instance", []string{"1:1"}, nil); msg != "" {
+	if msg := validateCall("detach_instance", []string{"1:1"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
@@ -501,13 +497,13 @@ func TestValidateRPC_DetachInstance(t *testing.T) {
 // So position, size and radii are now properties like the rest, and each one
 // alone is enough for a valid call.
 func TestValidateRPC_SetNodeProperties_GeometryAbsorbed(t *testing.T) {
-	if msg := ValidateRPC("set_node_properties", nil, map[string]any{"cornerRadius": float64(8)}); msg == "" {
+	if msg := validateCall("set_node_properties", nil, map[string]any{"cornerRadius": float64(8)}); msg == "" {
 		t.Error("expected error for missing nodeIds")
 	}
-	if msg := ValidateRPC("set_node_properties", []string{"bad"}, map[string]any{"width": float64(10)}); msg == "" {
+	if msg := validateCall("set_node_properties", []string{"bad"}, map[string]any{"width": float64(10)}); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
-	if msg := ValidateRPC("set_node_properties", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("set_node_properties", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error when no property is provided")
 	}
 	// Each geometry property alone
@@ -515,21 +511,21 @@ func TestValidateRPC_SetNodeProperties_GeometryAbsorbed(t *testing.T) {
 		"x", "y", "width", "height",
 		"cornerRadius", "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius",
 	} {
-		if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{param: float64(4)}); msg != "" {
+		if msg := validateCall("set_node_properties", []string{"1:1"}, map[string]any{param: float64(4)}); msg != "" {
 			t.Errorf("unexpected error for %s: %s", param, msg)
 		}
-		if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{param: "big"}); msg == "" {
+		if msg := validateCall("set_node_properties", []string{"1:1"}, map[string]any{param: "big"}); msg == "" {
 			t.Errorf("expected a non-numeric %s to be rejected", param)
 		}
 	}
 	// Move and resize together, which used to take two calls and two undo entries
-	if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{
+	if msg := validateCall("set_node_properties", []string{"1:1"}, map[string]any{
 		"x": float64(10), "y": float64(20), "width": float64(300), "height": float64(200),
 	}); msg != "" {
 		t.Errorf("unexpected error for a move and resize in one call: %s", msg)
 	}
 	// mixed per-corner
-	if msg := ValidateRPC("set_node_properties", []string{"1:1"}, map[string]any{
+	if msg := validateCall("set_node_properties", []string{"1:1"}, map[string]any{
 		"topLeftRadius": float64(8), "topRightRadius": float64(0),
 		"bottomLeftRadius": float64(8), "bottomRightRadius": float64(0),
 	}); msg != "" {
@@ -539,81 +535,81 @@ func TestValidateRPC_SetNodeProperties_GeometryAbsorbed(t *testing.T) {
 
 func TestValidateRPC_GroupNodes(t *testing.T) {
 	// fewer than 2 nodes
-	if msg := ValidateRPC("group_nodes", nil, nil); msg == "" {
+	if msg := validateCall("group_nodes", nil, nil); msg == "" {
 		t.Error("expected error for empty nodeIds")
 	}
-	if msg := ValidateRPC("group_nodes", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("group_nodes", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error for single nodeId")
 	}
 	// invalid nodeId
-	if msg := ValidateRPC("group_nodes", []string{"1:1", "bad"}, nil); msg == "" {
+	if msg := validateCall("group_nodes", []string{"1:1", "bad"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
 	// valid
-	if msg := ValidateRPC("group_nodes", []string{"1:1", "2:2"}, nil); msg != "" {
+	if msg := validateCall("group_nodes", []string{"1:1", "2:2"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-	if msg := ValidateRPC("group_nodes", []string{"1:1", "2:2", "3:3"}, nil); msg != "" {
+	if msg := validateCall("group_nodes", []string{"1:1", "2:2", "3:3"}, nil); msg != "" {
 		t.Errorf("unexpected error for 3 nodeIds: %s", msg)
 	}
 }
 
 func TestValidateRPC_UngroupNodes(t *testing.T) {
 	// missing nodeIds
-	if msg := ValidateRPC("ungroup_nodes", nil, nil); msg == "" {
+	if msg := validateCall("ungroup_nodes", nil, nil); msg == "" {
 		t.Error("expected error for empty nodeIds")
 	}
 	// invalid nodeId
-	if msg := ValidateRPC("ungroup_nodes", []string{"bad-id"}, nil); msg == "" {
+	if msg := validateCall("ungroup_nodes", []string{"bad-id"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
 	// valid single
-	if msg := ValidateRPC("ungroup_nodes", []string{"1:1"}, nil); msg != "" {
+	if msg := validateCall("ungroup_nodes", []string{"1:1"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 	// valid multiple
-	if msg := ValidateRPC("ungroup_nodes", []string{"1:1", "2:2"}, nil); msg != "" {
+	if msg := validateCall("ungroup_nodes", []string{"1:1", "2:2"}, nil); msg != "" {
 		t.Errorf("unexpected error for multiple nodeIds: %s", msg)
 	}
 }
 
 func TestValidateRPC_CreateComponent(t *testing.T) {
 	// missing nodeId
-	if msg := ValidateRPC("create_component", nil, nil); msg == "" {
+	if msg := validateCall("create_component", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
-	if msg := ValidateRPC("create_component", []string{""}, nil); msg == "" {
+	if msg := validateCall("create_component", []string{""}, nil); msg == "" {
 		t.Error("expected error for empty nodeId")
 	}
 	// invalid nodeId format
-	if msg := ValidateRPC("create_component", []string{"bad-id"}, nil); msg == "" {
+	if msg := validateCall("create_component", []string{"bad-id"}, nil); msg == "" {
 		t.Error("expected error for hyphen nodeId")
 	}
 	// valid
-	if msg := ValidateRPC("create_component", []string{"1:1"}, nil); msg != "" {
+	if msg := validateCall("create_component", []string{"1:1"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-	if msg := ValidateRPC("create_component", []string{"1:1"}, map[string]any{"name": "MyComponent"}); msg != "" {
+	if msg := validateCall("create_component", []string{"1:1"}, map[string]any{"name": "MyComponent"}); msg != "" {
 		t.Errorf("unexpected error with name: %s", msg)
 	}
 }
 
 func TestValidateRPC_ExportTokens(t *testing.T) {
 	// no params — valid (defaults to json)
-	if msg := ValidateRPC("export_tokens", nil, nil); msg != "" {
+	if msg := validateCall("export_tokens", nil, nil); msg != "" {
 		t.Errorf("unexpected error for no params: %s", msg)
 	}
 	// valid formats
 	for _, f := range []string{"json", "css"} {
-		if msg := ValidateRPC("export_tokens", nil, map[string]any{"format": f}); msg != "" {
+		if msg := validateCall("export_tokens", nil, map[string]any{"format": f}); msg != "" {
 			t.Errorf("unexpected error for format %s: %s", f, msg)
 		}
 	}
 	// invalid format
-	if msg := ValidateRPC("export_tokens", nil, map[string]any{"format": "yaml"}); msg == "" {
+	if msg := validateCall("export_tokens", nil, map[string]any{"format": "yaml"}); msg == "" {
 		t.Error("expected error for invalid format")
 	}
-	if msg := ValidateRPC("export_tokens", nil, map[string]any{"format": "style-dictionary"}); msg == "" {
+	if msg := validateCall("export_tokens", nil, map[string]any{"format": "style-dictionary"}); msg == "" {
 		t.Error("expected error for unsupported format")
 	}
 }
@@ -630,14 +626,14 @@ func TestValidateAutoLayoutParams_InvalidValues(t *testing.T) {
 		{"layoutWrap", "FLEX_WRAP"},
 	}
 	for _, c := range cases {
-		msg := ValidateRPC("create_node", nil, map[string]any{"type": "FRAME", c.param: c.value})
+		msg := validateCall("create_node", nil, map[string]any{"type": "FRAME", c.param: c.value})
 		if msg == "" {
 			t.Errorf("expected error for invalid %s=%q", c.param, c.value)
 		}
 	}
 
 	// All valid auto-layout params together
-	msg := ValidateRPC("create_node", nil, map[string]any{
+	msg := validateCall("create_node", nil, map[string]any{
 		"type":                  "FRAME",
 		"primaryAxisAlignItems": "CENTER",
 		"counterAxisAlignItems": "BASELINE",
@@ -650,8 +646,6 @@ func TestValidateAutoLayoutParams_InvalidValues(t *testing.T) {
 	}
 }
 
-// ── set_reactions ─────────────────────────────────────────────────────────────
-
 func TestValidateRPC_SetReactions(t *testing.T) {
 	validReaction := map[string]any{
 		"trigger": map[string]any{"type": "ON_CLICK"},
@@ -663,44 +657,44 @@ func TestValidateRPC_SetReactions(t *testing.T) {
 	}
 
 	// missing nodeId
-	if msg := ValidateRPC("set_reactions", nil, map[string]any{"reactions": []any{}}); msg == "" {
+	if msg := validateCall("set_reactions", nil, map[string]any{"reactions": []any{}}); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
 	// bad nodeId format
-	if msg := ValidateRPC("set_reactions", []string{"1-2"}, map[string]any{"reactions": []any{}}); msg == "" {
+	if msg := validateCall("set_reactions", []string{"1-2"}, map[string]any{"reactions": []any{}}); msg == "" {
 		t.Error("expected error for bad nodeId format")
 	}
 	// missing reactions
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{}); msg == "" {
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{}); msg == "" {
 		t.Error("expected error for missing reactions")
 	}
 	// reactions not an array
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{"reactions": "not-array"}); msg == "" {
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{"reactions": "not-array"}); msg == "" {
 		t.Error("expected error for non-array reactions")
 	}
 	// bad mode
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{},
 		"mode":      "overwrite",
 	}); msg == "" {
 		t.Error("expected error for bad mode")
 	}
 	// valid mode replace
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{validReaction},
 		"mode":      "replace",
 	}); msg != "" {
 		t.Errorf("unexpected error for mode=replace: %s", msg)
 	}
 	// valid mode append
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{validReaction},
 		"mode":      "append",
 	}); msg != "" {
 		t.Errorf("unexpected error for mode=append: %s", msg)
 	}
 	// invalid trigger type
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{
 			map[string]any{
 				"trigger": map[string]any{"type": "INVALID_TRIGGER"},
@@ -711,7 +705,7 @@ func TestValidateRPC_SetReactions(t *testing.T) {
 		t.Error("expected error for invalid trigger type")
 	}
 	// AFTER_TIMEOUT missing timeout
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{
 			map[string]any{
 				"trigger": map[string]any{"type": "AFTER_TIMEOUT"},
@@ -722,7 +716,7 @@ func TestValidateRPC_SetReactions(t *testing.T) {
 		t.Error("expected error for AFTER_TIMEOUT without timeout")
 	}
 	// AFTER_TIMEOUT with valid timeout
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{
 			map[string]any{
 				"trigger": map[string]any{"type": "AFTER_TIMEOUT", "timeout": float64(3000)},
@@ -733,7 +727,7 @@ func TestValidateRPC_SetReactions(t *testing.T) {
 		t.Errorf("unexpected error for valid AFTER_TIMEOUT: %s", msg)
 	}
 	// invalid action type
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{
 			map[string]any{
 				"trigger": map[string]any{"type": "ON_CLICK"},
@@ -744,7 +738,7 @@ func TestValidateRPC_SetReactions(t *testing.T) {
 		t.Error("expected error for invalid action type")
 	}
 	// NODE missing navigation field
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{
 			map[string]any{
 				"trigger": map[string]any{"type": "ON_CLICK"},
@@ -755,7 +749,7 @@ func TestValidateRPC_SetReactions(t *testing.T) {
 		t.Error("expected error for NODE without navigation")
 	}
 	// URL missing url
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{
 			map[string]any{
 				"trigger": map[string]any{"type": "ON_CLICK"},
@@ -766,167 +760,157 @@ func TestValidateRPC_SetReactions(t *testing.T) {
 		t.Error("expected error for URL without url")
 	}
 	// empty reactions array is valid (clear all)
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{},
 	}); msg != "" {
 		t.Errorf("unexpected error for empty reactions: %s", msg)
 	}
 	// valid full reaction
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{validReaction},
 	}); msg != "" {
 		t.Errorf("unexpected error for valid reaction: %s", msg)
 	}
 }
 
-// ── set_reactions: the removal it absorbed ───────────────────────────────────
-
 func TestValidateRPC_SetReactions_RemoveIndices(t *testing.T) {
 	// missing nodeId
-	if msg := ValidateRPC("set_reactions", nil, map[string]any{"removeIndices": []any{}}); msg == "" {
+	if msg := validateCall("set_reactions", nil, map[string]any{"removeIndices": []any{}}); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
 	// bad nodeId format
-	if msg := ValidateRPC("set_reactions", []string{"1-2"}, map[string]any{"removeIndices": []any{}}); msg == "" {
+	if msg := validateCall("set_reactions", []string{"1-2"}, map[string]any{"removeIndices": []any{}}); msg == "" {
 		t.Error("expected error for bad nodeId format")
 	}
 	// neither argument leaves the call with nothing to do
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{}); msg == "" {
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{}); msg == "" {
 		t.Error("expected error when neither reactions nor removeIndices is given")
 	}
 	// both at once: an empty removeIndices means "remove all", so a call
 	// that also has reactions is ambiguous in the worst way
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"reactions": []any{}, "removeIndices": []any{},
 	}); msg == "" {
 		t.Error("expected reactions + removeIndices to be rejected")
 	}
 	// non-number in removeIndices
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"removeIndices": []any{"zero"},
 	}); msg == "" {
 		t.Error("expected error for non-number index")
 	}
 	// negative index
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"removeIndices": []any{float64(-1)},
 	}); msg == "" {
 		t.Error("expected error for a negative index")
 	}
 	// empty means remove all: valid, and not the same as omitting it
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"removeIndices": []any{},
 	}); msg != "" {
 		t.Errorf("unexpected error for remove all: %s", msg)
 	}
 	// valid with numeric indices
-	if msg := ValidateRPC("set_reactions", []string{"1:2"}, map[string]any{
+	if msg := validateCall("set_reactions", []string{"1:2"}, map[string]any{
 		"removeIndices": []any{float64(0), float64(2)},
 	}); msg != "" {
 		t.Errorf("unexpected error for valid indices: %s", msg)
 	}
 }
 
-// ── set_visible ─────────────────────────────────────────────────────
-
 func TestValidateRPC_ReparentNodes(t *testing.T) {
 	// missing nodeIds
-	if msg := ValidateRPC("reparent_nodes", nil, map[string]any{"parentId": "2:2"}); msg == "" {
+	if msg := validateCall("reparent_nodes", nil, map[string]any{"parentId": "2:2"}); msg == "" {
 		t.Error("expected error for missing nodeIds")
 	}
 	// missing parentId
-	if msg := ValidateRPC("reparent_nodes", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("reparent_nodes", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error for missing parentId")
 	}
 	// invalid parentId
-	if msg := ValidateRPC("reparent_nodes", []string{"1:1"}, map[string]any{"parentId": "bad"}); msg == "" {
+	if msg := validateCall("reparent_nodes", []string{"1:1"}, map[string]any{"parentId": "bad"}); msg == "" {
 		t.Error("expected error for invalid parentId")
 	}
 	// valid
-	if msg := ValidateRPC("reparent_nodes", []string{"1:1"}, map[string]any{"parentId": "2:2"}); msg != "" {
+	if msg := validateCall("reparent_nodes", []string{"1:1"}, map[string]any{"parentId": "2:2"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
-
-// ── batch_rename_nodes ──────────────────────────────────────────────
 
 func TestValidateRPC_BatchRenameNodes(t *testing.T) {
 	// missing nodeIds
-	if msg := ValidateRPC("batch_rename_nodes", nil, map[string]any{"prefix": "x"}); msg == "" {
+	if msg := validateCall("batch_rename_nodes", nil, map[string]any{"prefix": "x"}); msg == "" {
 		t.Error("expected error for missing nodeIds")
 	}
 	// no operation provided
-	if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("batch_rename_nodes", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error for no rename operation")
 	}
 	// find without replace
-	if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, map[string]any{"find": "x"}); msg == "" {
+	if msg := validateCall("batch_rename_nodes", []string{"1:1"}, map[string]any{"find": "x"}); msg == "" {
 		t.Error("expected error for find without replace")
 	}
 	// valid prefix only
-	if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, map[string]any{"prefix": "UI/"}); msg != "" {
+	if msg := validateCall("batch_rename_nodes", []string{"1:1"}, map[string]any{"prefix": "UI/"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 	// valid find+replace
-	if msg := ValidateRPC("batch_rename_nodes", []string{"1:1"}, map[string]any{"find": "Btn", "replace": "Button"}); msg != "" {
+	if msg := validateCall("batch_rename_nodes", []string{"1:1"}, map[string]any{"find": "Btn", "replace": "Button"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
-// ── find_replace_text ───────────────────────────────────────────────
-
 func TestValidateRPC_FindReplaceText(t *testing.T) {
 	// missing find
-	if msg := ValidateRPC("find_replace_text", nil, map[string]any{"replace": "x"}); msg == "" {
+	if msg := validateCall("find_replace_text", nil, map[string]any{"replace": "x"}); msg == "" {
 		t.Error("expected error for missing find")
 	}
 	// missing replace
-	if msg := ValidateRPC("find_replace_text", nil, map[string]any{"find": "x"}); msg == "" {
+	if msg := validateCall("find_replace_text", nil, map[string]any{"find": "x"}); msg == "" {
 		t.Error("expected error for missing replace")
 	}
 	// valid minimal
-	if msg := ValidateRPC("find_replace_text", nil, map[string]any{"find": "x", "replace": "y"}); msg != "" {
+	if msg := validateCall("find_replace_text", nil, map[string]any{"find": "x", "replace": "y"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 	// valid with empty replace (delete matches)
-	if msg := ValidateRPC("find_replace_text", nil, map[string]any{"find": "x", "replace": ""}); msg != "" {
+	if msg := validateCall("find_replace_text", nil, map[string]any{"find": "x", "replace": ""}); msg != "" {
 		t.Errorf("unexpected error for empty replace: %s", msg)
 	}
 }
 
-// ── Page management ─────────────────────────────────────────────────
-
 func TestValidateRPC_SetEffects(t *testing.T) {
 	// missing nodeId
-	if msg := ValidateRPC("set_effects", nil, map[string]any{"effects": []any{}}); msg == "" {
+	if msg := validateCall("set_effects", nil, map[string]any{"effects": []any{}}); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
 	// missing effects
-	if msg := ValidateRPC("set_effects", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("set_effects", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error for missing effects")
 	}
 	// effects not an array
-	if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]any{"effects": "shadow"}); msg == "" {
+	if msg := validateCall("set_effects", []string{"1:1"}, map[string]any{"effects": "shadow"}); msg == "" {
 		t.Error("expected error for non-array effects")
 	}
 	// invalid effect type
-	if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]any{
+	if msg := validateCall("set_effects", []string{"1:1"}, map[string]any{
 		"effects": []any{map[string]any{"type": "GLOW"}},
 	}); msg == "" {
 		t.Error("expected error for invalid effect type")
 	}
 	// valid empty effects (clear all)
-	if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]any{"effects": []any{}}); msg != "" {
+	if msg := validateCall("set_effects", []string{"1:1"}, map[string]any{"effects": []any{}}); msg != "" {
 		t.Errorf("unexpected error for empty effects: %s", msg)
 	}
 	// valid drop shadow
-	if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]any{
+	if msg := validateCall("set_effects", []string{"1:1"}, map[string]any{
 		"effects": []any{map[string]any{"type": "DROP_SHADOW"}},
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 	// valid layer blur
-	if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]any{
+	if msg := validateCall("set_effects", []string{"1:1"}, map[string]any{
 		"effects": []any{map[string]any{"type": "LAYER_BLUR", "radius": float64(4)}},
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
@@ -934,14 +918,14 @@ func TestValidateRPC_SetEffects(t *testing.T) {
 	// get_nodes_info reports GLASS, NOISE and TEXTURE effects, so set_effects must accept
 	// them back, or effects cannot be copied from one node to another.
 	for _, kind := range []string{"NOISE", "TEXTURE", "GLASS"} {
-		if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]any{
+		if msg := validateCall("set_effects", []string{"1:1"}, map[string]any{
 			"effects": []any{map[string]any{"type": kind}},
 		}); msg != "" {
 			t.Errorf("expected %s to be accepted, got: %s", kind, msg)
 		}
 	}
 	// SHADER needs figma.importShaderById, so it cannot be built from parameters.
-	if msg := ValidateRPC("set_effects", []string{"1:1"}, map[string]any{
+	if msg := validateCall("set_effects", []string{"1:1"}, map[string]any{
 		"effects": []any{map[string]any{"type": "SHADER"}},
 	}); msg == "" {
 		t.Error("expected SHADER to be rejected")
@@ -949,71 +933,71 @@ func TestValidateRPC_SetEffects(t *testing.T) {
 }
 
 func TestValidateRPC_CreateComponentInstance(t *testing.T) {
-	if msg := ValidateRPC("create_component_instance", nil, nil); msg == "" {
+	if msg := validateCall("create_component_instance", nil, nil); msg == "" {
 		t.Error("expected error for missing componentId/Key")
 	}
-	if msg := ValidateRPC("create_component_instance", nil, map[string]any{"componentId": "1:1", "parentId": "bad"}); msg == "" {
+	if msg := validateCall("create_component_instance", nil, map[string]any{"componentId": "1:1", "parentId": "bad"}); msg == "" {
 		t.Error("expected error for invalid parentId")
 	}
-	if msg := ValidateRPC("create_component_instance", nil, map[string]any{"componentId": "1:1"}); msg != "" {
+	if msg := validateCall("create_component_instance", nil, map[string]any{"componentId": "1:1"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
-	if msg := ValidateRPC("create_component_instance", nil, map[string]any{"componentKey": "abc"}); msg != "" {
+	if msg := validateCall("create_component_instance", nil, map[string]any{"componentKey": "abc"}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 	// The plugin needs both coordinates. One alone must not be dropped silently.
-	if msg := ValidateRPC("create_component_instance", nil, map[string]any{"componentId": "1:1", "x": 10.0}); msg == "" {
+	if msg := validateCall("create_component_instance", nil, map[string]any{"componentId": "1:1", "x": 10.0}); msg == "" {
 		t.Error("expected error for x without y")
 	}
-	if msg := ValidateRPC("create_component_instance", nil, map[string]any{"componentId": "1:1", "x": 10.0, "y": 20.0}); msg != "" {
+	if msg := validateCall("create_component_instance", nil, map[string]any{"componentId": "1:1", "x": 10.0, "y": 20.0}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
 func TestValidateRPC_GetInstanceOverrides(t *testing.T) {
-	if msg := ValidateRPC("get_instance_overrides", nil, nil); msg == "" {
+	if msg := validateCall("get_instance_overrides", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
-	if msg := ValidateRPC("get_instance_overrides", []string{"bad"}, nil); msg == "" {
+	if msg := validateCall("get_instance_overrides", []string{"bad"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
-	if msg := ValidateRPC("get_instance_overrides", []string{"1:1"}, nil); msg != "" {
+	if msg := validateCall("get_instance_overrides", []string{"1:1"}, nil); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
 func TestValidateRPC_SetInstanceOverrides(t *testing.T) {
-	if msg := ValidateRPC("set_instance_overrides", nil, nil); msg == "" {
+	if msg := validateCall("set_instance_overrides", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
-	if msg := ValidateRPC("set_instance_overrides", []string{"bad"}, nil); msg == "" {
+	if msg := validateCall("set_instance_overrides", []string{"bad"}, nil); msg == "" {
 		t.Error("expected error for invalid nodeId")
 	}
-	if msg := ValidateRPC("set_instance_overrides", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("set_instance_overrides", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error for missing properties")
 	}
-	if msg := ValidateRPC("set_instance_overrides", []string{"1:1"}, map[string]any{"properties": "not-map"}); msg == "" {
+	if msg := validateCall("set_instance_overrides", []string{"1:1"}, map[string]any{"properties": "not-map"}); msg == "" {
 		t.Error("expected error for non-map properties")
 	}
-	if msg := ValidateRPC("set_instance_overrides", []string{"1:1"}, map[string]any{"properties": map[string]any{"Size": "Small"}}); msg != "" {
+	if msg := validateCall("set_instance_overrides", []string{"1:1"}, map[string]any{"properties": map[string]any{"Size": "Small"}}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
 	}
 }
 
 func TestValidateRPC_CreateConnector(t *testing.T) {
-	if msg := ValidateRPC("create_connector", nil, nil); msg == "" {
+	if msg := validateCall("create_connector", nil, nil); msg == "" {
 		t.Error("expected error for missing endpoints")
 	}
-	if msg := ValidateRPC("create_connector", nil, map[string]any{"startNodeId": "bad"}); msg == "" {
+	if msg := validateCall("create_connector", nil, map[string]any{"startNodeId": "bad"}); msg == "" {
 		t.Error("expected error for invalid startNodeId")
 	}
-	if msg := ValidateRPC("create_connector", nil, map[string]any{"endNodeId": "bad"}); msg == "" {
+	if msg := validateCall("create_connector", nil, map[string]any{"endNodeId": "bad"}); msg == "" {
 		t.Error("expected error for invalid endNodeId")
 	}
-	if msg := ValidateRPC("create_connector", nil, map[string]any{"lineType": "CURVED"}); msg == "" {
+	if msg := validateCall("create_connector", nil, map[string]any{"lineType": "CURVED"}); msg == "" {
 		t.Error("expected error for invalid lineType")
 	}
-	if msg := ValidateRPC("create_connector", nil, map[string]any{
+	if msg := validateCall("create_connector", nil, map[string]any{
 		"startNodeId": "1:1",
 		"endNodeId":   "2:2",
 		"lineType":    "ELBOW",
@@ -1023,21 +1007,21 @@ func TestValidateRPC_CreateConnector(t *testing.T) {
 }
 
 func TestValidateRPC_SetAnnotations(t *testing.T) {
-	if msg := ValidateRPC("set_annotations", nil, nil); msg == "" {
+	if msg := validateCall("set_annotations", nil, nil); msg == "" {
 		t.Error("expected error for missing nodeId")
 	}
-	if msg := ValidateRPC("set_annotations", []string{"1:1"}, nil); msg == "" {
+	if msg := validateCall("set_annotations", []string{"1:1"}, nil); msg == "" {
 		t.Error("expected error for missing annotations array")
 	}
-	if msg := ValidateRPC("set_annotations", []string{"1:1"}, map[string]any{"annotations": "not-array"}); msg == "" {
+	if msg := validateCall("set_annotations", []string{"1:1"}, map[string]any{"annotations": "not-array"}); msg == "" {
 		t.Error("expected error for non-array annotations")
 	}
-	if msg := ValidateRPC("set_annotations", []string{"bad"}, map[string]any{
+	if msg := validateCall("set_annotations", []string{"bad"}, map[string]any{
 		"annotations": []any{},
 	}); msg == "" {
 		t.Error("expected error for invalid nodeIds")
 	}
-	if msg := ValidateRPC("set_annotations", []string{"1:1"}, map[string]any{
+	if msg := validateCall("set_annotations", []string{"1:1"}, map[string]any{
 		"annotations": []any{map[string]any{"label": "Btn"}},
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
@@ -1045,7 +1029,7 @@ func TestValidateRPC_SetAnnotations(t *testing.T) {
 	// This tool took over clear_annotations. An empty array over several nodes
 	// is now how annotations are cleared, so it must reach the plugin instead
 	// of being read as an absent argument.
-	if msg := ValidateRPC("set_annotations", []string{"1:1", "2:2"}, map[string]any{
+	if msg := validateCall("set_annotations", []string{"1:1", "2:2"}, map[string]any{
 		"annotations": []any{},
 	}); msg != "" {
 		t.Errorf("clearing across several nodes was rejected: %s", msg)
@@ -1055,24 +1039,78 @@ func TestValidateRPC_SetAnnotations(t *testing.T) {
 func TestValidateRPC_BatchExecutePipeline(t *testing.T) {
 	step := map[string]any{
 		"id":          "step_1",
-		"action":      "create_frame",
-		"params":      map[string]any{"name": "Header", "width": 100.0, "height": 100.0},
+		"action":      "create_node",
+		"params":      map[string]any{"type": "FRAME", "name": "Header", "width": 100.0, "height": 100.0},
 		"export_vars": map[string]any{"id": "$header_id"},
 	}
 
-	if msg := ValidateRPC("batch_execute_pipeline", nil, map[string]any{}); msg == "" {
+	if msg := validateCall("batch_execute_pipeline", nil, map[string]any{}); msg == "" {
 		t.Error("expected error for missing steps")
 	}
-	if msg := ValidateRPC("batch_execute_pipeline", nil, map[string]any{
+	if msg := validateCall("batch_execute_pipeline", nil, map[string]any{
 		"steps": []any{"create_frame"},
 	}); msg == "" {
 		t.Error("expected error for a step that is not an object")
 	}
-	if msg := ValidateRPC("batch_execute_pipeline", nil, map[string]any{
+	if msg := validateCall("batch_execute_pipeline", nil, map[string]any{
 		"stop_on_error": true,
 		"steps":         []any{step},
 	}); msg != "" {
 		t.Errorf("unexpected error: %s", msg)
+	}
+}
+
+func TestValidateRPC_PipelineStepsAreCheckedLikeCalls(t *testing.T) {
+	cases := []struct {
+		name    string
+		step    map[string]any
+		wantMsg string // "" means the pipeline must be accepted
+	}{
+		{"a pre-merge handler name", map[string]any{"action": "create_frame"}, "not a write tool"},
+		{"a read tool", map[string]any{"action": "get_document"}, "not a write tool"},
+		{"a tool that runs in Go", map[string]any{"action": "export_screenshots"}, "not a write tool"},
+		{"an export that reads", map[string]any{"action": "get_image_bytes",
+			"params": map[string]any{"nodeIds": []any{"1:2"}}}, "not a write tool"},
+		{"a nested pipeline", map[string]any{"action": "batch_execute_pipeline"}, "not a write tool"},
+		{"a bad hex color", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "FRAME", "fillColor": "red"}}, "hex color"},
+		{"an argument of another variant", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "LINE", "width": 10.0}}, "does not apply"},
+		{"a missing node id", map[string]any{"action": "delete_nodes",
+			"params": map[string]any{}}, "nodeIds is required"},
+		{"a bad node id", map[string]any{"action": "delete_nodes",
+			"params": map[string]any{"nodeIds": []any{"nope"}}}, "colon format"},
+		{"a single nodeId for a nodeIds tool", map[string]any{"action": "delete_nodes",
+			"params": map[string]any{"nodeId": "1:2"}}, ""},
+		{"a variable in the node id", map[string]any{"action": "set_text",
+			"params": map[string]any{"nodeId": "$title", "text": "Hello"}}, ""},
+		{"a variable in a checked argument", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "FRAME", "parentId": "$card", "width": 10.0}}, ""},
+		{"a variable does not hide the other arguments", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "FRAME", "parentId": "$card", "fillColor": "red"}}, "hex color"},
+		{"an argument the tool does not declare", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "LINE", "note": "x"}}, ""},
+		{"an empty string counts as absent", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "FRAME", "fillColor": ""}}, ""},
+		{"a null counts as absent", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "FRAME", "width": nil}}, ""},
+		{"an escaped dollar is a literal", map[string]any{"action": "set_text",
+			"params": map[string]any{"nodeId": "1:2", "text": "$$100"}}, ""},
+		{"an escaped name is a literal, not a variable", map[string]any{"action": "create_node",
+			"params": map[string]any{"type": "FRAME", "fillColor": "$$red"}}, "hex color"},
+		{"the PDF export", map[string]any{"action": "export_frames_to_pdf",
+			"params": map[string]any{"nodeIds": []any{"1:2"}}}, "not a write tool"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			msg := validateCall("batch_execute_pipeline", nil, map[string]any{"steps": []any{tc.step}})
+			if tc.wantMsg == "" && msg != "" {
+				t.Errorf("unexpected error: %s", msg)
+			}
+			if tc.wantMsg != "" && !strings.Contains(msg, tc.wantMsg) {
+				t.Errorf("error = %q, want it to contain %q", msg, tc.wantMsg)
+			}
+		})
 	}
 }
 
@@ -1109,7 +1147,7 @@ func TestValidateRPC_SetNodeProperties(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			msg := ValidateRPC("set_node_properties", c.nodeIDs, c.params)
+			msg := validateCall("set_node_properties", c.nodeIDs, c.params)
 			if c.wantMsg == "" {
 				if msg != "" {
 					t.Errorf("expected the request to be accepted, got %q", msg)
@@ -1131,7 +1169,7 @@ func TestValidateRPC_HexColor(t *testing.T) {
 	// paint a broken fill. Now these are rejected before the round trip.
 	bad := []string{"red", "rgb(255,0,0)", "#ff", "#12345", "#gggggg"}
 	for _, color := range bad {
-		if msg := ValidateRPC("set_paint", []string{"1:1"}, map[string]any{"type": "SOLID", "color": color}); msg == "" {
+		if msg := validateCall("set_paint", []string{"1:1"}, map[string]any{"type": "SOLID", "color": color}); msg == "" {
 			t.Errorf("expected %q to be rejected", color)
 		}
 	}
@@ -1139,7 +1177,7 @@ func TestValidateRPC_HexColor(t *testing.T) {
 	// Shorthand is valid CSS and the plugin expands it, so it must pass here.
 	good := []string{"#f00", "#f00a", "#ff0000", "#ff0000aa", "ff0000"}
 	for _, color := range good {
-		if msg := ValidateRPC("set_paint", []string{"1:1"}, map[string]any{"type": "SOLID", "color": color}); msg != "" {
+		if msg := validateCall("set_paint", []string{"1:1"}, map[string]any{"type": "SOLID", "color": color}); msg != "" {
 			t.Errorf("unexpected error for %q: %s", color, msg)
 		}
 	}
@@ -1155,7 +1193,7 @@ func TestValidateRPC_HexColor(t *testing.T) {
 		{"create_node", map[string]any{"type": "LINE", "strokeColor": "nope"}},
 	}
 	for _, c := range cases {
-		if msg := ValidateRPC(c.tool, []string{"1:1"}, c.params); msg == "" {
+		if msg := validateCall(c.tool, []string{"1:1"}, c.params); msg == "" {
 			t.Errorf("%s: expected the bad color to be rejected", c.tool)
 		}
 	}
@@ -1197,7 +1235,7 @@ func TestValidateRPC_CreateStyle(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			msg := ValidateRPC("create_style", nil, c.params)
+			msg := validateCall("create_style", nil, c.params)
 			if c.wantMsg == "" {
 				if msg != "" {
 					t.Errorf("expected the request to be accepted, got %q", msg)
@@ -1244,7 +1282,7 @@ func TestValidateRPC_ManagePage(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			msg := ValidateRPC("manage_page", nil, c.params)
+			msg := validateCall("manage_page", nil, c.params)
 			if c.wantMsg == "" {
 				if msg != "" {
 					t.Errorf("expected the request to be accepted, got %q", msg)
@@ -1320,7 +1358,7 @@ func TestValidateRPC_SetPaint(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			msg := ValidateRPC("set_paint", []string{"1:1"}, c.params)
+			msg := validateCall("set_paint", []string{"1:1"}, c.params)
 			if c.wantMsg == "" {
 				if msg != "" {
 					t.Errorf("expected the request to be accepted, got %q", msg)
@@ -1384,7 +1422,7 @@ func TestValidateRPC_CreateNode(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			msg := ValidateRPC("create_node", nil, c.params)
+			msg := validateCall("create_node", nil, c.params)
 			if c.wantMsg == "" {
 				if msg != "" {
 					t.Errorf("expected the request to be accepted, got %q", msg)
@@ -1412,7 +1450,7 @@ func TestImportImage_CropBounds(t *testing.T) {
 	}
 
 	ok := with(map[string]any{"x": 0.25, "y": 0.0, "width": 0.5, "height": 1.0})
-	if msg := ValidateRPC("import_image", nil, ok); msg != "" {
+	if msg := validateCall("import_image", nil, ok); msg != "" {
 		t.Errorf("a valid crop was rejected: %s", msg)
 	}
 
@@ -1423,14 +1461,14 @@ func TestImportImage_CropBounds(t *testing.T) {
 		"negative x":          {"x": -0.1, "y": 0, "width": 0.5, "height": 1},
 		"missing height":      {"x": 0, "y": 0, "width": 0.5},
 	} {
-		if msg := ValidateRPC("import_image", nil, with(crop)); msg == "" {
+		if msg := validateCall("import_image", nil, with(crop)); msg == "" {
 			t.Errorf("expected a crop %s to be rejected", name)
 		}
 	}
 
 	scaled := with(map[string]any{"x": 0, "y": 0, "width": 0.5, "height": 1})
 	scaled["scaleMode"] = "TILE"
-	if msg := ValidateRPC("import_image", nil, scaled); msg == "" {
+	if msg := validateCall("import_image", nil, scaled); msg == "" {
 		t.Error("expected a crop with a non-CROP scaleMode to be rejected")
 	}
 }
@@ -1440,17 +1478,17 @@ func TestImportImage_FilterRange(t *testing.T) {
 		"imageUrl": "https://example.com/a.png",
 		"filters":  map[string]any{"exposure": 0.5, "shadows": -1.0},
 	}
-	if msg := ValidateRPC("import_image", nil, params); msg != "" {
+	if msg := validateCall("import_image", nil, params); msg != "" {
 		t.Errorf("valid filters were rejected: %s", msg)
 	}
 
 	params["filters"] = map[string]any{"exposure": 2.0}
-	if msg := ValidateRPC("import_image", nil, params); msg == "" {
+	if msg := validateCall("import_image", nil, params); msg == "" {
 		t.Error("expected an out-of-range filter to be rejected")
 	}
 
 	params["filters"] = map[string]any{"sharpness": 0.5}
-	if msg := ValidateRPC("import_image", nil, params); msg == "" {
+	if msg := validateCall("import_image", nil, params); msg == "" {
 		t.Error("expected an unknown filter name to be rejected")
 	}
 }
@@ -1462,7 +1500,7 @@ func TestSetExportSettings_ValidatesEveryPreset(t *testing.T) {
 		map[string]any{"format": "PNG", "constraint": map[string]any{"type": "SCALE", "value": 2.0}},
 		map[string]any{"format": "SVG", "suffix": "-icon"},
 	}}
-	if msg := ValidateRPC("set_export_settings", []string{"1:1"}, ok); msg != "" {
+	if msg := validateCall("set_export_settings", []string{"1:1"}, ok); msg != "" {
 		t.Errorf("valid export presets were rejected: %s", msg)
 	}
 
@@ -1473,12 +1511,12 @@ func TestSetExportSettings_ValidatesEveryPreset(t *testing.T) {
 		"a zero scale":          {map[string]any{"format": "PNG", "constraint": map[string]any{"type": "SCALE", "value": 0.0}}},
 		"a later bad preset":    {map[string]any{"format": "PNG"}, map[string]any{"format": "TIFF"}},
 	} {
-		if msg := ValidateRPC("set_export_settings", []string{"1:1"}, map[string]any{"settings": settings}); msg == "" {
+		if msg := validateCall("set_export_settings", []string{"1:1"}, map[string]any{"settings": settings}); msg == "" {
 			t.Errorf("expected %s to be rejected", name)
 		}
 	}
 
-	if msg := ValidateRPC("set_export_settings", []string{"1:1"}, map[string]any{"settings": []any{}}); msg != "" {
+	if msg := validateCall("set_export_settings", []string{"1:1"}, map[string]any{"settings": []any{}}); msg != "" {
 		t.Errorf("clearing the presets should be allowed, got: %s", msg)
 	}
 }

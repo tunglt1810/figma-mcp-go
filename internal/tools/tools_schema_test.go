@@ -5,11 +5,8 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"sort"
-	"strings"
 	"testing"
 )
 
@@ -210,8 +207,9 @@ func TestToolSchemas_ExpectedToolSet(t *testing.T) {
 }
 
 // TestReadOnlyMode_ToolSet pins what --read-only offers. The mode makes one
-// promise: none of its tools can change the Figma file. A write tool that
-// reaches this list breaks it, so the list is exact.
+// promise: none of its calls can change the design. A write tool that reaches
+// this list breaks it, so the list is exact. manage_page and manage_plugin_data
+// are here for their harmless actions only.
 func TestReadOnlyMode_ToolSet(t *testing.T) {
 	want := []string{
 		"export_frames_to_pdf",
@@ -230,7 +228,11 @@ func TestReadOnlyMode_ToolSet(t *testing.T) {
 		"get_styles",
 		"get_variable_defs",
 		"get_viewport",
+		"manage_page",
+		"manage_plugin_data",
+		"save_version_checkpoint",
 		"search_nodes",
+		"set_selection",
 	}
 
 	var got []string
@@ -241,41 +243,5 @@ func TestReadOnlyMode_ToolSet(t *testing.T) {
 
 	if !slices.Equal(got, want) {
 		t.Errorf("read-only tools = %v, want %v", got, want)
-	}
-}
-
-// glama.json is a catalog entry written by hand. Its descriptions are short
-// summaries, not copies of Desc, so only the tool names and the count in the
-// server description are held to the table.
-func TestGlamaManifest_ListsEveryTool(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "glama.json"))
-	if err != nil {
-		t.Fatalf("read glama.json: %v", err)
-	}
-	var manifest struct {
-		Description string `json:"description"`
-		Tools       []struct {
-			Name string `json:"name"`
-		} `json:"tools"`
-	}
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		t.Fatalf("unmarshal glama.json: %v", err)
-	}
-
-	listed := map[string]bool{}
-	for _, tool := range manifest.Tools {
-		listed[tool.Name] = true
-		if _, known := specRegistry[tool.Name]; !known {
-			t.Errorf("glama.json lists %q, which the server does not offer", tool.Name)
-		}
-	}
-	for name := range specRegistry {
-		if !listed[name] {
-			t.Errorf("glama.json does not list %q", name)
-		}
-	}
-
-	if count := fmt.Sprintf("%d tools", len(specRegistry)); !strings.Contains(manifest.Description, count) {
-		t.Errorf("glama.json description should say %q, got: %s", count, manifest.Description)
 	}
 }

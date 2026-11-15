@@ -1,6 +1,6 @@
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { reportProgress, stepProgress } from "./progress";
-export const readExportHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "get_screenshot": async (request) => {
     const format =
       request.params && request.params.format
@@ -55,11 +55,7 @@ export const readExportHandlers: HandlerMap = {
         height: node.height,
       });
     }
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { exports },
-    };
+    return { exports };
   },
 
   "export_frames_to_pdf": async (request) => {
@@ -89,11 +85,7 @@ export const readExportHandlers: HandlerMap = {
         base64,
       });
     }
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { frames },
-    };
+    return { frames };
   },
 
   "get_image_bytes": async (request) => {
@@ -142,15 +134,8 @@ export const readExportHandlers: HandlerMap = {
       }
     }
 
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { images, skipped },
-    };
+    return { images, skipped };
   },
 };
 
-export const handleReadExportRequest = async (request: any): Promise<any> => {
-  const handler = readExportHandlers[request.type];
-  return handler ? handler(request) : null;
-};
+export const readExportHandlers: HandlerMap = withEnvelope(raw);

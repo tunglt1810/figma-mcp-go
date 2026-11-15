@@ -1,4 +1,4 @@
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { makeSolidPaint } from "./write-helpers";
 import { FontName, loadFonts } from "./fonts";
 
@@ -138,9 +138,9 @@ export const loadNodeFonts = async (node: any) => {
  * for no font change.
  *
  * Fonts are resolved before anything is written, for two reasons. First, a
- * range that asked for a font the file does not have used to fail only after
- * the earlier ranges were applied. The node was left in a state nobody asked
- * for, and the caller learned about one missing font at a time. Second, a
+ * range that asks for a font the file does not have would fail only after
+ * the earlier ranges were applied. The node would be left in a state nobody
+ * asked for, and the caller would learn about one missing font at a time. Second, a
  * range that inherits half its font from the text would resolve differently
  * at load time and at write time once an earlier range changed that text, so
  * the font written was one that was never loaded.
@@ -159,7 +159,7 @@ const getTextNode = async (nodeId: string | undefined) => {
   return node as any;
 };
 
-export const writeTextHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "set_text_ranges": async (request) => {
     const p = request.params || {};
     const node = await getTextNode(request.nodeIds && request.nodeIds[0]);
@@ -183,14 +183,12 @@ export const writeTextHandlers: HandlerMap = {
 
     figma.commitUndo();
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: node.id,
-        name: node.name,
-        characters: node.characters,
-        rangesApplied: ranges.length,
-      },
+      id: node.id,
+      name: node.name,
+      characters: node.characters,
+      rangesApplied: ranges.length,
     };
   },
 };
+
+export const writeTextHandlers: HandlerMap = withEnvelope(raw);

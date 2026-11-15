@@ -1,8 +1,6 @@
 import { describe, expect, it, beforeEach } from "bun:test";
 import { resolvePropertyId, writeComponentPropertyHandlers } from "./write-component-properties";
 
-// ── resolvePropertyId ─────────────────────────────────────────────────────────
-
 describe("resolvePropertyId", () => {
   const defs = { "Size#1:0": {}, "Disabled#2:0": {} };
 
@@ -29,8 +27,6 @@ describe("resolvePropertyId", () => {
     expect(() => resolvePropertyId(undefined, "Size")).toThrow(/No component properties are defined/);
   });
 });
-
-// ── handlers ──────────────────────────────────────────────────────────────────
 
 let nodes: Record<string, any>;
 let component: any;

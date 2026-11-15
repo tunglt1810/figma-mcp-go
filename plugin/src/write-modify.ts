@@ -1,6 +1,6 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint, gradientTypes, makeLayoutGrid } from "./write-helpers";
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { reportProgress, stepProgress } from "./progress";
 import { loadFonts } from "./fonts";
 
@@ -36,6 +36,22 @@ const CORNER_RADIUS_KEYS = [
   "cornerRadius",
   "topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius",
 ];
+
+// One compiled expression serves every node of a call. replaceAll-style use
+// with a sticky or global flag keeps lastIndex between strings, so each use
+// starts from zero.
+const compileRegex = (find: string, flags?: string): ((text: string, replace: string) => string) => {
+  let regex: RegExp;
+  try {
+    regex = new RegExp(find, flags || "g");
+  } catch (e: any) {
+    throw new Error(`Invalid regex: ${e.message}`);
+  }
+  return (text, replace) => {
+    regex.lastIndex = 0;
+    return text.replace(regex, replace);
+  };
+};
 
 const reorderIndex = (order: string, currentIndex: number, siblingCount: number): number => {
   switch (order) {
@@ -75,9 +91,8 @@ const applyNodeProperties = (n: any, p: any) => {
     }
   }
 
-  // Position, size and corner radius used to be move_nodes, resize_nodes and
-  // set_corner_radius. They report per property like everything above, and
-  // moving plus resizing is now one undo entry instead of two.
+  // Position, size and corner radius report per property like everything
+  // above. Moving plus resizing in one call is one undo entry.
   if (p.x !== undefined || p.y !== undefined) {
     if (!("x" in n)) {
       if (p.x !== undefined) errors.x = "Node does not support position";
@@ -89,10 +104,9 @@ const applyNodeProperties = (n: any, p: any) => {
   }
 
   if (p.width !== undefined || p.height !== undefined) {
-    const label = "resize";
     if (typeof n.resize !== "function") {
-      if (p.width !== undefined) errors.width = `Node does not support ${label}`;
-      if (p.height !== undefined) errors.height = `Node does not support ${label}`;
+      if (p.width !== undefined) errors.width = "Node does not support resize";
+      if (p.height !== undefined) errors.height = "Node does not support resize";
     } else {
       // One resize call, not one per axis. Figma takes both, and the axis the
       // caller left out keeps its current value.
@@ -151,10 +165,6 @@ const applyNodeProperties = (n: any, p: any) => {
   return { applied, errors };
 };
 
-// set_paint replaced set_fills, set_gradient_fills and set_strokes in the MCP
-// tool list. The three implementations below stay separate. Only the tool surface
-// merged. `type` names the kind of paint. The gradient implementation reads it
-// directly, and the solid ones do not take it at all.
 /**
  * Text settings that belong to the whole node, not to a range.
  *
@@ -174,23 +184,29 @@ const applyParagraphProperties = (node: any, p: any) => {
   if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
 };
 
-export const writeModifyHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "set_paint": async (request) => {
-  const { target = "fill", type, ...rest } = request.params || {};
-  let action: string;
-  let params: any;
-  if (type === "SOLID") {
-    action = target === "stroke" ? "set_strokes" : "set_fills";
-    params = rest;
-  } else if (gradientTypes.includes(type)) {
-    action = "set_gradient_fills";
-    params = { ...rest, type, target };
-  } else {
-    throw new Error(`type must be SOLID, ${gradientTypes.join(", ")}, got: ${type}`);
-  }
-  const result = await handleWriteModifyRequest({ ...request, type: action, params });
-  // Answer with the name the caller used, not the one we delegated to.
-  return { ...result, type: request.type }
+    const p = request.params || {};
+    let paint: any;
+    if (p.type === "SOLID") {
+      paint = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
+    } else if (gradientTypes.includes(p.type)) {
+      paint = makeGradientPaint(p.type, p.stops, p.geometry, p.opacity);
+    } else {
+      throw new Error(`type must be SOLID, ${gradientTypes.join(", ")}, got: ${p.type}`);
+    }
+    const nodeId = request.nodeIds && request.nodeIds[0];
+    if (!nodeId) throw new Error("nodeId is required");
+    const node = await figma.getNodeByIdAsync(nodeId) as any;
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    const prop = p.target === "stroke" ? "strokes" : "fills";
+    if (!(prop in node)) throw new Error(`Node ${nodeId} does not support ${prop}`);
+    // Mixed paints come back as figma.mixed, a symbol, which cannot be spread.
+    const existing = p.mode === "append" && Array.isArray(node[prop]) ? node[prop] : [];
+    node[prop] = [...existing, paint];
+    if (prop === "strokes" && p.strokeWeight != null) node.strokeWeight = p.strokeWeight;
+    figma.commitUndo();
+    return { id: node.id, name: node.name };
   },
 
   "set_node_properties": async (request) => {
@@ -221,7 +237,7 @@ export const writeModifyHandlers: HandlerMap = {
       results.push(entry);
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   "set_text": async (request) => {
@@ -231,92 +247,14 @@ export const writeModifyHandlers: HandlerMap = {
     const node = await figma.getNodeByIdAsync(nodeId);
     if (!node) throw new Error(`Node not found: ${nodeId}`);
     if (node.type !== "TEXT") throw new Error(`Node ${nodeId} is not a TEXT node`);
-    const fontName = typeof node.fontName === "symbol"
-      ? { family: "Inter", style: "Regular" }
-      : node.fontName;
+    const fontName = typeof node.fontName === "symbol" ? FALLBACK_FONT : node.fontName;
     await loadFonts([fontName]);
-    // text is optional now that this tool also handles paragraph settings.
+    // text is optional, because this tool also handles paragraph settings.
     // A call that only changes the wrap mode should not empty the node.
     if (p.text != null) node.characters = p.text;
     applyParagraphProperties(node, p);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name, characters: node.characters },
-    };
-  },
-
-  "set_gradient_fills": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    // The name is from before set_paint. A gradient can go on a stroke too.
-    const prop = p.target === "stroke" ? "strokes" : "fills";
-    if (!(prop in node)) throw new Error(`Node ${nodeId} does not support ${prop}`);
-    const newPaint = makeGradientPaint(p.type, p.stops, p.geometry, p.opacity);
-    if (p.mode === "append") {
-      const existing = Array.isArray((node as any)[prop]) ? [...(node as any)[prop]] : [];
-      (node as any)[prop] = [...existing, newPaint];
-    } else {
-      (node as any)[prop] = [newPaint];
-    }
-    if (prop === "strokes" && p.strokeWeight != null) (node as any).strokeWeight = p.strokeWeight;
-    figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name },
-    };
-  },
-
-  "set_fills": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
-    const newFill = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
-    if (p.mode === "append") {
-      // Mixed fills come back as figma.mixed, a symbol, which cannot be spread.
-      const existing = Array.isArray((node as any).fills) ? [...(node as any).fills] : [];
-      (node as any).fills = [...existing, newFill];
-    } else {
-      (node as any).fills = [newFill];
-    }
-    figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name },
-    };
-  },
-
-  "set_strokes": async (request) => {
-    const p = request.params || {};
-    const nodeId = request.nodeIds && request.nodeIds[0];
-    if (!nodeId) throw new Error("nodeId is required");
-    const node = await figma.getNodeByIdAsync(nodeId);
-    if (!node) throw new Error(`Node not found: ${nodeId}`);
-    if (!("strokes" in node)) throw new Error(`Node ${nodeId} does not support strokes`);
-    const newStroke = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
-    if (p.mode === "append") {
-      // As with fills, mixed strokes are a symbol and cannot be spread.
-      const existing = Array.isArray((node as any).strokes) ? [...(node as any).strokes] : [];
-      (node as any).strokes = [...existing, newStroke];
-    } else {
-      (node as any).strokes = [newStroke];
-    }
-    if (p.strokeWeight != null) (node as any).strokeWeight = p.strokeWeight;
-    figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: node.id, name: node.name },
-    };
+    return { id: node.id, name: node.name, characters: node.characters };
   },
 
   "clone_node": async (request) => {
@@ -333,11 +271,7 @@ export const writeModifyHandlers: HandlerMap = {
       (parent as any).appendChild(clone);
     }
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: clone.id, name: clone.name, type: clone.type, bounds: getBounds(clone) },
-    };
+    return { id: clone.id, name: clone.name, type: clone.type, bounds: getBounds(clone) };
   },
 
   "set_layout_grids": async (request) => {
@@ -360,7 +294,7 @@ export const writeModifyHandlers: HandlerMap = {
       results.push({ nodeId: nid, gridCount: node.layoutGrids.length });
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   // This took over set_layout_sizing, which had these same arguments over many
@@ -404,7 +338,7 @@ export const writeModifyHandlers: HandlerMap = {
       }
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   // This writes the presets. It does not export. export_screenshots still
@@ -447,7 +381,7 @@ export const writeModifyHandlers: HandlerMap = {
       }
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   "reparent_nodes": async (request) => {
@@ -470,13 +404,15 @@ export const writeModifyHandlers: HandlerMap = {
       }
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   "batch_rename_nodes": async (request) => {
     const p = request.params || {};
     const nodeIds = request.nodeIds || [];
     if (nodeIds.length === 0) throw new Error("nodeIds is required");
+    const substitute = p.find !== undefined && p.replace !== undefined;
+    const regex = substitute && p.useRegex ? compileRegex(p.find, p.regexFlags) : null;
     const results: any[] = [];
     for (const nid of nodeIds) {
       const n = await figma.getNodeByIdAsync(nid) as any;
@@ -490,17 +426,10 @@ export const writeModifyHandlers: HandlerMap = {
         results.push({ nodeId: nid, oldName, name: p.name });
         continue;
       }
-      if (p.find !== undefined && p.replace !== undefined) {
-        if (p.useRegex) {
-          try {
-            const regex = new RegExp(p.find, p.regexFlags || "g");
-            newName = newName.replace(regex, p.replace);
-          } catch (e: any) {
-            results.push({ nodeId: nid, error: `Invalid regex: ${e.message}` }); continue;
-          }
-        } else {
-          newName = newName.split(p.find).join(p.replace);
-        }
+      if (substitute) {
+        newName = regex
+          ? regex(newName, p.replace)
+          : newName.split(p.find).join(p.replace);
       }
       if (p.prefix) newName = p.prefix + newName;
       if (p.suffix) newName = newName + p.suffix;
@@ -508,7 +437,7 @@ export const writeModifyHandlers: HandlerMap = {
       results.push({ nodeId: nid, oldName, name: newName });
     }
     figma.commitUndo();
-    return { type: request.type, requestId: request.requestId, data: { results } };
+    return { results };
   },
 
   "find_replace_text": async (request) => {
@@ -516,6 +445,7 @@ export const writeModifyHandlers: HandlerMap = {
     if (!p.find) throw new Error("find is required");
     if (p.replace === undefined) throw new Error("replace is required");
     const rootNodeId = request.nodeIds && request.nodeIds[0];
+    const regex = p.useRegex ? compileRegex(p.find, p.regexFlags) : null;
     const root: any = rootNodeId
       ? await figma.getNodeByIdAsync(rootNodeId)
       : figma.currentPage;
@@ -539,22 +469,13 @@ export const writeModifyHandlers: HandlerMap = {
         await reportProgress(
           request.requestId,
           stepProgress(i, textNodes.length),
-          `Scanned ${i}/${textNodes.length} text nodes, ${results.length} changed`,
+          `Scanned ${i}/${textNodes.length} text nodes, ${pending.length} to change`,
         );
       }
       const originalText: string = tn.characters;
-      let newText: string;
-      if (p.useRegex) {
-        try {
-          const regex = new RegExp(p.find, p.regexFlags || "g");
-          newText = originalText.replace(regex, p.replace);
-        } catch (e: any) {
-          results.push({ nodeId: tn.id, nodeName: tn.name, error: `Invalid regex: ${e.message}` });
-          continue;
-        }
-      } else {
-        newText = originalText.split(p.find).join(p.replace);
-      }
+      const newText = regex
+        ? regex(originalText, p.replace)
+        : originalText.split(p.find).join(p.replace);
       if (newText !== originalText) {
         pending.push({ node: tn, originalText, newText });
       }
@@ -573,12 +494,8 @@ export const writeModifyHandlers: HandlerMap = {
       results.push({ nodeId: node.id, nodeName: node.name, oldText: originalText, newText });
     }
     figma.commitUndo();
-    const successCount = results.filter((r: any) => !r.error).length;
-    return { type: request.type, requestId: request.requestId, data: { replaced: successCount, results } };
+    return { replaced: results.length, results };
   },
 };
 
-export const handleWriteModifyRequest = async (request: any): Promise<any> => {
-  const handler = writeModifyHandlers[request.type];
-  return handler ? handler(request) : null;
-};
+export const writeModifyHandlers: HandlerMap = withEnvelope(raw);

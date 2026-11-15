@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { readHandlers } from "./read-handlers";
 import { writeHandlers } from "./write-handlers";
+import { isMutating } from "./tool-classes";
 
 // The Go server declares the tools clients see, and this plugin implements
 // them. Nothing ever checked that the two agree, and neither side can see a
@@ -28,22 +29,8 @@ const SERVER_SIDE_TOOLS = new Set([
   "export_screenshots",
 ]);
 
-/**
- * Handlers the merged tools delegate to.
- *
- * The MCP tool list merged seven shape tools into create_node, four page
- * tools into manage_page, and so on. The originals stayed as implementations,
- * because a pipeline step can still name them directly. So they are handlers
- * without being tools.
- */
+/** Handlers that a Go handler calls under a name no client sees. */
 const INTERNAL_DISPATCH_TARGETS = new Set([
-  "create_frame", "create_rectangle", "create_ellipse", "create_star",
-  "create_polygon", "create_line", "create_section",
-  "add_page", "delete_page", "rename_page", "navigate_to_page",
-  "create_variable_collection", "add_variable_mode", "create_variable",
-  "set_variable_value", "delete_variable", "bind_variable_to_node",
-  "create_paint_style", "create_text_style", "create_effect_style", "create_grid_style",
-  "set_fills", "set_strokes", "set_gradient_fills",
   // export_screenshots calls this once per item, with params it builds itself.
   "get_screenshot",
 ]);
@@ -56,7 +43,7 @@ describe("the plugin implements what the server offers", () => {
     expect(missing).toEqual([]);
   });
 
-  it("every handler is reachable — as a tool, or as a documented delegation target", () => {
+  it("every handler is reachable — as a tool, or as a documented internal call", () => {
     const unreachable = [...pluginHandlers]
       .filter((name) => !goTools.has(name) && !INTERNAL_DISPATCH_TARGETS.has(name))
       .sort();
@@ -73,5 +60,30 @@ describe("the plugin implements what the server offers", () => {
     for (const name of INTERNAL_DISPATCH_TARGETS) {
       expect(pluginHandlers.has(name)).toBe(true);
     }
+  });
+});
+
+// The server's --read-only mode and the panel's read-only guard answer the
+// same question. The Go spec table is the one definition. This reads what it
+// allows and checks that the panel allows the same calls, no more and no fewer.
+const readOnlyCalls: Record<string, true | Record<string, boolean>> = await Bun.file(
+  new URL("../../internal/tools/testdata/read_only_calls.json", import.meta.url),
+).json();
+
+describe("the panel's read-only guard matches the server's read-only mode", () => {
+
+  const cases: [string, any, boolean][] = [];
+  for (const tool of goTools) {
+    if (SERVER_SIDE_TOOLS.has(tool)) continue;
+    const allowed = readOnlyCalls[tool];
+    if (allowed !== undefined && allowed !== true) {
+      for (const [action, runs] of Object.entries(allowed)) cases.push([tool, { action }, runs]);
+    } else {
+      cases.push([tool, undefined, allowed === true]);
+    }
+  }
+
+  it.each(cases)("%s %j: runs in read-only mode = %p", (tool, params, runs) => {
+    expect(isMutating(tool, params)).toBe(!runs);
   });
 });

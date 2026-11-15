@@ -1,12 +1,9 @@
 // Panel strings.
 //
-// The panel had a Vietnamese translation for a while, and it read half in one
-// language and half in the other. Tool names, the activity log, the refusal
-// text the server receives, and the version-mismatch banner must be English:
-// they are read by the MCP client, or by whoever gets the bug report, not by
-// the person holding the mouse. One language throughout is better than a
-// panel that switches mid-sentence, so the panel now uses the same English as
-// everything around it.
+// English only, on purpose. Tool names, the activity log, the refusal text the
+// server receives, and the version-mismatch banner must be English: they are
+// read by the MCP client, or by whoever gets the bug report. A translated
+// panel would switch language mid-sentence.
 //
 // Keeping the text here instead of inline in the markup is still worth it:
 // this is the one place to read every string the panel can show.
@@ -15,7 +12,7 @@ export const t = {
   file: "File",
   page: "Page",
   selection: "Selection",
-  nodeCount: (count) => `${count} node(s)`,
+  nodeCount: (count: number) => `${count} node(s)`,
   autoCopyId: "Auto-copy ID",
   copy: "Copy",
   copyAll: "Copy All",
@@ -25,7 +22,7 @@ export const t = {
   pinned: "Pinned",
   pinTitle:
     "Hold this selection for your AI tool. It can then ask for get_selection(source: 'pinned') and get the same nodes however the selection moves.",
-  pinnedCount: (count) => `📌 Pinned ${count}`,
+  pinnedCount: (count: number) => `📌 Pinned ${count}`,
   pinnedTitle: "Your AI tool reads this with get_selection(source: 'pinned')",
   clear: "Clear",
   clearPinTitle: "Clear the pin",
@@ -39,7 +36,7 @@ export const t = {
   allow: "Allow",
   decline: "Decline",
   allowQuestion: "Allow",
-  waiting: (count) => `+${count} waiting`,
+  waiting: (count: number) => `+${count} waiting`,
   activity: "Activity",
   activityTitle: "Show the activity log",
   logEmpty: "Nothing yet.",
@@ -54,7 +51,7 @@ export const t = {
   guardTitle:
     "Click to change: off runs everything, confirm asks before deletes and bulk rewrites, read-only blocks every change",
   connected: "Connected",
-  connectedVersion: (version) => `Connected (v${version})`,
+  connectedVersion: (version: string) => `Connected (v${version})`,
   disconnected: "Disconnected",
   exposed: "Server reachable from the network",
   exposedTitle:

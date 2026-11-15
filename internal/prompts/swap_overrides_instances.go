@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addSwapOverridesInstances(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("swap_overrides_instances",
-		mcp.WithPromptDescription("Strategy for transferring overrides between component instances in Figma"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Strategy for transferring overrides between component instances in Figma",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`# Swap Component Instance and Override Strategy
+var swapOverridesInstances = prompt{
+	name:        "swap_overrides_instances",
+	description: "Strategy for transferring overrides between component instances in Figma",
+	body: `# Swap Component Instance and Override Strategy
 
 ## Overview
 Transfer content and property overrides from a source instance to one or more target instances
@@ -51,9 +38,5 @@ in Figma, maintaining design consistency while reducing manual work.
 - Use search_nodes(types: ["INSTANCE"]) to enumerate all instances before starting
 - When working with multiple targets, check the full selection with get_selection()
 - Prefer reading the full node tree of the source first to understand its structure
-- Keep related content consistent across all target instances`),
-				),
-			},
-		), nil
-	})
+- Keep related content consistent across all target instances`,
 }

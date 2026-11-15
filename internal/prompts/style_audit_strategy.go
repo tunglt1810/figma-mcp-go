@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addStyleAuditStrategy(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("style_audit_strategy",
-		mcp.WithPromptDescription("Audit a design for nodes using raw values instead of linked styles or variables"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Audit a design for nodes using raw values instead of linked styles or variables",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`# Style Audit Strategy
+var styleAuditStrategy = prompt{
+	name:        "style_audit_strategy",
+	description: "Audit a design for nodes using raw values instead of linked styles or variables",
+	body: `# Style Audit Strategy
 
 Find all nodes that use raw (unlinked) fill colors, text styles, or effect styles instead of the
 design system's named styles or variables. Report findings and optionally fix them.
@@ -28,7 +15,7 @@ design system's named styles or variables. Report findings and optionally fix th
    - Call get_variable_defs() to list all local COLOR variables (note their names and IDs).
 
 2. **Scan the design**
-   - Call get_document() with detail="compact" to get the full node tree.
+   - Call get_document() with detail="compact" to get the node tree. If the result has truncated: true, call again with a larger maxNodes. If you set depth, also make depth larger.
    - For each node that has a fills, strokes, or textStyle property:
      - If the node's style field shows a named style (e.g. "fillStyle": "Brand/Primary") → already linked, skip.
      - If the node shows a raw fill color (e.g. "fills": [{"type":"SOLID","color":...}]) without a style name → flag it.
@@ -53,9 +40,5 @@ design system's named styles or variables. Report findings and optionally fix th
 - Never change a node's visual appearance — only link it to a style that already matches.
 - Skip INSTANCE nodes whose overrides intentionally diverge from the main component.
 - Process in chunks of 20 nodes at a time when scanning large trees.
-`),
-				),
-			},
-		), nil
-	})
+`,
 }

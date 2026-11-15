@@ -1,8 +1,8 @@
 // Progress reporting from the plugin core to the panel, and from there to the
 // server, which extends a request's timeout each time one arrives.
 //
-// Every caller used to repeat two things, and sooner or later one would get
-// them wrong: the message shape, and the `await` that lets Figma paint. A
+// One function holds the two things a caller can get wrong: the message
+// shape, and the `await` that lets Figma paint. A
 // handler that walks thousands of nodes holds the plugin's only thread. So a
 // progress message posted without yielding waits behind the work it reports
 // on, and they all arrive at once at the end.

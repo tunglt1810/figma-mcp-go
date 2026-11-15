@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// ── ValidNodeID ──────────────────────────────────────────────────────────────
-
 func TestValidNodeID(t *testing.T) {
 	valid := []string{
 		"4029:12345",
@@ -36,8 +34,6 @@ func TestValidNodeID(t *testing.T) {
 	}
 }
 
-// ── NormalizeNodeID ───────────────────────────────────────────────────────────
-
 func TestNormalizeNodeID(t *testing.T) {
 	cases := []struct {
 		input string
@@ -55,5 +51,3 @@ func TestNormalizeNodeID(t *testing.T) {
 		}
 	}
 }
-
-// ── ValidateRPC ───────────────────────────────────────────────────────────────

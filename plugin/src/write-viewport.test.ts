@@ -1,8 +1,6 @@
 import { describe, expect, it, beforeEach } from "bun:test";
 import { pageOf, writeViewportHandlers } from "./write-viewport";
 
-// ── Figma mock ────────────────────────────────────────────────────────────────
-
 let nodes: Record<string, any>;
 let currentPage: any;
 let scrolledTo: any[] | null;
@@ -63,8 +61,6 @@ const call = (nodeIds: string[], params: any = {}) =>
     params,
   });
 
-// ── pageOf ────────────────────────────────────────────────────────────────────
-
 describe("pageOf", () => {
   it("walks up to the page", () => {
     const group = makeNode("1:5", currentPage, { type: "GROUP" });
@@ -82,8 +78,6 @@ describe("pageOf", () => {
     expect(pageOf(stray)).toBeNull();
   });
 });
-
-// ── set_selection ─────────────────────────────────────────────────────────────
 
 describe("set_selection", () => {
   it("selects and zooms by default", async () => {

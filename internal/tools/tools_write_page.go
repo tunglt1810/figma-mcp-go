@@ -1,8 +1,7 @@
 package tools
 
-// pageVariants say which arguments belong to which page action. Four page tools
-// became one. Without this, arguments for the other three would be accepted and
-// quietly dropped.
+// pageVariants say which arguments belong to which page action. Without
+// this, arguments for another action would be accepted and quietly dropped.
 var pageVariants = map[string]variantSpec{
 	"add":      {Allowed: []string{"name", "index"}},
 	"delete":   {Allowed: []string{"pageId", "pageName"}},
@@ -22,7 +21,8 @@ func requirePageTarget(_ []string, params map[string]any) string {
 
 var writePageSpecs = []toolSpec{
 	{
-		Name: "manage_page",
+		Name:            "manage_page",
+		HarmlessActions: []string{"navigate"},
 		Desc: "Add, delete, rename, or go to a page. Args per `action`: " +
 			"add: name, index. " +
 			"delete, navigate: pageId or pageName. " +

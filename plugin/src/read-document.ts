@@ -1,5 +1,5 @@
 import { serializeNode, getBounds, serializeStyles, serializeNodeProperties, isMixed, deduplicateStyles, makeBudget } from "./serializers";
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { throwIfCancelled } from "./cancellation";
 import { getPinned } from "./pinned";
 import { reportProgress, stepProgress } from "./progress";
@@ -9,7 +9,7 @@ import { reportProgress, stepProgress } from "./progress";
 // well inside a model's context while still covering a screen.
 export const DEFAULT_MAX_NODES = 500;
 
-export const readDocumentHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
 
   "get_selection": async (request) => {
     // source "pinned" reads the set the designer pinned in the panel, instead
@@ -19,17 +19,9 @@ export const readDocumentHandlers: HandlerMap = {
       const ids = getPinned();
       const nodes = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
       const live = nodes.filter((n) => n !== null && n.type !== "DOCUMENT");
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: await Promise.all(live.map((node) => serializeNode(node as any))),
-      };
+      return await Promise.all(live.map((node) => serializeNode(node as any)));
     }
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: await Promise.all(figma.currentPage.selection.map((node) => serializeNode(node))),
-    };
+    return await Promise.all(figma.currentPage.selection.map((node) => serializeNode(node)));
 
   },
 
@@ -53,13 +45,9 @@ export const readDocumentHandlers: HandlerMap = {
       }
     }
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: node.id,
-        name: node.name,
-        componentProperties,
-      },
+      id: node.id,
+      name: node.name,
+      componentProperties,
     };
   },
 
@@ -88,13 +76,21 @@ export const readDocumentHandlers: HandlerMap = {
     // across pages. Otherwise asking for a top-level frame by id returned its
     // whole subtree with no limit. Nodes are read one at a time, so the budget
     // is spent in the order the ids were given and the same call always gives
-    // the same answer.
+    // the same answer. A requested node spends the budget too: a call with
+    // thousands of ids is as big as a deep tree.
     const p = request.params || {};
     const budget = makeBudget(p.maxNodes ?? DEFAULT_MAX_NODES, p.depth);
     const serialized: any[] = [];
-    for (const n of found) serialized.push(await serializeNode(n, budget, 0));
+    for (const n of found) {
+      if (budget.remaining <= 0) {
+        budget.truncated = true;
+        break;
+      }
+      budget.remaining--;
+      serialized.push(await serializeNode(n, budget, 0));
+    }
     // Fetching several nodes at once is exactly when the same fill repeats, so
-    // the dedupe that get_document has always done applies here too.
+    // the dedupe that get_document does applies here too.
     //
     // The wrapper is always there. Returning a bare array when nothing was
     // deduped and an object when something was would give the caller two shapes
@@ -104,7 +100,7 @@ export const readDocumentHandlers: HandlerMap = {
     if (globalVars) data.globalVars = globalVars;
     if (budget.truncated) data.truncated = true;
     if (missing.length > 0) data.missing = missing;
-    return { type: request.type, requestId: request.requestId, data };
+    return data;
   },
 
   // get_design_context was merged into this tool. It returned the same
@@ -120,8 +116,7 @@ export const readDocumentHandlers: HandlerMap = {
     // Two limits, because they cut in different ways: maxNodes counts nodes
     // through a shared budget, depth counts levels. Selection scope defaults
     // to 2 levels, as get_design_context did. It is the "what am I looking at"
-    // scope. A page or document walk has no depth limit, which is what
-    // get_document has always meant.
+    // scope. A page or document walk has no depth limit.
     const depth = p.depth != null ? Number(p.depth) : scope === "selection" ? 2 : Infinity;
     // The budget also carries the selection's default depth. Without it, the
     // plain walk below, which only reads the budget, returned the whole subtree
@@ -134,13 +129,16 @@ export const readDocumentHandlers: HandlerMap = {
     );
     const componentDefs = new Map<string, any>();
 
-    const serializeForDetail = async (n: any) => {
+    // One node without its children, at the requested detail.
+    const serializeAlone = async (n: any) => {
+      if (detail === "full") {
+        const out = await serializeNode(n, makeBudget(undefined, 0), 0);
+        delete out.childCount;
+        delete out.childrenOmitted;
+        return out;
+      }
       const base = { id: n.id, name: n.name, type: n.type, bounds: getBounds(n) };
       if (detail === "minimal") return base;
-      // "full" reports the same node properties plus geometry and children, and
-      // does its own style lookups. Building styles here first would double every
-      // getStyleByIdAsync round trip, only to throw the result away.
-      if (detail !== "compact") return await serializeNode(n);
       const styles = await serializeStyles(n);
       const result: any = Object.assign({}, base, serializeNodeProperties(n));
       if (Object.keys(styles).length > 0) result.styles = styles;
@@ -152,6 +150,16 @@ export const readDocumentHandlers: HandlerMap = {
       componentNode: any,
     ): Promise<{ id: string; name: string; type: string; characters?: string; mainComponentId?: string | null; visible?: boolean; opacity?: number; fills?: any }[]> => {
       const overrides: any[] = [];
+      // An override is a node of the answer, so it spends the budget. A child
+      // that matches its component adds nothing and costs nothing.
+      const emit = (override: any) => {
+        if (budget.remaining <= 0) {
+          budget.truncated = true;
+          return;
+        }
+        budget.remaining--;
+        overrides.push(override);
+      };
       if (!instanceNode?.children || !componentNode?.children) return overrides;
       for (let i = 0; i < instanceNode.children.length; i++) {
         const instChild = instanceNode.children[i];
@@ -183,7 +191,7 @@ export const readDocumentHandlers: HandlerMap = {
             Object.assign(override, propChanges);
             hasChange = true;
           }
-          if (hasChange) overrides.push(override);
+          if (hasChange) emit(override);
           continue;
         }
 
@@ -195,18 +203,18 @@ export const readDocumentHandlers: HandlerMap = {
           if (nestedMc?.id !== compMc?.id) {
             const override: any = { id: instChild.id, name: instChild.name, type: "INSTANCE", mainComponentId: nestedMc?.id ?? null };
             if (Object.keys(propChanges).length > 0) Object.assign(override, propChanges);
-            overrides.push(override);
+            emit(override);
             continue;
           }
           if (Object.keys(propChanges).length > 0) {
-            overrides.push({ id: instChild.id, name: instChild.name, type: "INSTANCE", mainComponentId: nestedMc?.id ?? null, ...propChanges });
+            emit({ id: instChild.id, name: instChild.name, type: "INSTANCE", mainComponentId: nestedMc?.id ?? null, ...propChanges });
           }
           if (nestedMc) overrides.push(...await extractInstanceOverrides(instChild, nestedMc));
           continue;
         }
 
         if (Object.keys(propChanges).length > 0) {
-          overrides.push({ id: instChild.id, name: instChild.name, type: instChild.type, ...propChanges });
+          emit({ id: instChild.id, name: instChild.name, type: instChild.type, ...propChanges });
         }
         if ("children" in instChild) {
           overrides.push(...await extractInstanceOverrides(instChild, compChild));
@@ -219,7 +227,18 @@ export const readDocumentHandlers: HandlerMap = {
       if (dedupeComponents && node.type === "INSTANCE") {
         const mc = await node.getMainComponentAsync();
         if (mc && !componentDefs.has(mc.id)) {
-          componentDefs.set(mc.id, await serializeNode(mc));
+          if (budget.remaining <= 0) {
+            budget.truncated = true;
+          } else {
+            // A definition spends the node budget but not the depth limit: the
+            // limit describes the tree the caller asked for, and a definition
+            // cut at that depth cannot rebuild its instances.
+            budget.remaining--;
+            const treeDepth = budget.maxDepth;
+            budget.maxDepth = Infinity;
+            componentDefs.set(mc.id, await serializeNode(mc, budget, 0));
+            budget.maxDepth = treeDepth;
+          }
         }
         const props: Record<string, any> = {};
         if (node.componentProperties) {
@@ -239,46 +258,34 @@ export const readDocumentHandlers: HandlerMap = {
         if (overrides.length > 0) result.overrides = overrides;
         return result;
       }
-      if (detail === "full") {
-        const serialized = await serializeNode(node, makeBudget(undefined, 0), 0);
-        const hasChildren = "children" in node && node.children.length > 0;
-        if (!hasChildren) return serialized;
-        if (currentDepth >= depth) {
-          const out = Object.assign({}, serialized, {
-            childCount: node.children.length,
-          });
-          delete out.children;
-          delete out.childrenOmitted;
-          return out;
-        }
-        const serializedChildren = await Promise.all(
-          node.children
-            .filter((n: any) => n !== null && n.type !== "DOCUMENT")
-            .map((n: any) => serializeWithDepth(n, currentDepth + 1)),
-        );
-        const out = Object.assign({}, serialized, { children: serializedChildren });
-        delete out.childCount;
-        delete out.childrenOmitted;
+      const out = await serializeAlone(node);
+      if (!("children" in node) || node.children.length === 0) return out;
+      if (currentDepth >= depth) {
+        budget.truncated = true;
+        out.childCount = node.children.length;
+        out.childrenOmitted = true;
         return out;
       }
-
-      const serialized = await serializeForDetail(node);
-      const hasChildren = "children" in node && node.children.length > 0;
-      if (!hasChildren) return serialized;
-      if (currentDepth >= depth) {
-        return Object.assign({}, serialized, { childCount: node.children.length });
+      // One at a time, so the shared budget is spent in tree order.
+      const children: any[] = [];
+      for (const child of node.children) {
+        if (budget.remaining <= 0) {
+          budget.truncated = true;
+          break;
+        }
+        budget.remaining--;
+        children.push(await serializeWithDepth(child, currentDepth + 1));
       }
-      const serializedChildren = await Promise.all(
-        node.children
-          .filter((n: any) => n.type !== "DOCUMENT")
-          .map((n: any) => serializeWithDepth(n, currentDepth + 1)),
-      );
-      return Object.assign({}, serialized, { children: serializedChildren });
+      out.children = children;
+      if (children.length < node.children.length) {
+        out.childCount = node.children.length;
+        out.childrenOmitted = true;
+      }
+      return out;
     };
 
-    // The plain walk keeps the budget, which counts nodes, not levels, and
-    // reports `truncated`. It only applies when nothing asked for a trimmed
-    // shape: a detail level or a component dedupe gives a different tree.
+    // A detail level or a component dedupe gives a different tree shape, so
+    // those take the second walk. Both walks spend the same budget.
     const plain = detail === "full" && !dedupeComponents;
     const walk = async (node: any) =>
       plain ? await serializeNode(node, budget, 0) : await serializeWithDepth(node, 0);
@@ -298,6 +305,12 @@ export const readDocumentHandlers: HandlerMap = {
     const serializedRoots: any[] = [];
     for (let i = 0; i < roots.length; i++) {
       throwIfCancelled(request.requestId);
+      // One budget is shared across the roots, so maxNodes still means what it
+      // says, and a file with a huge first page cannot silently starve the rest.
+      // A root is a node of the answer too: 2,000 selected leaves have no
+      // children to cut.
+      if (budget.remaining <= 0) break;
+      budget.remaining--;
       const root = roots[i];
       // Under documentAccess "dynamic-page", an unloaded page reports no
       // children at all, so a walk that skips this returns an empty file. Only
@@ -312,9 +325,6 @@ export const readDocumentHandlers: HandlerMap = {
           `Serialized ${root.name} (${i + 1}/${roots.length})`,
         );
       }
-      // One budget is shared across the pages, so maxNodes still means what it
-      // says, and a file with a huge first page cannot silently starve the rest.
-      if (plain && budget.remaining <= 0) break;
     }
 
     // Deduped across every root, not per root: a colour used on every page is
@@ -331,39 +341,31 @@ export const readDocumentHandlers: HandlerMap = {
     if (componentDefs.size > 0) data.componentDefs = Object.fromEntries(componentDefs);
     if (globalVars) data.globalVars = globalVars;
     if (budget.truncated || serializedRoots.length < roots.length) data.truncated = true;
-    return { type: request.type, requestId: request.requestId, data };
+    return data;
   },
   "get_metadata": async (request) => {
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        fileName: figma.root.name,
-        currentPageId: figma.currentPage.id,
-        currentPageName: figma.currentPage.name,
-        pageCount: figma.root.children.length,
-        pages: figma.root.children.map((page) => ({
-          id: page.id,
-          name: page.name,
-        })),
-      },
+      fileName: figma.root.name,
+      currentPageId: figma.currentPage.id,
+      currentPageName: figma.currentPage.name,
+      pageCount: figma.root.children.length,
+      pages: figma.root.children.map((page) => ({
+        id: page.id,
+        name: page.name,
+      })),
     };
 
   },
 
   "get_viewport": async (request) => {
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        center: { x: figma.viewport.center.x, y: figma.viewport.center.y },
-        zoom: figma.viewport.zoom,
-        bounds: {
-          x: figma.viewport.bounds.x,
-          y: figma.viewport.bounds.y,
-          width: figma.viewport.bounds.width,
-          height: figma.viewport.bounds.height,
-        },
+      center: { x: figma.viewport.center.x, y: figma.viewport.center.y },
+      zoom: figma.viewport.zoom,
+      bounds: {
+        x: figma.viewport.bounds.x,
+        y: figma.viewport.bounds.y,
+        width: figma.viewport.bounds.width,
+        height: figma.viewport.bounds.height,
       },
     };
 
@@ -386,11 +388,7 @@ export const readDocumentHandlers: HandlerMap = {
     };
     collectFonts(figma.currentPage);
     const fonts = Array.from(fontMap.values()).sort((a, b) => b.nodeCount - a.nodeCount);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { count: fonts.length, fonts },
-    };
+    return { count: fonts.length, fonts };
   },
 
   "search_nodes": async (request) => {
@@ -477,16 +475,12 @@ export const readDocumentHandlers: HandlerMap = {
     }
 
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        count: results.length,
-        nodes: results,
-        scope: scopeNodeId ? "node" : scope,
-        // Otherwise a caller that gets exactly `limit` results cannot tell a
-        // complete answer from a truncated one.
-        truncated: results.length >= limit,
-      },
+      count: results.length,
+      nodes: results,
+      scope: scopeNodeId ? "node" : scope,
+      // Otherwise a caller that gets exactly `limit` results cannot tell a
+      // complete answer from a truncated one.
+      truncated: results.length >= limit,
     };
   },
 
@@ -496,15 +490,8 @@ export const readDocumentHandlers: HandlerMap = {
     const node = await figma.getNodeByIdAsync(nodeId);
     if (!node || node.type === "DOCUMENT") throw new Error(`Node not found: ${nodeId}`);
     const reactions = "reactions" in node ? node.reactions : [];
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { nodeId: node.id, name: node.name, reactions },
-    };
+    return { nodeId: node.id, name: node.name, reactions };
   },
 };
 
-export const handleReadDocumentRequest = async (request: any): Promise<any> => {
-  const handler = readDocumentHandlers[request.type];
-  return handler ? handler(request) : null;
-};
+export const readDocumentHandlers: HandlerMap = withEnvelope(raw);

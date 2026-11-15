@@ -1,6 +1,6 @@
-import { HandlerMap } from "./dispatch";
-// manage_page replaced add/delete/rename/navigate_to_page in the MCP tool list.
-// The four implementations below stay separate. Only the tool surface merged.
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
+// manage_page is one tool for four page actions. The four implementations
+// below stay separate, and only manage_page can reach them.
 const PAGE_ACTIONS: Record<string, string> = {
   add: "add_page",
   delete: "delete_page",
@@ -8,16 +8,14 @@ const PAGE_ACTIONS: Record<string, string> = {
   navigate: "navigate_to_page",
 };
 
-export const writePageHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "manage_page": async (request) => {
   const { action, ...params } = request.params || {};
   const type = PAGE_ACTIONS[action];
   if (!type) {
     throw new Error(`action must be add, delete, rename, or navigate, got: ${action}`);
   }
-  const result = await handleWritePageRequest({ ...request, type, params });
-  // Answer with the name the caller used, not the one we delegated to.
-  return { ...result, type: request.type }
+  return raw[type]({ ...request, params });
   },
 
   "add_page": async (request) => {
@@ -29,13 +27,9 @@ export const writePageHandlers: HandlerMap = {
     }
     figma.commitUndo();
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        id: page.id,
-        name: page.name,
-        index: figma.root.children.indexOf(page),
-      },
+      id: page.id,
+      name: page.name,
+      index: figma.root.children.indexOf(page),
     };
   },
 
@@ -60,11 +54,7 @@ export const writePageHandlers: HandlerMap = {
     const deletedName = page.name;
     page.remove();
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: deletedId, name: deletedName, deleted: true },
-    };
+    return { id: deletedId, name: deletedName, deleted: true };
   },
 
   "navigate_to_page": async (request) => {
@@ -82,11 +72,7 @@ export const writePageHandlers: HandlerMap = {
       throw new Error("pageId or pageName is required");
     }
     await figma.setCurrentPageAsync(page);
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: page.id, name: page.name },
-    };
+    return { id: page.id, name: page.name };
   },
 
   "rename_page": async (request) => {
@@ -107,15 +93,8 @@ export const writePageHandlers: HandlerMap = {
     const oldName = page.name;
     page.name = p.newName;
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: page.id, oldName, name: page.name },
-    };
+    return { id: page.id, oldName, name: page.name };
   },
 };
 
-export const handleWritePageRequest = async (request: any): Promise<any> => {
-  const handler = writePageHandlers[request.type];
-  return handler ? handler(request) : null;
-};
+export const writePageHandlers: HandlerMap = withEnvelope(raw, Object.values(PAGE_ACTIONS));

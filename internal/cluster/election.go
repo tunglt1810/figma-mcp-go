@@ -2,10 +2,8 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"math/rand"
-	"net"
 	"time"
 )
 
@@ -14,19 +12,14 @@ func electionLog() *slog.Logger { return slog.Default().With("component", "elect
 // Election determines the initial role and monitors leader health.
 // If the leader dies, a follower will attempt a takeover.
 type Election struct {
-	port     int
-	node     *Node
-	follower *Follower // reused across health-check ticks to avoid HTTP client pool leaks
-	cancel   context.CancelFunc
+	node   *Node
+	cancel context.CancelFunc
 }
 
-// NewElection creates an Election for the given ip, port, and node.
-func NewElection(ip string, port int, node *Node) *Election {
-	return &Election{
-		port:     port,
-		node:     node,
-		follower: NewFollower("http://" + net.JoinHostPort(ip, itoa(port))),
-	}
+// NewElection creates an Election for the node. It pings through the node's
+// own leader client.
+func NewElection(node *Node) *Election {
+	return &Election{node: node}
 }
 
 // Start determines the initial role and launches the background monitor.
@@ -83,7 +76,7 @@ func (e *Election) determineRole(ctx context.Context) error {
 	}
 
 	// Port taken: check whether there is a healthy leader.
-	if e.follower.Ping(ctx) {
+	if e.node.follower.Ping(ctx) {
 		e.node.BecomeFollower()
 		return nil
 	}
@@ -115,7 +108,7 @@ func (e *Election) monitor(ctx context.Context) {
 func (e *Election) tick(ctx context.Context) error {
 	switch e.node.Role() {
 	case RoleFollower:
-		if !e.follower.Ping(ctx) {
+		if !e.node.follower.Ping(ctx) {
 			electionLog().Warn("leader not responding, attempting takeover")
 			if err := e.node.BecomeLeader(); err != nil {
 				electionLog().Warn("takeover failed", "err", err)
@@ -127,9 +120,4 @@ func (e *Election) tick(ctx context.Context) error {
 		// Nothing to do: we are the leader.
 	}
 	return nil
-}
-
-// itoa converts an int to string without importing strconv everywhere.
-func itoa(n int) string {
-	return fmt.Sprintf("%d", n)
 }

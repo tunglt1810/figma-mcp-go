@@ -3,6 +3,7 @@ package tools
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -67,4 +68,29 @@ func readPluginSources(t *testing.T) string {
 		t.Fatal("no plugin sources found")
 	}
 	return b.String()
+}
+
+// The plugin decides at run time which step arguments are $variables, and the
+// server skips those arguments when it checks a step. If the two rules differ,
+// the server checks a value the plugin replaces, or skips a value the plugin
+// passes on as written.
+func TestPipelineVariable_MatchesThePlugin(t *testing.T) {
+	sources := readPluginSources(t)
+
+	m := regexp.MustCompile(`const VARIABLE_REFERENCE = /(.+)/;`).FindStringSubmatch(sources)
+	if m == nil {
+		t.Fatal("VARIABLE_REFERENCE not found in the plugin sources")
+	}
+	if m[1] != pipelineVariable.String() {
+		t.Errorf("plugin pattern %s, server pattern %s", m[1], pipelineVariable)
+	}
+
+	// The plugin reads a string that starts with $$ as an escaped literal,
+	// before it looks for a reference. The server must not see a reference there.
+	if !strings.Contains(sources, "startsWith('$$')") {
+		t.Error("the plugin no longer escapes with $$. Update hasPipelineVariable to match")
+	}
+	if hasPipelineVariable("$$name") {
+		t.Error("the server reads $$name as a reference. The plugin reads it as the literal $name")
+	}
 }

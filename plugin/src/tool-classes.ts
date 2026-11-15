@@ -23,7 +23,6 @@ export const READ_TOOLS: ReadonlySet<string> = new Set([
  */
 export const HARMLESS_WRITE_TOOLS: ReadonlySet<string> = new Set([
   "set_selection",
-  "navigate_to_page",
   "save_version_checkpoint",
 ]);
 
@@ -39,11 +38,7 @@ const READ_ONLY_PLUGIN_DATA_ACTIONS = new Set(["get", "keys"]);
  */
 export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
   "delete_nodes",
-  "delete_page",
   "delete_style",
-  // Still a handler, reached through manage_variable or named directly by a
-  // pipeline step, just like delete_page.
-  "delete_variable",
   "detach_instance",
   "find_replace_text",
   "batch_rename_nodes",
@@ -61,7 +56,7 @@ export const PIPELINE_TOOL = "batch_execute_pipeline";
 export function isMutating(type: string, params?: any): boolean {
   if (READ_TOOLS.has(type)) return false;
   if (HARMLESS_WRITE_TOOLS.has(type)) return false;
-  // manage_page merged four page tools behind an action. Only navigating is
+  // manage_page puts four page actions behind one argument. Only navigating is
   // harmless, and blocking it would stop the model from moving around a file
   // it is allowed to look at.
   if (type === "manage_page") return params?.action !== "navigate";

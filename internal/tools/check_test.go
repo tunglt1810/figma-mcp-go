@@ -1,7 +1,10 @@
 package tools
 
 import (
+	"reflect"
 	"strings"
+
+	"github.com/mark3labs/mcp-go/server"
 	"testing"
 )
 
@@ -33,11 +36,25 @@ func TestCheck_RejectsInvalidArguments(t *testing.T) {
 	}
 }
 
-func TestCheck_UnknownToolIsNotRejected(t *testing.T) {
-	// A tool with no spec has no rules to break. ValidateRPC has always
-	// returned "" for one, and Check must not make that an error.
-	if _, _, err := Check("not_a_tool", nil, nil); err != nil {
-		t.Errorf("unknown tool should pass through, got %v", err)
+// A name with no spec has no rules, so letting it through would send
+// unchecked arguments to whatever plugin handler has that name.
+func TestCheck_RefusesUnknownTool(t *testing.T) {
+	for _, tool := range []string{"not_a_tool", "create_frame", "set_fills"} {
+		if _, _, err := Check(tool, nil, nil); err == nil {
+			t.Errorf("Check(%q) = nil error, want refusal", tool)
+		}
+	}
+}
+
+// export_screenshots reaches the plugin as get_screenshot. A follower sends
+// that name to the leader's /rpc, so both guards must know it.
+func TestCheck_AcceptsTheInternalScreenshotCall(t *testing.T) {
+	params := map[string]any{"format": "PNG", "scale": 1.0}
+	if _, _, err := Check("get_screenshot", []string{"1:2"}, params); err != nil {
+		t.Errorf("Check: %v", err)
+	}
+	if _, _, err := CheckReadOnly("get_screenshot", []string{"1:2"}, params); err != nil {
+		t.Errorf("CheckReadOnly: %v", err)
 	}
 }
 
@@ -137,5 +154,116 @@ func TestCheckReadOnly_RejectsUnknownAndWriteTools(t *testing.T) {
 	}
 	if _, _, err := CheckReadOnly("get_selection", nil, nil); err != nil {
 		t.Errorf("CheckReadOnly(get_selection) = %v, want nil", err)
+	}
+}
+
+// A step reaches the plugin as the same direct call would: null, empty and
+// undeclared arguments are gone. A $variable stays as written, because the
+// plugin replaces it at run time.
+func TestCheck_PipelineStepSendsWhatADirectCallSends(t *testing.T) {
+	move := map[string]any{"id": "move", "action": "set_node_properties",
+		"export_vars": map[string]any{"id": "$moved"},
+		"params": map[string]any{"nodeId": "1-2", "x": nil, "y": 10.0, "blendMode": "",
+			"note": "x", "rotation": "$angle"}}
+	remove := map[string]any{"action": "delete_nodes",
+		"params": map[string]any{"nodeIds": []any{"$frame"}}}
+
+	_, params, err := Check(pipelineTool, nil, map[string]any{"steps": []any{move, remove}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	steps := params["steps"].([]any)
+	want := []any{
+		map[string]any{"id": "move", "action": "set_node_properties",
+			"export_vars": map[string]any{"id": "$moved"},
+			"params":      map[string]any{"nodeId": "1:2", "y": 10.0, "rotation": "$angle"}},
+		map[string]any{"action": "delete_nodes",
+			"params": map[string]any{"nodeIds": []any{"$frame"}}},
+	}
+	if !reflect.DeepEqual(steps, want) {
+		t.Errorf("steps = %#v\nwant    %#v", steps, want)
+	}
+
+	// A follower's call is checked twice: by its own handler, then by the
+	// leader's /rpc guard. The second check must not change the steps again.
+	if _, again, err := Check(pipelineTool, nil, params); err != nil || !reflect.DeepEqual(again, params) {
+		t.Errorf("a second Check gave %#v, %v", again, err)
+	}
+	if _, kept := move["params"].(map[string]any)["x"]; !kept {
+		t.Error("Check changed the caller's step")
+	}
+}
+
+// A step's params go to the plugin under the names the plugin reads, and
+// validateStep reads them under those names too. A write tool with a Wire name
+// would need a rename for each step. None has one, so steps are not renamed.
+func TestPipelineSteps_NeedNoWireRename(t *testing.T) {
+	for _, spec := range allSpecs() {
+		if spec.ReadOnly || spec.Custom != nil || spec.Name == pipelineTool {
+			continue
+		}
+		for _, p := range spec.Params {
+			if p.Wire != "" {
+				t.Errorf("%s.%s has Wire %q. Rename it in the pipeline steps too", spec.Name, p.Name, p.Wire)
+			}
+		}
+	}
+}
+
+func TestCheckReadOnly_RunsOnlyTheHarmlessActions(t *testing.T) {
+	allowed := []struct {
+		tool    string
+		nodeIDs []string
+		params  map[string]any
+	}{
+		{"set_selection", []string{"1:2"}, nil},
+		{"save_version_checkpoint", nil, map[string]any{"title": "Before"}},
+		{"manage_page", nil, map[string]any{"action": "navigate", "pageId": "0:2"}},
+		{"manage_plugin_data", []string{"1:2"}, map[string]any{"action": "get", "key": "k"}},
+		{"manage_plugin_data", []string{"1:2"}, map[string]any{"action": "keys"}},
+	}
+	for _, c := range allowed {
+		if _, _, err := CheckReadOnly(c.tool, c.nodeIDs, c.params); err != nil {
+			t.Errorf("CheckReadOnly(%s %v) = %v, want nil", c.tool, c.params, err)
+		}
+	}
+
+	refused := []struct {
+		tool    string
+		nodeIDs []string
+		params  map[string]any
+		want    string
+	}{
+		{"manage_page", nil, map[string]any{"action": "delete", "pageId": "0:2"}, "manage_page accepts only action navigate"},
+		{"manage_page", nil, nil, "manage_page accepts only action navigate"},
+		{"manage_plugin_data", []string{"1:2"}, map[string]any{"action": "set", "key": "k", "value": "v"}, "accepts only action get or keys"},
+	}
+	for _, c := range refused {
+		_, _, err := CheckReadOnly(c.tool, c.nodeIDs, c.params)
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("CheckReadOnly(%s %v) = %v, want %q", c.tool, c.params, err, c.want)
+		}
+	}
+}
+
+// The MCP handler of a read-only server must refuse what the /rpc guard
+// refuses. The tool is registered for its harmless action, so the handler is
+// the only thing between a local client and the other actions.
+func TestReadOnlyServer_RefusesAWriteActionOfAnOfferedTool(t *testing.T) {
+	s := server.NewMCPServer("test", "0.0.1")
+	fake := &fakeSender{}
+	RegisterReadOnlyTools(s, fake)
+
+	res := callToolResult(t, s, "manage_page", map[string]any{"action": "add", "name": "New"})
+	if !res.IsError || !strings.Contains(res.Text, "accepts only action navigate") {
+		t.Errorf("add = %+v, want a read-only refusal", res)
+	}
+	if len(fake.calls) != 0 {
+		t.Errorf("the refused call reached the plugin: %v", fake.calls)
+	}
+
+	callTool(t, s, "manage_page", map[string]any{"action": "navigate", "pageId": "0:2"})
+	if len(fake.calls) != 1 {
+		t.Errorf("navigate reached the plugin %d times, want 1", len(fake.calls))
 	}
 }

@@ -1,4 +1,4 @@
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { getBounds } from "./serializers";
 
 // Selection and viewport. Neither changes the document, so neither commits an
@@ -15,7 +15,7 @@ export const pageOf = (node: any): any => {
   return current ?? null;
 };
 
-export const writeViewportHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "set_selection": async (request) => {
     const p = request.params || {};
     const select = p.select !== false;
@@ -29,11 +29,7 @@ export const writeViewportHandlers: HandlerMap = {
         throw new Error("nodeIds is required unless select is true and you are clearing the selection");
       }
       figma.currentPage.selection = [];
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { selected: [], pageId: figma.currentPage.id, pageName: figma.currentPage.name, cleared: true },
-      };
+      return { selected: [], pageId: figma.currentPage.id, pageName: figma.currentPage.name, cleared: true };
     }
 
     const found = await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)));
@@ -71,19 +67,17 @@ export const writeViewportHandlers: HandlerMap = {
     if (zoom) figma.viewport.scrollAndZoomIntoView(nodes);
 
     return {
-      type: request.type,
-      requestId: request.requestId,
-      data: {
-        selected: nodes.map((node) => ({
-          id: node.id,
-          name: node.name,
-          type: node.type,
-          bounds: getBounds(node),
-        })),
-        pageId: targetPage.id,
-        pageName: targetPage.name,
-        zoomed: zoom,
-      },
+      selected: nodes.map((node) => ({
+        id: node.id,
+        name: node.name,
+        type: node.type,
+        bounds: getBounds(node),
+      })),
+      pageId: targetPage.id,
+      pageName: targetPage.name,
+      zoomed: zoom,
     };
   },
 };
+
+export const writeViewportHandlers: HandlerMap = withEnvelope(raw);

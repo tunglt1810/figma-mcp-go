@@ -1,0 +1,33 @@
+{
+  "export_frames_to_pdf": true,
+  "export_screenshots": true,
+  "export_tokens": true,
+  "get_annotations": true,
+  "get_document": true,
+  "get_fonts": true,
+  "get_image_bytes": true,
+  "get_instance_overrides": true,
+  "get_local_components": true,
+  "get_metadata": true,
+  "get_nodes_info": true,
+  "get_reactions": true,
+  "get_selection": true,
+  "get_styles": true,
+  "get_variable_defs": true,
+  "get_viewport": true,
+  "manage_page": {
+    "add": false,
+    "delete": false,
+    "navigate": true,
+    "rename": false
+  },
+  "manage_plugin_data": {
+    "delete": false,
+    "get": true,
+    "keys": true,
+    "set": false
+  },
+  "save_version_checkpoint": true,
+  "search_nodes": true,
+  "set_selection": true
+}

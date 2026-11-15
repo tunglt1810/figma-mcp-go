@@ -35,7 +35,7 @@
           "items": {
             "properties": {
               "action": {
-                "description": "Tool name to run e.g. create_frame",
+                "description": "Name of the write tool to run, for example create_node",
                 "type": "string"
               },
               "export_vars": {
@@ -47,7 +47,7 @@
                 "type": "string"
               },
               "params": {
-                "description": "Arguments for the action",
+                "description": "Arguments of the tool",
                 "type": "object"
               }
             },
@@ -915,7 +915,7 @@
           "type": "string"
         },
         "maxNodes": {
-          "description": "Max nodes (default 500). It does not apply with depth, a lower `detail`, or dedupe_components.",
+          "description": "Max nodes (default 500).",
           "type": "number"
         },
         "scope": {
@@ -1007,7 +1007,7 @@
     "annotations": {
       "readOnlyHint": true
     },
-    "description": "Get full node details by ID. The tool returns {nodes}, plus globalVars.styles for repeated fills/strokes. Unknown IDs go in `missing`. The tool stops at 500 descendants by default. It then sets `truncated` and `childCount`.",
+    "description": "Get full node details by ID. The tool returns {nodes}, plus globalVars.styles for repeated fills/strokes. Unknown IDs go in `missing`. The tool stops at 500 nodes by default. This count includes the requested nodes. It then sets `truncated` and `childCount`.",
     "inputSchema": {
       "properties": {
         "depth": {
@@ -1015,7 +1015,7 @@
           "type": "number"
         },
         "maxNodes": {
-          "description": "Max descendants across all nodes (default 500).",
+          "description": "Max nodes in the result (default 500).",
           "type": "number"
         },
         "nodeIds": {

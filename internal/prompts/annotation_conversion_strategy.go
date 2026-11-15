@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addAnnotationConversionStrategy(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("annotation_conversion_strategy",
-		mcp.WithPromptDescription("Strategy for converting manual annotations to Figma's native annotations"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Strategy for converting manual annotations to Figma's native annotations",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`# Automatic Annotation Conversion
+var annotationConversionStrategy = prompt{
+	name:        "annotation_conversion_strategy",
+	description: "Strategy for converting manual annotations to Figma's native annotations",
+	body: `# Automatic Annotation Conversion
 
 ## Process Overview
 Convert manual annotations (numbered/alphabetical indicators with connected descriptions) to Figma's native annotations:
@@ -77,9 +64,5 @@ get_annotations(nodeId: "selected-node-id")
 export_screenshots(items: [{nodeId: "selected-node-id"}], format: "PNG", scale: 0.5)
 
 This strategy focuses on practical implementation based on real-world usage patterns,
-emphasizing the importance of handling various UI elements as annotation targets.`),
-				),
-			},
-		), nil
-	})
+emphasizing the importance of handling various UI elements as annotation targets.`,
 }

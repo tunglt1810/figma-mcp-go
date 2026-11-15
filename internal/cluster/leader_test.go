@@ -6,15 +6,15 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 )
-
-// ── handlePing ────────────────────────────────────────────────────────────────
 
 func TestLeaderHandlePing_OK(t *testing.T) {
 	l := NewLeader("127.0.0.1", 0, "v1.2.3", passthroughGuard)
@@ -53,8 +53,6 @@ func TestLeaderHandlePing_MethodNotAllowed(t *testing.T) {
 	}
 }
 
-// ── handleRPC ─────────────────────────────────────────────────────────────────
-
 func TestLeaderHandleRPC_MethodNotAllowed(t *testing.T) {
 	l := NewLeader("127.0.0.1", 0, "", passthroughGuard)
 
@@ -67,10 +65,83 @@ func TestLeaderHandleRPC_MethodNotAllowed(t *testing.T) {
 	}
 }
 
+// rpcPost builds the request a follower sends.
+func rpcPost(body io.Reader) *http.Request {
+	req := httptest.NewRequest(http.MethodPost, "/rpc", body)
+	req.Header.Set("Content-Type", "application/json")
+	return req
+}
+
+func TestLeaderHandleRPC_RefusesBrowserRequests(t *testing.T) {
+	body, _ := json.Marshal(RPCRequest{Tool: "delete_nodes", NodeIDs: []string{"1:1"}})
+
+	cases := []struct {
+		name        string
+		origin      string
+		contentType string
+		want        int
+	}{
+		{"a page on another site", "https://example.com", "application/json", http.StatusForbidden},
+		{"a sandboxed iframe", "null", "application/json", http.StatusForbidden},
+		{"a form post, which needs no preflight", "", "text/plain", http.StatusUnsupportedMediaType},
+		{"no content type", "", "", http.StatusUnsupportedMediaType},
+		{"a follower", "", "application/json", http.StatusOK},
+		{"a follower that names a charset", "", "application/json; charset=utf-8", http.StatusOK},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			called := false
+			guard := func(_ string, nodeIDs []string, params map[string]any) ([]string, map[string]any, error) {
+				called = true
+				return nodeIDs, params, nil
+			}
+			l := NewLeader("127.0.0.1", 0, "", guard)
+
+			req := httptest.NewRequest(http.MethodPost, "/rpc", bytes.NewReader(body))
+			if tc.origin != "" {
+				req.Header.Set("Origin", tc.origin)
+			}
+			if tc.contentType != "" {
+				req.Header.Set("Content-Type", tc.contentType)
+			}
+			w := httptest.NewRecorder()
+			l.handleRPC(w, req)
+
+			if w.Code != tc.want {
+				t.Errorf("status = %d, want %d", w.Code, tc.want)
+			}
+			if wantCalled := tc.want == http.StatusOK; called != wantCalled {
+				t.Errorf("guard called = %v, want %v", called, wantCalled)
+			}
+		})
+	}
+}
+
+// The checks above must not refuse the one caller /rpc exists for.
+func TestLeaderRPC_AcceptsARealFollower(t *testing.T) {
+	port := freePort(t)
+	l := NewLeader("127.0.0.1", port, "test", passthroughGuard)
+	if err := l.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(l.Stop)
+
+	resp, err := NewFollower("http://127.0.0.1:"+strconv.Itoa(port)).Send(t.Context(), "get_document", nil, nil)
+
+	// A 403 or 415 is plain text, which the follower reports as an unmarshal
+	// error. Reaching the bridge, which has no plugin, proves the call passed.
+	if err != nil {
+		t.Fatalf("the leader refused its follower: %v", err)
+	}
+	if resp.Error != "plugin not connected" {
+		t.Errorf("error = %q, want the bridge's own answer", resp.Error)
+	}
+}
+
 func TestLeaderHandleRPC_InvalidJSON(t *testing.T) {
 	l := NewLeader("127.0.0.1", 0, "", passthroughGuard)
 
-	req := httptest.NewRequest(http.MethodPost, "/rpc", bytes.NewBufferString("{bad json}"))
+	req := rpcPost(bytes.NewBufferString("{bad json}"))
 	w := httptest.NewRecorder()
 	l.handleRPC(w, req)
 
@@ -98,7 +169,7 @@ func TestLeaderHandleRPC_GuardRejectionBecomes400(t *testing.T) {
 		NodeIDs: []string{"1:1"},
 		Params:  map[string]any{},
 	})
-	req := httptest.NewRequest(http.MethodPost, "/rpc", bytes.NewReader(body))
+	req := rpcPost(bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	l.handleRPC(w, req)
 
@@ -117,7 +188,7 @@ func TestLeaderHandleRPC_BridgeNotConnected(t *testing.T) {
 
 	// get_document has no required params, so it passes validation and reaches the bridge.
 	body, _ := json.Marshal(RPCRequest{Tool: "get_document"})
-	req := httptest.NewRequest(http.MethodPost, "/rpc", bytes.NewReader(body))
+	req := rpcPost(bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	l.handleRPC(w, req)
 
@@ -131,8 +202,6 @@ func TestLeaderHandleRPC_BridgeNotConnected(t *testing.T) {
 		t.Error("expected 'plugin not connected' error in response")
 	}
 }
-
-// ── Start / Stop ──────────────────────────────────────────────────────────────
 
 func TestLeaderStart_BindsPort(t *testing.T) {
 	port := freePort(t)
@@ -177,8 +246,6 @@ func TestLeaderStop_Idempotent(t *testing.T) {
 	l.Stop()
 }
 
-// ── /ping endpoint (integration via httptest.Server) ─────────────────────────
-
 func TestLeaderPingEndpoint(t *testing.T) {
 	port := freePort(t)
 	l := NewLeader("127.0.0.1", port, "test-ver", passthroughGuard)
@@ -187,7 +254,7 @@ func TestLeaderPingEndpoint(t *testing.T) {
 	}
 	t.Cleanup(l.Stop)
 
-	f := NewFollower("http://127.0.0.1:" + itoa(port))
+	f := NewFollower("http://127.0.0.1:" + strconv.Itoa(port))
 	if !f.Ping(t.Context()) {
 		t.Error("expected ping to succeed for running leader")
 	}
@@ -278,7 +345,7 @@ func TestLeaderPing_ReportsState(t *testing.T) {
 // decides whether the plugin panel turns on its confirm guard. That is worth a
 // test, not just a look at the string.
 func TestExposed(t *testing.T) {
-	for _, ip := range []string{"", "127.0.0.1", "localhost", "::1"} {
+	for _, ip := range []string{"127.0.0.1", "127.0.0.2", "::1"} {
 		if Exposed(ip) {
 			t.Errorf("Exposed(%q) = true, want false — this bind reaches only this machine", ip)
 		}

@@ -1,11 +1,10 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from "./write-helpers";
-import { HandlerMap } from "./dispatch";
+import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { loadFonts } from "./fonts";
 
-// create_node replaced seven create_* tools in the MCP tool list. The seven
-// implementations below stay separate, because the shapes really do differ.
-// Only the tool surface merged.
+// create_node is one tool for seven shapes. The seven implementations below
+// stay separate, because the shapes really do differ.
 const NODE_ACTIONS: Record<string, string> = {
   FRAME: "create_frame",
   RECTANGLE: "create_rectangle",
@@ -51,7 +50,7 @@ export const cropToTransform = (crop: any): [[number, number, number], [number, 
   [0, Number(crop.height), Number(crop.y)],
 ];
 
-export const writeCreateHandlers: HandlerMap = {
+const raw: RawHandlerMap = {
   "create_node": async (request) => {
   const { type, ...params } = request.params || {};
   const action = NODE_ACTIONS[type];
@@ -60,9 +59,7 @@ export const writeCreateHandlers: HandlerMap = {
       `type must be FRAME, RECTANGLE, ELLIPSE, STAR, POLYGON, LINE, or SECTION, got: ${type}`,
     );
   }
-  const result = await handleWriteCreateRequest({ ...request, type: action, params });
-  // Answer with the name the caller used, not the one we delegated to.
-  return { ...result, type: request.type }
+  return raw[action]({ ...request, params });
   },
 
   "create_frame": async (request) => {
@@ -77,11 +74,7 @@ export const writeCreateHandlers: HandlerMap = {
     applyAutoLayout(frame, p);
     (parent as any).appendChild(frame);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: frame.id, name: frame.name, type: frame.type, bounds: getBounds(frame) },
-    };
+    return { id: frame.id, name: frame.name, type: frame.type, bounds: getBounds(frame) };
   },
 
   "create_rectangle": async (request) => {
@@ -96,11 +89,7 @@ export const writeCreateHandlers: HandlerMap = {
     if (p.cornerRadius != null) rect.cornerRadius = p.cornerRadius;
     (parent as any).appendChild(rect);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: rect.id, name: rect.name, type: rect.type, bounds: getBounds(rect) },
-    };
+    return { id: rect.id, name: rect.name, type: rect.type, bounds: getBounds(rect) };
   },
 
   "create_ellipse": async (request) => {
@@ -126,11 +115,7 @@ export const writeCreateHandlers: HandlerMap = {
     }
     (parent as any).appendChild(ellipse);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: ellipse.id, name: ellipse.name, type: ellipse.type, bounds: getBounds(ellipse) },
-    };
+    return { id: ellipse.id, name: ellipse.name, type: ellipse.type, bounds: getBounds(ellipse) };
   },
 
   "create_star": async (request) => {
@@ -155,11 +140,7 @@ export const writeCreateHandlers: HandlerMap = {
     if (p.cornerRadius != null) star.cornerRadius = p.cornerRadius;
     (parent as any).appendChild(star);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: star.id, name: star.name, type: star.type, bounds: getBounds(star) },
-    };
+    return { id: star.id, name: star.name, type: star.type, bounds: getBounds(star) };
   },
 
   "create_polygon": async (request) => {
@@ -180,11 +161,7 @@ export const writeCreateHandlers: HandlerMap = {
     if (p.cornerRadius != null) polygon.cornerRadius = p.cornerRadius;
     (parent as any).appendChild(polygon);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: polygon.id, name: polygon.name, type: polygon.type, bounds: getBounds(polygon) },
-    };
+    return { id: polygon.id, name: polygon.name, type: polygon.type, bounds: getBounds(polygon) };
   },
 
   "create_line": async (request) => {
@@ -204,11 +181,7 @@ export const writeCreateHandlers: HandlerMap = {
     if (p.strokeWeight != null) line.strokeWeight = p.strokeWeight;
     (parent as any).appendChild(line);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: line.id, name: line.name, type: line.type, bounds: getBounds(line) },
-    };
+    return { id: line.id, name: line.name, type: line.type, bounds: getBounds(line) };
   },
 
   "create_text": async (request) => {
@@ -227,11 +200,7 @@ export const writeCreateHandlers: HandlerMap = {
     if (p.fillColor) textNode.fills = [makeSolidPaint(p.fillColor)];
     (parent as any).appendChild(textNode);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: textNode.id, name: textNode.name, type: textNode.type, bounds: getBounds(textNode) },
-    };
+    return { id: textNode.id, name: textNode.name, type: textNode.type, bounds: getBounds(textNode) };
   },
 
   "import_image": async (request) => {
@@ -273,11 +242,7 @@ export const writeCreateHandlers: HandlerMap = {
         target.fills = [fill];
       }
       figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: target.id, name: target.name, type: target.type, bounds: getBounds(target) },
-      };
+      return { id: target.id, name: target.name, type: target.type, bounds: getBounds(target) };
     }
 
     const parent = await getParentNode(p.parentId);
@@ -292,11 +257,7 @@ export const writeCreateHandlers: HandlerMap = {
     rect.fills = [fill];
     (parent as any).appendChild(rect);
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: rect.id, name: rect.name, type: rect.type, bounds: getBounds(rect) },
-    };
+    return { id: rect.id, name: rect.name, type: rect.type, bounds: getBounds(rect) };
   },
 
   "create_component": async (request) => {
@@ -311,11 +272,7 @@ export const writeCreateHandlers: HandlerMap = {
       const component = (figma as any).createComponentFromNode(node);
       if (p.name) component.name = p.name;
       figma.commitUndo();
-      return {
-        type: request.type,
-        requestId: request.requestId,
-        data: { id: component.id, name: component.name, type: component.type, bounds: getBounds(component) },
-      };
+      return { id: component.id, name: component.name, type: component.type, bounds: getBounds(component) };
     }
 
     const parent = node.parent as any;
@@ -349,11 +306,7 @@ export const writeCreateHandlers: HandlerMap = {
     node.remove();
 
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: component.id, name: component.name, type: component.type, bounds: getBounds(component) },
-    };
+    return { id: component.id, name: component.name, type: component.type, bounds: getBounds(component) };
   },
 
   "create_section": async (request) => {
@@ -366,15 +319,8 @@ export const writeCreateHandlers: HandlerMap = {
       section.resizeWithoutConstraints(p.width || section.width, p.height || section.height);
     }
     figma.commitUndo();
-    return {
-      type: request.type,
-      requestId: request.requestId,
-      data: { id: section.id, name: section.name, type: section.type, bounds: getBounds(section) },
-    };
+    return { id: section.id, name: section.name, type: section.type, bounds: getBounds(section) };
   },
 };
 
-export const handleWriteCreateRequest = async (request: any): Promise<any> => {
-  const handler = writeCreateHandlers[request.type];
-  return handler ? handler(request) : null;
-};
+export const writeCreateHandlers: HandlerMap = withEnvelope(raw, Object.values(NODE_ACTIONS));

@@ -122,7 +122,7 @@ The plugin remembers the last port for all files, so check it when you open the 
 
 ### 4. Read-only mode (optional)
 
-Add `--read-only` to offer only the 17 tools that cannot change the Figma file. These are the read tools, `export_screenshots`, `export_frames_to_pdf`, and `get_image_bytes`. The tool list that the AI loads is about 84% smaller.
+Add `--read-only` to offer only the 21 tools that cannot change the design. These are the read tools, `export_screenshots`, `export_frames_to_pdf`, `get_image_bytes`, `set_selection`, `save_version_checkpoint`, `manage_page` with `action: "navigate"` only, and `manage_plugin_data` with `action: "get"` or `"keys"` only. The panel's `read-only` guard allows the same calls.
 
 ```json
 {
@@ -334,6 +334,14 @@ macOS binaries need macOS 13 or later (Go 1.27).
 ## Contributing
 
 Issues and PRs are welcome.
+
+## Acknowledgements
+
+This project builds on ideas and code from these MIT-licensed projects. Their license texts are in [`licenses/`](licenses/).
+
+- [gethopp/figma-mcp-bridge](https://github.com/gethopp/figma-mcp-bridge)
+- [grab/cursor-talk-to-figma-mcp](https://github.com/grab/cursor-talk-to-figma-mcp)
+- [magic-spells/figma-mcp-bridge](https://github.com/magic-spells/figma-mcp-bridge)
 
 ## Star History
 

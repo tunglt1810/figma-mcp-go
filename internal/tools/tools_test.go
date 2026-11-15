@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// ── renderResponse ────────────────────────────────────────────────────────────
-
 // A transport failure and a plugin failure arrive the same way: the sender
 // turns the second into an error at the cluster boundary. So there is one
 // branch here, not two that did the same work.
@@ -48,8 +46,6 @@ func TestRenderResponse_NilData(t *testing.T) {
 	}
 }
 
-// ── toStringSlice ─────────────────────────────────────────────────────────────
-
 func TestToStringSlice(t *testing.T) {
 	raw := []any{"a", "b", 42, nil, "c"}
 	got := toStringSlice(raw)
@@ -70,8 +66,6 @@ func TestToStringSlice_Empty(t *testing.T) {
 	}
 }
 
-// ── coalesce ─────────────────────────────────────────────────────────────────
-
 func TestCoalesce(t *testing.T) {
 	if got := coalesce("a", "b"); got != "a" {
 		t.Errorf("coalesce(a,b) = %q, want a", got)
@@ -83,8 +77,6 @@ func TestCoalesce(t *testing.T) {
 		t.Errorf("coalesce('','') = %q, want empty", got)
 	}
 }
-
-// ── inferFormat ───────────────────────────────────────────────────────────────
 
 func TestInferFormat(t *testing.T) {
 	cases := []struct {
@@ -107,8 +99,6 @@ func TestInferFormat(t *testing.T) {
 		}
 	}
 }
-
-// ── resolveOutputPath ─────────────────────────────────────────────────────────
 
 func TestResolveOutputPath_Relative(t *testing.T) {
 	dir := t.TempDir()
@@ -150,8 +140,6 @@ func TestResolveOutputPath_AbsoluteOutsideDir_Blocked(t *testing.T) {
 	}
 }
 
-// ── mustBeInsideDir ───────────────────────────────────────────────────────────
-
 func TestMustBeInsideDir_Allowed(t *testing.T) {
 	dir := t.TempDir()
 	inner := filepath.Join(dir, "a", "b", "c.txt")
@@ -180,8 +168,6 @@ func TestMustBeInsideDir_SameDir(t *testing.T) {
 		t.Fatalf("file directly in workDir should be allowed: %v", err)
 	}
 }
-
-// ── parseExportItem ───────────────────────────────────────────────────────────
 
 func TestParseExportItem_Valid(t *testing.T) {
 	raw := map[string]any{
@@ -225,8 +211,6 @@ func TestParseExportItem_UnmarshalError(t *testing.T) {
 	}
 }
 
-// ── extractScreenshotExport ───────────────────────────────────────────────────
-
 func TestExtractScreenshotExport_Valid(t *testing.T) {
 	data := map[string]any{
 		"exports": []any{
@@ -265,8 +249,6 @@ func TestExtractScreenshotExport_MissingExports(t *testing.T) {
 		t.Error("expected error when exports key is missing")
 	}
 }
-
-// ── writeBase64 ───────────────────────────────────────────────────────────────
 
 func TestWriteBase64_WritesFile(t *testing.T) {
 	dir := t.TempDir()

@@ -8,8 +8,6 @@ import {
   makeGradientPaint,
 } from "./write-helpers";
 
-// ── Figma global mock ─────────────────────────────────────────────────────────
-
 let mockCurrentPage: any;
 let mockGetNodeByIdAsync: (id: string) => Promise<any>;
 
@@ -21,8 +19,6 @@ beforeEach(() => {
     getNodeByIdAsync: (id: string) => mockGetNodeByIdAsync(id),
   };
 });
-
-// ── hexToRgb ──────────────────────────────────────────────────────────────────
 
 describe("hexToRgb", () => {
   it("converts 6-char hex to rgb with alpha 1", () => {
@@ -86,8 +82,6 @@ describe("hexToRgb", () => {
   );
 });
 
-// ── makeSolidPaint ────────────────────────────────────────────────────────────
-
 describe("makeSolidPaint", () => {
   it("creates a solid paint from a hex string", () => {
     const paint = makeSolidPaint("#ff0000");
@@ -129,8 +123,6 @@ describe("makeSolidPaint", () => {
     expect((paint as any).opacity).toBeUndefined();
   });
 });
-
-// ── applyAutoLayout ───────────────────────────────────────────────────────────
 
 describe("applyAutoLayout", () => {
   const makeFrame = () => ({
@@ -326,8 +318,6 @@ describe("applyAutoLayout", () => {
   });
 });
 
-// ── base64ToBytes ─────────────────────────────────────────────────────────────
-
 describe("base64ToBytes", () => {
   it("decodes a known base64 string", () => {
     // "Man" → TWFu
@@ -358,8 +348,6 @@ describe("base64ToBytes", () => {
     expect(bytes).toEqual(new Uint8Array([77, 97, 110]));
   });
 });
-
-// ── getParentNode ─────────────────────────────────────────────────────────────
 
 describe("getParentNode", () => {
   it("returns currentPage when no parentId given", async () => {

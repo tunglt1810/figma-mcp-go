@@ -3,7 +3,6 @@ package bridge
 import (
 	"bytes"
 	"context"
-	"encoding/json/v2"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -46,8 +45,6 @@ func setupBridgeWithClient(t *testing.T) (*Bridge, *websocket.Conn) {
 	return bridge, clientConn
 }
 
-// ── NewBridge ─────────────────────────────────────────────────────────────────
-
 func TestNewBridge(t *testing.T) {
 	b := NewBridge("0.1.1")
 	if b == nil {
@@ -57,8 +54,6 @@ func TestNewBridge(t *testing.T) {
 		t.Error("new bridge should not be connected")
 	}
 }
-
-// ── nextID ────────────────────────────────────────────────────────────────────
 
 func TestBridgeNextID(t *testing.T) {
 	b := NewBridge("0.1.1")
@@ -77,39 +72,6 @@ func TestBridgeNextID(t *testing.T) {
 		t.Errorf("ID %q has wrong format (want 3 dash-separated parts)", id1)
 	}
 }
-
-// ── MarshalJSON ───────────────────────────────────────────────────────────────
-
-func TestBridgeMarshalJSON_Disconnected(t *testing.T) {
-	b := NewBridge("0.1.1")
-	data, err := b.MarshalJSON()
-	if err != nil {
-		t.Fatalf("MarshalJSON: %v", err)
-	}
-	var m map[string]any
-	json.Unmarshal(data, &m)
-	if m["connected"] != false {
-		t.Errorf("connected = %v, want false", m["connected"])
-	}
-	if m["pending"] != float64(0) {
-		t.Errorf("pending = %v, want 0", m["pending"])
-	}
-}
-
-func TestBridgeMarshalJSON_Connected(t *testing.T) {
-	b, _ := setupBridgeWithClient(t)
-	data, err := b.MarshalJSON()
-	if err != nil {
-		t.Fatalf("MarshalJSON: %v", err)
-	}
-	var m map[string]any
-	json.Unmarshal(data, &m)
-	if m["connected"] != true {
-		t.Errorf("connected = %v, want true", m["connected"])
-	}
-}
-
-// ── Close ─────────────────────────────────────────────────────────────────────
 
 func TestBridgeClose_NoPanic(t *testing.T) {
 	b := NewBridge("0.1.1")
@@ -141,8 +103,6 @@ func TestBridgeClose_DrainsPending(t *testing.T) {
 		t.Error("timed out waiting for channel to be closed")
 	}
 }
-
-// ── Send ─────────────────────────────────────────────────────────────────────
 
 func TestBridgeSend_NotConnected(t *testing.T) {
 	b := NewBridge("0.1.1")
@@ -257,8 +217,6 @@ func TestBridgeSend_TimesOutWhenThePluginNeverAnswers(t *testing.T) {
 		t.Errorf("pending = %d after a timeout, want 0", n)
 	}
 }
-
-// ── IsConnected ───────────────────────────────────────────────────────────────
 
 func TestBridgeIsConnected(t *testing.T) {
 	b := NewBridge("0.1.1")

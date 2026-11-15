@@ -1,22 +1,9 @@
 package prompts
 
-import (
-	"context"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-)
-
-func addDesignStrategy(s *server.MCPServer) {
-	s.AddPrompt(mcp.NewPrompt("design_strategy",
-		mcp.WithPromptDescription("Best practices for working with Figma designs"),
-	), func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		return mcp.NewGetPromptResult(
-			"Best practices for working with Figma designs",
-			[]mcp.PromptMessage{
-				mcp.NewPromptMessage(
-					mcp.RoleUser,
-					mcp.NewTextContent(`When working with Figma designs, follow these best practices:
+var designStrategy = prompt{
+	name:        "design_strategy",
+	description: "Best practices for working with Figma designs",
+	body: `When working with Figma designs, follow these best practices:
 
 1. Start with Document Structure:
    - First use get_metadata() to understand the current document
@@ -88,9 +75,5 @@ Example Login Screen Structure:
     - Button Text (text)
   - Helper Links (frame)
     - Forgot Password (text)
-    - Don't have account (text)`),
-				),
-			},
-		), nil
-	})
+    - Don't have account (text)`,
 }

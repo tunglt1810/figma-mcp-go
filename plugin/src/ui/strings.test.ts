@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { t } from "./i18n";
+import { t } from "./strings";
 
 // The checks that used to live here compared the English table with the
 // Vietnamese one. With a single table there is nothing to compare. What still

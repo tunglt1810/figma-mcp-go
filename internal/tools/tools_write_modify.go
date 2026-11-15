@@ -22,9 +22,8 @@ var nodePropertyKeys = []string{
 	"strokeWeight", "strokeAlign", "strokeCap", "strokeJoin", "strokeMiterLimit", "dashPattern",
 }
 
-// paintVariants say which arguments belong to which kind of paint. set_fills,
-// set_gradient_fills and set_strokes became one tool. Without this, arguments
-// for the other kinds would be accepted and quietly dropped.
+// paintVariants say which arguments belong to which kind of paint. Without
+// this, arguments for another kind would be accepted and quietly dropped.
 var gradientVariant = variantSpec{Allowed: []string{"stops", "geometry", "opacity"}, Required: []string{"stops", "geometry"}}
 
 var paintVariants = map[string]variantSpec{

@@ -50,8 +50,6 @@ describe("save_version_checkpoint", () => {
   });
 });
 
-// ── set_codegen_result ────────────────────────────────────────────────────────
-
 describe("set_codegen_result", () => {
   let node: any;
 
@@ -130,8 +128,6 @@ describe("set_codegen_result", () => {
     expect(call({ blocks: [] }, ["9:9"])).rejects.toThrow(/Node not found/);
   });
 });
-
-// ── manage_plugin_data ────────────────────────────────────────────────────────
 
 describe("manage_plugin_data", () => {
   let node: any;

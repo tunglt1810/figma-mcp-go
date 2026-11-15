@@ -1,14 +1,12 @@
 // Plugin core: entry point, UI bootstrap, and request dispatch.
 
 import { readHandlers } from "./read-handlers";
-import { handleWriteRequest } from "./write-handlers";
+import { handleWriteRequest, writeHandlers } from "./write-handlers";
 import { clearCancelled, markCancelled, throwIfCancelled } from "./cancellation";
 import { enqueueWrite } from "./write-queue";
 import { isMutating, PIPELINE_TOOL } from "./tool-classes";
 import { registerCodegen } from "./codegen";
 import { getPinned, setPinned } from "./pinned";
-import { readHandlers as readHandlerMap } from "./read-handlers";
-import { writeHandlers as writeHandlerMap } from "./write-handlers";
 
 const sendStatus = () => {
   figma.ui.postMessage({
@@ -16,7 +14,6 @@ const sendStatus = () => {
     payload: {
       fileName: figma.root.name,
       pageName: figma.currentPage.name,
-      selectionCount: figma.currentPage.selection.length,
       selectedNodes: figma.currentPage.selection.map(node => ({
         id: node.id,
         name: node.name,
@@ -39,8 +36,8 @@ const sendCapabilities = () => {
   figma.ui.postMessage({
     type: "plugin-capabilities",
     handlers: [
-      ...Object.keys(readHandlerMap),
-      ...Object.keys(writeHandlerMap),
+      ...Object.keys(readHandlers),
+      ...Object.keys(writeHandlers),
       "batch_execute_pipeline",
     ],
   });

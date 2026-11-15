@@ -3,9 +3,9 @@ package cluster
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"sync"
 
 	"github.com/tunglt1810/figma-mcp-go/internal/bridge"
@@ -13,10 +13,12 @@ import (
 
 func nodeLog() *slog.Logger { return slog.Default().With("component", "node") }
 
-// sender is anything that can carry a tool call to the plugin: the Leader's
-// Bridge (direct WebSocket) or a Follower (HTTP proxy to the leader).
-type sender interface {
+// leaderClient is how a node reaches the leader of another process: Send
+// forwards a tool call, Ping checks that the leader is alive. A Follower is the
+// real one. Tests replace it.
+type leaderClient interface {
 	Send(ctx context.Context, tool string, nodeIDs []string, params map[string]any) (bridge.Response, error)
+	Ping(ctx context.Context) bool
 }
 
 // Node routes MCP tool calls to either the Leader bridge or the Follower HTTP
@@ -27,7 +29,7 @@ type Node struct {
 	ip       string
 	port     int
 	leader   *Leader
-	follower sender
+	follower leaderClient
 	version  string
 	guard    Guard
 }
@@ -40,7 +42,7 @@ func NewNode(ip string, port int, version string, guard Guard) *Node {
 		role:     RoleUnknown,
 		version:  version,
 		guard:    guard,
-		follower: NewFollower("http://" + net.JoinHostPort(ip, fmt.Sprintf("%d", port))),
+		follower: NewFollower("http://" + net.JoinHostPort(ip, strconv.Itoa(port))),
 	}
 }
 
