@@ -11,6 +11,8 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-15
+
 ### Security
 
 - The leader's `/rpc` endpoint refuses a request from a browser (one that has an `Origin` header) and a `Content-Type` other than `application/json`. A web page could post a tool call to the local port before.
@@ -177,7 +179,8 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 - Ellipse arcs and rings (`startAngle`, `endAngle`, `innerRadiusRatio`) now work.
 
-[Unreleased]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.4.0...v0.4.1
