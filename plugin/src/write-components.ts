@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
 const defaultVariantOf = (set: ComponentSetNode): ComponentNode | null =>
@@ -47,7 +48,7 @@ const raw: RawHandlerMap = {
     if (node.type !== "INSTANCE") throw new Error(`Node ${nodeId} is not a component INSTANCE`);
     const component = await resolveComponent(p);
     node.mainComponent = component;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: node.id, name: node.name, componentId: component.id, componentName: component.name };
   },
 
@@ -62,7 +63,7 @@ const raw: RawHandlerMap = {
       const frame = n.detachInstance();
       results.push({ nodeId: nid, newId: frame.id, name: frame.name });
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { results };
   },
 
@@ -76,7 +77,7 @@ const raw: RawHandlerMap = {
       n.remove();
       results.push({ nodeId: nid, deleted: true });
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { results };
   },
 
@@ -91,7 +92,7 @@ const raw: RawHandlerMap = {
     if (!parent) throw new Error("Nodes must have a parent");
     const group = figma.group(validNodes, parent as any);
     if (p.name) group.name = p.name;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: group.id, name: group.name, type: group.type };
   },
 
@@ -114,7 +115,7 @@ const raw: RawHandlerMap = {
       group.remove();
       results.push({ nodeId: nid, childIds });
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { results };
   },
 
@@ -148,7 +149,7 @@ const raw: RawHandlerMap = {
       instance.y = figma.viewport.center.y - instance.height / 2;
     }
 
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: instance.id, name: instance.name };
   },
 
@@ -167,7 +168,7 @@ const raw: RawHandlerMap = {
       throw new Error(`Failed to set properties: ${err.message || err}`);
     }
     
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: node.id, name: node.name, success: true };
   },
 
@@ -203,7 +204,7 @@ const raw: RawHandlerMap = {
       connector.connectorLineType = p.lineType;
     }
     
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: connector.id };
   },
 
@@ -234,7 +235,7 @@ const raw: RawHandlerMap = {
         results.push({ nodeId: nid, error: e.message });
       }
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { results };
   },
 };
