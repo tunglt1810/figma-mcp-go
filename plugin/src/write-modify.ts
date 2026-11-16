@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, applyAutoLayout, makeGradientPaint, gradientTypes, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
@@ -205,7 +206,7 @@ const raw: RawHandlerMap = {
     const existing = p.mode === "append" && Array.isArray(node[prop]) ? node[prop] : [];
     node[prop] = [...existing, paint];
     if (prop === "strokes" && p.strokeWeight != null) node.strokeWeight = p.strokeWeight;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: node.id, name: node.name };
   },
 
@@ -236,7 +237,7 @@ const raw: RawHandlerMap = {
       if (Object.keys(errors).length > 0) entry.errors = errors;
       results.push(entry);
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { results };
   },
 
@@ -253,7 +254,7 @@ const raw: RawHandlerMap = {
     // A call that only changes the wrap mode should not empty the node.
     if (p.text != null) node.characters = p.text;
     applyParagraphProperties(node, p);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: node.id, name: node.name, characters: node.characters };
   },
 
@@ -270,7 +271,7 @@ const raw: RawHandlerMap = {
       const parent = await getParentNode(p.parentId);
       (parent as any).appendChild(clone);
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: clone.id, name: clone.name, type: clone.type, bounds: getBounds(clone) };
   },
 
@@ -293,7 +294,7 @@ const raw: RawHandlerMap = {
       node.layoutGrids = p.mode === "append" ? [...node.layoutGrids, ...grids] : grids;
       results.push({ nodeId: nid, gridCount: node.layoutGrids.length });
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { results };
   },
 
@@ -337,7 +338,7 @@ const raw: RawHandlerMap = {
         results.push({ nodeId: nid, error: e.message });
       }
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { results };
   },
 
@@ -380,7 +381,7 @@ const raw: RawHandlerMap = {
         results.push({ nodeId: nid, error: e.message });
       }
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { results };
   },
 
@@ -403,7 +404,7 @@ const raw: RawHandlerMap = {
         results.push({ nodeId: nid, error: e.message });
       }
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { results };
   },
 
@@ -436,7 +437,7 @@ const raw: RawHandlerMap = {
       n.name = newName;
       results.push({ nodeId: nid, oldName, name: newName });
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { results };
   },
 
@@ -493,7 +494,7 @@ const raw: RawHandlerMap = {
       node.characters = newText;
       results.push({ nodeId: node.id, nodeName: node.name, oldText: originalText, newText });
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { replaced: results.length, results };
   },
 };

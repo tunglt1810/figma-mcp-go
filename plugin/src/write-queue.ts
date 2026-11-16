@@ -2,7 +2,7 @@
 //
 // figma.ui.onmessage is async, and the server can have several requests in
 // flight, so two writes could interleave. That is a
-// correctness problem. withSingleUndoCheckpoint ignores figma.commitUndo
+// correctness problem. withSingleUndoCheckpoint defers handler checkpoints
 // while a pipeline runs, and a plain write that arrives during that time
 // would lose its own checkpoint too. Its change would join the pipeline's
 // undo step, or be rolled back with it.

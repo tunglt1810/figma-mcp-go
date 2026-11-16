@@ -48,6 +48,54 @@ describe("startPanel", () => {
 });
 
 describe("handleRequest", () => {
+  it("keeps a concurrent standalone write outside the pipeline undo step", async () => {
+    const previous = (globalThis as any).figma;
+    const node = { id: "1:1", name: "original" };
+    const checkpoints: string[] = [];
+    let entered!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const blocked = new Promise<void>(resolve => { release = resolve; });
+    let firstLookup = true;
+    const api = {
+      ...previous,
+      getNodeByIdAsync: async () => {
+        if (firstLookup) {
+          firstLookup = false;
+          entered();
+          await blocked;
+        }
+        return node;
+      },
+    };
+    Object.defineProperty(api, "commitUndo", {
+      value: () => checkpoints.push(node.name), writable: false,
+    });
+    (globalThis as any).figma = api;
+    try {
+      const pipeline = handleRequest({
+        type: "batch_execute_pipeline", requestId: "pipeline",
+        params: { steps: [
+          { action: "batch_rename_nodes", params: { nodeId: node.id, name: "first" } },
+          { action: "batch_rename_nodes", params: { nodeId: node.id, name: "pipeline" } },
+        ] },
+      });
+      await started;
+      const standalone = handleRequest({
+        type: "batch_rename_nodes", requestId: "standalone", nodeIds: [node.id],
+        params: { name: "standalone" },
+      });
+      expect(node.name).toBe("original");
+      release();
+      const results = await Promise.all([pipeline, standalone]);
+      expect(results.every(result => !result.error)).toBe(true);
+      expect(checkpoints).toEqual(["pipeline", "standalone"]);
+    } finally {
+      release();
+      (globalThis as any).figma = previous;
+    }
+  });
+
   // The server's clock cannot see the plugin queue. A write waiting behind a
   // long pipeline sends no progress, so its 30s timer runs out, the caller is
   // told it failed, and a cancel arrives. Running it anyway applies the edit

@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
 // Component properties and variants.
@@ -146,7 +147,7 @@ const raw: RawHandlerMap = {
     }
     const node = await getComponentNode(request.nodeIds && request.nodeIds[0]);
     const result = await run(node, p);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return {
       id: node.id,
       name: node.name,
@@ -182,7 +183,7 @@ const raw: RawHandlerMap = {
 
     const set = figma.combineAsVariants(components, parent);
     if (p.name) set.name = p.name;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return {
       id: set.id,
       name: set.name,

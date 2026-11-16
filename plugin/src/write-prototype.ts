@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
 function buildReaction(r: any): Reaction {
@@ -63,7 +64,7 @@ const raw: RawHandlerMap = {
     }
 
     await setReactions(node, final);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return {
       id: node.id,
       name: (node as any).name,

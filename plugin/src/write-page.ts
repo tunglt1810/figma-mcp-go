@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 // manage_page is one tool for four page actions. The four implementations
 // below stay separate, and only manage_page can reach them.
@@ -25,7 +26,7 @@ const raw: RawHandlerMap = {
     if (p.index != null) {
       figma.root.insertChild(Number(p.index), page);
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return {
       id: page.id,
       name: page.name,
@@ -53,7 +54,7 @@ const raw: RawHandlerMap = {
     const deletedId = page.id;
     const deletedName = page.name;
     page.remove();
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: deletedId, name: deletedName, deleted: true };
   },
 
@@ -92,7 +93,7 @@ const raw: RawHandlerMap = {
     if (!p.newName) throw new Error("newName is required");
     const oldName = page.name;
     page.name = p.newName;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: page.id, oldName, name: page.name };
   },
 };

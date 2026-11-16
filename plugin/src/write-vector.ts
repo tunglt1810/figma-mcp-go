@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { getBounds } from "./serializers";
 import { getParentNode, hexToRgb } from "./write-helpers";
@@ -72,7 +73,7 @@ const raw: RawHandlerMap = {
     const parent = commonParent(nodes);
     const result = (figma as any)[method](nodes, parent);
     if (p.name) result.name = p.name;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return describe(result);
   },
 
@@ -82,7 +83,7 @@ const raw: RawHandlerMap = {
     const parent = commonParent(nodes);
     const result = figma.flatten(nodes, parent);
     if (p.name) result.name = p.name;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return describe(result);
   },
 
@@ -102,7 +103,7 @@ const raw: RawHandlerMap = {
       if (result) outlined.push(describe(result));
       else skipped.push({ id: node.id, reason: "no visible stroke" });
     }
-    if (outlined.length > 0) figma.commitUndo();
+    if (outlined.length > 0) commitUndoCheckpoint();
     return { outlined, skipped };
   },
 
@@ -131,7 +132,7 @@ const raw: RawHandlerMap = {
       const { r, g, b, a } = hexToRgb(p.fillColor);
       node.fills = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return describe(node);
   },
 };
