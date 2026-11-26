@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from "bun:test";
 import { markCancelled, resetCancellations } from "./cancellation";
 import { resetWriteQueue } from "./write-queue";
+import { resetUndoCheckpointState } from "./undo-checkpoint";
 
 // main.ts runs startPanel() at import time, so the globals it uses must
 // exist before the import. Vite defines __html__ and __APP_VERSION__ at build
@@ -80,7 +81,10 @@ describe("handleRequest", () => {
           { action: "batch_rename_nodes", params: { nodeId: node.id, name: "pipeline" } },
         ] },
       });
-      await started;
+      await Promise.race([
+        started,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("pipeline never reached its first lookup")), 1000)),
+      ]);
       const standalone = handleRequest({
         type: "batch_rename_nodes", requestId: "standalone", nodeIds: [node.id],
         params: { name: "standalone" },
@@ -93,6 +97,7 @@ describe("handleRequest", () => {
     } finally {
       release();
       (globalThis as any).figma = previous;
+      resetUndoCheckpointState();
     }
   });
 

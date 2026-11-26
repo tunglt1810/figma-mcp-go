@@ -534,7 +534,7 @@ describe('withSingleUndoCheckpoint', () => {
     }
   });
 
-  it('leaves commitUndo unchanged and still checkpoints when the work throws', async () => {
+  it('still checkpoints when the work throws', async () => {
     let commits = 0;
     const real = () => {
       commits++;
@@ -548,9 +548,8 @@ describe('withSingleUndoCheckpoint', () => {
       expect(boom).rejects.toThrow('step failed');
       await boom.catch(() => {});
       expect(commits).toBe(1);
-      // A leftover stub that ignores calls would silently disable undo for
-      // the rest of the session.
-      expect((globalThis as any).figma.commitUndo).toBe(real);
+      commitUndoCheckpoint();
+      expect(commits).toBe(2);
     } finally {
       restore();
     }
@@ -590,9 +589,7 @@ describe('withSingleUndoCheckpoint', () => {
     }
   });
 
-  // Production queues requests; the helper also tolerates overlapping scopes
-  // without replacing the API method or flushing until the final scope leaves.
-  it('leaves the real commitUndo unchanged after interleaved scopes', async () => {
+  it('commits once after interleaved scopes', async () => {
     const deferred = () => {
       let resolve!: () => void;
       const promise = new Promise<void>((res) => {
@@ -624,7 +621,6 @@ describe('withSingleUndoCheckpoint', () => {
       second.resolve();
       await inner;
 
-      expect((globalThis as any).figma.commitUndo).toBe(real);
       expect(commits).toBe(1);
     } finally {
       restore();

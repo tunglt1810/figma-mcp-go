@@ -1,4 +1,4 @@
-import { commitUndoCheckpoint } from './undo-checkpoint';
+import { commitUndoCheckpoint } from "./undo-checkpoint";
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 // manage_page is one tool for four page actions. The four implementations
 // below stay separate, and only manage_page can reach them.

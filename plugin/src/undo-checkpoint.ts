@@ -6,17 +6,13 @@ let anyStepCommitted = false;
 export function commitUndoCheckpoint(): void {
   if (checkpointDepth > 0) {
     anyStepCommitted = true;
-  } else {
+  } else if (typeof figma.commitUndo === 'function') {
     figma.commitUndo();
   }
 }
 
-/** Group handler checkpoints, including rollback, into one undo step.
- *
- * The counter handles nested and overlapping scopes. Production request
- * dispatch serializes pipelines and standalone writes via enqueueWrite;
- * otherwise unrelated concurrent writes would share this undo step.
- */
+// Callers must serialize writes (enqueueWrite). Otherwise a concurrent write
+// shares this undo step.
 export async function withSingleUndoCheckpoint<T>(work: () => Promise<T>): Promise<T> {
   if (typeof figma === 'undefined' || typeof figma.commitUndo !== 'function') return work();
   if (checkpointDepth === 0) anyStepCommitted = false;
@@ -28,7 +24,15 @@ export async function withSingleUndoCheckpoint<T>(work: () => Promise<T>): Promi
     if (checkpointDepth === 0) {
       const shouldCommit = anyStepCommitted;
       anyStepCommitted = false;
-      if (shouldCommit) figma.commitUndo();
+      // A throw here would replace the result of work(), so the caller would
+      // lose failed_step and rollback_executed.
+      if (shouldCommit) {
+        try {
+          figma.commitUndo();
+        } catch (e) {
+          console.error('commitUndo failed', e);
+        }
+      }
     }
   }
 }
