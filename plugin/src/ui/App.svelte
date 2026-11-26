@@ -24,11 +24,16 @@
   import type { ActivityEntry } from "./activity";
   import { destructiveReason, isDestructive, isMutating } from "../tool-classes";
   import { t } from "./strings";
+  import { parseNodeIds } from "./node-ids";
 
   let connected = false;
   let fileName = "—";
   let pageName = "—";
   let selectedNodes: { id: string, name: string }[] = [];
+  // Owned by the person typing. A selection change must not overwrite it.
+  let searchText = "";
+  let searchMessage = "";
+  let searchFailed = false;
   // Running work is read from the activity log, not tracked separately.
   // With one source of truth, the banner and the log can never disagree.
   let activityLog: ActivityEntry[] = [];
@@ -214,6 +219,30 @@
     }));
   }
 
+  function goToNodes(nodeIds: string[], select: boolean) {
+    parent.postMessage({ pluginMessage: { type: "go_to_nodes", nodeIds, select } }, "*");
+  }
+
+  function searchNode() {
+    const { ids, invalid } = parseNodeIds(searchText);
+    if (invalid.length > 0) {
+      searchMessage = t.searchInvalid(invalid);
+      searchFailed = true;
+      return;
+    }
+    if (ids.length === 0) return;
+    goToNodes(ids, true);
+  }
+
+  function onSearchKeydown(event: KeyboardEvent) {
+    if (event.key === "Enter") searchNode();
+  }
+
+  function onSearchInput() {
+    searchMessage = "";
+    searchFailed = false;
+  }
+
   function handleMessage(event: MessageEvent) {
     const msg = event.data?.pluginMessage;
     if (!msg) return;
@@ -248,6 +277,12 @@
         [...selectedNodes, ...pinnedNodes].map(node => [node.id, node.name]),
       );
       pinnedNodes = ids.map(id => ({ id, name: known.get(id) ?? id }));
+      return;
+    }
+
+    if (msg.type === "go_to_nodes_result") {
+      searchFailed = Boolean(msg.error);
+      searchMessage = msg.error ?? t.searchWent(msg.count, msg.pageName);
       return;
     }
 
@@ -568,6 +603,22 @@
 
 <div class="container">
   <div class="info-section">
+    <div class="seek">
+      <div class="seek-row">
+        <input
+          class="seek-input"
+          class:failed={searchFailed}
+          bind:value={searchText}
+          placeholder={t.searchPlaceholder}
+          on:keydown={onSearchKeydown}
+          on:input={onSearchInput}
+        />
+        <button class="seek-btn" on:click={searchNode}>{t.searchNode}</button>
+      </div>
+      {#if searchMessage}
+        <div class="seek-msg" class:failed={searchFailed}>{searchMessage}</div>
+      {/if}
+    </div>
     <div class="info-row">
       <span class="info-label">{t.file}</span>
       <span class="info-value" title={fileName}>{fileName}</span>
@@ -604,7 +655,13 @@
         <div class="node-items">
           {#each selectedNodes as node}
             <div class="node-item">
-              <span class="node-name" title="{node.name}">{node.name} <span class="node-id">({node.id})</span></span>
+              <!-- svelte-ignore a11y-click-events-have-key-events -->
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <span
+                class="node-name"
+                title={`${node.name}\n${t.goToNodeTitle}`}
+                on:click={() => goToNodes([node.id], false)}
+              >{node.name} <span class="node-id">({node.id})</span></span>
               <button class="copy-btn" on:click={() => copyToClipboard(node.id)} title={t.copyIdTitle}>{t.copy}</button>
             </div>
           {/each}
@@ -899,6 +956,60 @@
     gap: 12px;
   }
 
+  .seek {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .seek-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .seek-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 11px;
+    font-family: monospace;
+    padding: 4px 6px;
+    outline: none;
+  }
+
+  .seek-input:focus {
+    border-color: var(--border-strong);
+  }
+
+  .seek-input.failed {
+    border-color: var(--danger-ring);
+  }
+
+  .seek-btn {
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-ring);
+    color: var(--accent);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .seek-msg {
+    color: var(--text-muted);
+    font-size: 10px;
+    line-height: 1.3;
+  }
+
+  .seek-msg.failed {
+    color: var(--danger);
+  }
+
   .pinned-row {
     padding-top: 2px;
   }
@@ -1016,6 +1127,7 @@
     text-overflow: ellipsis;
     font-size: 11px;
     flex: 1;
+    cursor: pointer;
   }
 
   .node-id {
