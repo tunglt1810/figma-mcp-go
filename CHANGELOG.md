@@ -11,6 +11,11 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 ## [Unreleased]
 
+### Added
+
+- The plugin panel has a **Search node** box. Type one or more node IDs (`1:2` or `1-2`) or paste a Figma link, then press Enter or the button. The panel switches to the page, selects the nodes and fits them in the view. It does not zoom in past 100%.
+- A click on a node in the panel's selection list moves the view to that node. The selection does not change.
+
 ## [0.7.1] - 2026-11-26
 
 ### Fixed
