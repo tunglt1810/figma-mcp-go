@@ -11,6 +11,13 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-26
+
+### Fixed
+
+- `batch_execute_pipeline` works in Figma Desktop. It failed before its first step with `'commitUndo' is read-only`. A pipeline still makes one undo step, and the plugin does not change the Figma API to do it.
+- A failure of the final undo checkpoint does not hide the pipeline result. The caller still gets `failed_step` and `rollback_executed`.
+
 ## [0.7.0] - 2026-11-15
 
 ### Security
@@ -179,7 +186,8 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 - Ellipse arcs and rings (`startAngle`, `endAngle`, `innerRadiusRatio`) now work.
 
-[Unreleased]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.4.1...v0.5.0
