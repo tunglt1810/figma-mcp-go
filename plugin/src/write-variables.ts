@@ -1,4 +1,4 @@
-import { commitUndoCheckpoint } from './undo-checkpoint';
+import { commitUndoCheckpoint } from "./undo-checkpoint";
 import { hexToRgb, makeSolidPaint } from "./write-helpers";
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 

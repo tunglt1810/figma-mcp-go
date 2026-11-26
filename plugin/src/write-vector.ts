@@ -1,4 +1,4 @@
-import { commitUndoCheckpoint } from './undo-checkpoint';
+import { commitUndoCheckpoint } from "./undo-checkpoint";
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { getBounds } from "./serializers";
 import { getParentNode, hexToRgb } from "./write-helpers";

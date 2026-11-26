@@ -354,8 +354,8 @@ export async function handleBatchPipelineRequest(
 
   const pipelineParams = request.params || request;
   // Rollback runs inside executeBatchPipeline, so it is inside the checkpoint
-  // too. A pipeline that fails and reverses itself leaves the undo stack as it
-  // was, instead of adding steps that cancel each other out.
+  // too. A pipeline that fails and reverses itself adds one undo step, not one
+  // step per write and per reversal.
   const res = await withSingleUndoCheckpoint(() =>
     executeBatchPipeline(
       pipelineParams,

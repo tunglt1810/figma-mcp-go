@@ -1,4 +1,4 @@
-import { commitUndoCheckpoint } from './undo-checkpoint';
+import { commitUndoCheckpoint } from "./undo-checkpoint";
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
 // Component properties and variants.

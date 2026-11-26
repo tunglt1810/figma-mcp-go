@@ -1,4 +1,4 @@
-import { commitUndoCheckpoint } from './undo-checkpoint';
+import { commitUndoCheckpoint } from "./undo-checkpoint";
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from "./write-helpers";
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
