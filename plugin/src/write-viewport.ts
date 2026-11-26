@@ -15,6 +15,59 @@ export const pageOf = (node: any): any => {
   return current ?? null;
 };
 
+/** A page or the document. Each caller words its own advice. */
+export class NotSelectableError extends Error {}
+
+/**
+ * Switch to the nodes' page, optionally select them, and fit them in the view.
+ * maxZoom keeps a small node from filling the screen. The panel sets it. The
+ * set_selection tool does not, so its behaviour stays the same.
+ */
+export async function goToNodes(
+  nodeIds: string[],
+  opts: { select: boolean; zoom?: boolean; maxZoom?: number },
+): Promise<{ nodes: any[]; page: any }> {
+  const found = await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)));
+  const missing = nodeIds.filter((_, i) => found[i] === null);
+  if (missing.length > 0) {
+    throw new Error(`Node not found: ${missing.join(", ")}`);
+  }
+
+  const nodes = found as any[];
+  for (const node of nodes) {
+    if (node.type === "PAGE" || node.type === "DOCUMENT") {
+      throw new NotSelectableError(`Node ${node.id} is a ${node.type} and cannot be selected`);
+    }
+  }
+
+  // A selection belongs to one page, so nodes from several pages cannot be
+  // selected together. Say so, instead of quietly selecting whichever part remains.
+  const pages = nodes.map(pageOf);
+  const detached = nodes.filter((_, i) => pages[i] === null);
+  if (detached.length > 0) {
+    throw new Error(`Node ${detached[0].id} is not on any page`);
+  }
+  const targetPage = pages[0];
+  if (pages.some((page) => page.id !== targetPage.id)) {
+    throw new Error(
+      "All nodes must be on the same page — a Figma selection cannot span pages",
+    );
+  }
+
+  if (targetPage.id !== figma.currentPage.id) {
+    await figma.setCurrentPageAsync(targetPage);
+  }
+
+  if (opts.select) figma.currentPage.selection = nodes;
+  if (opts.zoom !== false) {
+    figma.viewport.scrollAndZoomIntoView(nodes);
+    if (opts.maxZoom !== undefined && figma.viewport.zoom > opts.maxZoom) {
+      figma.viewport.zoom = opts.maxZoom;
+    }
+  }
+  return { nodes, page: targetPage };
+}
+
 const raw: RawHandlerMap = {
   "set_selection": async (request) => {
     const p = request.params || {};
@@ -32,39 +85,16 @@ const raw: RawHandlerMap = {
       return { selected: [], pageId: figma.currentPage.id, pageName: figma.currentPage.name, cleared: true };
     }
 
-    const found = await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)));
-    const missing = nodeIds.filter((_, i) => found[i] === null);
-    if (missing.length > 0) {
-      throw new Error(`Node not found: ${missing.join(", ")}`);
-    }
-
-    const nodes = found as any[];
-    for (const node of nodes) {
-      if (node.type === "PAGE" || node.type === "DOCUMENT") {
-        throw new Error(`Node ${node.id} is a ${node.type} and cannot be selected — use manage_page to switch pages`);
+    let result: Awaited<ReturnType<typeof goToNodes>>;
+    try {
+      result = await goToNodes(nodeIds, { select, zoom });
+    } catch (err) {
+      if (err instanceof NotSelectableError) {
+        throw new Error(`${err.message} — use manage_page to switch pages`);
       }
+      throw err;
     }
-
-    // A selection belongs to one page, so nodes from several pages cannot be
-    // selected together. Say so, instead of quietly selecting whichever part remains.
-    const pages = nodes.map(pageOf);
-    const detached = nodes.filter((_, i) => pages[i] === null);
-    if (detached.length > 0) {
-      throw new Error(`Node ${detached[0].id} is not on any page`);
-    }
-    const targetPage = pages[0];
-    if (pages.some((page) => page.id !== targetPage.id)) {
-      throw new Error(
-        "All nodes must be on the same page — a Figma selection cannot span pages",
-      );
-    }
-
-    if (targetPage.id !== figma.currentPage.id) {
-      await figma.setCurrentPageAsync(targetPage);
-    }
-
-    if (select) figma.currentPage.selection = nodes;
-    if (zoom) figma.viewport.scrollAndZoomIntoView(nodes);
+    const { nodes, page: targetPage } = result;
 
     return {
       selected: nodes.map((node) => ({

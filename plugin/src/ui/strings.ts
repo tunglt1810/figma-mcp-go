@@ -62,4 +62,9 @@ export const t = {
   resizeTitle: "Drag to resize",
   reportBug: "Report a bug",
   suggestFeature: "Suggest a feature",
+  searchNode: "Search node",
+  searchPlaceholder: "Node ID or Figma link",
+  searchWent: (count: number, page: string) => `Went to ${count} node(s) · page ${page}`,
+  searchInvalid: (tokens: string[]) => `Not a node ID: ${tokens.join(", ")}`,
+  goToNodeTitle: "Show this node",
 };
