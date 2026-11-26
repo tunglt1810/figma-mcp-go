@@ -11,6 +11,8 @@ the plugin is installed by hand. An old plugin rejects new commands with
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-27
+
 ### Added
 
 - The plugin panel has a **Search node** box. Type one or more node IDs (`1:2` or `1-2`) or paste a Figma link, then press Enter or the button. The panel switches to the page, selects the nodes and fits them in the view. It does not zoom in past 100%.
@@ -192,6 +194,7 @@ the plugin is installed by hand. An old plugin rejects new commands with
 - Ellipse arcs and rings (`startAngle`, `endAngle`, `innerRadiusRatio`) now work.
 
 [Unreleased]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.7.1...HEAD
+[0.8.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/tunglt1810/figma-mcp-go/compare/v0.5.0...v0.6.0
