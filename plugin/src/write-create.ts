@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from "./write-helpers";
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
@@ -73,7 +74,7 @@ const raw: RawHandlerMap = {
     if (p.fillColor) frame.fills = [makeSolidPaint(p.fillColor)];
     applyAutoLayout(frame, p);
     (parent as any).appendChild(frame);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: frame.id, name: frame.name, type: frame.type, bounds: getBounds(frame) };
   },
 
@@ -88,7 +89,7 @@ const raw: RawHandlerMap = {
     if (p.fillColor) rect.fills = [makeSolidPaint(p.fillColor)];
     if (p.cornerRadius != null) rect.cornerRadius = p.cornerRadius;
     (parent as any).appendChild(rect);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: rect.id, name: rect.name, type: rect.type, bounds: getBounds(rect) };
   },
 
@@ -114,7 +115,7 @@ const raw: RawHandlerMap = {
       ellipse.arcData = p.arcData;
     }
     (parent as any).appendChild(ellipse);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: ellipse.id, name: ellipse.name, type: ellipse.type, bounds: getBounds(ellipse) };
   },
 
@@ -139,7 +140,7 @@ const raw: RawHandlerMap = {
     if (p.fillColor) star.fills = [makeSolidPaint(p.fillColor)];
     if (p.cornerRadius != null) star.cornerRadius = p.cornerRadius;
     (parent as any).appendChild(star);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: star.id, name: star.name, type: star.type, bounds: getBounds(star) };
   },
 
@@ -160,7 +161,7 @@ const raw: RawHandlerMap = {
     if (p.fillColor) polygon.fills = [makeSolidPaint(p.fillColor)];
     if (p.cornerRadius != null) polygon.cornerRadius = p.cornerRadius;
     (parent as any).appendChild(polygon);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: polygon.id, name: polygon.name, type: polygon.type, bounds: getBounds(polygon) };
   },
 
@@ -180,7 +181,7 @@ const raw: RawHandlerMap = {
     if (p.strokeColor) line.strokes = [makeSolidPaint(p.strokeColor)];
     if (p.strokeWeight != null) line.strokeWeight = p.strokeWeight;
     (parent as any).appendChild(line);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: line.id, name: line.name, type: line.type, bounds: getBounds(line) };
   },
 
@@ -199,7 +200,7 @@ const raw: RawHandlerMap = {
     if (p.name) textNode.name = p.name;
     if (p.fillColor) textNode.fills = [makeSolidPaint(p.fillColor)];
     (parent as any).appendChild(textNode);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: textNode.id, name: textNode.name, type: textNode.type, bounds: getBounds(textNode) };
   },
 
@@ -241,7 +242,7 @@ const raw: RawHandlerMap = {
       } else {
         target.fills = [fill];
       }
-      figma.commitUndo();
+      commitUndoCheckpoint();
       return { id: target.id, name: target.name, type: target.type, bounds: getBounds(target) };
     }
 
@@ -256,7 +257,7 @@ const raw: RawHandlerMap = {
     if (p.name) rect.name = p.name;
     rect.fills = [fill];
     (parent as any).appendChild(rect);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: rect.id, name: rect.name, type: rect.type, bounds: getBounds(rect) };
   },
 
@@ -271,7 +272,7 @@ const raw: RawHandlerMap = {
     if (typeof (figma as any).createComponentFromNode === "function") {
       const component = (figma as any).createComponentFromNode(node);
       if (p.name) component.name = p.name;
-      figma.commitUndo();
+      commitUndoCheckpoint();
       return { id: component.id, name: component.name, type: component.type, bounds: getBounds(component) };
     }
 
@@ -305,7 +306,7 @@ const raw: RawHandlerMap = {
     parent.insertChild(index, component);
     node.remove();
 
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: component.id, name: component.name, type: component.type, bounds: getBounds(component) };
   },
 
@@ -318,7 +319,7 @@ const raw: RawHandlerMap = {
     if (p.width != null || p.height != null) {
       section.resizeWithoutConstraints(p.width || section.width, p.height || section.height);
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: section.id, name: section.name, type: section.type, bounds: getBounds(section) };
   },
 };

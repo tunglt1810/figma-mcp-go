@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { hexToRgb, makeSolidPaint } from "./write-helpers";
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
@@ -44,7 +45,7 @@ const raw: RawHandlerMap = {
     if (p.initialModeName && collection.modes.length > 0) {
       collection.renameMode(collection.modes[0].modeId, p.initialModeName);
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return {
       id: collection.id,
       name: collection.name,
@@ -59,7 +60,7 @@ const raw: RawHandlerMap = {
     const collection = await figma.variables.getVariableCollectionByIdAsync(p.collectionId);
     if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
     const modeId = collection.addMode(p.modeName);
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { collectionId: p.collectionId, modeId, modeName: p.modeName };
   },
 
@@ -78,7 +79,7 @@ const raw: RawHandlerMap = {
       const modeId = collection.modes[0].modeId;
       variable.setValueForMode(modeId, parseVariableValue(p.type, p.value));
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return {
       id: variable.id,
       name: variable.name,
@@ -95,7 +96,7 @@ const raw: RawHandlerMap = {
     const variable = await figma.variables.getVariableByIdAsync(p.variableId);
     if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
     variable.setValueForMode(p.modeId, parseVariableValue(variable.resolvedType, p.value));
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { variableId: variable.id, name: variable.name, modeId: p.modeId };
   },
 
@@ -105,13 +106,13 @@ const raw: RawHandlerMap = {
       const variable = await figma.variables.getVariableByIdAsync(p.variableId);
       if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
       variable.remove();
-      figma.commitUndo();
+      commitUndoCheckpoint();
       return { variableId: p.variableId, deleted: true };
     } else if (p.collectionId) {
       const collection = await figma.variables.getVariableCollectionByIdAsync(p.collectionId);
       if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
       collection.remove();
-      figma.commitUndo();
+      commitUndoCheckpoint();
       return { collectionId: p.collectionId, deleted: true };
     } else {
       throw new Error("variableId or collectionId is required");
@@ -144,7 +145,7 @@ const raw: RawHandlerMap = {
       if (!(p.field in node)) throw new Error(`Node ${nodeId} does not have field: ${p.field}`);
       node.setBoundVariable(p.field, variable);
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: node.id, name: node.name, variableId: p.variableId, field: p.field };
   },
 };

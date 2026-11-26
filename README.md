@@ -329,6 +329,8 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in each release, including rem
 - **Logs:** stderr. `FIGMA_MCP_LOG=debug` shows tool parameters and traffic.
 - **Package rules:** `make deps-check` fails on wrong-way imports. `internal/` has `bridge` (plugin WebSocket), `cluster` (leader election), `figma` (rules), and `tools` (tool table). Allowed: `tools → figma`, `cluster → bridge`.
 
+Plugin write handlers must call `commitUndoCheckpoint()` from `plugin/src/undo-checkpoint.ts` instead of calling or replacing `figma.commitUndo` directly. This preserves one checkpoint per pipeline, while standalone writes keep their own checkpoint. Pipeline requests and standalone writes must stay serialized by `enqueueWrite`.
+
 macOS binaries need macOS 13 or later (Go 1.27).
 
 ## Contributing

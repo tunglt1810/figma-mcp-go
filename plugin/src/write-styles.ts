@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { makeSolidPaint, hexToRgb, makeEffect, makeLayoutGrid } from "./write-helpers";
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 
@@ -34,7 +35,7 @@ const raw: RawHandlerMap = {
     style.name = p.name;
     style.paints = [makeSolidPaint(p.color)];
     if (p.description) style.description = p.description;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: style.id, name: style.name };
   },
 
@@ -62,7 +63,7 @@ const raw: RawHandlerMap = {
     if (p.letterSpacingValue != null) {
       style.letterSpacing = { value: Number(p.letterSpacingValue), unit: p.letterSpacingUnit || "PIXELS" };
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: style.id, name: style.name };
   },
 
@@ -97,7 +98,7 @@ const raw: RawHandlerMap = {
     style.name = p.name;
     style.effects = [effect];
     if (p.description) style.description = p.description;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: style.id, name: style.name };
   },
 
@@ -113,7 +114,7 @@ const raw: RawHandlerMap = {
     style.name = p.name;
     style.layoutGrids = [grid];
     if (p.description) style.description = p.description;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: style.id, name: style.name };
   },
 
@@ -126,7 +127,7 @@ const raw: RawHandlerMap = {
     if (p.name) style.name = p.name;
     if (p.color) (style as PaintStyle).paints = [makeSolidPaint(p.color)];
     if (p.description != null) style.description = p.description;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: style.id, name: style.name };
   },
 
@@ -136,7 +137,7 @@ const raw: RawHandlerMap = {
     const style = await figma.getStyleByIdAsync(p.styleId);
     if (!style) throw new Error(`Style not found: ${p.styleId}`);
     style.remove();
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { styleId: p.styleId, deleted: true };
   },
 
@@ -177,7 +178,7 @@ const raw: RawHandlerMap = {
       default:
         throw new Error(`Unknown style type: ${(style as any).type}`);
     }
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: n.id, name: n.name, styleId: p.styleId, styleType: style.type };
   },
 
@@ -191,7 +192,7 @@ const raw: RawHandlerMap = {
     if (!("effects" in node)) throw new Error(`Node ${nodeId} does not support effects`);
     const effects: Effect[] = p.effects.map((e: any) => makeEffect(e));
     node.effects = effects;
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return { id: node.id, name: node.name, effectCount: effects.length };
   },
 };

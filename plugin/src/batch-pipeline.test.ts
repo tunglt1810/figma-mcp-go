@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { CREATE_ACTIONS, executeBatchPipeline, executeRollback, isCreateStep, resetUndoCheckpointState, resolveParams, SymbolTable, WALStack, withSingleUndoCheckpoint } from './batch-pipeline';
 import { writeHandlers } from './write-handlers';
@@ -443,6 +444,57 @@ describe('isCreateStep', () => {
   });
 });
 
+describe('batch pipeline with the read-only Figma API', () => {
+  it('groups real write handlers without replacing commitUndo', async () => {
+    const previous = (globalThis as any).figma;
+    const node = { id: '1:1', name: 'original' };
+    let commits = 0;
+    const api = {
+      getNodeByIdAsync: async () => node,
+      ui: { postMessage: () => {} },
+    };
+    const commitUndo = function (this: unknown) {
+      expect(this).toBe(api);
+      commits++;
+    };
+    Object.defineProperty(api, 'commitUndo', { value: commitUndo, writable: false });
+    (globalThis as any).figma = api;
+    try {
+      const result = await handleWriteRequest({
+        type: 'batch_execute_pipeline', requestId: 'readonly-undo',
+        params: { steps: [
+          { action: 'batch_rename_nodes', params: { nodeId: node.id, name: 'first' } },
+          { action: 'batch_rename_nodes', params: { nodeId: node.id, name: 'second' } },
+        ] },
+      });
+      expect(result.error).toBeUndefined();
+      expect(node.name).toBe('second');
+      expect(commits).toBe(1);
+      expect((api as any).commitUndo).toBe(commitUndo);
+      const failed = await handleWriteRequest({
+        type: 'batch_execute_pipeline', requestId: 'readonly-rollback',
+        params: { steps: [
+          { action: 'batch_rename_nodes', params: { nodeId: node.id, name: 'temporary' } },
+          { action: 'unknown_action', params: {} },
+        ] },
+      });
+      expect(failed.data.success).toBe(false);
+      expect(failed.data.rollback_executed).toBe(true);
+      expect(node.name).toBe('second');
+      expect(commits).toBe(2);
+      await handleWriteRequest({
+        type: 'batch_rename_nodes', requestId: 'standalone',
+        nodeIds: [node.id], params: { name: 'standalone' },
+      });
+      expect(node.name).toBe('standalone');
+      expect(commits).toBe(3);
+    } finally {
+      (globalThis as any).figma = previous;
+      resetUndoCheckpointState();
+    }
+  });
+});
+
 describe('withSingleUndoCheckpoint', () => {
   const withFigma = (commitUndo: any) => {
     const previous = (globalThis as any).figma;
@@ -459,9 +511,9 @@ describe('withSingleUndoCheckpoint', () => {
     });
     try {
       await withSingleUndoCheckpoint(async () => {
-        (globalThis as any).figma.commitUndo();
-        (globalThis as any).figma.commitUndo();
-        (globalThis as any).figma.commitUndo();
+        commitUndoCheckpoint();
+        commitUndoCheckpoint();
+        commitUndoCheckpoint();
       });
       expect(commits).toBe(1);
     } finally {
@@ -482,7 +534,7 @@ describe('withSingleUndoCheckpoint', () => {
     }
   });
 
-  it('restores commitUndo and still checkpoints when the work throws', async () => {
+  it('leaves commitUndo unchanged and still checkpoints when the work throws', async () => {
     let commits = 0;
     const real = () => {
       commits++;
@@ -490,7 +542,7 @@ describe('withSingleUndoCheckpoint', () => {
     const restore = withFigma(real);
     try {
       const boom = withSingleUndoCheckpoint(async () => {
-        (globalThis as any).figma.commitUndo();
+        commitUndoCheckpoint();
         throw new Error('step failed');
       });
       expect(boom).rejects.toThrow('step failed');
@@ -499,6 +551,21 @@ describe('withSingleUndoCheckpoint', () => {
       // A leftover stub that ignores calls would silently disable undo for
       // the rest of the session.
       expect((globalThis as any).figma.commitUndo).toBe(real);
+    } finally {
+      restore();
+    }
+  });
+
+  it('flushes nested scopes only once at the outer boundary', async () => {
+    let commits = 0;
+    const restore = withFigma(() => { commits++; });
+    try {
+      await withSingleUndoCheckpoint(async () => {
+        commitUndoCheckpoint();
+        await withSingleUndoCheckpoint(async () => { commitUndoCheckpoint(); });
+        expect(commits).toBe(0);
+      });
+      expect(commits).toBe(1);
     } finally {
       restore();
     }
@@ -513,7 +580,7 @@ describe('withSingleUndoCheckpoint', () => {
     }
   });
 
-  it('runs the work unchanged when there is no commitUndo to swap', async () => {
+  it('runs the work unchanged when there is no commitUndo', async () => {
     const previous = (globalThis as any).figma;
     (globalThis as any).figma = {};
     try {
@@ -523,13 +590,9 @@ describe('withSingleUndoCheckpoint', () => {
     }
   });
 
-  // Two pipelines can run at once: a pipeline where every step reads does not
-  // count as mutating, so it skips the write queue. Their scopes then
-  // interleave instead of nesting. A save and restore that assumes LIFO has
-  // the first to finish put the real function back while the second still
-  // runs. Then the second puts the first's stub back for good, and from then
-  // on every write in the session silently loses its checkpoint.
-  it('restores the real commitUndo after interleaved scopes', async () => {
+  // Production queues requests; the helper also tolerates overlapping scopes
+  // without replacing the API method or flushing until the final scope leaves.
+  it('leaves the real commitUndo unchanged after interleaved scopes', async () => {
     const deferred = () => {
       let resolve!: () => void;
       const promise = new Promise<void>((res) => {
@@ -548,11 +611,11 @@ describe('withSingleUndoCheckpoint', () => {
       const first = deferred();
       const second = deferred();
       const outer = withSingleUndoCheckpoint(async () => {
-        (globalThis as any).figma.commitUndo();
+        commitUndoCheckpoint();
         await first.promise;
       });
       const inner = withSingleUndoCheckpoint(async () => {
-        (globalThis as any).figma.commitUndo();
+        commitUndoCheckpoint();
         await second.promise;
       });
 

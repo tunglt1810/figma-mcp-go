@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { makeSolidPaint } from "./write-helpers";
 import { FontName, loadFonts } from "./fonts";
@@ -181,7 +182,7 @@ const raw: RawHandlerMap = {
       await applyRange(node, sorted[i], fonts[i]);
     }
 
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return {
       id: node.id,
       name: node.name,

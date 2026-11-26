@@ -1,3 +1,5 @@
+import { withSingleUndoCheckpoint } from './undo-checkpoint';
+export { withSingleUndoCheckpoint, resetUndoCheckpointState } from './undo-checkpoint';
 import { isCancelled } from './cancellation';
 import { reportProgress, stepProgress } from './progress';
 
@@ -319,68 +321,6 @@ export async function executeBatchPipeline(
     exports,
     results,
   };
-}
-
-/**
- * Run `work` so all of it lands on the undo stack as one step.
- *
- * Every write handler commits its own undo checkpoint. That is right when the
- * handler is all the user asked for, but not inside a pipeline: a twenty-step
- * build left twenty checkpoints. Undoing it took twenty Ctrl+Z presses, and
- * each one left the design in a state nobody asked for.
- *
- * Figma has no way to pause commitUndo, so the handlers' calls are ignored
- * and one call is made at the end.
- *
- * The swap is counted, not saved per call, because scopes do not always nest.
- * A pipeline where every step only reads does not count as mutating, so it
- * skips the write queue and can overlap another pipeline. With a per-call
- * save and restore, the first scope to finish puts the real function back
- * while the second is still running. Then the second puts the first's stub
- * back for good, and from then on every write in the session silently loses
- * its checkpoint. A counter cannot do that: the real function goes back
- * exactly once, when the last scope leaves, whatever order they started in.
- */
-let checkpointDepth = 0;
-let suspendedCommitUndo: (() => void) | null = null;
-let anyStepCommitted = false;
-
-export async function withSingleUndoCheckpoint<T>(work: () => Promise<T>): Promise<T> {
-  const api: any = typeof figma !== 'undefined' ? figma : null;
-  if (!api || typeof api.commitUndo !== 'function') return work();
-
-  if (checkpointDepth === 0) {
-    // Kept unbound and called with the receiver below, so the exact function
-    // that was there goes back. Restoring a bound copy would work, but each
-    // pipeline would wrap the previous wrapper, and nothing could then check
-    // that the swap was really undone.
-    suspendedCommitUndo = api.commitUndo;
-    anyStepCommitted = false;
-    api.commitUndo = () => {
-      anyStepCommitted = true;
-    };
-  }
-  checkpointDepth++;
-  try {
-    return await work();
-  } finally {
-    checkpointDepth--;
-    if (checkpointDepth === 0) {
-      const realCommitUndo = suspendedCommitUndo;
-      suspendedCommitUndo = null;
-      api.commitUndo = realCommitUndo;
-      // Nothing changed the document. A checkpoint here would be an empty
-      // undo step the user has to press through.
-      if (anyStepCommitted && realCommitUndo) realCommitUndo.call(api);
-    }
-  }
-}
-
-/** Test seam: forget any suspended swap. */
-export function resetUndoCheckpointState(): void {
-  checkpointDepth = 0;
-  suspendedCommitUndo = null;
-  anyStepCommitted = false;
 }
 
 export async function handleBatchPipelineRequest(

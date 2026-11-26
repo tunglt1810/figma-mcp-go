@@ -1,3 +1,4 @@
+import { commitUndoCheckpoint } from './undo-checkpoint';
 import { HandlerMap, RawHandlerMap, withEnvelope } from "./dispatch";
 import { CODEGEN_KEY, PLUGIN_DATA_NAMESPACE, normalizeLanguage } from "./codegen";
 
@@ -49,7 +50,7 @@ const raw: RawHandlerMap = {
       );
     }
 
-    figma.commitUndo();
+    commitUndoCheckpoint();
     return {
       id: node.id,
       name: node.name,
@@ -86,7 +87,7 @@ const raw: RawHandlerMap = {
         throw new Error("value is required and must be a string when action is set");
       }
       node.setSharedPluginData(namespace, p.key, action === "set" ? p.value : "");
-      figma.commitUndo();
+      commitUndoCheckpoint();
       return { id: node.id, namespace, key: p.key, ...(action === "set" ? { stored: true } : { deleted: true }) };
     }
 
