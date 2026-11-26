@@ -22,6 +22,14 @@ describe("parseNodeIds", () => {
     expect(parseNodeIds("I12-34;56-78").ids).toEqual(["I12:34;56:78"]);
   });
 
+  it("accepts a bare instance sublayer id", () => {
+    expect(parseNodeIds("I12:34;56:78").ids).toEqual(["I12:34;56:78"]);
+  });
+
+  it("takes an encoded instance sublayer id from a link", () => {
+    expect(parseNodeIds("https://www.figma.com/design/AbC/Shop?node-id=I12-34%3B56-78").ids).toEqual(["I12:34;56:78"]);
+  });
+
   it("splits on commas and whitespace, drops duplicates and empty tokens", () => {
     expect(parseNodeIds("12:34, 12-35\n12:34,").ids).toEqual(["12:34", "12:35"]);
   });

@@ -173,7 +173,25 @@ describe("go_to_nodes", () => {
     await withNodes({ "1:1": { id: "1:1", name: "Card", type: "FRAME" } }, async () => {
       posted.length = 0;
       await uiHandler!({ type: "go_to_nodes", nodeIds: ["1:1"], select: true });
-      expect(posted).toContainEqual({ type: "go_to_nodes_result", count: 1, pageName: "Checkout" });
+      expect(posted).toContainEqual({ type: "go_to_nodes_result", from: undefined, count: 1, pageName: "Checkout" });
+    });
+  });
+
+  it("tells a person that a page cannot be selected, without MCP tool names", async () => {
+    await withNodes({ "0:9": { id: "0:9", name: "Other page", type: "PAGE" } }, async () => {
+      posted.length = 0;
+      await uiHandler!({ type: "go_to_nodes", nodeIds: ["0:9"], select: true, from: "search" });
+      const reply = posted.find(message => message.type === "go_to_nodes_result");
+      expect(reply?.error).toBe("Node 0:9 is a PAGE and cannot be selected");
+    });
+  });
+
+  it("echoes where the request came from", async () => {
+    await withNodes({ "1:1": { id: "1:1", name: "Card", type: "FRAME" } }, async () => {
+      posted.length = 0;
+      await uiHandler!({ type: "go_to_nodes", nodeIds: ["1:1"], select: false, from: "list" });
+      const reply = posted.find(message => message.type === "go_to_nodes_result");
+      expect(reply?.from).toBe("list");
     });
   });
 

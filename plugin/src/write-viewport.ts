@@ -15,6 +15,9 @@ export const pageOf = (node: any): any => {
   return current ?? null;
 };
 
+/** A page or the document. Each caller words its own advice. */
+export class NotSelectableError extends Error {}
+
 /**
  * Switch to the nodes' page, optionally select them, and fit them in the view.
  * maxZoom keeps a small node from filling the screen. The panel sets it. The
@@ -33,7 +36,7 @@ export async function goToNodes(
   const nodes = found as any[];
   for (const node of nodes) {
     if (node.type === "PAGE" || node.type === "DOCUMENT") {
-      throw new Error(`Node ${node.id} is a ${node.type} and cannot be selected — use manage_page to switch pages`);
+      throw new NotSelectableError(`Node ${node.id} is a ${node.type} and cannot be selected`);
     }
   }
 
@@ -82,7 +85,16 @@ const raw: RawHandlerMap = {
       return { selected: [], pageId: figma.currentPage.id, pageName: figma.currentPage.name, cleared: true };
     }
 
-    const { nodes, page: targetPage } = await goToNodes(nodeIds, { select, zoom });
+    let result: Awaited<ReturnType<typeof goToNodes>>;
+    try {
+      result = await goToNodes(nodeIds, { select, zoom });
+    } catch (err) {
+      if (err instanceof NotSelectableError) {
+        throw new Error(`${err.message} — use manage_page to switch pages`);
+      }
+      throw err;
+    }
+    const { nodes, page: targetPage } = result;
 
     return {
       selected: nodes.map((node) => ({

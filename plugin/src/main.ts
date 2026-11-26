@@ -142,10 +142,11 @@ const startPanel = () => {
     if (message.type === "go_to_nodes") {
       try {
         const { nodes, page } = await goToNodes(message.nodeIds, { select: message.select, maxZoom: 1 });
-        figma.ui.postMessage({ type: "go_to_nodes_result", count: nodes.length, pageName: page.name });
+        figma.ui.postMessage({ type: "go_to_nodes_result", from: message.from, count: nodes.length, pageName: page.name });
       } catch (err) {
         figma.ui.postMessage({
           type: "go_to_nodes_result",
+          from: message.from,
           error: err instanceof Error ? err.message : String(err),
         });
       }

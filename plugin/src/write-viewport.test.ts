@@ -148,6 +148,10 @@ describe("set_selection", () => {
     expect(call(["1:0"])).rejects.toThrow(/cannot be selected/);
   });
 
+  it("tells the AI how to switch pages instead", async () => {
+    await expect(call(["1:0"])).rejects.toThrow(/use manage_page/);
+  });
+
   it("refuses a node that is on no page", async () => {
     makeNode("1:9", null, { parent: null });
     expect(call(["1:9"])).rejects.toThrow(/not on any page/);

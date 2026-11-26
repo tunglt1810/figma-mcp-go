@@ -25,6 +25,8 @@
   import { destructiveReason, isDestructive, isMutating } from "../tool-classes";
   import { t } from "./strings";
   import { parseNodeIds } from "./node-ids";
+  import { isSubmitKey, searchOutcome } from "./search";
+  import type { SearchSource } from "./search";
 
   let connected = false;
   let fileName = "—";
@@ -219,8 +221,8 @@
     }));
   }
 
-  function goToNodes(nodeIds: string[], select: boolean) {
-    parent.postMessage({ pluginMessage: { type: "go_to_nodes", nodeIds, select } }, "*");
+  function goToNodes(nodeIds: string[], select: boolean, from: SearchSource) {
+    parent.postMessage({ pluginMessage: { type: "go_to_nodes", nodeIds, select, from } }, "*");
   }
 
   function searchNode() {
@@ -231,11 +233,11 @@
       return;
     }
     if (ids.length === 0) return;
-    goToNodes(ids, true);
+    goToNodes(ids, true, "search");
   }
 
   function onSearchKeydown(event: KeyboardEvent) {
-    if (event.key === "Enter") searchNode();
+    if (isSubmitKey(event)) searchNode();
   }
 
   function onSearchInput() {
@@ -281,8 +283,13 @@
     }
 
     if (msg.type === "go_to_nodes_result") {
-      searchFailed = Boolean(msg.error);
-      searchMessage = msg.error ?? t.searchWent(msg.count, msg.pageName);
+      const outcome = searchOutcome(msg);
+      if (outcome && "notify" in outcome) {
+        parent.postMessage({ pluginMessage: { type: "notify", message: outcome.notify } }, "*");
+      } else if (outcome) {
+        searchMessage = outcome.line;
+        searchFailed = outcome.failed;
+      }
       return;
     }
 
@@ -660,7 +667,7 @@
               <span
                 class="node-name"
                 title={`${node.name}\n${t.goToNodeTitle}`}
-                on:click={() => goToNodes([node.id], false)}
+                on:click={() => goToNodes([node.id], false, "list")}
               >{node.name} <span class="node-id">({node.id})</span></span>
               <button class="copy-btn" on:click={() => copyToClipboard(node.id)} title={t.copyIdTitle}>{t.copy}</button>
             </div>
