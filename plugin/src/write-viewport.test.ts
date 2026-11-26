@@ -1,10 +1,11 @@
 import { describe, expect, it, beforeEach } from "bun:test";
-import { pageOf, writeViewportHandlers } from "./write-viewport";
+import { goToNodes, pageOf, writeViewportHandlers } from "./write-viewport";
 
 let nodes: Record<string, any>;
 let currentPage: any;
 let scrolledTo: any[] | null;
 let pageSwitchedTo: any;
+let zoomAfterFit: number;
 
 const makePage = (id: string, name: string) => {
   const page: any = { id, name, type: "PAGE", selection: [] as any[] };
@@ -33,6 +34,7 @@ beforeEach(() => {
   nodes = {};
   scrolledTo = null;
   pageSwitchedTo = null;
+  zoomAfterFit = 1;
   currentPage = makePage("1:0", "Page 1");
   nodes[currentPage.id] = currentPage;
 
@@ -46,8 +48,10 @@ beforeEach(() => {
       currentPage = page;
     },
     viewport: {
-      scrollAndZoomIntoView: (target: any[]) => {
+      zoom: 1,
+      scrollAndZoomIntoView(target: any[]) {
         scrolledTo = target;
+        this.zoom = zoomAfterFit;
       },
     },
   };
@@ -151,5 +155,38 @@ describe("set_selection", () => {
 
   it("refuses to clear the selection when select is false", async () => {
     expect(call([], { select: false })).rejects.toThrow(/nodeIds is required/);
+  });
+});
+
+describe("goToNodes", () => {
+  const zoom = () => (globalThis as any).figma.viewport.zoom;
+
+  it("caps the zoom after the fit", async () => {
+    makeNode("1:1", currentPage);
+    zoomAfterFit = 8;
+    await goToNodes(["1:1"], { select: true, maxZoom: 1 });
+    expect(zoom()).toBe(1);
+  });
+
+  it("leaves a zoom below the cap alone", async () => {
+    makeNode("1:1", currentPage);
+    zoomAfterFit = 0.25;
+    await goToNodes(["1:1"], { select: true, maxZoom: 1 });
+    expect(zoom()).toBe(0.25);
+  });
+
+  it("keeps the selection when select is false", async () => {
+    const kept = makeNode("1:2", currentPage);
+    makeNode("1:1", currentPage);
+    currentPage.selection = [kept];
+    await goToNodes(["1:1"], { select: false, maxZoom: 1 });
+    expect(currentPage.selection).toEqual([kept]);
+  });
+
+  it("does not cap the zoom for set_selection", async () => {
+    makeNode("1:1", currentPage);
+    zoomAfterFit = 8;
+    await call(["1:1"]);
+    expect(zoom()).toBe(8);
   });
 });

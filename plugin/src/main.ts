@@ -7,6 +7,7 @@ import { enqueueWrite } from "./write-queue";
 import { isMutating, PIPELINE_TOOL } from "./tool-classes";
 import { registerCodegen } from "./codegen";
 import { getPinned, setPinned } from "./pinned";
+import { goToNodes } from "./write-viewport";
 
 const sendStatus = () => {
   figma.ui.postMessage({
@@ -136,6 +137,18 @@ const startPanel = () => {
     }
     if (message.type === "get_pinned_nodes") {
       figma.ui.postMessage({ type: "pinned_nodes", nodeIds: getPinned() });
+      return;
+    }
+    if (message.type === "go_to_nodes") {
+      try {
+        const { nodes, page } = await goToNodes(message.nodeIds, { select: message.select, maxZoom: 1 });
+        figma.ui.postMessage({ type: "go_to_nodes_result", count: nodes.length, pageName: page.name });
+      } catch (err) {
+        figma.ui.postMessage({
+          type: "go_to_nodes_result",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
       return;
     }
     if (message.type === "cancel-request") {

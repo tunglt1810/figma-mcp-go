@@ -149,3 +149,40 @@ describe("plugin-capabilities", () => {
     expect(capabilityMessages().length).toBe(before + 1);
   });
 });
+
+describe("go_to_nodes", () => {
+  const withNodes = async (nodes: Record<string, any>, run: () => Promise<void>) => {
+    const previous = (globalThis as any).figma;
+    const page = { id: "0:1", name: "Checkout", type: "PAGE", selection: [] as any[], parent: { type: "DOCUMENT" } };
+    for (const node of Object.values(nodes)) node.parent = page;
+    (globalThis as any).figma = {
+      ...previous,
+      currentPage: page,
+      getNodeByIdAsync: async (id: string) => nodes[id] ?? null,
+      setCurrentPageAsync: async () => {},
+      viewport: { zoom: 1, scrollAndZoomIntoView() {} },
+    };
+    try {
+      await run();
+    } finally {
+      (globalThis as any).figma = previous;
+    }
+  };
+
+  it("replies with the count and the page", async () => {
+    await withNodes({ "1:1": { id: "1:1", name: "Card", type: "FRAME" } }, async () => {
+      posted.length = 0;
+      await uiHandler!({ type: "go_to_nodes", nodeIds: ["1:1"], select: true });
+      expect(posted).toContainEqual({ type: "go_to_nodes_result", count: 1, pageName: "Checkout" });
+    });
+  });
+
+  it("replies with the error for a missing node", async () => {
+    await withNodes({}, async () => {
+      posted.length = 0;
+      await uiHandler!({ type: "go_to_nodes", nodeIds: ["9:9"], select: false });
+      const reply = posted.find(message => message.type === "go_to_nodes_result");
+      expect(reply?.error).toContain("Node not found: 9:9");
+    });
+  });
+});
